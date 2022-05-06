@@ -9,7 +9,7 @@
 #include <cpu_provider_factory.h>
 #endif
 #ifdef WITH_CUDA
-#include <cuda_provider_factory.h>
+#include <tensorrt_provider_factory.h>
 #endif
 #ifdef _WIN32
 #ifndef WITH_CUDA
