@@ -40,7 +40,7 @@ Additional tutorial videos:
 
 ## Download
 
-Check out the [guide page](https://locaal-ai.github.io/obs-backgroundremoval) for downloads and install instructions for **Windows** and **MacOS**.
+Check out the [guide page](https://royshil.github.io/obs-backgroundremoval/) for downloads and install instructions for **Windows** and **MacOS**.
 
 ### Linux Installation
 
