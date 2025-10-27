@@ -12,7 +12,7 @@ defaults:
     shell: bash
 
 env:
-  BUILD_PATH: "docs"
+  BUILD_PATH: "pages"
 
 permissions:
   contents: read
