@@ -32,7 +32,8 @@
         "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0",
         "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
         "CODESIGN_IDENTITY": "$penv{CODESIGN_IDENT}",
-        "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}"
+        "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
     {
@@ -59,7 +60,10 @@
       },
       "generator": "Visual Studio 17 2022",
       "architecture": "x64,version=10.0.22621",
-      "warnings": {"dev": true, "deprecated": true}
+      "warnings": {"dev": true, "deprecated": true},
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
     },
     {
       "name": "windows-ci-x64",
@@ -98,6 +102,50 @@
         "CMAKE_COMPILE_WARNING_AS_ERROR": true,
         "ENABLE_CCACHE": true
       }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "macos",
+      "configurePreset": "macos",
+      "displayName": "macOS Universal",
+      "description": "macOS build for Universal architectures",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "macos-ci",
+      "configurePreset": "macos-ci",
+      "displayName": "macOS Universal CI",
+      "description": "macOS CI build for Universal architectures",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "windows-x64",
+      "configurePreset": "windows-x64",
+      "displayName": "Windows x64",
+      "description": "Windows build for x64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "windows-ci-x64",
+      "configurePreset": "windows-ci-x64",
+      "displayName": "Windows x64 CI",
+      "description": "Windows CI build for x64 (RelWithDebInfo configuration)",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "ubuntu-x86_64",
+      "configurePreset": "ubuntu-x86_64",
+      "displayName": "Ubuntu x86_64",
+      "description": "Ubuntu build for x86_64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "ubuntu-ci-x86_64",
+      "configurePreset": "ubuntu-ci-x86_64",
+      "displayName": "Ubuntu x86_64 CI",
+      "description": "Ubuntu CI build for x86_64",
+      "configuration": "RelWithDebInfo"
     }
   ]
 }

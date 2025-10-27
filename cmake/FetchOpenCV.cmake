@@ -22,7 +22,7 @@ if(USE_PREDEFINED_OPENCV)
   set(OpenCV_VERSION "v4.8.1-1")
   set(OpenCV_BASEURL "https://github.com/obs-ai/obs-backgroundremoval-dep-opencv/releases/download/${OpenCV_VERSION}")
 
-  if(${CMAKE_BUILD_TYPE} STREQUAL Release OR ${CMAKE_BUILD_TYPE} STREQUAL RelWithDebInfo)
+  if(CMAKE_BUILD_TYPE STREQUAL Release OR CMAKE_BUILD_TYPE STREQUAL RelWithDebInfo)
     set(OpenCV_BUILD_TYPE Release)
   else()
     set(OpenCV_BUILD_TYPE Debug)
