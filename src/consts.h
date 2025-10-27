@@ -8,11 +8,9 @@ const char *const MODEL_RVM = "models/rvm_mobilenetv3_fp32.onnx";
 const char *const MODEL_PPHUMANSEG = "models/pphumanseg_fp32.onnx";
 const char *const MODEL_ENHANCE_TBEFN = "models/tbefn_fp32.onnx";
 const char *const MODEL_ENHANCE_URETINEX = "models/uretinex_net_180x320.onnx";
-const char *const MODEL_ENHANCE_SGLLIE =
-	"models/semantic_guided_llie_180x324.onnx";
+const char *const MODEL_ENHANCE_SGLLIE = "models/semantic_guided_llie_180x324.onnx";
 const char *const MODEL_ENHANCE_ZERODCE = "models/zero_dce_180x320.onnx";
-const char *const MODEL_DEPTH_TCMONODEPTH =
-	"models/tcmonodepth_tcsmallnet_192x320.onnx";
+const char *const MODEL_DEPTH_TCMONODEPTH = "models/tcmonodepth_tcsmallnet_192x320.onnx";
 const char *const MODEL_RMBG = "models/bria_rmbg_1_4_qint8.onnx";
 
 const char *const USEGPU_CPU = "cpu";

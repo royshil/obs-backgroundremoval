@@ -1,12 +1,8 @@
 include(FetchContent)
 
-set(CUSTOM_OPENCV_URL
-    ""
-    CACHE STRING "URL of a downloaded OpenCV static library tarball")
+set(CUSTOM_OPENCV_URL "" CACHE STRING "URL of a downloaded OpenCV static library tarball")
 
-set(CUSTOM_OPENCV_HASH
-    ""
-    CACHE STRING "Hash of a downloaded OpenCV staitc library tarball")
+set(CUSTOM_OPENCV_HASH "" CACHE STRING "Hash of a downloaded OpenCV staitc library tarball")
 
 if(CUSTOM_OPENCV_URL STREQUAL "")
   set(USE_PREDEFINED_OPENCV ON)
@@ -22,7 +18,7 @@ if(USE_PREDEFINED_OPENCV)
   set(OpenCV_VERSION "v4.8.1-1")
   set(OpenCV_BASEURL "https://github.com/obs-ai/obs-backgroundremoval-dep-opencv/releases/download/${OpenCV_VERSION}")
 
-  if(${CMAKE_BUILD_TYPE} STREQUAL Release OR ${CMAKE_BUILD_TYPE} STREQUAL RelWithDebInfo)
+  if(CMAKE_BUILD_TYPE STREQUAL Release OR CMAKE_BUILD_TYPE STREQUAL RelWithDebInfo)
     set(OpenCV_BUILD_TYPE Release)
   else()
     set(OpenCV_BUILD_TYPE Debug)
@@ -58,23 +54,26 @@ else()
   set(OpenCV_HASH "${CUSTOM_OPENCV_HASH}")
 endif()
 
-FetchContent_Declare(
-  opencv
-  URL ${OpenCV_URL}
-  URL_HASH ${OpenCV_HASH})
+FetchContent_Declare(opencv URL ${OpenCV_URL} URL_HASH ${OpenCV_HASH})
 FetchContent_MakeAvailable(opencv)
 
 add_library(OpenCV INTERFACE)
 if(MSVC)
   target_link_libraries(
     OpenCV
-    INTERFACE ${opencv_SOURCE_DIR}/x64/vc17/staticlib/opencv_imgproc481.lib
-              ${opencv_SOURCE_DIR}/x64/vc17/staticlib/opencv_core481.lib
-              ${opencv_SOURCE_DIR}/x64/vc17/staticlib/zlib.lib)
+    INTERFACE
+      ${opencv_SOURCE_DIR}/x64/vc17/staticlib/opencv_imgproc481.lib
+      ${opencv_SOURCE_DIR}/x64/vc17/staticlib/opencv_core481.lib
+      ${opencv_SOURCE_DIR}/x64/vc17/staticlib/zlib.lib
+  )
   target_include_directories(OpenCV SYSTEM INTERFACE ${opencv_SOURCE_DIR}/include)
 else()
   target_link_libraries(
-    OpenCV INTERFACE ${opencv_SOURCE_DIR}/lib/libopencv_imgproc.a ${opencv_SOURCE_DIR}/lib/libopencv_core.a
-                     ${opencv_SOURCE_DIR}/lib/opencv4/3rdparty/libzlib.a)
+    OpenCV
+    INTERFACE
+      ${opencv_SOURCE_DIR}/lib/libopencv_imgproc.a
+      ${opencv_SOURCE_DIR}/lib/libopencv_core.a
+      ${opencv_SOURCE_DIR}/lib/opencv4/3rdparty/libzlib.a
+  )
   target_include_directories(OpenCV SYSTEM INTERFACE ${opencv_SOURCE_DIR}/include/opencv4)
 endif()

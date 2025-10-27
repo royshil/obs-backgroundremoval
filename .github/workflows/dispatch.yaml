@@ -16,3 +16,6 @@ jobs:
     if: inputs.job == 'build'
     uses: ./.github/workflows/build-project.yaml
     secrets: inherit
+    permissions:
+      contents: read
+      packages: write

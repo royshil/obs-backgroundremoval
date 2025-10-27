@@ -1,16 +1,10 @@
 include(FetchContent)
 
-set(CUSTOM_ONNXRUNTIME_URL
-    ""
-    CACHE STRING "URL of a downloaded ONNX Runtime tarball")
+set(CUSTOM_ONNXRUNTIME_URL "" CACHE STRING "URL of a downloaded ONNX Runtime tarball")
 
-set(CUSTOM_ONNXRUNTIME_HASH
-    ""
-    CACHE STRING "Hash of a downloaded ONNX Runtime tarball")
+set(CUSTOM_ONNXRUNTIME_HASH "" CACHE STRING "Hash of a downloaded ONNX Runtime tarball")
 
-set(CUSTOM_ONNXRUNTIME_VERSION
-    ""
-    CACHE STRING "Major.Minor.Patch of ONNX Runtime tarball")
+set(CUSTOM_ONNXRUNTIME_VERSION "" CACHE STRING "Major.Minor.Patch of ONNX Runtime tarball")
 
 set(Onnxruntime_VERSION "1.17.1")
 
@@ -32,8 +26,10 @@ endif()
 if(USE_PREDEFINED_ONNXRUNTIME)
   set(Onnxruntime_BASEURL "https://github.com/microsoft/onnxruntime/releases/download/v${Onnxruntime_VERSION}")
   set(Onnxruntime_WINDOWS_VERSION "v${Onnxruntime_VERSION}-1")
-  set(Onnxruntime_WINDOWS_BASEURL
-      "https://github.com/occ-ai/occ-ai-dep-onnxruntime-static-win/releases/download/${Onnxruntime_WINDOWS_VERSION}")
+  set(
+    Onnxruntime_WINDOWS_BASEURL
+    "https://github.com/occ-ai/occ-ai-dep-onnxruntime-static-win/releases/download/${Onnxruntime_WINDOWS_VERSION}"
+  )
 
   if(APPLE)
     set(Onnxruntime_URL "${Onnxruntime_BASEURL}/onnxruntime-osx-universal2-${Onnxruntime_VERSION}.tgz")
@@ -55,10 +51,7 @@ else()
   set(Onnxruntime_HASH "${CUSTOM_ONNXRUNTIME_HASH}")
 endif()
 
-FetchContent_Declare(
-  onnxruntime
-  URL ${Onnxruntime_URL}
-  URL_HASH ${Onnxruntime_HASH})
+FetchContent_Declare(onnxruntime URL ${Onnxruntime_URL} URL_HASH ${Onnxruntime_HASH})
 FetchContent_MakeAvailable(onnxruntime)
 
 if(APPLE)
@@ -73,21 +66,27 @@ if(APPLE)
     POST_BUILD
     COMMAND
       ${CMAKE_INSTALL_NAME_TOOL} -change "@rpath/libonnxruntime.${Onnxruntime_VERSION}.dylib"
-      "@loader_path/../Frameworks/libonnxruntime.${Onnxruntime_VERSION}.dylib" $<TARGET_FILE:${CMAKE_PROJECT_NAME}>)
+      "@loader_path/../Frameworks/libonnxruntime.${Onnxruntime_VERSION}.dylib" $<TARGET_FILE:${CMAKE_PROJECT_NAME}>
+  )
 elseif(MSVC)
   add_library(Ort INTERFACE)
-  set(Onnxruntime_LIB_NAMES
-      session;providers_shared;providers_dml;optimizer;providers;framework;graph;util;mlas;common;flatbuffers)
+  set(
+    Onnxruntime_LIB_NAMES
+    session;providers_shared;providers_dml;optimizer;providers;framework;graph;util;mlas;common;flatbuffers
+  )
   foreach(lib_name IN LISTS Onnxruntime_LIB_NAMES)
     add_library(Ort::${lib_name} STATIC IMPORTED)
-    set_target_properties(Ort::${lib_name} PROPERTIES IMPORTED_LOCATION
-                                                      ${onnxruntime_SOURCE_DIR}/lib/onnxruntime_${lib_name}.lib)
+    set_target_properties(
+      Ort::${lib_name}
+      PROPERTIES IMPORTED_LOCATION ${onnxruntime_SOURCE_DIR}/lib/onnxruntime_${lib_name}.lib
+    )
     set_target_properties(Ort::${lib_name} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${onnxruntime_SOURCE_DIR}/include)
     target_link_libraries(Ort INTERFACE Ort::${lib_name})
   endforeach()
 
-  set(Onnxruntime_EXTERNAL_LIB_NAMES
-      onnx;onnx_proto;libprotobuf-lite;re2;absl_throw_delegate;absl_hash;absl_city;absl_low_level_hash;absl_raw_hash_set
+  set(
+    Onnxruntime_EXTERNAL_LIB_NAMES
+    onnx;onnx_proto;libprotobuf-lite;re2;absl_throw_delegate;absl_hash;absl_city;absl_low_level_hash;absl_raw_hash_set
   )
   foreach(lib_name IN LISTS Onnxruntime_EXTERNAL_LIB_NAMES)
     add_library(Ort::${lib_name} STATIC IMPORTED)
@@ -99,7 +98,10 @@ elseif(MSVC)
   set_target_properties(Ort::DirectML PROPERTIES IMPORTED_LOCATION ${onnxruntime_SOURCE_DIR}/bin/DirectML.dll)
   set_target_properties(Ort::DirectML PROPERTIES IMPORTED_IMPLIB ${onnxruntime_SOURCE_DIR}/bin/DirectML.lib)
 
-  target_link_libraries(Ort INTERFACE Ort::DirectML d3d12.lib dxgi.lib dxguid.lib Dxcore.lib)
+  target_link_libraries(
+    Ort
+    INTERFACE Ort::DirectML d3d12.lib dxgi.lib dxguid.lib Dxcore.lib
+  )
 
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Ort)
 
@@ -110,10 +112,13 @@ else()
     set(Onnxruntime_INSTALL_LIBS ${Onnxruntime_LINK_LIBS})
   else()
     set(Onnxruntime_LINK_LIBS "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so.${Onnxruntime_VERSION}")
-    set(Onnxruntime_INSTALL_LIBS
-        ${Onnxruntime_LINK_LIBS} "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime_providers_shared.so"
-        "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime_providers_cuda.so"
-        "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime_providers_tensorrt.so")
+    set(
+      Onnxruntime_INSTALL_LIBS
+      ${Onnxruntime_LINK_LIBS}
+      "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime_providers_shared.so"
+      "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime_providers_cuda.so"
+      "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime_providers_tensorrt.so"
+    )
   endif()
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${Onnxruntime_LINK_LIBS})
   target_include_directories(${CMAKE_PROJECT_NAME} SYSTEM PUBLIC "${onnxruntime_SOURCE_DIR}/include")
@@ -124,8 +129,10 @@ else()
     file(CREATE_LINK "libonnxruntime.so.${Onnxruntime_VERSION}" "${CMAKE_BINARY_DIR}/libonnxruntime.so.1" SYMBOLIC)
   endif()
 
-  install(FILES "${CMAKE_BINARY_DIR}/libonnxruntime.so.1"
-          DESTINATION "${CMAKE_INSTALL_LIBDIR}/obs-plugins/${CMAKE_PROJECT_NAME}")
+  install(
+    FILES "${CMAKE_BINARY_DIR}/libonnxruntime.so.1"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/obs-plugins/${CMAKE_PROJECT_NAME}"
+  )
 
   set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/${CMAKE_PROJECT_NAME}")
 endif()

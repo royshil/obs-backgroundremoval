@@ -2,13 +2,16 @@
 
 include_guard(GLOBAL)
 
+set(CMAKE_XCODE_GENERATE_SCHEME TRUE)
+
 # Use a compiler wrapper to enable ccache in Xcode projects
 if(ENABLE_CCACHE AND CCACHE_PROGRAM)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/resources/ccache-launcher-c.in" ccache-launcher-c)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/resources/ccache-launcher-cxx.in" ccache-launcher-cxx)
 
-  execute_process(COMMAND chmod a+rx "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-c"
-                          "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-cxx")
+  execute_process(
+    COMMAND chmod a+rx "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-c" "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-cxx"
+  )
   set(CMAKE_XCODE_ATTRIBUTE_CC "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-c")
   set(CMAKE_XCODE_ATTRIBUTE_CXX "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-cxx")
   set(CMAKE_XCODE_ATTRIBUTE_LD "${CMAKE_C_COMPILER}")
@@ -46,9 +49,9 @@ set(CMAKE_XCODE_GENERATE_TOP_LEVEL_PROJECT_ONLY TRUE)
 set(CMAKE_XCODE_LINK_BUILD_PHASE_MODE KNOWN_LOCATION)
 
 # Enable codesigning with secure timestamp when not in Debug configuration (required for Notarization)
-set(CMAKE_XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS[variant=Release] "--deep --timestamp")
-set(CMAKE_XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS[variant=RelWithDebInfo] "--deep --timestamp")
-set(CMAKE_XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS[variant=MinSizeRel] "--deep --timestamp")
+set(CMAKE_XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS[variant=Release] "--timestamp --deep")
+set(CMAKE_XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS[variant=RelWithDebInfo] "--timestamp --deep")
+set(CMAKE_XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS[variant=MinSizeRel] "--timestamp --deep")
 
 # Enable codesigning with hardened runtime option when not in Debug configuration (required for Notarization)
 set(CMAKE_XCODE_ATTRIBUTE_ENABLE_HARDENED_RUNTIME[variant=Release] YES)
@@ -80,9 +83,6 @@ set(CMAKE_XCODE_ATTRIBUTE_GCC_INLINES_ARE_PRIVATE_EXTERN YES)
 
 # Strip unused code
 set(CMAKE_XCODE_ATTRIBUTE_DEAD_CODE_STRIPPING YES)
-
-# Display mangled names in Debug configuration
-set(CMAKE_XCODE_ATTRIBUTE_LINKER_DISPLAYS_MANGLED_NAMES[variant=Debug] YES)
 
 # Build active architecture only in Debug configuration
 set(CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH[variant=Debug] YES)
@@ -168,7 +168,7 @@ endif()
 # Enable color diagnostics
 set(CMAKE_COLOR_DIAGNOSTICS TRUE)
 
-# Disable usage of RPATH in build or install configurations
+# Enable usage of RPATH in build or install configurations
 set(CMAKE_SKIP_RPATH TRUE)
 # Have Xcode set default RPATH entries
 set(CMAKE_XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@executable_path/../Frameworks")

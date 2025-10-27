@@ -13,7 +13,6 @@
 
 int createOrtSession(filter_data *tf);
 
-bool runFilterModelInference(filter_data *tf, const cv::Mat &imageBGRA,
-			     cv::Mat &output);
+bool runFilterModelInference(filter_data *tf, const cv::Mat &imageBGRA, cv::Mat &output);
 
 #endif /* ORT_SESSION_UTILS_H */

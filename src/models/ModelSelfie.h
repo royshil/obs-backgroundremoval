@@ -12,8 +12,7 @@ public:
 
 	virtual void postprocessOutput(cv::Mat &outputImage)
 	{
-		cv::normalize(outputImage, outputImage, 1.0, 0.0,
-			      cv::NORM_MINMAX);
+		cv::normalize(outputImage, outputImage, 1.0, 0.0, cv::NORM_MINMAX);
 	}
 };
 

@@ -1,15 +1,4 @@
-autoload -Uz is-at-least log_group log_info log_error log_status read_codesign
-
-local macos_version=$(sw_vers -productVersion)
-
-log_group 'Install macOS build requirements'
-log_info 'Checking macOS version...'
-if ! is-at-least 11.0 ${macos_version}; then
-  log_error "Minimum required macOS version is 11.0, but running on macOS ${macos_version}"
-  return 2
-else
-  log_status "macOS ${macos_version} is recent"
-fi
+autoload -Uz is-at-least log_group log_info log_error log_status
 
 log_info 'Checking for Homebrew...'
 if (( ! ${+commands[brew]} )) {
@@ -17,6 +6,6 @@ if (( ! ${+commands[brew]} )) {
   return 2
 }
 
-brew bundle --no-upgrade --file ${SCRIPT_HOME}/.Brewfile
+brew bundle --file ${SCRIPT_HOME}/.Brewfile
 rehash
 log_group
