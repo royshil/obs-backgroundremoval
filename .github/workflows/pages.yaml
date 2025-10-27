@@ -43,6 +43,7 @@ jobs:
 
       - name: Build pages
         run: npm run build
+        working-directory: ${{ env.BUILD_PATH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
@@ -50,7 +51,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ${{ env.BUILD_PATH }}/dist
+          path: ${{ env.BUILD_PATH }}/build
 
 
   DeployPages:
