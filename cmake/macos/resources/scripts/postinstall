@@ -1,6 +1,0 @@
-#!/bin/bash
-
-if [[ "$2" = "/Library/Application Support/obs-studio/plugins" ]]
-then
-  /usr/bin/su "$USER" -c "/usr/sbin/installer -pkg $(printf %q "$1") -target CurrentUserHomeDirectory"
-fi

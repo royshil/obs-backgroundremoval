@@ -3,10 +3,8 @@ run-name: ${{ github.event.pull_request.title }} pull request run 🚀
 on:
   workflow_dispatch:
   pull_request:
-    paths-ignore:
-      - '**.md'
     branches: [master, main]
-    types: [ opened, synchronize, reopened, labeled, unlabeled ]
+    types: [ opened, synchronize, reopened ]
 permissions:
   contents: read
 concurrency:
@@ -25,3 +23,4 @@ jobs:
     secrets: inherit
     permissions:
       contents: read
+      packages: write
