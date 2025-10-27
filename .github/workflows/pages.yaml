@@ -22,10 +22,6 @@ jobs:
   BuildPages:
     runs-on: ubuntu-24.04
 
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
