@@ -1,53 +1,71 @@
-name: "Deploy pages to GitHub Pages"
+name: Deploy pages to GitHub Pages
 
 on:
   push:
-    branches:
-      - "main"
-    release:
-      - "released"
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: "read"
-  pages: "write"
-  id-token: "write"
+defaults:
+  run:
+    shell: bash
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+env:
+  BUILD_PATH: "pages"
+
+permissions:
+  contents: read
+  pages: write
 
 jobs:
-  Deploy:
-    environment:
-      name: "github-pages"
-      url: "${{ steps.deployment.outputs.page_url }}"
-    runs-on: "ubuntu-latest"
-    defaults:
-      run:
-        working-directory: "./pages"
+  BuildPages:
+    runs-on: ubuntu-24.04
+
     steps:
-      - name: "Checkout"
-        uses: "actions/checkout@v4"
-      - name: "Setup Pages"
-        uses: "actions/configure-pages@v3"
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
         with:
-          static_site_generator: "sveltekit"
-      - uses: "actions/setup-node@v3"
-        with:
-          node-version: 20
-          cache: "npm"
-          cache-dependency-path: "./pages/package-lock.json"
-      - name: "Install dependencies"
-        run: "npm install"
-      - name: "Build pages"
-        run: "npm run build"
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ env.BUILD_PATH }}/package-lock.json
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ${{ env.BUILD_PATH }}
+
+      - name: Build pages
+        run: npm run build
+        working-directory: ${{ env.BUILD_PATH }}
         env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-      - name: "Upload artifact"
-        uses: "actions/upload-pages-artifact@v2"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
         with:
-          path: "./pages/build"
-      - name: "Deploy to GitHub Pages"
-        id: "deployment"
-        uses: "actions/deploy-pages@v2"
+          path: ${{ env.BUILD_PATH }}/build
+
+
+  DeployPages:
+    runs-on: "ubuntu-24.04"
+  
+    needs: [BuildPages]
+  
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
