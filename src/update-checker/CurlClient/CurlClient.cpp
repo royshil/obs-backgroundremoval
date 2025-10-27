@@ -8,15 +8,13 @@
 
 const std::string userAgent = std::string(PLUGIN_NAME) + "/" + PLUGIN_VERSION;
 
-static std::size_t writeFunc(void *ptr, std::size_t size, size_t nmemb,
-			     std::string *data)
+static std::size_t writeFunc(void *ptr, std::size_t size, size_t nmemb, std::string *data)
 {
 	data->append(static_cast<char *>(ptr), size * nmemb);
 	return size * nmemb;
 }
 
-void fetchStringFromUrl(const char *urlString,
-			std::function<void(std::string, int)> callback)
+void fetchStringFromUrl(const char *urlString, std::function<void(std::string, int)> callback)
 {
 	CURL *curl = curl_easy_init();
 	if (!curl) {

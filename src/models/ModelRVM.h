@@ -10,10 +10,9 @@ public:
 	ModelRVM(/* args */) {}
 	~ModelRVM() {}
 
-	virtual void populateInputOutputNames(
-		const std::unique_ptr<Ort::Session> &session,
-		std::vector<Ort::AllocatedStringPtr> &inputNames,
-		std::vector<Ort::AllocatedStringPtr> &outputNames)
+	virtual void populateInputOutputNames(const std::unique_ptr<Ort::Session> &session,
+					      std::vector<Ort::AllocatedStringPtr> &inputNames,
+					      std::vector<Ort::AllocatedStringPtr> &outputNames)
 	{
 		Ort::AllocatorWithDefaultOptions allocator;
 
@@ -21,19 +20,16 @@ public:
 		outputNames.clear();
 
 		for (size_t i = 0; i < session->GetInputCount(); i++) {
-			inputNames.push_back(
-				session->GetInputNameAllocated(i, allocator));
+			inputNames.push_back(session->GetInputNameAllocated(i, allocator));
 		}
 		for (size_t i = 1; i < session->GetOutputCount(); i++) {
-			outputNames.push_back(
-				session->GetOutputNameAllocated(i, allocator));
+			outputNames.push_back(session->GetOutputNameAllocated(i, allocator));
 		}
 	}
 
-	virtual bool
-	populateInputOutputShapes(const std::unique_ptr<Ort::Session> &session,
-				  std::vector<std::vector<int64_t>> &inputDims,
-				  std::vector<std::vector<int64_t>> &outputDims)
+	virtual bool populateInputOutputShapes(const std::unique_ptr<Ort::Session> &session,
+					       std::vector<std::vector<int64_t>> &inputDims,
+					       std::vector<std::vector<int64_t>> &outputDims)
 	{
 		// Assuming model only has one input and one output image
 
@@ -42,19 +38,15 @@ public:
 
 		for (size_t i = 0; i < session->GetInputCount(); i++) {
 			// Get input shape
-			const Ort::TypeInfo inputTypeInfo =
-				session->GetInputTypeInfo(i);
-			const auto inputTensorInfo =
-				inputTypeInfo.GetTensorTypeAndShapeInfo();
+			const Ort::TypeInfo inputTypeInfo = session->GetInputTypeInfo(i);
+			const auto inputTensorInfo = inputTypeInfo.GetTensorTypeAndShapeInfo();
 			inputDims.push_back(inputTensorInfo.GetShape());
 		}
 
 		for (size_t i = 1; i < session->GetOutputCount(); i++) {
 			// Get output shape
-			const Ort::TypeInfo outputTypeInfo =
-				session->GetOutputTypeInfo(i);
-			const auto outputTensorInfo =
-				outputTypeInfo.GetTensorTypeAndShapeInfo();
+			const Ort::TypeInfo outputTypeInfo = session->GetOutputTypeInfo(i);
+			const auto outputTensorInfo = outputTypeInfo.GetTensorTypeAndShapeInfo();
 			outputDims.push_back(outputTensorInfo.GetShape());
 		}
 
@@ -66,10 +58,7 @@ public:
 		inputDims[0][3] = base_width;
 		for (size_t i = 1; i < 5; i++) {
 			inputDims[i][0] = 1;
-			inputDims[i][1] = (i == 1)   ? 16
-					  : (i == 2) ? 20
-					  : (i == 3) ? 40
-						     : 64;
+			inputDims[i][1] = (i == 1) ? 16 : (i == 2) ? 20 : (i == 3) ? 40 : 64;
 			inputDims[i][2] = base_height / (2 << (i - 1));
 			inputDims[i][3] = base_width / (2 << (i - 1));
 		}
@@ -85,23 +74,18 @@ public:
 		return true;
 	}
 
-	virtual void
-	loadInputToTensor(const cv::Mat &preprocessedImage, uint32_t, uint32_t,
-			  std::vector<std::vector<float>> &inputTensorValues)
+	virtual void loadInputToTensor(const cv::Mat &preprocessedImage, uint32_t, uint32_t,
+				       std::vector<std::vector<float>> &inputTensorValues)
 	{
-		inputTensorValues[0].assign(preprocessedImage.begin<float>(),
-					    preprocessedImage.end<float>());
+		inputTensorValues[0].assign(preprocessedImage.begin<float>(), preprocessedImage.end<float>());
 		inputTensorValues[5][0] = 1.0f;
 	}
 
-	virtual void
-	assignOutputToInput(std::vector<std::vector<float>> &outputTensorValues,
-			    std::vector<std::vector<float>> &inputTensorValues)
+	virtual void assignOutputToInput(std::vector<std::vector<float>> &outputTensorValues,
+					 std::vector<std::vector<float>> &inputTensorValues)
 	{
 		for (size_t i = 1; i < 5; i++) {
-			inputTensorValues[i].assign(
-				outputTensorValues[i].begin(),
-				outputTensorValues[i].end());
+			inputTensorValues[i].assign(outputTensorValues[i].begin(), outputTensorValues[i].end());
 		}
 	}
 };

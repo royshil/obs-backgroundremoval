@@ -41,55 +41,38 @@ obs_properties_t *enhance_filter_properties(void *data)
 {
 	UNUSED_PARAMETER(data);
 	obs_properties_t *props = obs_properties_create();
-	obs_properties_add_float_slider(props, "blend",
-					obs_module_text("EffectStrengh"), 0.0,
-					1.0, 0.05);
-	obs_properties_add_int_slider(props, "numThreads",
-				      obs_module_text("NumThreads"), 0, 8, 1);
-	obs_property_t *p_model_select = obs_properties_add_list(
-		props, "model_select", obs_module_text("EnhancementModel"),
-		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(p_model_select, obs_module_text("TBEFN"),
-				     MODEL_ENHANCE_TBEFN);
-	obs_property_list_add_string(p_model_select,
-				     obs_module_text("URETINEX"),
-				     MODEL_ENHANCE_URETINEX);
-	obs_property_list_add_string(p_model_select, obs_module_text("SGLLIE"),
-				     MODEL_ENHANCE_SGLLIE);
-	obs_property_list_add_string(p_model_select, obs_module_text("ZERODCE"),
-				     MODEL_ENHANCE_ZERODCE);
-	obs_property_t *p_use_gpu = obs_properties_add_list(
-		props, "useGPU", obs_module_text("InferenceDevice"),
-		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(p_use_gpu, obs_module_text("CPU"),
-				     USEGPU_CPU);
+	obs_properties_add_float_slider(props, "blend", obs_module_text("EffectStrengh"), 0.0, 1.0, 0.05);
+	obs_properties_add_int_slider(props, "numThreads", obs_module_text("NumThreads"), 0, 8, 1);
+	obs_property_t *p_model_select = obs_properties_add_list(props, "model_select",
+								 obs_module_text("EnhancementModel"),
+								 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p_model_select, obs_module_text("TBEFN"), MODEL_ENHANCE_TBEFN);
+	obs_property_list_add_string(p_model_select, obs_module_text("URETINEX"), MODEL_ENHANCE_URETINEX);
+	obs_property_list_add_string(p_model_select, obs_module_text("SGLLIE"), MODEL_ENHANCE_SGLLIE);
+	obs_property_list_add_string(p_model_select, obs_module_text("ZERODCE"), MODEL_ENHANCE_ZERODCE);
+	obs_property_t *p_use_gpu = obs_properties_add_list(props, "useGPU", obs_module_text("InferenceDevice"),
+							    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p_use_gpu, obs_module_text("CPU"), USEGPU_CPU);
 #ifdef __linux__
-	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUTensorRT"),
-				     USEGPU_TENSORRT);
-	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUCUDA"),
-				     USEGPU_CUDA);
+	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUTensorRT"), USEGPU_TENSORRT);
+	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUCUDA"), USEGPU_CUDA);
 #endif
 #if _WIN32
-	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUDirectML"),
-				     USEGPU_DML);
+	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUDirectML"), USEGPU_DML);
 #endif
 #if defined(__APPLE__)
-	obs_property_list_add_string(p_use_gpu, obs_module_text("CoreML"),
-				     USEGPU_COREML);
+	obs_property_list_add_string(p_use_gpu, obs_module_text("CoreML"), USEGPU_COREML);
 #endif
 
 	// Add a informative text about the plugin
 	// replace the placeholder with the current version using std::regex_replace
-	std::string basic_info = std::regex_replace(
-		PLUGIN_INFO_TEMPLATE, std::regex("%1"), PLUGIN_VERSION);
+	std::string basic_info = std::regex_replace(PLUGIN_INFO_TEMPLATE, std::regex("%1"), PLUGIN_VERSION);
 	// Check for update
 	if (get_latest_version() != nullptr) {
-		basic_info += std::regex_replace(
-			PLUGIN_INFO_TEMPLATE_UPDATE_AVAILABLE, std::regex("%1"),
-			get_latest_version());
+		basic_info += std::regex_replace(PLUGIN_INFO_TEMPLATE_UPDATE_AVAILABLE, std::regex("%1"),
+						 get_latest_version());
 	}
-	obs_properties_add_text(props, "info", basic_info.c_str(),
-				OBS_TEXT_INFO);
+	obs_properties_add_text(props, "info", basic_info.c_str(), OBS_TEXT_INFO);
 
 	return props;
 }
@@ -98,8 +81,7 @@ void enhance_filter_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_double(settings, "blend", 1.0);
 	obs_data_set_default_int(settings, "numThreads", 1);
-	obs_data_set_default_string(settings, "model_select",
-				    MODEL_ENHANCE_TBEFN);
+	obs_data_set_default_string(settings, "model_select", MODEL_ENHANCE_TBEFN);
 #if _WIN32
 	obs_data_set_default_string(settings, "useGPU", USEGPU_DML);
 #elif defined(__APPLE__)
@@ -128,14 +110,12 @@ void enhance_filter_update(void *data, obs_data_t *settings)
 	struct enhance_filter *tf = reinterpret_cast<enhance_filter *>(data);
 
 	tf->blendFactor = (float)obs_data_get_double(settings, "blend");
-	const uint32_t newNumThreads =
-		(uint32_t)obs_data_get_int(settings, "numThreads");
-	const std::string newModel =
-		obs_data_get_string(settings, "model_select");
+	const uint32_t newNumThreads = (uint32_t)obs_data_get_int(settings, "numThreads");
+	const std::string newModel = obs_data_get_string(settings, "model_select");
 	const std::string newUseGpu = obs_data_get_string(settings, "useGPU");
 
-	if (tf->modelSelection.empty() || tf->modelSelection != newModel ||
-	    tf->useGPU != newUseGpu || tf->numThreads != newNumThreads) {
+	if (tf->modelSelection.empty() || tf->modelSelection != newModel || tf->useGPU != newUseGpu ||
+	    tf->numThreads != newNumThreads) {
 		tf->numThreads = newNumThreads;
 		tf->modelSelection = newModel;
 		if (tf->modelSelection == MODEL_ENHANCE_TBEFN) {
@@ -171,8 +151,7 @@ void *enhance_filter_create(obs_data_t *settings, obs_source_t *source)
 	tf->texrender = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
 
 	std::string instanceName{"enhance-portrait-inference"};
-	tf->env.reset(new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR,
-				   instanceName.c_str()));
+	tf->env.reset(new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, instanceName.c_str()));
 
 	enhance_filter_update(tf, settings);
 
@@ -216,8 +195,7 @@ void enhance_filter_video_tick(void *data, float seconds)
 	// Get input image from source rendering pipeline
 	cv::Mat imageBGRA;
 	{
-		std::unique_lock<std::mutex> lock(tf->inputBGRALock,
-						  std::try_to_lock);
+		std::unique_lock<std::mutex> lock(tf->inputBGRALock, std::try_to_lock);
 		if (!lock.owns_lock()) {
 			return;
 		}
@@ -236,8 +214,7 @@ void enhance_filter_video_tick(void *data, float seconds)
 
 	// Put output image back to source rendering pipeline
 	{
-		std::unique_lock<std::mutex> lock(tf->outputLock,
-						  std::try_to_lock);
+		std::unique_lock<std::mutex> lock(tf->outputLock, std::try_to_lock);
 		if (!lock.owns_lock()) {
 			return;
 		}
@@ -261,8 +238,7 @@ void enhance_filter_video_render(void *data, gs_effect_t *_effect)
 	}
 
 	// Engage filter
-	if (!obs_source_process_filter_begin(tf->source, GS_RGBA,
-					     OBS_ALLOW_DIRECT_RENDERING)) {
+	if (!obs_source_process_filter_begin(tf->source, GS_RGBA, OBS_ALLOW_DIRECT_RENDERING)) {
 		obs_source_skip_video_filter(tf->source);
 		return;
 	}
@@ -271,9 +247,8 @@ void enhance_filter_video_render(void *data, gs_effect_t *_effect)
 	gs_texture_t *outputTexture = nullptr;
 	{
 		std::lock_guard<std::mutex> lock(tf->outputLock);
-		outputTexture = gs_texture_create(
-			tf->outputBGRA.cols, tf->outputBGRA.rows, GS_BGRA, 1,
-			(const uint8_t **)&tf->outputBGRA.data, 0);
+		outputTexture = gs_texture_create(tf->outputBGRA.cols, tf->outputBGRA.rows, GS_BGRA, 1,
+						  (const uint8_t **)&tf->outputBGRA.data, 0);
 		if (!outputTexture) {
 			obs_log(LOG_ERROR, "Failed to create output texture");
 			obs_source_skip_video_filter(tf->source);
@@ -281,14 +256,10 @@ void enhance_filter_video_render(void *data, gs_effect_t *_effect)
 		}
 	}
 
-	gs_eparam_t *blendimage =
-		gs_effect_get_param_by_name(tf->blendEffect, "blendimage");
-	gs_eparam_t *blendFactor =
-		gs_effect_get_param_by_name(tf->blendEffect, "blendFactor");
-	gs_eparam_t *xOffset =
-		gs_effect_get_param_by_name(tf->blendEffect, "xOffset");
-	gs_eparam_t *yOffset =
-		gs_effect_get_param_by_name(tf->blendEffect, "yOffset");
+	gs_eparam_t *blendimage = gs_effect_get_param_by_name(tf->blendEffect, "blendimage");
+	gs_eparam_t *blendFactor = gs_effect_get_param_by_name(tf->blendEffect, "blendFactor");
+	gs_eparam_t *xOffset = gs_effect_get_param_by_name(tf->blendEffect, "xOffset");
+	gs_eparam_t *yOffset = gs_effect_get_param_by_name(tf->blendEffect, "yOffset");
 
 	gs_effect_set_texture(blendimage, outputTexture);
 	gs_effect_set_float(blendFactor, tf->blendFactor);
@@ -299,8 +270,7 @@ void enhance_filter_video_render(void *data, gs_effect_t *_effect)
 	gs_blend_state_push();
 	gs_reset_blend_state();
 
-	obs_source_process_filter_tech_end(tf->source, tf->blendEffect, 0, 0,
-					   "Draw");
+	obs_source_process_filter_tech_end(tf->source, tf->blendEffect, 0, 0, "Draw");
 
 	gs_blend_state_pop();
 

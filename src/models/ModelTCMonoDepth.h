@@ -10,8 +10,7 @@ public:
 	ModelTCMonoDepth(/* args */) {}
 	~ModelTCMonoDepth() {}
 
-	virtual void prepareInputToNetwork(cv::Mat &resizedImage,
-					   cv::Mat &preprocessedImage)
+	virtual void prepareInputToNetwork(cv::Mat &resizedImage, cv::Mat &preprocessedImage)
 	{
 		// Do not normalize from [0, 255] to [0, 1].
 
@@ -20,8 +19,7 @@ public:
 
 	virtual void postprocessOutput(cv::Mat &outputImage)
 	{
-		cv::normalize(outputImage, outputImage, 1.0, 0.0,
-			      cv::NORM_MINMAX);
+		cv::normalize(outputImage, outputImage, 1.0, 0.0, cv::NORM_MINMAX);
 	}
 };
 

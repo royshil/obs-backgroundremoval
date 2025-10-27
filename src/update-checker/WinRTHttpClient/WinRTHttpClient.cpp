@@ -11,11 +11,9 @@ using winrt::Windows::Web::Http::HttpClient;
 using winrt::Windows::Web::Http::HttpResponseMessage;
 using winrt::Windows::Web::Http::IHttpContent;
 
-winrt::hstring userAgent = winrt::to_hstring(PLUGIN_NAME) + L"/" +
-			   winrt::to_hstring(PLUGIN_VERSION);
+winrt::hstring userAgent = winrt::to_hstring(PLUGIN_NAME) + L"/" + winrt::to_hstring(PLUGIN_VERSION);
 
-void fetchStringFromUrl(const char *urlString,
-			std::function<void(std::string, int)> callback)
+void fetchStringFromUrl(const char *urlString, std::function<void(std::string, int)> callback)
 {
 	HttpClient httpClient;
 	auto headers(httpClient.DefaultRequestHeaders());
@@ -30,8 +28,7 @@ void fetchStringFromUrl(const char *urlString,
 		httpResponseBuffer = httpContent.ReadAsBufferAsync().get();
 
 		uint8_t *data = httpResponseBuffer.data();
-		std::string str((const char *)data,
-				httpResponseBuffer.Length());
+		std::string str((const char *)data, httpResponseBuffer.Length());
 		callback(str, 0);
 	} catch (winrt::hresult_error const &ex) {
 		std::string str(winrt::to_string(ex.message()));
