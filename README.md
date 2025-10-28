@@ -16,6 +16,7 @@ A plugin for [OBS Studio](https://obsproject.com/) that allows you to replace th
 - [Usage](#usage)
 - [Download](#download)
 - [Introduction](#introduction)
+- [Usage](#usage)
 - [Building](#building)
   - [MacOSX](#mac-osx)
   - [Linux (Ubuntu, Arch, openSUSE, Fedora)](#linux)
@@ -131,6 +132,14 @@ This video on YouTube will take you through the major parts of the code and expl
     <img width="50%" src="https://img.youtube.com/vi/iFQtcJg0Wsk/maxresdefault.jpg"/>
   </a>
 </div>
+
+## Usage
+
+Prerequisite: OBS 28+
+
+1. Download the OS specific plugin from [Latest Releases](https://github.com/royshil/obs-backgroundremoval/releases/latest).
+2. Install the plugin.
+3. Open the filter of any video capture device and see there is a 'Background Removal' available.
 
 ## Building
 
