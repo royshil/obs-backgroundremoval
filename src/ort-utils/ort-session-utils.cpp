@@ -6,7 +6,7 @@
 #include <coreml_provider_factory.h>
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(DISABLE_ONNXRUNTIME_GPU)
 #include <dml_provider_factory.h>
 #include <wchar.h>
 #include <windows.h>
@@ -100,7 +100,7 @@ int createOrtSession(filter_data *tf)
 			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sessionOptions, 0));
 		}
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(DISABLE_ONNXRUNTIME_GPU)
 		if (tf->useGPU == USEGPU_DML) {
 			auto &api = Ort::GetApi();
 			OrtDmlApi *dmlApi = nullptr;

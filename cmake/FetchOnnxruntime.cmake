@@ -35,8 +35,14 @@ if(USE_PREDEFINED_ONNXRUNTIME)
     set(Onnxruntime_URL "${Onnxruntime_BASEURL}/onnxruntime-osx-universal2-${Onnxruntime_VERSION}.tgz")
     set(Onnxruntime_HASH SHA256=9FA57FA6F202A373599377EF75064AE568FDA8DA838632B26A86024C7378D306)
   elseif(MSVC)
-    set(Onnxruntime_URL "${Onnxruntime_WINDOWS_BASEURL}/onnxruntime-windows-${Onnxruntime_WINDOWS_VERSION}-Release.zip")
-    set(OOnnxruntime_HASH SHA256=39E63850D9762810161AE1B4DEAE5E3C02363521273E4B894A9D9707AB626C38)
+    if(CMAKE_VS_PLATFORM_NAME STREQUAL "ARM64")
+      # Use official Microsoft ONNX Runtime for ARM64 (no static build available yet)
+      set(Onnxruntime_URL "${Onnxruntime_BASEURL}/onnxruntime-win-arm64-${Onnxruntime_VERSION}.zip")
+      set(Onnxruntime_HASH "")
+    else()
+      set(Onnxruntime_URL "${Onnxruntime_WINDOWS_BASEURL}/onnxruntime-windows-${Onnxruntime_WINDOWS_VERSION}-Release.zip")
+      set(OOnnxruntime_HASH SHA256=39E63850D9762810161AE1B4DEAE5E3C02363521273E4B894A9D9707AB626C38)
+    endif()
   else()
     if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
       set(Onnxruntime_URL "${Onnxruntime_BASEURL}/onnxruntime-linux-aarch64-${Onnxruntime_VERSION}.tgz")
@@ -69,7 +75,26 @@ if(APPLE)
       "@loader_path/../Frameworks/libonnxruntime.${Onnxruntime_VERSION}.dylib" $<TARGET_FILE:${CMAKE_PROJECT_NAME}>
   )
 elseif(MSVC)
-  add_library(Ort INTERFACE)
+  if(CMAKE_VS_PLATFORM_NAME STREQUAL "ARM64")
+    # ARM64 uses dynamic ONNX Runtime (no static build with DirectML available yet)
+    set(Onnxruntime_LIB "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll")
+    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.lib")
+    target_include_directories(${CMAKE_PROJECT_NAME} SYSTEM PUBLIC "${onnxruntime_SOURCE_DIR}/include")
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE DISABLE_ONNXRUNTIME_GPU)
+    
+    # Copy DLL to output directory
+    add_custom_command(
+      TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll"
+        "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>"
+      COMMENT "Copying ONNX Runtime DLL for ARM64"
+    )
+    
+    install(FILES "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll" DESTINATION "obs-plugins/64bit")
+  else()
+    # x64 uses static ONNX Runtime with DirectML
+    add_library(Ort INTERFACE)
   set(
     Onnxruntime_LIB_NAMES
     session;providers_shared;providers_dml;optimizer;providers;framework;graph;util;mlas;common;flatbuffers
@@ -106,6 +131,7 @@ elseif(MSVC)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Ort)
 
   install(IMPORTED_RUNTIME_ARTIFACTS Ort::DirectML DESTINATION "obs-plugins/64bit")
+  endif()
 else()
   if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     set(Onnxruntime_LINK_LIBS "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so.${Onnxruntime_VERSION}")
