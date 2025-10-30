@@ -6,7 +6,8 @@
             "label": "OBS sources",
             "hashes": {
                 "macos": "39751f067bacc13d44b116c5138491b5f1391f91516d3d590d874edd21292291",
-                "windows-x64": "2c8427c10b55ac6d68008df2e9a3e82f4647aaad18f105e30d4713c2de678ccf"
+                "windows-x64": "2c8427c10b55ac6d68008df2e9a3e82f4647aaad18f105e30d4713c2de678ccf",
+                "windows-ARM64": "2c8427c10b55ac6d68008df2e9a3e82f4647aaad18f105e30d4713c2de678ccf"
             }
         },
         "prebuilt": {
@@ -15,7 +16,8 @@
             "label": "Pre-Built obs-deps",
             "hashes": {
                 "macos": "495687e63383d1a287684b6e2e9bfe246bb8f156fe265926afb1a325af1edd2a",
-                "windows-x64": "c8c642c1070dc31ce9a0f1e4cef5bb992f4bff4882255788b5da12129e85caa7"
+                "windows-x64": "c8c642c1070dc31ce9a0f1e4cef5bb992f4bff4882255788b5da12129e85caa7",
+                "windows-ARM64": "f581cc61e8f734a8b12d485fc8662a408ca59d222814e4b37bce115bd442fb04"
             }
         },
         "qt6": {
@@ -24,10 +26,12 @@
             "label": "Pre-Built Qt6",
             "hashes": {
                 "macos": "d3f5f04b6ea486e032530bdf0187cbda9a54e0a49621a4c8ba984c5023998867",
-                "windows-x64": "0e76bf0555dd5382838850b748d3dcfab44a1e1058441309ab54e1a65b156d0a"
+                "windows-x64": "0e76bf0555dd5382838850b748d3dcfab44a1e1058441309ab54e1a65b156d0a",
+                "windows-ARM64": "7aab240504931f32ea8e8d208a912a0d6ddbd78c16858f2e559c7c9b29ab9326"
             },
             "debugSymbols": {
-                "windows-x64": "11b7be92cf66a273299b8f3515c07a5cfb61614b59a4e67f7fc5ecba5e2bdf21"
+                "windows-x64": "11b7be92cf66a273299b8f3515c07a5cfb61614b59a4e67f7fc5ecba5e2bdf21",
+                "windows-ARM64": "TBD"
             }
         }
     },
