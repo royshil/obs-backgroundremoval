@@ -1,0 +1,45 @@
+cmake_minimum_required(VERSION 3.16)
+
+if(NOT DEFINED PLATFORM)
+  if(APPLE)
+    set(PLATFORM "macos")
+  elseif(WIN32)
+    set(PLATFORM "windows")
+  else()
+    set(PLATFORM "linux")
+  endif()
+endif()
+
+if(PLATFORM STREQUAL "macos")
+  file(
+    DOWNLOAD
+      https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-osx-universal2-1.23.2.tgz
+      onnxruntime.tgz
+    EXPECTED_HASH SHA256=49ae8e3a66ccb18d98ad3fe7f5906b6d7887df8a5edd40f49eb2b14e20885809
+  )
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -E tar xf onnxruntime.tgz
+  )
+elseif(PLATFORM STREQUAL "windows")
+  file(
+    DOWNLOAD
+      https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-win-x64-1.23.2.zip
+      onnxruntime.zip
+    EXPECTED_HASH SHA256=0b38df9af21834e41e73d602d90db5cb06dbd1ca618948b8f1d66d607ac9f3cd
+  )
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -E tar xf onnxruntime.zip
+  )
+elseif(PLATFORM STREQUAL "linux")
+  file(
+    DOWNLOAD
+      https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-linux-x64-1.23.2.tgz
+      onnxruntime.tgz
+    EXPECTED_HASH SHA256=1fa4dcaef22f6f7d5cd81b28c2800414350c10116f5fdd46a2160082551c5f9b
+  )
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -E tar xf onnxruntime.tgz
+  )
+else()
+  message(FATAL_ERROR "Unsupported platform: ${PLATFORM}")
+endif()
