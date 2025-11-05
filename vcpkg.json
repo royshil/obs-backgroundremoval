@@ -16,6 +16,10 @@
         "wolfssl"
       ],
       "platform": "(uwp | !windows) & !mingw"
+    },
+    {
+      "name": "opencv4",
+      "default-features": false
     }
   ]
 }

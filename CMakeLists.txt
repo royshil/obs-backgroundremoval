@@ -12,7 +12,6 @@ option(USE_PKGCONFIG "Use pkg-config to find dependencies" OFF)
 
 option(USE_SYSTEM_ONNXRUNTIME "Use system ONNX Runtime" OFF)
 option(DISABLE_ONNXRUNTIME_GPU "Disables GPU support of ONNX Runtime (Only valid on Linux)" OFF)
-set(USE_SYSTEM_OPENCV OFF CACHE STRING "Use system OpenCV")
 
 include(compilerconfig)
 include(defaults)
@@ -49,6 +48,10 @@ if(NOT VCPKG_TARGET_TRIPLET STREQUAL "")
   list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}")
 
   find_package(CURL CONFIG REQUIRED)
+  find_package(OpenCV CONFIG REQUIRED)
+
+  add_library(OpenCV::opencv_core ALIAS opencv_core)
+  add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
 elseif(USE_PKGCONFIG)
   # Use pkg-config to find dependencies (Arch Linux, etc.)
 
@@ -63,12 +66,24 @@ elseif(USE_PKGCONFIG)
   target_include_directories(CURL::libcurl INTERFACE ${PC_CURL_INCLUDE_DIRS})
   target_compile_definitions(CURL::libcurl INTERFACE ${PC_CURL_CFLAGS_OTHER})
   target_link_directories(CURL::libcurl INTERFACE ${PC_CURL_LIBRARY_DIRS})
+
+  # OpenCV
+  pkg_check_modules(PC_OPENCV REQUIRED opencv4)
+  add_library(OpenCV::opencv_core INTERFACE IMPORTED)
+  target_link_libraries(OpenCV::opencv_core INTERFACE opencv_core)
+  target_include_directories(OpenCV::opencv_core INTERFACE ${PC_OPENCV_INCLUDE_DIRS})
+  target_compile_definitions(OpenCV::opencv_core INTERFACE ${PC_OPENCV_CFLAGS_OTHER})
+  target_link_directories(OpenCV::opencv_core INTERFACE ${PC_OPENCV_LIBRARY_DIRS})
+  add_library(OpenCV::opencv_imgproc INTERFACE IMPORTED)
+  target_link_libraries(OpenCV::opencv_imgproc INTERFACE opencv_imgproc)
+  target_link_directories(OpenCV::opencv_imgproc INTERFACE ${PC_OPENCV_LIBRARY_DIRS})
 else()
   # Let system find dependencies (Fallback)
 
   message(STATUS "Using system to find dependencies")
 
   find_package(CURL REQUIRED)
+  find_package(OpenCV CONFIG REQUIRED)
 endif()
 
 if(DISABLE_ONNXRUNTIME_GPU)
@@ -94,21 +109,8 @@ else()
   include(cmake/FetchOnnxruntime.cmake)
 endif()
 
-if(USE_SYSTEM_OPENCV)
-  if(OS_LINUX)
-    find_package(OpenCV REQUIRED COMPONENTS core imgproc)
-    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "${OpenCV_LIBRARIES}")
-    target_include_directories(${CMAKE_PROJECT_NAME} SYSTEM PUBLIC "${OpenCV_INCLUDE_DIRS}")
-  else()
-    message(FATAL_ERROR "System OpenCV is only supported on Linux!")
-  endif()
-else()
-  include(cmake/FetchOpenCV.cmake)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OpenCV)
-endif()
-
 add_subdirectory(src/update-checker/CurlClient)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CurlClient)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CurlClient OpenCV::opencv_core OpenCV::opencv_imgproc)
 
 target_sources(
   ${CMAKE_PROJECT_NAME}
