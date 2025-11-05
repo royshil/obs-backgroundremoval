@@ -11,8 +11,7 @@
       "hidden": true,
       "cacheVariables": {
         "ENABLE_FRONTEND_API": true,
-        "ENABLE_QT": true,
-        "BUILD_TESTING": false
+        "ENABLE_QT": true
       }
     },
     {
