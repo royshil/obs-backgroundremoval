@@ -174,15 +174,15 @@ jobs:
       - name: Install mono
         run: brew install mono
 
-      # - name: "Setup NuGet Credentials"
-      #   run: |
-      #     NUGET_PATH="$($VCPKG_ROOT/vcpkg fetch nuget | tail -n1)"
-      #     mono "$NUGET_PATH" sources add \
-      #       -Source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-      #       -StorePasswordInClearText \
-      #       -Name "GitHub" \
-      #       -UserName "${{ github.repository_owner }}" \
-      #       -Password "${{ secrets.GITHUB_TOKEN }}"
+      - name: "Setup NuGet Credentials"
+        run: |
+          NUGET_PATH="$($VCPKG_ROOT/vcpkg fetch nuget | tail -n1)"
+          mono "$NUGET_PATH" sources add \
+            -Source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            -StorePasswordInClearText \
+            -Name "GitHub" \
+            -UserName "${{ github.repository_owner }}" \
+            -Password "${{ secrets.GITHUB_TOKEN }}"
 
       - name: "Install dependencies from vcpkg"
         run: ".github/scripts/install-vcpkg-macos.bash"
@@ -277,17 +277,17 @@ jobs:
       - name: Install mono
         run: sudo apt-get -y install mono-devel
 
-      # - name: "Setup NuGet Credentials"
-      #   run: |
-      #     NUGET_PATH="$($VCPKG_ROOT/vcpkg fetch nuget | tail -n1)"
-      #     mono "$NUGET_PATH" sources add \
-      #       -Source "https://nuget.pkg.github.com/kaito-tokyo/index.json" \
-      #       -StorePasswordInClearText \
-      #       -Name "GitHub" \
-      #       -UserName "kaito-tokyo" \
-      #       -Password "${{ secrets.GITHUB_TOKEN }}"
-      #     mono "$NUGET_PATH" setapikey "${{ secrets.GITHUB_TOKEN }}" \
-      #       -Source "https://nuget.pkg.github.com/kaito-tokyo/index.json"
+      - name: "Setup NuGet Credentials"
+        run: |
+          NUGET_PATH="$($VCPKG_ROOT/vcpkg fetch nuget | tail -n1)"
+          mono "$NUGET_PATH" sources add \
+            -Source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            -StorePasswordInClearText \
+            -Name "GitHub" \
+            -UserName "${{ github.repository_owner }}" \
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          mono "$NUGET_PATH" setapikey "${{ secrets.GITHUB_TOKEN }}" \
+            -Source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
 
       - name: "Install dependencies from vcpkg"
         run: "$VCPKG_ROOT/vcpkg install --triplet x64-linux-obs"
@@ -370,19 +370,19 @@ jobs:
         run: |
           .\bootstrap-vcpkg.bat
 
-      # - name: "Setup NuGet Credentials on Windows"
-      #   shell: pwsh
-      #   run: |
-      #     $NUGET_EXE_PATH = & "${{ env.VCPKG_ROOT }}/vcpkg" fetch nuget | Select-Object -Last 1
+      - name: "Setup NuGet Credentials on Windows"
+        shell: pwsh
+        run: |
+          $NUGET_EXE_PATH = & "${{ env.VCPKG_ROOT }}/vcpkg" fetch nuget | Select-Object -Last 1
           
-      #     & $NUGET_EXE_PATH sources add `
-      #       -Source "https://nuget.pkg.github.com/kaito-tokyo/index.json" `
-      #       -StorePasswordInClearText `
-      #       -Name "GitHub" `
-      #       -UserName "kaito-tokyo" `
-      #       -Password "${{ secrets.GITHUB_TOKEN }}"
-      #     & $NUGET_EXE_PATH setapikey "${{ secrets.GITHUB_TOKEN }}" `
-      #       -Source "https://nuget.pkg.github.com/kaito-tokyo/index.json"
+          & $NUGET_EXE_PATH sources add `
+            -Source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" `
+            -StorePasswordInClearText `
+            -Name "GitHub" `
+            -UserName "${{ github.repository_owner }}" `
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          & $NUGET_EXE_PATH setapikey "${{ secrets.GITHUB_TOKEN }}" `
+            -Source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
 
       - name: "Install dependencies from vcpkg"
         shell: bash
