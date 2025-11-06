@@ -141,6 +141,7 @@ elseif(MSVC)
   target_link_libraries(onnxruntime::onnxruntime INTERFACE onnxruntime::onnxruntime_provider_shared)
 
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/DelayLoad.cpp)
 else()
   list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/onnxruntime")
   find_package(onnxruntime CONFIG REQUIRED)
@@ -163,7 +164,6 @@ target_sources(
     src/background-filter.cpp
     src/enhance-filter.cpp
     src/enhance-filter-info.c
-    src/Module.cpp
 )
 target_compile_options(
   ${CMAKE_PROJECT_NAME}
