@@ -14,7 +14,6 @@ const char *const MODEL_DEPTH_TCMONODEPTH = "models/tcmonodepth_tcsmallnet_192x3
 const char *const MODEL_RMBG = "models/bria_rmbg_1_4_qint8.onnx";
 
 const char *const USEGPU_CPU = "cpu";
-const char *const USEGPU_DML = "dml";
 const char *const USEGPU_CUDA = "cuda";
 const char *const USEGPU_TENSORRT = "tensorrt";
 const char *const USEGPU_COREML = "coreml";

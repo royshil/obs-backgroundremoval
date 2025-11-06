@@ -99,14 +99,6 @@ int createOrtSession(filter_data *tf)
 			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sessionOptions, 0));
 		}
 #endif
-#ifdef _WIN32
-		// if (tf->useGPU == USEGPU_DML) {
-		// 	auto &api = Ort::GetApi();
-		// 	OrtDmlApi *dmlApi = nullptr;
-		// 	Ort::ThrowOnError(api.GetExecutionProviderApi("DML", ORT_API_VERSION, (const void **)&dmlApi));
-		// 	Ort::ThrowOnError(dmlApi->SessionOptionsAppendExecutionProvider_DML(sessionOptions, 0));
-		// }
-#endif
 #if defined(__APPLE__)
 		if (tf->useGPU == USEGPU_COREML) {
 			uint32_t coreml_flags = 0;

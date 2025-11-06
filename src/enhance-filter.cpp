@@ -57,9 +57,6 @@ obs_properties_t *enhance_filter_properties(void *data)
 	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUTensorRT"), USEGPU_TENSORRT);
 	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUCUDA"), USEGPU_CUDA);
 #endif
-#if _WIN32
-	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUDirectML"), USEGPU_DML);
-#endif
 #if defined(__APPLE__)
 	obs_property_list_add_string(p_use_gpu, obs_module_text("CoreML"), USEGPU_COREML);
 #endif
@@ -82,9 +79,7 @@ void enhance_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "blend", 1.0);
 	obs_data_set_default_int(settings, "numThreads", 1);
 	obs_data_set_default_string(settings, "model_select", MODEL_ENHANCE_TBEFN);
-#if _WIN32
-	obs_data_set_default_string(settings, "useGPU", USEGPU_DML);
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
 	obs_data_set_default_string(settings, "useGPU", USEGPU_CPU);
 #else
 	// Linux
