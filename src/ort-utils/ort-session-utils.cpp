@@ -7,7 +7,6 @@
 #endif
 
 #ifdef _WIN32
-#include <dml_provider_factory.h>
 #include <wchar.h>
 #include <windows.h>
 #endif // _WIN32
@@ -101,12 +100,12 @@ int createOrtSession(filter_data *tf)
 		}
 #endif
 #ifdef _WIN32
-		if (tf->useGPU == USEGPU_DML) {
-			auto &api = Ort::GetApi();
-			OrtDmlApi *dmlApi = nullptr;
-			Ort::ThrowOnError(api.GetExecutionProviderApi("DML", ORT_API_VERSION, (const void **)&dmlApi));
-			Ort::ThrowOnError(dmlApi->SessionOptionsAppendExecutionProvider_DML(sessionOptions, 0));
-		}
+		// if (tf->useGPU == USEGPU_DML) {
+		// 	auto &api = Ort::GetApi();
+		// 	OrtDmlApi *dmlApi = nullptr;
+		// 	Ort::ThrowOnError(api.GetExecutionProviderApi("DML", ORT_API_VERSION, (const void **)&dmlApi));
+		// 	Ort::ThrowOnError(dmlApi->SessionOptionsAppendExecutionProvider_DML(sessionOptions, 0));
+		// }
 #endif
 #if defined(__APPLE__)
 		if (tf->useGPU == USEGPU_COREML) {

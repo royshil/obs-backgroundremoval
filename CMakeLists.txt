@@ -105,24 +105,47 @@ if(USE_SYSTEM_ONNXRUNTIME)
   else()
     message(FATAL_ERROR "System ONNX Runtime is only supported on Linux!")
   endif()
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
+elseif(APPLE)
+  list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/onnxruntime")
+  find_package(onnxruntime CONFIG REQUIRED)
+  get_target_property(ONNXRUNTIME_DYLIB_PATH onnxruntime::onnxruntime IMPORTED_LOCATION_RELEASE)
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${ONNXRUNTIME_DYLIB_PATH}")
+  set_property(SOURCE "${ONNXRUNTIME_DYLIB_PATH}" PROPERTY MACOSX_PACKAGE_LOCATION Frameworks)
+  set_target_properties(
+    ${CMAKE_PROJECT_NAME}
+    PROPERTIES XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@loader_path/../Frameworks"
+  )
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
+elseif(MSVC)
+  set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime")
+
+  add_library(onnxruntime::onnxruntime_provider_shared SHARED IMPORTED)
+  set_target_properties(onnxruntime::onnxruntime_provider_shared PROPERTIES
+    IMPORTED_IMPLIB "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.lib"
+    IMPORTED_LOCATION "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
+    INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_ROOT}/include"
+  )
+
+  add_library(onnxruntime::onnxruntime SHARED IMPORTED)
+  set_target_properties(onnxruntime::onnxruntime PROPERTIES
+    IMPORTED_IMPLIB "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib"
+    IMPORTED_LOCATION "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
+    INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_ROOT}/include"
+  )
+  target_link_libraries(onnxruntime::onnxruntime INTERFACE onnxruntime::onnxruntime_provider_shared)
+  
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
 else()
   list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/onnxruntime")
   find_package(onnxruntime CONFIG REQUIRED)
-  if(APPLE)
-    get_target_property(ONNXRUNTIME_DYLIB_PATH onnxruntime::onnxruntime IMPORTED_LOCATION_RELEASE)
-    target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${ONNXRUNTIME_DYLIB_PATH}")
-    set_property(SOURCE "${ONNXRUNTIME_DYLIB_PATH}" PROPERTY MACOSX_PACKAGE_LOCATION Frameworks)
-    set_target_properties(
-      ${CMAKE_PROJECT_NAME}
-      PROPERTIES XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@loader_path/../Frameworks"
-    )
-  endif()
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
 endif()
 
 add_subdirectory(src/update-checker/CurlClient)
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}
-  PRIVATE CurlClient OpenCV::opencv_core OpenCV::opencv_imgproc onnxruntime::onnxruntime
+  PRIVATE CurlClient OpenCV::opencv_core OpenCV::opencv_imgproc
 )
 
 target_sources(
