@@ -132,10 +132,11 @@ elseif(MSVC)
     IMPORTED_IMPLIB "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib"
     IMPORTED_LOCATION "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
     INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_ROOT}/include"
+    INTERFACE_LINK_OPTIONS "/DELAYLOAD:onnxruntime.dll"
   )
   target_link_libraries(onnxruntime::onnxruntime INTERFACE onnxruntime::onnxruntime_provider_shared)
-  
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
+
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE delayimp onnxruntime::onnxruntime)
 else()
   list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/onnxruntime")
   find_package(onnxruntime CONFIG REQUIRED)
