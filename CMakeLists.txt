@@ -143,11 +143,12 @@ elseif(MSVC)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/DelayLoad.cpp)
 
-  install(FILES
-    "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
-    "${ONNXRUNTIME_ROOT}/lib/onnxruntime.pdb"
-    "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
-    "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.pdb"
+  install(
+    FILES
+      "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
+      "${ONNXRUNTIME_ROOT}/lib/onnxruntime.pdb"
+      "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
+      "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.pdb"
     DESTINATION "${CMAKE_PROJECT_NAME}/bin/64bit/obs-backgroundremoval"
   )
 else()
