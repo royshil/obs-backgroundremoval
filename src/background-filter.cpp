@@ -568,7 +568,9 @@ void background_filter_video_tick(void *data, float seconds)
 
 				// Expand the mask to create a larger "safe" area around the detected person
 				if (tf->maskExpansion > 0.0) {
-					int expansion_iterations = (int)(1 + 10 * tf->maskExpansion);
+					// Scale from 0.0-1.0 to 1-11 iterations for gradual expansion control
+					const int MAX_EXPANSION_ITERATIONS = 10;
+					int expansion_iterations = (int)(1 + MAX_EXPANSION_ITERATIONS * tf->maskExpansion);
 					cv::dilate(backgroundMask, backgroundMask, cv::Mat(), cv::Point(-1, -1),
 						   expansion_iterations);
 				}
