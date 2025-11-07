@@ -7,7 +7,7 @@
 
 ## Release Automation
 
-To start a new release, the user will instruct Copilot (e.g., "Make a release"). Copilot must follow these steps:
+To start a new release, the user will instruct Copilot (e.g., "Start release"). Copilot must follow these steps:
 
 ### 1. Specify New Version
 
