@@ -45,6 +45,9 @@ elseif(PLATFORM STREQUAL "linux")
     COMMAND ${CMAKE_COMMAND} -E tar xf onnxruntime-linux-x64-1.23.2.tgz
   )
   file(RENAME onnxruntime-linux-x64-1.23.2 onnxruntime)
+  execute_process(
+    COMMAND ln -s lib onnxruntime/lib64
+  )
 else()
   message(FATAL_ERROR "Unsupported platform: ${PLATFORM}")
 endif()
