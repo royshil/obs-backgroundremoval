@@ -38,6 +38,7 @@ struct background_removal_filter : public filter_data {
 	float contourFilter = 0.05f;
 	float smoothContour = 0.5f;
 	float feather = 0.0f;
+	float maskExpansion = 0.0f;
 
 	cv::Mat backgroundMask;
 	cv::Mat lastBackgroundMask;
@@ -142,6 +143,9 @@ obs_properties_t *background_filter_properties(void *data)
 	obs_properties_add_float_slider(threshold_props, "smooth_contour", obs_module_text("SmoothSilhouette"), 0.0,
 					1.0, 0.05);
 
+	obs_properties_add_float_slider(threshold_props, "mask_expansion", obs_module_text("MaskExpansion"), 0.0, 1.0,
+					0.05);
+
 	obs_properties_add_float_slider(threshold_props, "feather", obs_module_text("FeatherBlendSilhouette"), 0.0, 1.0,
 					0.05);
 
@@ -227,6 +231,7 @@ void background_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "threshold", 0.5);
 	obs_data_set_default_double(settings, "contour_filter", 0.05);
 	obs_data_set_default_double(settings, "smooth_contour", 0.5);
+	obs_data_set_default_double(settings, "mask_expansion", 0.0);
 	obs_data_set_default_double(settings, "feather", 0.0);
 #if defined(__APPLE__)
 	obs_data_set_default_string(settings, "useGPU", USEGPU_CPU);
@@ -258,6 +263,7 @@ void background_filter_update(void *data, obs_data_t *settings)
 
 	tf->contourFilter = (float)obs_data_get_double(settings, "contour_filter");
 	tf->smoothContour = (float)obs_data_get_double(settings, "smooth_contour");
+	tf->maskExpansion = (float)obs_data_get_double(settings, "mask_expansion");
 	tf->feather = (float)obs_data_get_double(settings, "feather");
 	tf->maskEveryXFrames = (int)obs_data_get_int(settings, "mask_every_x_frames");
 	tf->maskEveryXFramesCount = (int)(0);
@@ -340,6 +346,7 @@ void background_filter_update(void *data, obs_data_t *settings)
 	obs_log(LOG_INFO, "  Threshold: %f", tf->threshold);
 	obs_log(LOG_INFO, "  Contour Filter: %f", tf->contourFilter);
 	obs_log(LOG_INFO, "  Smooth Contour: %f", tf->smoothContour);
+	obs_log(LOG_INFO, "  Mask Expansion: %f", tf->maskExpansion);
 	obs_log(LOG_INFO, "  Feather: %f", tf->feather);
 	obs_log(LOG_INFO, "  Mask Every X Frames: %d", tf->maskEveryXFrames);
 	obs_log(LOG_INFO, "  Enable Image Similarity: %s", tf->enableImageSimilarity ? "true" : "false");
@@ -557,6 +564,13 @@ void background_filter_video_tick(void *data, float seconds)
 				if (tf->smoothContour > 0.0) {
 					// If the mask was smoothed, apply a threshold to get a binary mask
 					backgroundMask = backgroundMask > 128;
+				}
+
+				// Expand the mask to create a larger "safe" area around the detected person
+				if (tf->maskExpansion > 0.0) {
+					int expansion_iterations = (int)(1 + 10 * tf->maskExpansion);
+					cv::dilate(backgroundMask, backgroundMask, cv::Mat(), cv::Point(-1, -1),
+						   expansion_iterations);
 				}
 
 				if (tf->feather > 0.0) {
