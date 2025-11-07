@@ -1,6 +1,6 @@
 # Development Guideline for OBS Background Removal
 
-- Develop this project using C++17.
+- Develop this project using C17 and C++17.
 - After modifying C or C++ files, format them with `clang-format-19`.
 - After modifying CMake files, format them with `gersemi`.
 - The default branch is `main`.
