@@ -85,7 +85,7 @@ export async function getLatestRelease(): Promise<Release> {
   }
 
   const response = await fetch(
-    "https://api.github.com/repos/kaito-tokyo/live-backgroundremoval-lite/releases/latest",
+    "https://api.github.com/repos/royshil/obs-backgroundremoval/releases/latest",
     { headers }
   );
 
