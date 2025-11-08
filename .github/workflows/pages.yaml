@@ -45,17 +45,18 @@ jobs:
         working-directory: ${{ env.BUILD_PATH }}
 
       - name: Build pages
-        run: npm run build
+        run: |
+          npx astro build \
+            --site "${{ steps.pages.outputs.origin }}" \
+            --base "${{ steps.pages.outputs.base_path }}"
         working-directory: ${{ env.BUILD_PATH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: ${{ env.BUILD_PATH }}/build
-
 
   DeployPages:
     runs-on: "ubuntu-24.04"

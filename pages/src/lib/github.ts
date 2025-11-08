@@ -78,8 +78,16 @@ export interface Release {
 }
 
 export async function getLatestRelease(): Promise<Release> {
+
+  const headers: Record<string, string> = {};
+  if (typeof process !== "undefined" && process.env && process.env.GITHUB_TOKEN) {
+    headers["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+
   const response = await fetch(
     "https://api.github.com/repos/kaito-tokyo/live-backgroundremoval-lite/releases/latest",
+    { headers }
   );
+
   return (await response.json()) as Release;
 }
