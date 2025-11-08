@@ -1,0 +1,29 @@
+---
+import { joinURL } from "ufo";
+
+import Layout from "../layouts/Layout.astro";
+import "../styles/white-box.css";
+
+import { getLatestRelease } from "../lib/github";
+
+const { BASE_URL } = import.meta.env;
+
+const release = await getLatestRelease();
+
+const asset = release.assets.find((e) => /x86_64-linux-gnu\.deb/.test(e.name));
+if (!asset) throw new Error("Ubuntu asset not found!");
+---
+
+<Layout
+  lang="en"
+  title="How to use OBS Background Removal on Ubuntu"
+  description="How to use OBS Background Removal on Ubuntu"
+>
+  <main>
+    <h1>Download and install on Ubuntu</h1>
+
+    <p>TBD</p>
+
+    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
+  </main>
+</Layout>
