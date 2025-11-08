@@ -4,14 +4,7 @@ import { joinURL } from "ufo";
 import Layout from "../layouts/Layout.astro";
 import "../styles/white-box.css";
 
-import { getLatestRelease } from "../lib/github";
-
 const { BASE_URL } = import.meta.env;
-
-const release = await getLatestRelease();
-
-const asset = release.assets.find((e) => /x86_64-linux-gnu\.deb/.test(e.name));
-if (!asset) throw new Error("Ubuntu asset not found!");
 ---
 
 <Layout
