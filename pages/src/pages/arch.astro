@@ -1,0 +1,50 @@
+---
+import { joinURL } from "ufo";
+
+import Layout from "../layouts/Layout.astro";
+import "../styles/white-box.css";
+
+const { BASE_URL } = import.meta.env;
+---
+
+<Layout
+  lang="en"
+  title="How to use OBS Background Removal on Arch Linux"
+  description="How to use OBS Background Removal on Arch Linux"
+>
+  <main>
+    <h1>Download and install on Arch Linux</h1>
+
+    <p>You can install OBS Background Removal from the AUR.</p>
+
+    <pre>
+        <code>
+git clone https://aur.archlinux.org/obs-backgroundremoval.git
+cd obs-backgroundremoval
+makepkg -si
+        </code>
+    </pre>
+
+    <p>You can install the git version as well.</p>
+
+    <pre>
+        <code>
+git clone https://aur.archlinux.org/obs-backgroundremoval-git.git
+cd obs-backgroundremoval-git
+makepkg -si
+        </code>
+    </pre>
+
+    <p>Or you can use any AUR helper, like yay:</p>
+
+    <pre>
+        <code>
+yay -S obs-backgroundremoval-git
+        </code>
+    </pre>
+
+    <p>All set!</p>
+
+    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
+  </main>
+</Layout>

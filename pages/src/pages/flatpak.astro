@@ -13,21 +13,25 @@ const { BASE_URL } = import.meta.env;
   description="How to use OBS Background Removal on Flatpak"
 >
   <main>
+    <h1>Download and install on Flatpak</h1>
 
-	<h1>Download and install on Flatpak</h1>
+    <p>
+      <a href="https://flathub.org/apps/com.obsproject.Studio"
+        >Install the latest OBS from FlatHub</a
+      >
+    </p>
 
-	<p>
-		<a href="https://flathub.org/apps/com.obsproject.Studio">Install the latest OBS from FlatHub</a>
-	</p>
+    <p>Install com.obsproject.Studio.Plugin.BackgroundRemoval from FlatHub:</p>
 
-	<p>Install com.obsproject.Studio.Plugin.BackgroundRemoval from FlatHub:</p>
+    <pre>flatpak install flathub com.obsproject.Studio.Plugin.BackgroundRemoval</pre>
 
-	<pre>flatpak install flathub com.obsproject.Studio.Plugin.BackgroundRemoval</pre>
+    <p>
+      See the <a href={joinURL(BASE_URL, "usage")}>usage page</a> for how to use
+      the plugin
+    </p>
 
-	<p>See the <a href={joinURL(BASE_URL, "usage")}>usage page</a> for how to use the plugin</p>
+    <p>All set!</p>
 
-	<p>All set!</p>
-
-	<p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
+    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
   </main>
 </Layout>
