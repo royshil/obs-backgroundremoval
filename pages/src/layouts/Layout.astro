@@ -1,4 +1,6 @@
 ---
+import { joinURL } from "ufo";
+
 interface Props {
   description: string;
   lang: string;
@@ -14,6 +16,23 @@ const { BASE_URL } = import.meta.env;
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
+    <link
+      rel="icon"
+      type="image/png"
+      href={joinURL(BASE_URL, "favicon-96x96.png")}
+      sizes="96x96"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href={joinURL(BASE_URL, "favicon.svg")}
+    />
+    <link rel="shortcut icon" href={joinURL(BASE_URL, "favicon.ico")} />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href={joinURL(BASE_URL, "apple-touch-icon.png")}
+    />
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
