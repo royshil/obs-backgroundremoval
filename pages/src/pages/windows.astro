@@ -4,11 +4,7 @@ import { joinURL } from "ufo";
 import Layout from "../layouts/Layout.astro";
 import "../styles/white-box.css";
 
-import { getLatestRelease } from "../lib/github";
-
 const { BASE_URL } = import.meta.env;
-
-const release = await getLatestRelease();
 ---
 
 <Layout
