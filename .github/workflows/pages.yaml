@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '43 2 * * *'
   workflow_dispatch:
 
 defaults:

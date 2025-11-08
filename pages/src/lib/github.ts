@@ -78,14 +78,6 @@ export interface Release {
 }
 
 export async function getLatestRelease(): Promise<Release> {
-  const eventName = process.env["EVENT_NAME"] ?? "";
-  const eventPayload = JSON.parse(process.env["EVENT_PAYLOAD"] ?? "{}");
-
-  if (eventName === "release" && eventPayload.action === "published") {
-    return eventPayload.release as Release;
-  }
-
-  // Fallback: Fetch the latest release from GitHub API
   const response = await fetch(
     "https://api.github.com/repos/kaito-tokyo/live-backgroundremoval-lite/releases/latest",
   );
