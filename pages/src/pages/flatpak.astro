@@ -1,0 +1,33 @@
+---
+import { joinURL } from "ufo";
+
+import Layout from "../layouts/Layout.astro";
+import "../styles/white-box.css";
+
+const { BASE_URL } = import.meta.env;
+---
+
+<Layout
+  lang="en"
+  title="How to use OBS Background Removal on Flatpak"
+  description="How to use OBS Background Removal on Flatpak"
+>
+  <main>
+
+	<h1>Download and install on Flatpak</h1>
+
+	<p>
+		<a href="https://flathub.org/apps/com.obsproject.Studio">Install the latest OBS from FlatHub</a>
+	</p>
+
+	<p>Install com.obsproject.Studio.Plugin.BackgroundRemoval from FlatHub:</p>
+
+	<pre>flatpak install flathub com.obsproject.Studio.Plugin.BackgroundRemoval</pre>
+
+	<p>See the <a href={joinURL(BASE_URL, "usage")}>usage page</a> for how to use the plugin</p>
+
+	<p>All set!</p>
+
+	<p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
+  </main>
+</Layout>
