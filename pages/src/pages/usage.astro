@@ -1,0 +1,111 @@
+---
+import { joinURL } from "ufo";
+
+import { Image } from "astro:assets";
+
+import Layout from "../layouts/Layout.astro";
+import "../styles/white-box.css";
+
+import addAVideoCaptureSource from "../assets/addAVideoCaptureSource.png";
+import addBackgroundRemoval from "../assets/addBackgroundRemoval.png";
+import captureFilters from "../assets/captureFilters.png";
+import filterSettings from "../assets/filterSettings.png";
+import filterSettingsAdvanced from "../assets/filterSettingsAdvanced.png";
+
+const { BASE_URL } = import.meta.env;
+---
+
+<Layout
+  lang="en"
+  title="How to use OBS Background Removal"
+  description="How to use OBS Background Removal"
+>
+  <main>
+    <h1>Using OBS Background Removal</h1>
+
+    <p>Start OBS</p>
+
+    <p>
+      Optionally add a video capture source. The plugin works on any source that
+      provides an image render: Video, Image, Media, Browser, Screen Capture,
+      etc.
+    </p>
+
+    <p>
+      <Image
+        src={addAVideoCaptureSource}
+        alt="Add a Video Capture Source"
+        width="400"
+      />
+    </p>
+
+    <p>Open the filters dialog on that source</p>
+
+    <p><Image src={captureFilters} alt="Capture Filters" width="400" /></p>
+
+    <p>
+      Add the Background Removal filter on the Effects filter. If you can't see
+      the filter then the installation process failed, or there is
+      incompatibility with your OBS.
+    </p>
+
+    <p>
+      <Image
+        src={addBackgroundRemoval}
+        alt="Add Background Removal"
+        width="400"
+      />
+    </p>
+
+    <p>View the BG Removal filter settings</p>
+
+    <p><Image src={filterSettings} alt="Filter Settings" width="400" /></p>
+
+    <p>
+      Optionally use the advanced settings to change the behavior of the filter
+    </p>
+
+    <p>
+      <Image
+        src={filterSettingsAdvanced}
+        alt="Filter Settings Advanced"
+        width="400"
+      />
+    </p>
+
+    Advice on how to get the best results:
+    <ul>
+      <li>Use a good camera, and good lighting.</li>
+      <li>
+        The Mediapipe model is the fastest, but may not be the highest accuracy.
+        We recommend setting the thresold very low, like 0.05, to capture the
+        whole portrait.
+      </li>
+      <li>
+        The Robust Video Matting (RVM) model gives the highest accuracy and also
+        least "flickering", but it's not the fastest.
+      </li>
+      <li>
+        The TCMonoDepth is a depth estimation model, not a background
+        segmentation model, and can be used both for portrait segmentation as
+        well as "Depth of Field" blur effect. See the <a
+          href="https://youtu.be/jC3EKSpNjQk"
+          target="_blank">tutorial/preview</a
+        >.
+      </li>
+      <li>
+        The RMBG model is a general background Removal model for any object, not
+        just for humans. See the
+        <a href="https://youtu.be/N74VCDCToX8">tutorial/preview</a>.
+      </li>
+    </ul>
+
+    <p>
+      View our tutorial videos <a href="https://youtu.be/veqNEsMqEE0">here</a>
+    </p>
+
+    <p>All set!</p>
+
+    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
+  </main>
+</Layout>

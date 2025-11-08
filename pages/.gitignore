@@ -1,23 +1,24 @@
-node_modules
+# build output
+dist/
 
-# Output
-.output
-.vercel
-.netlify
-.wrangler
-/.svelte-kit
-/build
+# generated types
+.astro/
 
-# OS
-.DS_Store
-Thumbs.db
+# dependencies
+node_modules/
 
-# Env
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# environment variables
 .env
-.env.*
-!.env.example
-!.env.test
+.env.production
 
-# Vite
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
+# macOS-specific files
+.DS_Store
+
+# jetbrains setting folder
+.idea/

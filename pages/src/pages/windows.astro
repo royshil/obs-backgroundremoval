@@ -1,0 +1,26 @@
+---
+import { joinURL } from "ufo";
+
+import Layout from "../layouts/Layout.astro";
+import "../styles/white-box.css";
+
+import { getLatestRelease } from "../lib/github";
+
+const { BASE_URL } = import.meta.env;
+
+const release = await getLatestRelease();
+---
+
+<Layout
+  lang="en"
+  title="How to use OBS Background Removal on Windows"
+  description="How to use OBS Background Removal on Windows"
+>
+  <main>
+    <h1>Download and install on Windows</h1>
+
+    <p>TBD</p>
+
+    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
+  </main>
+</Layout>

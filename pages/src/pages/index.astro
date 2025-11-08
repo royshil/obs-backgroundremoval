@@ -1,0 +1,48 @@
+---
+import { joinURL } from "ufo";
+
+import Layout from "../layouts/Layout.astro";
+import "../styles/white-box.css";
+
+const { BASE_URL } = import.meta.env;
+---
+
+<Layout
+  description="OBS Plugin: Background Removal / Virtual Green-screen and Low-Light Enhancement"
+  lang="en"
+  title="OBS Background Removal"
+>
+  <main>
+    <header>
+      <h1>OBS Background Removal</h1>
+      <h2>
+        OBS Plugin: Background Removal / Virtual Green-screen and Low-Light
+        Enhancement
+      </h2>
+    </header>
+
+    <p>
+      See our <a href={joinURL(BASE_URL, "usage")}>Usage</a> page for instructions
+      on usage in OBS
+    </p>
+
+    <h2>Download and Install (Official)</h2>
+    <ul>
+      <li><a href={joinURL(BASE_URL, "windows")}>Windows</a></li>
+      <li><a href={joinURL(BASE_URL, "macos")}>macOS</a></li>
+      <li><a href={joinURL(BASE_URL, "ubuntu")}>Ubuntu Linux</a></li>
+      <li><a href={joinURL(BASE_URL, "flatpak")}>FlatPak</a></li>
+    </ul>
+
+    <h2>Download and Install (Unofficial)</h2>
+    <ul>
+      <li><a href={joinURL(BASE_URL, "arch")}>Arch Linux</a></li>
+      <li>
+        <a href={joinURL(BASE_URL, "opensuse-tumbleweed")}
+          >openSUSE Tumbleweed</a
+        >
+      </li>
+      <li><a href={joinURL(BASE_URL, "fedora")}>Fedora</a></li>
+    </ul>
+  </main>
+</Layout>
