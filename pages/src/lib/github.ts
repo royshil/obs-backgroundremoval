@@ -89,5 +89,17 @@ export async function getLatestRelease(): Promise<Release> {
     { headers }
   );
 
+  if (!response.ok) {
+    let errorBody: any = {};
+    try {
+      errorBody = await response.json();
+    } catch (e) {
+      // ignore JSON parse errors
+    }
+    throw new Error(
+      `GitHub API request failed: ${response.status} ${response.statusText}` +
+      (errorBody && errorBody.message ? ` - ${errorBody.message}` : "")
+    );
+  }
   return (await response.json()) as Release;
 }
