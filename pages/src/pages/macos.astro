@@ -1,0 +1,48 @@
+---
+import { joinURL } from "ufo";
+
+import Layout from "../layouts/Layout.astro";
+import "../styles/white-box.css";
+
+import { getLatestRelease } from "../lib/github";
+
+const { BASE_URL } = import.meta.env;
+
+const release = await getLatestRelease();
+
+const asset = release.assets.find((e) => /macos-universal\.pkg/.test(e.name));
+if (!asset) throw new Error("macOS asset not found!");
+---
+
+<Layout
+  lang="en"
+  title="How to use OBS Background Removal on macOS"
+  description="How to use OBS Background Removal on macOS"
+>
+  <main>
+    <h1>Download and install on macOS</h1>
+
+    <p>
+      <a href="https://obsproject.com/ja/download"
+        >Download and install the latest OBS (Both of Intel and Apple Silicon
+        are applicable)</a
+      >
+    </p>
+
+    <p>
+      <a href={asset.browser_download_url}
+        >Download the pkg installer for macOS</a>
+    </p>
+
+    <p>Install {asset.name}</p>
+
+    <p>
+      See the <a href={joinURL(BASE_URL, "usage")}>usage page</a> for how to use
+      the plugin
+    </p>
+
+    <p>All set!</p>
+
+    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
+  </main>
+</Layout>
