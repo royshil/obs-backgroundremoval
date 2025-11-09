@@ -1,13 +1,12 @@
 # OBS Plugin: Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement
 
-<div align="center">
+<div style="text-align:center;">
 
-[![GitHub](https://img.shields.io/github/license/locaal-ai/obs-backgroundremoval)](https://github.com/locaal-ai/obs-backgroundremoval/blob/main/LICENSE)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/locaal-ai/obs-backgroundremoval/push.yaml)](https://github.com/locaal-ai/obs-backgroundremoval/actions/workflows/push.yaml)
-[![Total downloads](https://img.shields.io/github/downloads/locaal-ai/obs-backgroundremoval/total)](https://github.com/locaal-ai/obs-backgroundremoval/releases)
+[![GitHub](https://img.shields.io/github/license/royshil/obs-backgroundremoval)](https://github.com/royshil/obs-backgroundremoval/blob/main/LICENSE)
+[![GitHub Workflow Status](https://github.com/royshil/obs-backgroundremoval/actions/workflows/push.yaml/badge.svg)](https://github.com/royshil/obs-backgroundremoval/actions/workflows/push.yaml)
+[![Total downloads](https://img.shields.io/github/downloads/royshil/obs-backgroundremoval/total)](https://github.com/royshil/obs-backgroundremoval/releases)
 ![Flathub](https://img.shields.io/flathub/downloads/com.obsproject.Studio.Plugin.BackgroundRemoval?label=Flathub%20Installs)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/locaal-ai/obs-backgroundremoval)](https://github.com/locaal-ai/obs-backgroundremoval/releases)
-[![Discord](https://img.shields.io/discord/1200229425141252116)](https://discord.gg/KbjGU2vvUz)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/royshil/obs-backgroundremoval)](https://github.com/royshil/obs-backgroundremoval/releases)
 
 </div>
 
@@ -25,7 +24,7 @@ For other AI plugins from us check out [locaal AI](https://github.com/locaal-ai)
 
 ## Usage
 
-<div align="center">
+<div style="text-align:center;">
 <video src="https://github.com/locaal-ai/obs-backgroundremoval/assets/1067855/5ba5aae2-7ea2-4c90-ad45-fba5ccde1a4e" width="320"></video>
 </div>
 
