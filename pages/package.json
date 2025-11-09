@@ -9,13 +9,14 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@ai-sdk/svelte": "^3.0.89",
     "@astrojs/svelte": "^7.2.2",
+    "@mlc-ai/web-llm": "^0.2.79",
     "astro": "^5.15.4",
     "svelte": "^5.43.5",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@ai-sdk/svelte": "^3.0.89",
     "prettier": "3.6.2",
     "prettier-plugin-astro": "0.14.1",
     "prettier-plugin-svelte": "^3.4.0"
