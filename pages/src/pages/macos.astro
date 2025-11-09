@@ -2,7 +2,6 @@
 import { joinURL } from "ufo";
 
 import Layout from "../layouts/Layout.astro";
-import "../styles/white-box.css";
 
 import { getLatestRelease } from "../lib/github";
 
@@ -19,7 +18,7 @@ if (!asset) throw new Error("macOS asset not found!");
   title="How to use OBS Background Removal on macOS"
   description="How to use OBS Background Removal on macOS"
 >
-  <main>
+  <main class="white-box">
     <h1>Download and install on macOS</h1>
 
     <p>

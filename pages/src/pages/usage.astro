@@ -4,7 +4,6 @@ import { joinURL } from "ufo";
 import { Image } from "astro:assets";
 
 import Layout from "../layouts/Layout.astro";
-import "../styles/white-box.css";
 
 import addAVideoCaptureSource from "../assets/addAVideoCaptureSource.png";
 import addBackgroundRemoval from "../assets/addBackgroundRemoval.png";
@@ -20,7 +19,7 @@ const { BASE_URL } = import.meta.env;
   title="How to use OBS Background Removal"
   description="How to use OBS Background Removal"
 >
-  <main>
+  <main class="white-box">
     <h1>Using OBS Background Removal</h1>
 
     <p>Start OBS</p>

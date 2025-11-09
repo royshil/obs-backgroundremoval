@@ -1,0 +1,14 @@
+---
+import { joinURL } from "ufo";
+
+import Layout from "../layouts/Layout.astro";
+
+const { BASE_URL } = import.meta.env;
+---
+
+<Layout lang="en" title="404 Not Found" description="404 Not Found">
+  <main class="white-box">
+    <h1>404 Not Found</h1>
+    <a href={joinURL(BASE_URL, "/")}>Back to the top page</a>
+  </main>
+</Layout>

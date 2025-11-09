@@ -78,15 +78,18 @@ export interface Release {
 }
 
 export async function getLatestRelease(): Promise<Release> {
-
   const headers: Record<string, string> = {};
-  if (typeof process !== "undefined" && process.env && process.env.GITHUB_TOKEN) {
+  if (
+    typeof process !== "undefined" &&
+    process.env &&
+    process.env.GITHUB_TOKEN
+  ) {
     headers["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
   }
 
   const response = await fetch(
     "https://api.github.com/repos/royshil/obs-backgroundremoval/releases/latest",
-    { headers }
+    { headers },
   );
 
   if (!response.ok) {
@@ -98,7 +101,7 @@ export async function getLatestRelease(): Promise<Release> {
     }
     throw new Error(
       `GitHub API request failed: ${response.status} ${response.statusText}` +
-      (errorBody && errorBody.message ? ` - ${errorBody.message}` : "")
+        (errorBody && errorBody.message ? ` - ${errorBody.message}` : ""),
     );
   }
   return (await response.json()) as Release;
