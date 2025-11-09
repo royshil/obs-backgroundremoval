@@ -20,8 +20,6 @@ A plugin for [OBS Studio](https://obsproject.com/) that allows you to replace th
   - [Linux (Ubuntu, Arch, openSUSE, Fedora)](#linux)
   - [Windows](#windows)
 
-For other AI plugins from us check out [locaal AI](https://github.com/locaal-ai).
-
 ## Usage
 
 <div style="text-align:center;">
