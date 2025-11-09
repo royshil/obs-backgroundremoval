@@ -14,7 +14,7 @@ A plugin for [OBS Studio](https://obsproject.com/) that allows you to replace th
 
 <p align="center">
   <a href="https://royshil.github.io/obs-backgroundremoval/">
-    <b>⬇️ Download & Install OBS Background Removal ⬇️</b>
+    <b><large>⬇️ Download & Install OBS Background Removal ⬇️</large></b>
   </a>
 </p>
 
