@@ -3,7 +3,14 @@ import { joinURL } from "ufo";
 
 import Layout from "../layouts/Layout.astro";
 
+import { getLatestRelease } from "../lib/github";
+
 const { BASE_URL } = import.meta.env;
+
+const release = await getLatestRelease();
+
+const assetX64 = release.assets.find((e) => /windows-x64\.zip/.test(e.name));
+if (!assetX64) throw new Error("Windows x64 asset not found!");
 ---
 
 <Layout
@@ -12,10 +19,54 @@ const { BASE_URL } = import.meta.env;
   description="How to use OBS Background Removal on Windows"
 >
   <main class="white-box">
-    <h1>Download and install on Windows</h1>
+    <h1>Install OBS Background Removal on Windows</h1>
 
-    <p>TBD</p>
+    <ol>
+      <li>
+        <strong>Download the Plugin:</strong><br />
+        <a href={assetX64.browser_download_url} download>
+          Click here to download the latest Windows version (ZIP)
+        </a>
+      </li>
+      <li>
+        <strong>Extract the ZIP File:</strong><br />
+        Right-click the downloaded ZIP file and select <em>Extract All...</em>
+      </li>
+      <li>
+        <strong>Copy Files to OBS Directory:</strong><br />
+        Move the extracted files into your OBS Studio installation folder.<br />
+        <code>C:\Program Files\obs-studio</code>
+      </li>
+      <li>
+        <strong>Restart OBS Studio:</strong><br />
+        Close OBS Studio if it's running, then open it again.
+      </li>
+    </ol>
 
-    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
+    <h2>Optional: Install using PowerShell</h2>
+    <p><strong>Note:</strong> You must run PowerShell as <strong>Administrator</strong> to copy files into the OBS Studio directory.</p>
+    <p>You can automate installation with PowerShell:</p>
+    <pre><code>
+$zipUrl = "{assetX64.browser_download_url}"
+$zipPath = "$env:TEMP\obs-backgroundremoval-windows-x64.zip"
+$extractPath = "$env:TEMP\obs-backgroundremoval"
+$obsPath = "C:\Program Files\obs-studio"
+
+Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
+Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+Copy-Item -Path "$extractPath\*" -Destination $obsPath -Recurse -Force
+Remove-Item $zipPath
+Remove-Item $extractPath -Recurse
+    </code></pre>
+
+    <p>
+      <a href={joinURL(BASE_URL, "/")}>Back to the top page</a>
+    </p>
   </main>
 </Layout>
+
+<style>
+  pre {
+    overflow: scroll;
+  }`
+</style>
