@@ -43,7 +43,7 @@ if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
     libgles2-mesa-dev \
     libsimde-dev \
     obs-studio \
-    libcurl4-openssl-dev
+    libonnxruntime-dev
 
   local -a _qt_packages=()
 

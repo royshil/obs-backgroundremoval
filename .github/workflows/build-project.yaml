@@ -294,9 +294,6 @@ jobs:
 
       - name: "Install dependencies from vcpkg"
         run: "$VCPKG_ROOT/vcpkg install --triplet x64-linux-obs"
-      
-      - name: "Download ONNX Runtime"
-        run: "cmake -P cmake/DownloadOnnxruntime.cmake"
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin
@@ -304,37 +301,37 @@ jobs:
           target: x86_64
           config: ${{ needs.check-event.outputs.config }}
 
-      # - name: Package Plugin 📀
-      #   uses: ./.github/actions/package-plugin
-      #   with:
-      #     target: x86_64
-      #     config: ${{ needs.check-event.outputs.config }}
-      #     package: ${{ fromJSON(needs.check-event.outputs.package) }}
+      - name: Package Plugin 📀
+        uses: ./.github/actions/package-plugin
+        with:
+          target: x86_64
+          config: ${{ needs.check-event.outputs.config }}
+          package: ${{ fromJSON(needs.check-event.outputs.package) }}
 
-      # - name: Upload Source Tarball 🗜️
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-sources-${{ needs.check-event.outputs.commitHash }}
-      #     path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-source.*
+      - name: Upload Source Tarball 🗜️
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-sources-${{ needs.check-event.outputs.commitHash }}
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-source.*
 
-      # - name: Upload Artifacts 📡
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-x86_64-${{ needs.check-event.outputs.commitHash }}
-      #     path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.*
+      - name: Upload Artifacts 📡
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-x86_64-${{ needs.check-event.outputs.commitHash }}
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.*
 
-      # - name: Upload debug symbol artifacts 🪲
-      #   uses: actions/upload-artifact@v4
-      #   if: ${{ fromJSON(needs.check-event.outputs.package) }}
-      #   with:
-      #     name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-x86_64-${{ needs.check-event.outputs.commitHash }}-dbgsym
-      #     path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*-dbgsym.ddeb
+      - name: Upload debug symbol artifacts 🪲
+        uses: actions/upload-artifact@v4
+        if: ${{ fromJSON(needs.check-event.outputs.package) }}
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-x86_64-${{ needs.check-event.outputs.commitHash }}-dbgsym
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*-dbgsym.ddeb
 
-      # - uses: actions/cache/save@v4
-      #   if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
-      #   with:
-      #     path: ${{ github.workspace }}/.ccache
-      #     key: ${{ runner.os }}-${{ matrix.os }}-ccache-x86_64-${{ needs.check-event.outputs.config }}
+      - uses: actions/cache/save@v4
+        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-${{ matrix.os }}-ccache-x86_64-${{ needs.check-event.outputs.config }}
 
   windows-build:
     name: Build for Windows 🪟
