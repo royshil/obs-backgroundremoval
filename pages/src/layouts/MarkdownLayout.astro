@@ -1,4 +1,6 @@
 ---
+import { joinURL } from "ufo";
+
 import Layout from './Layout.astro';
 
 interface Props {
@@ -9,11 +11,14 @@ interface Props {
   };
 }
 
+const { BASE_URL } = import.meta.env;
 const { lang, title, description } = Astro.props.frontmatter;
 ---
 
 <Layout lang={lang} title={title} description={description}>
   <main class="white-box">
     <slot />
+
+    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
   </main>
 </Layout>
