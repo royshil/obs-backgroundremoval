@@ -1,15 +1,16 @@
 <script lang="ts">
   import { writable } from 'svelte/store';
-  import { llmStore } from '../lib/llm.ts'; // 適切なパスに修正してください
+  import { llmStore } from '../lib/llm.ts'; 
+  // Please correct the appropriate path
   import type { MLCEngineInterface, ChatCompletionMessageParam } from '@mlc-ai/web-llm';
 
   import FaqContent from '../../../FAQ.md?raw';
 
-  // LLMの型とは独立した、UI用のメッセージ構造を定義
+  // Define the message structure for the UI, independent of the LLM type
   type SimpleMessage = {
     id: string;
     role: 'user' | 'assistant';
-    // partsの構造は元のUIMessageから継承
+    // parts structure inherited from the original UIMessage
     parts: { type: 'text'; text: string }[];
     metadata?: {
       createdAt: Date;
@@ -23,7 +24,7 @@
   const createMessage = (role: 'user' | 'assistant', text: string): SimpleMessage => ({
     id: Date.now().toString() + '-' + role,
     role,
-    // Castを SimpleMessage['parts'] に修正
+    // Fix cast to SimpleMessage['parts']
     parts: [{ type: 'text', text }] as SimpleMessage['parts'],
     metadata: {
       createdAt: new Date(),
@@ -36,28 +37,21 @@
     'Hello! This is a mock simple chat UI awaiting transition to WebLLM.'
   );
 
-  // writableの型を SimpleMessage[] に変更
+  // Change writable type to SimpleMessage[]
   const messages = writable<SimpleMessage[]>([initialMessage]);
   let input = '';
-  let isLoading = false; // 会話中のローディング
-  let hasFaqBeenPreloaded = false;
+  let isLoading = false; // Loading during conversation
+  // let isPreloading = false; // Removed
+  // let hasFaqBeenPreloaded = false; // Removed
   let messagesEnd: HTMLDivElement;
   
-  // LLMストアの状態を監視
+  // Monitor LLM store status
   const llmState = llmStore;
   
-  // LLMの状態を判定
+  // Determine LLM status
   $: isLLMReady = $llmState.status === 'ready';
   $: isLLMLoading = $llmState.status === 'loading';
   $: isLLMPending = $llmState.status === 'pending';
-
-  $: if (isLLMReady && !hasFaqBeenPreloaded) {
-    hasFaqBeenPreloaded = true; // フラグを設定し、二度目の実行を防ぐ
-    
-    // UIをブロックしないように非同期で実行
-    // ユーザーには見えないバックグラウンド処理
-    handleFaqPreload(); 
-  }
 
   // Reactive statement to scroll to the bottom when messages change
   $: $messages, scrollToBottom();
@@ -72,7 +66,7 @@
     }
   }
 
-  /** ユーザーがダウンロードに同意し、LLMの初期化を開始するハンドラ */
+  /** Handler for the user agreeing to download and starting LLM initialization */
   function handleAgreeAndStart() {
     if (isLLMPending) {
       llmStore.startLLMInitialization();
@@ -83,7 +77,7 @@
   const handleSubmit = (event: SubmitEvent) => {
     event.preventDefault();
     
-    // LLMがReadyでない場合は、メッセージ送信を許可しない
+    // Do not allow message submission if the LLM is not ready
     if (!input.trim() || isLoading || !isLLMReady) return; 
 
     const userMessageContent = input;
@@ -97,9 +91,18 @@
   };
   
 
-      // FAQコンテンツを含むシステムプロンプトの構築
-      const systemPrompt = `
-You are a helpful AI assistant. 
+  // System prompt including FAQ content (Used every time)
+  const systemPrompt = `
+You are Cora, a friendly and helpful interactive support assistant. 
+Your primary goal is to provide clear, concise, and structured answers to the user's questions based ONLY on the "KNOWLEDGE BASE" provided below.
+
+When answering, please adhere to these guidelines:
+1.  **Tone and Style:** Be friendly, encouraging, and easy to understand.
+2.  **Clarity:** Never quote the Q&A text verbatim, and do not use internal document formatting like 'Q:', 'A:', '###', or '**'.
+3.  **Structure:** Use bullet points, short paragraphs, or numbered lists to present the information clearly.
+4.  **Completeness:** Synthesize the most relevant facts from the knowledge base to fully address the user's inquiry.
+5.  **Handling Unknowns:** If the answer is NOT explicitly present in the knowledge base, state politely that you cannot find the relevant information in your current resources.
+
 Your knowledge base is provided below. Always refer to this knowledge first when answering questions related to it.
 
 --- KNOWLEDGE BASE (FAQ) ---
@@ -107,45 +110,45 @@ ${FaqContent}
 ---------------------------
 `;
 
-  /** WebLLMを使用してアシスタントの応答を生成します。 */
+  /** Generates the assistant's response using WebLLM. */
   async function handleWebLLMChat(userMessageContent: string) {
     if ($llmState.status !== 'ready') {
         console.error('LLM is not ready.');
         return;
     }
 
-    // MLCEngineInterfaceを取得
+    // Get MLCEngineInterface
     const engine: MLCEngineInterface = $llmState.chat;
     let assistantResponse = '';
     isLoading = true;
 
     try {
-        // メッセージ履歴の構築
+        // Construct message history: always use the long systemPrompt including the FAQ
         const messagesToSend = [
             { role: "system", content: systemPrompt }, 
             { role: "user", content: userMessageContent }
-        ] satisfies ChatCompletionMessageParam[]; // 型安全性を保つために satisfies を使用
+        ] satisfies ChatCompletionMessageParam[]; // Use satisfies for type safety
 
-        // ストリーミング中に一時的にメッセージをプレースホルダーとして追加
+        // Temporarily add a placeholder message during streaming
         messages.update(msgs => [...msgs, createMessage('assistant', '')]);
         
-        // engine.chat.completions インターフェースを使用
+        // Use engine.chat.completions interface
         const responseStream = await engine.chat.completions.create({
             messages: messagesToSend,
-            stream: true, // ストリーミングを有効化
+            stream: true, // Enable streaming
         });
 
-        // ストリームの処理
+        // Process the stream
         for await (const chunk of responseStream) {
-            const content = chunk.choices[0]?.delta.content; // deltaを使用
+            const content = chunk.choices[0]?.delta.content; // Use delta
             if (content) {
                 assistantResponse += content;
                 
-                // 最後のメッセージを更新（ストリーミング）
+                // Update the last message (streaming)
                 messages.update(msgs => {
                     const lastMessage = msgs[msgs.length - 1];
                     if (lastMessage && lastMessage.role === 'assistant') {
-                        // ストリーミング中にDOMを更新
+                        // Update DOM during streaming
                         return [...msgs.slice(0, -1), createMessage('assistant', assistantResponse)];
                     }
                     return msgs; 
@@ -156,7 +159,7 @@ ${FaqContent}
     } catch (error) {
         console.error('LLM conversation failed:', error);
         assistantResponse = 'Error: LLM failed to generate a response.';
-        // エラーが発生した場合、最後のメッセージをエラーメッセージで上書き
+        // If an error occurs, overwrite the last message with the error message
         messages.update(msgs => {
              return [...msgs.slice(0, -1), createMessage('assistant', assistantResponse)];
         });
@@ -166,40 +169,7 @@ ${FaqContent}
     }
   }
 
-  /** LLMがReadyになった直後にFAQをシステムプロンプトとしてプリロードします。 */
-  async function handleFaqPreload() {
-      console.log("LLM ready. Preloading FAQ knowledge base...");
-    
-      // ダミーのユーザープロンプト (プリロードが目的のため、短いメッセージで十分)
-      const dummyPrompt = "Start a new session. Do not respond with a greeting, just acknowledge the system prompt and confirm readiness.";
-
-      try {
-          if ($llmState.status !== 'ready') {
-              console.error('LLM is not ready for FAQ preload.');
-              return;
-          }
-          const engine: MLCEngineInterface = $llmState.chat;
-          
-          // メッセージ履歴の構築
-          const messagesToSend = [
-              { role: "system", content: systemPrompt }, 
-              { role: "user", content: dummyPrompt }
-          ] satisfies ChatCompletionMessageParam[]; 
-
-          // ストリーミングなし（stream: false）で一度だけ推論を実行
-          // これにより、FAQの内容がモデルの内部キャッシュ（コンテキスト）にロードされます。
-          await engine.chat.completions.create({
-              messages: messagesToSend,
-              stream: false, // 応答は不要
-          });
-
-          console.log("FAQ preload complete. LLM is now ready for efficient chat.");
-
-      } catch (error) {
-          console.error('FAQ preload failed:', error);
-          // エラーが発生した場合、ユーザーチャットでFAQが渡され続けるため、致命的ではない
-      }
-  }
+  // handleFaqPreload function is removed
 </script>
 
 ---
@@ -211,11 +181,11 @@ ${FaqContent}
         <div class="initial-warning message-bubble assistant">
             <span class="role">System Warning:</span>
             <p>
-                このチャット機能を利用するには、**Llama-3.1-8B-Instruct-q4f16_1-MLC** モデル（数GBの大きなファイル）をダウンロードする必要があります。
-                初回起動時にのみ必要ですが、完了まで数分かかる場合があります（インターネット接続速度に依存）。
+                To use this chat feature, you must download the **Llama-3.1-8B-Instruct-q4f16_1-MLC** model (a large file of several GBs).
+                This is only required on the first launch, but it may take several minutes to complete (depending on your internet speed).
             </p>
             <button class="agree-button" onclick={handleAgreeAndStart}>
-                同意してモデルのダウンロードを開始する
+                Agree and Start Model Download
             </button>
         </div>
     {/if}
@@ -228,9 +198,9 @@ ${FaqContent}
             class:assistant={message.role === 'assistant'}
           >
             <span class="role">{message.role === 'user' ?
-'You' : 'AI Mock'}:</span>
+'You' : 'Cora'}:</span>
             <p>{(message.parts[0] as TextPart)?.text ||
-'(No text content)'}</p>
+'...'}</p>
           </div>
         {/each}
     {/if}
@@ -244,8 +214,8 @@ ${FaqContent}
             <div><div class="spinner"></div></div>
             <p class="loading-text">
                 {isLLMLoading 
-                    ? ($llmState.status === 'loading' ? `ダウンロード中: ${$llmState.message}` : 'Initializing...') 
-                    : '思考中...'}
+                    ? ($llmState.status === 'loading' ? `Downloading: ${$llmState.message}` : 'Initializing...') 
+                    : 'Thinking...'}
             </p>
         </div>
     </div>
@@ -255,22 +225,29 @@ ${FaqContent}
     <input
       bind:value={input}
       type="text"
-      placeholder={!isLLMReady ? 
-        ($llmState.status === 'error' ? 'エラーが発生しました' : isLLMPending ? '開始ボタンを押してください' : 'モデルを読み込み中...')
-        : (isLoading ? '応答待ち...' : 'メッセージを入力...')
+      placeholder={!isLLMReady 
+        ? ($llmState.status === 'error' 
+            ? 'An error occurred' 
+            : isLLMPending 
+            ? 'Please press the start button' 
+            : 'Loading model...')
+        : (isLoading ? 'Waiting for response...' : 'Enter your message...')
       }
       disabled={isLoading || !isLLMReady || isLLMLoading || isLLMPending}
       required
     />
-    <button type="submit" disabled={isLoading || !input.trim() || !isLLMReady || isLLMLoading || isLLMPending}>
-      {isLoading ? '送信中' : (!isLLMReady ? '待機中' : '送信')}
+    <button 
+        type="submit" 
+        disabled={isLoading || !input.trim() || !isLLMReady || isLLMLoading || isLLMPending}
+    >
+      {isLoading ? 'Sending' : (!isLLMReady ? 'Waiting' : 'Send')}
     </button>
   </form>
 </div>
 
 <style>
   .chat-container {
-    /* position: relative; は不要 */
+    /* position: relative; is unnecessary */
     display: flex;
     flex-direction: column;
     height: 80vh; 
@@ -318,9 +295,9 @@ ${FaqContent}
     opacity: 0.7;
   }
   
-  /* 警告と同意ボタンのためのスタイル */
+  /* Style for warning and agree button */
   .initial-warning {
-    background-color: #fff3cd; /* 警告色 */
+    background-color: #fff3cd; /* Warning color */
     color: #856404;
     border: 1px solid #ffeeba;
     padding: 15px;
@@ -350,22 +327,22 @@ ${FaqContent}
     background-color: #218838;
   }
 
-  /* ローディングインジケータ（メッセージバブルの外） */
+  /* Loading indicator (outside message bubble) */
   .loading-indicator {
-    /* 修正: position: absolute; を削除し、フロー内に配置 */
-    /* bottom, left, transform, z-index も全て削除 */
+    /* Fix: position: absolute; removed and placed within the flow */
+    /* bottom, left, transform, z-index are also all removed */
     
-    margin: 5px 15px 10px 15px; /* マージンで配置を調整 */
-    padding: 8px 12px; /* message-bubbleと同じパディング */
-    align-self: flex-start; /* アシスタントのように左寄せ */
-    background-color: #e5e5ea; /* アシスタントバブルと同じ背景色 */
+    margin: 5px 15px 10px 15px; /* Adjust placement with margin */
+    padding: 8px 12px; /* Same padding as message-bubble */
+    align-self: flex-start; /* Left-aligned like assistant */
+    background-color: #e5e5ea; /* Same background color as assistant bubble */
     color: #000;
-    border-radius: 18px; /* message-bubbleと同じ角丸 */
+    border-radius: 18px; /* Same border-radius as message-bubble */
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
-    max-width: 50%; /* 幅を制限 */
+    max-width: 50%; /* Limit width */
     
-    /* 内部のフレックスレイアウト */
-    display: inline-flex; /* contentの幅に合わせる */
+    /* Internal flex layout */
+    display: inline-flex; /* Fit content width */
     align-items: center;
     gap: 10px;
   }
@@ -378,7 +355,7 @@ ${FaqContent}
 
   .spinner {
     border: 4px solid rgba(0, 0, 0, 0.1);
-    border-left-color: #007bff; /* スピナーの色 */
+    border-left-color: #007bff; /* Spinner color */
     border-radius: 50%;
     width: 20px;
     height: 20px;
@@ -391,7 +368,7 @@ ${FaqContent}
   }
 
   .loading-text {
-    margin: 0; /* pタグのデフォルトマージンをリセット */
+    margin: 0; /* Reset default margin for p tag */
     font-size: 0.9em;
     color: #333;
   }

@@ -1,6 +1,10 @@
 ---
+import { joinURL } from "ufo";
+
 import Layout from "../layouts/Layout.astro";
 import Chat from "../components/Chat.svelte";
+
+const { BASE_URL } = import.meta.env;
 ---
 
 <Layout
@@ -10,5 +14,7 @@ import Chat from "../components/Chat.svelte";
 >
   <main class="white-box">
     <Chat client:load />
+
+    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
   </main>
 </Layout>
