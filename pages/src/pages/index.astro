@@ -1,7 +1,12 @@
 ---
 import { joinURL } from "ufo";
 
+import { Image } from "astro:assets";
+
 import Layout from "../layouts/Layout.astro";
+
+import demo from "../assets/demo.gif";
+import icon from "../assets/obs-backgroundremoval-icon.jpg";
 
 const { BASE_URL } = import.meta.env;
 ---
@@ -12,11 +17,34 @@ const { BASE_URL } = import.meta.env;
   title="OBS Background Removal"
 >
   <main class="white-box">
-    <h1>OBS Background Removal</h1>
+    <header class="icon-and-name">
+      <Image src={icon} alt="OBS Background Removal Icon" height="50" />
+      <h1>OBS Background Removal</h1>
+    </header>
+  
     <p>
       OBS Plugin: Background Removal / Virtual Green-screen and Low-Light
       Enhancement
     </p>
+
+    <p style="text-align: center;">
+      <Image
+        src={demo}
+        alt="Demo of OBS Background Removal Plugin"
+        width="600"
+      />
+    </p>
+
+    <ul class="download-button-container">
+      <li><a href={joinURL(BASE_URL, "windows")}>Windows</a></li>
+      <li><a href={joinURL(BASE_URL, "macos")}>macOS</a></li>
+      <li><a href={joinURL(BASE_URL, "ubuntu")}>Ubuntu</a></li>
+      <li><a href={joinURL(BASE_URL, "flatpak")}>Flatpak</a></li>
+    </ul>
+
+    <ul class="download-button-container">
+      <li><a href={joinURL(BASE_URL, "arch")}>Arch Linux</a></li>
+    </ul>
 
     <p>
       See our <a href={joinURL(BASE_URL, "usage")}>Usage</a> page for instructions
@@ -32,21 +60,19 @@ const { BASE_URL } = import.meta.env;
         View on GitHub
       </a>
     </p>
-
-    <ul class="download-button-container">
-      <li><a href={joinURL(BASE_URL, "windows")}>Windows</a></li>
-      <li><a href={joinURL(BASE_URL, "macos")}>macOS</a></li>
-      <li><a href={joinURL(BASE_URL, "ubuntu")}>Ubuntu</a></li>
-      <li><a href={joinURL(BASE_URL, "flatpak")}>Flatpak</a></li>
-    </ul>
-
-    <ul class="download-button-container">
-      <li><a href={joinURL(BASE_URL, "arch")}>Arch Linux</a></li>
-    </ul>
   </main>
 </Layout>
 
 <style>
+  header.icon-and-name {
+    display: flex;
+    align-items: center;
+  }
+
+  header.icon-and-name h1 {
+    margin-left: 10px;
+  }
+
   ul.download-button-container {
     display: flex;
     justify-content: center;
