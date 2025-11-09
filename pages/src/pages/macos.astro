@@ -19,27 +19,28 @@ if (!asset) throw new Error("macOS asset not found!");
   description="How to use OBS Background Removal on macOS"
 >
   <main class="white-box">
-    <h1>Download and install on macOS</h1>
+    <h1>Install OBS Background Removal on macOS</h1>
 
-    <p>
-      <a href="https://obsproject.com/download"
-        >Download and install the latest OBS (Both of Intel and Apple Silicon
-        are applicable)</a
-      >
-    </p>
-
-    <p>
-      <a href={asset.browser_download_url}
-        >Download the pkg installer for macOS</a
-      >
-    </p>
-
-    <p>Install {asset.name}</p>
-
-    <p>
-      See the <a href={joinURL(BASE_URL, "usage")}>usage page</a> for how to use
-      the plugin
-    </p>
+    <ol>
+      <li>
+        <strong>Download the Plugin Installer:</strong><br />
+        <a href={asset.browser_download_url} download>
+          Click here to download the latest macOS installer (PKG)
+        </a>
+      </li>
+      <li>
+        <strong>Run the Installer:</strong><br />
+        Double-click <code>{asset.name}</code> and follow the instructions to install.
+      </li>
+      <li>
+        <strong>Restart OBS Studio:</strong><br />
+        If OBS Studio is running, close it and open it again.
+      </li>
+      <li>
+        <strong>Usage:</strong><br />
+        See the <a href={joinURL(BASE_URL, "usage")}>usage page</a> for how to use the plugin.
+      </li>
+    </ol>
 
     <p>All set!</p>
 
