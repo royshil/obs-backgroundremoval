@@ -1,120 +1,103 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
-  
-  // Vercel AI SDKから型をインポート
-  import type { UIMessage } from '@ai-sdk/svelte'; 
+  import type { UIMessage } from '@ai-sdk/svelte';
 
-  // カスタム型を含まない基本的な UIMessage を定義
-  type BaseUIMessage = UIMessage;
+  // Helper type for a simple text part for clarity
+  type TextPart = { type: 'text'; text: string };
 
-  // TextUIPartの構造を定義 (または、シンプルにするために型キャストで対応)
-  // 💡 TextUIPart の構造を直接定義する
-  type TextPart = { type: 'text'; text: string; };
+  // Helper function to create a new message
+  const createMessage = (role: 'user' | 'assistant', text: string): UIMessage => ({
+    id: Date.now().toString() + '-' + role,
+    role,
+    // Cast to UIMessage is usually fine if structure matches
+    parts: [{ type: 'text', text }] as UIMessage['parts'],
+    metadata: {
+      createdAt: new Date(),
+    },
+  });
 
-  const messages = writable<BaseUIMessage[]>([]);
+  // Initialize messages with an initial assistant greeting
+  const initialMessage = createMessage(
+    'assistant',
+    'Hello! This is a mock simple chat UI awaiting transition to WebLLM.'
+  );
+
+  const messages = writable<UIMessage[]>([initialMessage]);
   let input = '';
   let isLoading = false;
   let messagesEnd: HTMLDivElement;
   
-  // メッセージが更新されたら一番下までスクロール
-  messages.subscribe(() => {
+  // Reactive statement to scroll to the bottom when messages change
+  // Svelte's idiomatic way to handle side effects from reactive state changes.
+  $: $messages, scrollToBottom();
+
+  /** Scrolls the chat view to the bottom. */
+  function scrollToBottom() {
     if (messagesEnd) {
+      // Use setTimeout to ensure the DOM has updated before scrolling
       setTimeout(() => {
         messagesEnd.scrollIntoView({ behavior: 'smooth' });
-      }, 0); 
+      }, 0);
     }
-  });
-
-  onMount(() => {
-    // 初期メッセージ: parts 構造を使用
-    messages.set([
-      { 
-        id: '1', 
-        role: 'assistant', 
-        parts: [
-          // TextUIPart の type: 'text' と text プロパティを使用
-          { type: 'text', text: 'こんにちは！これはWebLLMへの移行を待つシンプルなチャットUIのモックです。' } satisfies TextPart
-        ],
-        // createdAt は metadata に含める（ただし表示ロジックは簡略化）
-        metadata: {
-          createdAt: new Date()
-        }
-      },
-    ]);
-  });
-  
-  /**
-   * メッセージから表示用のテキストを取得するヘルパー関数
-   * 最初の 'text' タイプの part のみを取得します。
-   */
-  function getTextForDisplay(message: BaseUIMessage): string {
-    const textPart = message.parts.find(part => part.type === 'text') as TextPart | undefined;
-    return textPart?.text || '（テキストコンテンツがありません）';
   }
 
+  /** Handles the form submission. */
   const handleSubmit = (event: SubmitEvent) => {
-    console.log(event)
     event.preventDefault();
     if (!input.trim() || isLoading) return;
 
     const userMessageContent = input;
-    const newMessage: BaseUIMessage = { 
-        id: Date.now().toString() + '-user', 
-        role: 'user', 
-        parts: [
-          { type: 'text', text: userMessageContent } satisfies TextPart
-        ],
-        metadata: {
-          createdAt: new Date()
-        }
-    };
-    messages.update(msgs => [...msgs, newMessage]);
+    const userMessage = createMessage('user', userMessageContent);
+
+    // Add user message and clear input
+    messages.update(msgs => [...msgs, userMessage]);
     input = '';
+    
     handleMockResponse(userMessageContent);
   };
   
+  /** Generates a mock assistant response after a delay. */
   async function handleMockResponse(userMessageContent: string) {
     isLoading = true;
+    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 500)); 
 
-    let mockContent = '...モック応答を受信しました。WebLLMの実装を楽しみにしています！';
+    let mockContent = '...Received mock response. Looking forward to the WebLLM implementation!';
     
-    if (userMessageContent.toLowerCase().includes('astro')) {
-        mockContent = 'AstroとSvelteの連携を確認しました。WebLLMの組み込みに進んでください。';
-    } else if (userMessageContent.toLowerCase().includes('ui')) {
-        mockContent = 'UIはシンプルさを保ちます。WebLLMへの移行後もそのまま使えます。';
+    // Basic keyword-based response logic
+    const lowerInput = userMessageContent.toLowerCase();
+    if (lowerInput.includes('astro')) {
+        mockContent = 'Confirmed Astro and Svelte integration. Please proceed with WebLLM embedding.';
+    } else if (lowerInput.includes('ui')) {
+        mockContent = 'The UI remains simple. It can be used as is after migrating to WebLLM.';
     }
 
-    const mockMessage: BaseUIMessage = { 
-        id: Date.now().toString() + '-assistant', 
-        role: 'assistant', 
-        parts: [
-          { type: 'text', text: mockContent } satisfies TextPart
-        ],
-        metadata: {
-          createdAt: new Date()
-        }
-    };
+    const mockMessage = createMessage('assistant', mockContent);
 
     messages.update(msgs => [...msgs, mockMessage]);
     isLoading = false;
   }
 </script>
 
+---
+
 <div class="chat-container">
   <div class="message-list">
     {#each $messages as message (message.id)}
-      <div class="message-bubble" class:user={message.role === 'user'} class:assistant={message.role === 'assistant'}>
-        <span class="role">{message.role === 'user' ? 'あなた' : 'AIモック'}:</span>
-        <p>{getTextForDisplay(message)}</p>
+      <div 
+        class="message-bubble" 
+        class:user={message.role === 'user'} 
+        class:assistant={message.role === 'assistant'}
+      >
+        <span class="role">{message.role === 'user' ? 'You' : 'AI Mock'}:</span>
+        <p>{(message.parts[0] as TextPart)?.text || '(No text content)'}</p>
       </div>
     {/each}
     
     {#if isLoading}
         <div class="loading-indicator message-bubble assistant">
-            <span class="role">AIモック:</span>
-            <p>思考中...</p>
+            <span class="role">AI Mock:</span>
+            <p>Thinking...</p>
         </div>
     {/if}
     
@@ -125,17 +108,17 @@
     <input
       bind:value={input}
       type="text"
-      placeholder={isLoading ? '応答待ち...' : 'メッセージを入力...'}
+      placeholder={isLoading ? 'Waiting for response...' : 'Type a message...'}
       disabled={isLoading}
+      required
     />
-    <button type="submit" disabled={isLoading}>
-      {isLoading ? '送信中' : '送信'}
+    <button type="submit" disabled={isLoading || !input.trim()}>
+      {isLoading ? 'Sending' : 'Send'}
     </button>
   </form>
 </div>
 
 <style>
-  /* CSSは以前のシンプルなバージョン（ローディングアニメーションのみ追加） */
   .chat-container {
     display: flex;
     flex-direction: column;
@@ -217,6 +200,7 @@
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    transition: background-color 0.2s;
   }
 
   button:disabled {
