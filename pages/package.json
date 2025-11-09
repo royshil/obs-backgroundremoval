@@ -17,6 +17,7 @@
   "devDependencies": {
     "@ai-sdk/svelte": "^3.0.89",
     "prettier": "3.6.2",
-    "prettier-plugin-astro": "0.14.1"
+    "prettier-plugin-astro": "0.14.1",
+    "prettier-plugin-svelte": "^3.4.0"
   }
 }

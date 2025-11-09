@@ -4,6 +4,7 @@ lang: en
 title: How to develop OBS Background Removal on macOS
 description: How to develop OBS Background Removal on macOS
 ---
+
 # Step-by-Step Guide: Developing OBS Background Removal on macOS
 
 Welcome! This guide will walk you through setting up your development environment for OBS Background Removal on macOS.
