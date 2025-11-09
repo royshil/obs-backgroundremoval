@@ -11,7 +11,6 @@ set(VCPKG_TARGET_TRIPLET "" CACHE STRING "Vcpkg target triplet to use")
 option(USE_PKGCONFIG "Use pkg-config to find dependencies" OFF)
 
 option(USE_SYSTEM_ONNXRUNTIME "Use system ONNX Runtime" OFF)
-option(DISABLE_ONNXRUNTIME_GPU "Disables GPU support of ONNX Runtime (Only valid on Linux)" OFF)
 
 include(compilerconfig)
 include(defaults)
@@ -86,9 +85,7 @@ else()
   find_package(OpenCV CONFIG REQUIRED)
 endif()
 
-if(DISABLE_ONNXRUNTIME_GPU)
-  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE DISABLE_ONNXRUNTIME_GPU)
-endif()
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE DISABLE_ONNXRUNTIME_GPU)
 
 if(USE_SYSTEM_ONNXRUNTIME)
   if(OS_LINUX)
