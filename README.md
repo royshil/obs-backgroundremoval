@@ -1,6 +1,6 @@
 # OBS Plugin: Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement
 
-<div style="text-align:center;">
+<div align="center">
 
 [![GitHub](https://img.shields.io/github/license/royshil/obs-backgroundremoval)](https://github.com/royshil/obs-backgroundremoval/blob/main/LICENSE)
 [![GitHub Workflow Status](https://github.com/royshil/obs-backgroundremoval/actions/workflows/push.yaml/badge.svg)](https://github.com/royshil/obs-backgroundremoval/actions/workflows/push.yaml)
