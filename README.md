@@ -14,7 +14,7 @@ A plugin for [OBS Studio](https://obsproject.com/) that allows you to replace th
 
 <p align="center">
   <a href="https://royshil.github.io/obs-backgroundremoval/">
-    <b><large>⬇️ Download & Install OBS Background Removal ⬇️</large></b>
+    <b>⬇️ Download & Install OBS Background Removal ⬇️</b>
   </a>
 </p>
 
@@ -24,7 +24,7 @@ A plugin for [OBS Studio](https://obsproject.com/) that allows you to replace th
 <video src="https://github.com/locaal-ai/obs-backgroundremoval/assets/1067855/5ba5aae2-7ea2-4c90-ad45-fba5ccde1a4e" width="320"></video>
 </div>
 
-Check out the [usage guide page](https://locaal-ai.github.io/obs-backgroundremoval/usage) for usage walkthrough and recommendations.
+Check out the [usage guide page](https://royshil.github.io/obs-backgroundremoval/usage/) for usage walkthrough and recommendations.
 
 Additional tutorial videos:
 
