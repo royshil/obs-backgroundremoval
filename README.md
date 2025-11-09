@@ -17,19 +17,8 @@ A plugin for [OBS Studio](https://obsproject.com/) that allows you to replace th
 Check out the [guide page](https://royshil.github.io/obs-backgroundremoval/) for downloads and install instructions.
 
 <p align="center">
-  <a href="https://royshil.github.io/obs-backgroundremoval/" style="
-    display: inline-block;
-    padding: 1em 2em;
-    font-size: 1.5em;
-    font-weight: bold;
-    color: #fff;
-    background: #0078d7;
-    border-radius: 8px;
-    text-decoration: none;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    margin: 1em 0;
-  ">
-    ⬇️ Download & Install OBS Background Removal
+  <a href="https://royshil.github.io/obs-backgroundremoval/">
+    ⬇️ Download & Install OBS Background Removal ⬇️
   </a>
 </p>
 
