@@ -43,12 +43,17 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
       </li>
       <li>
         <strong>Usage:</strong><br />
-        See the <a href={joinURL(BASE_URL, "usage")}>usage page</a> for how to use the plugin.
+        See the <a href={joinURL(BASE_URL, "usage")}>usage page</a> for how to use
+        the plugin.
       </li>
     </ol>
 
     <h2>Optional: Install using PowerShell</h2>
-    <p><strong>Note:</strong> You must run PowerShell as <strong>Administrator</strong> to copy files into the OBS Studio directory.</p>
+    <p>
+      <strong>Note:</strong> You must run PowerShell as <strong
+        >Administrator</strong
+      > to copy files into the OBS Studio directory.
+    </p>
     <p>You can automate installation with PowerShell:</p>
     <pre><code>
 $zipUrl = "{assetX64.browser_download_url}"
@@ -63,6 +68,8 @@ Remove-Item $zipPath
 Remove-Item $extractPath -Recurse
     </code></pre>
 
+    <p>All set!</p>
+
     <p>
       <a href={joinURL(BASE_URL, "/")}>Back to the top page</a>
     </p>
@@ -72,5 +79,5 @@ Remove-Item $extractPath -Recurse
 <style>
   pre {
     overflow: scroll;
-  }`
+  }
 </style>
