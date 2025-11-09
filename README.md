@@ -12,13 +12,26 @@
 
 A plugin for [OBS Studio](https://obsproject.com/) that allows you to replace the background in portrait images and video, as well as enhance low-light scenes.
 
-- [Usage](#usage)
-- [Download](#download)
-- [Introduction](#introduction)
-- [Building](#building)
-  - [MacOSX](#mac-osx)
-  - [Linux (Ubuntu, Arch, openSUSE, Fedora)](#linux)
-  - [Windows](#windows)
+## Download and Install
+
+Check out the [guide page](https://royshil.github.io/obs-backgroundremoval/) for downloads and install instructions.
+
+<p align="center">
+  <a href="https://royshil.github.io/obs-backgroundremoval/" style="
+    display: inline-block;
+    padding: 1em 2em;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #fff;
+    background: #0078d7;
+    border-radius: 8px;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    margin: 1em 0;
+  ">
+    ⬇️ Download & Install OBS Background Removal
+  </a>
+</p>
 
 ## Usage
 
@@ -34,41 +47,6 @@ Additional tutorial videos:
 - Depth of Field effect: https://youtu.be/jC3EKSpNjQk
 - Low-light enhancement: https://youtu.be/WSBLYWFrn2Q
 - Remove background from ANY object (not just human): https://youtu.be/N74VCDCToX8
-
-## Download
-
-Check out the [guide page](https://royshil.github.io/obs-backgroundremoval/) for downloads and install instructions for **Windows** and **MacOS**.
-
-### Linux Installation
-
-On Ubuntu, there are two ways to install OBS and you have to use the corresponding method to install this plugin.
-
-- If you installed OBS via the official PPA, download the deb package from the [releases](https://github.com/locaal-ai/obs-backgroundremoval/releases) page and install it directly.
-- If you installed OBS via FlatHub, run the following command: `flatpak install com.obsproject.Studio.Plugin.BackgroundRemoval`
-
-The pre-built binary of this plugin can run Ubuntu 22.04 or later.
-
-On openSUSE, please see [`docs/BUILDING-OPENSUSE.md`](docs/BUILDING-OPENSUSE.md).
-
-#### FlatHub
-
-On Debian, you cannot use our deb package and we only support FlatHub installation.
-
-On other Linux distros, use the FlatHub installation of both OBS and this plugin.
-
-```
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install flathub com.obsproject.Studio
-flatpak install flathub com.obsproject.Studio.Plugin.BackgroundRemoval
-```
-
-If you install OBS in a way other than FlatHub, you have to build this plugin by yourself (see instructions for building [below](#linux)).
-
-### OBS Version Support and Compatibility
-
-- OBS version 29+ ([download](https://obsproject.com/download)) for the latest version of this plugin, e.g. 1.1.x and above.
-- OBS version 28+ for this plugin's version between 0.5.x and 1.0.x.
-- OBS version 27+ for this plugin's version 0.4.x and below.
 
 ## Introduction
 
