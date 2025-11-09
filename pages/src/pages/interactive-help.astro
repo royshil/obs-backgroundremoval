@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Chat from '../components/Chat.svelte';
+---
+
+<Layout
+  lang="en"
+  title="Interactive Help for OBS Background Removal"
+  description="Interactive Help for OBS Background Removal"
+>
+  <main class="white-box">
+    <Chat client:load />
+  </main>
+</Layout>
