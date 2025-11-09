@@ -18,6 +18,8 @@ A plugin for [OBS Studio](https://obsproject.com/) that allows you to replace th
   </a>
 </p>
 
+Or, browse versions on [releases page](https://github.com/royshil/obs-backgroundremoval/releases).
+
 ## Usage
 
 <div style="text-align:center;">
