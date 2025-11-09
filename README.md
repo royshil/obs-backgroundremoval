@@ -47,20 +47,22 @@ If you like this work, which is given to you completely free of charge, please c
 
 ### Support and Help
 
-Reach out to us on [Discord](https://discord.gg/3EUBUjpCD3) or the [OBS Plugins forum](https://obsproject.com/forum/resources/background-removal-portrait-segmentation.1260/) for online / immediate help.
+Reach out to us on [GitHub Discussions](https://github.com/royshil/obs-backgroundremoval/discussions) or the [OBS Plugins forum](https://obsproject.com/forum/resources/background-removal-portrait-segmentation.1260/) for online / immediate help.
 
-If you found a bug or want to suggest a feature or improvement please open an [issue](https://github.com/locaal-ai/obs-backgroundremoval/issues).
+If you found a bug or want to suggest a feature or improvement please open an [issue](https://github.com/royshil/obs-backgroundremoval/issues).
 
 If you are looking for hands-on help or private consultation please select a [sponsorship tier](https://github.com/sponsors/royshil?frequency=one-time).
 
 ### Technical Details
 
+<!--
 GPU support:
 
 - Currently on Windows we support DirectML, which should reduce CPU usage by 95% and effectively use the systems accelerators (GPUs if available).
 - On Mac we support CoreML for acceleration, which is available on M1 and M2 (not Intel, sorry).
 - CUDA is supported in this plugin through TensorRT, however it is supported only on Linux.
 - The goal of this plugin is to be available for everyone on every system, even if they don't own a GPU.
+-->
 
 Number of CPU threads is controllable through the UI settings. A 2-thread setting works best.
 
@@ -91,70 +93,6 @@ This video on YouTube will take you through the major parts of the code and expl
     <img width="50%" src="https://img.youtube.com/vi/iFQtcJg0Wsk/maxresdefault.jpg"/>
   </a>
 </div>
-
-## Building
-
-The plugin was built and tested on Mac OSX (Intel & Apple silicon), Windows and several Linux disros (e.g. Ubuntu/Debian-ish, Fedora, and more). Help is appreciated in building on other OSs and packages.
-
-The building pipelines in CI take care of the heavy lifting. Use them in order to build the plugin locally. We attempt to use external OpenCV, libcurl and ONNX Runtime to reduce build times.
-
-Start by cloning this repo to a directory of your choice.
-
-### Mac OSX
-
-Using the CI pipeline scripts, locally you would just call the zsh script. By default this builds a universal binary for both Intel and Apple Silicon. To build for a specific architecture please see `.github/scripts/.build.zsh` for the `-arch` options.
-
-```sh
-$ ./.github/scripts/build-macos -c Release
-```
-
-#### Install
-
-The above script should succeed and the plugin files (e.g. `obs-backgroundremoval.plugin`) will reside in the `./release/Release` folder off of the root. Copy the `.plugin` file to the OBS directory e.g. `~/Library/Application Support/obs-studio/plugins`.
-
-To get `.pkg` installer file, run for example
-
-```sh
-$ ./.github/scripts/package-macos -c Release
-```
-
-(Note that maybe the outputs will be in the `Release` folder and not the `install` folder like `pakage-macos` expects, so you will need to rename the folder from `build_x86_64/Release` to `build_x86_64/install`)
-
-### Linux
-
-#### Ubuntu
-
-Use the CI scripts again
-
-```sh
-$ ./.github/scripts/build-linux.sh
-```
-
-#### Arch Linux
-
-The community maintains AUR packages: https://aur.archlinux.org/packages/obs-backgroundremoval
-
-#### Fedora
-
-To compile on Fedora, you need to manage the dependencies manually. See [docs/BUILDING-FEDORA.md](docs/BUILDING-FEDORA.md) for more information.
-
-#### FlatHub
-
-The plugin is available on FlatHub: https://github.com/flathub/com.obsproject.Studio.Plugin.BackgroundRemoval
-
-```sh
-$ flatpak install com.obsproject.Studio.Plugin.BackgroundRemoval
-```
-
-### Windows
-
-Use the CI scripts again, for example:
-
-```powershell
-> .github/scripts/Build-Windows.ps1 -Target x64 -CMakeGenerator "Visual Studio 17 2022"
-```
-
-The build should exist in the `./release` folder off the root. You can manually install the files in the OBS directory.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=locaal-ai/obs-backgroundremoval&type=Date&theme=dark" />
