@@ -1,0 +1,19 @@
+---
+import Layout from './Layout.astro';
+
+interface Props {
+  frontmatter: {
+    lang: string;
+    title: string;
+    description: string;
+  };
+}
+
+const { lang, title, description } = Astro.props.frontmatter;
+---
+
+<Layout lang={lang} title={title} description={description}>
+  <main class="white-box">
+    <slot />
+  </main>
+</Layout>
