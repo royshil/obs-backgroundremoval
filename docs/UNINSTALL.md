@@ -1,1 +1,0 @@
-../pages/src/pages/uninstall.md
