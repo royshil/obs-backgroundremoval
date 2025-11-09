@@ -294,6 +294,9 @@ jobs:
 
       - name: "Install dependencies from vcpkg"
         run: "$VCPKG_ROOT/vcpkg install --triplet x64-linux-obs"
+      
+      - name: "Download ONNX Runtime"
+        run: "cmake -P cmake/DownloadOnnxruntime.cmake"
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin
