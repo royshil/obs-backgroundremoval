@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 💬 GitHub Discussions
+    url: https://github.com/kaito-tokyo/live-backgroundremoval-lite/discussions
+    about: Ask questions, get help, or start discussions with the community
+
+  - name: 🌐 Official Website
+    url: https://kaito-tokyo.github.io/live-backgroundremoval-lite/
+    about: Find installation guides, usage instructions, and official documentation
