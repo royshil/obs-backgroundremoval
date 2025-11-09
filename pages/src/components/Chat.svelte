@@ -34,7 +34,7 @@
   // Initialize messages with an initial assistant greeting
   const initialMessage = createMessage(
     'assistant',
-    'Hello! This is a mock simple chat UI awaiting transition to WebLLM.'
+    'Hi there! I\'m Cora, your interactive support assistant. Feel free to ask me anything about the knowledge base, and I\'ll do my best to help you out! 🤖'
   );
 
   // Change writable type to SimpleMessage[]
