@@ -57,14 +57,12 @@ If you are looking for hands-on help or private consultation please select a [sp
 
 ### Technical Details
 
-<!--
 GPU support:
 
-- Currently on Windows we support DirectML, which should reduce CPU usage by 95% and effectively use the systems accelerators (GPUs if available).
-- On Mac we support CoreML for acceleration, which is available on M1 and M2 (not Intel, sorry).
-- CUDA is supported in this plugin through TensorRT, however it is supported only on Linux.
+- On Windows, we plan to support WinML acceleration.
+- On Mac we support CoreML for acceleration, which is efficient on Appli Silicon.
+- On Linux CUDA and ROCM are supported if this plugin is built from source. Ensure your ONNX Runtime installation has CUDA or ROCM support.
 - The goal of this plugin is to be available for everyone on every system, even if they don't own a GPU.
--->
 
 Number of CPU threads is controllable through the UI settings. A 2-thread setting works best.
 
