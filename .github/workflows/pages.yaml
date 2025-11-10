@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Run daily at 2:43 AM to refresh the latest release metadata and ensure pages are up-to-date.
+    - cron: '43 2 * * *'
   workflow_dispatch:
 
 defaults:
@@ -43,17 +46,18 @@ jobs:
         working-directory: ${{ env.BUILD_PATH }}
 
       - name: Build pages
-        run: npm run build
+        run: |
+          npx astro build \
+            --site "${{ steps.pages.outputs.origin }}" \
+            --base "${{ steps.pages.outputs.base_path }}"
         working-directory: ${{ env.BUILD_PATH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ${{ env.BUILD_PATH }}/build
-
+          path: ${{ env.BUILD_PATH }}/dist
 
   DeployPages:
     runs-on: "ubuntu-24.04"

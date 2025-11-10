@@ -1,0 +1,159 @@
+---
+import { joinURL } from "ufo";
+
+import { Image } from "astro:assets";
+
+import Layout from "../layouts/Layout.astro";
+
+import demo from "../assets/demo.gif";
+import icon from "../assets/obs-backgroundremoval-icon.jpg";
+
+const { BASE_URL } = import.meta.env;
+---
+
+<Layout
+  description="OBS Plugin: Background Removal / Virtual Green-screen and Low-Light Enhancement"
+  lang="en"
+  title="OBS Background Removal"
+>
+  <main class="white-box">
+    <header class="icon-and-name">
+      <Image src={icon} alt="OBS Background Removal Icon" height="50" />
+      <h1>OBS Background Removal</h1>
+    </header>
+
+    <p>
+      OBS Plugin: Background Removal / Virtual Green-screen and Low-Light
+      Enhancement
+    </p>
+
+    <p style="text-align: center;">
+      <Image
+        src={demo}
+        alt="Demo of OBS Background Removal Plugin"
+        width="600"
+      />
+    </p>
+
+    <ul class="download-button-container">
+      <li><a href={joinURL(BASE_URL, "windows/")}>Windows</a></li>
+      <li><a href={joinURL(BASE_URL, "macos/")}>macOS</a></li>
+      <li><a href={joinURL(BASE_URL, "ubuntu/")}>Ubuntu</a></li>
+      <li><a href={joinURL(BASE_URL, "flatpak/")}>Flatpak</a></li>
+    </ul>
+
+    <ul class="download-button-container">
+      <li><a href={joinURL(BASE_URL, "arch/")}>Arch Linux</a></li>
+    </ul>
+
+    <div style="text-align: center;">
+      <a
+        href={joinURL(BASE_URL, "interactive-help/")}
+        class="ask-anything-button"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="vertical-align: middle; margin-right: 0.5em;"
+          ><path
+            d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+          ></path></svg
+        >
+        <span
+          style="vertical-align: middle; font-weight: bold;"
+          >Ask Anything (Experimental)</span
+        >
+      </a>
+    </div>
+
+    <p>
+      See our <a href={joinURL(BASE_URL, "usage/")}>Usage</a> page for instructions
+      on usage in OBS
+    </p>
+
+    <p>
+      <a href={joinURL(BASE_URL, "dev/")}>Developer resources</a>
+    </p>
+
+    <p>
+      <a href={joinURL(BASE_URL, "uninstall/")}>Uninstall instructions</a>
+    </p>
+
+    <p>
+      <a
+        href="https://github.com/royshil/obs-backgroundremoval"
+        target="_blank"
+        rel="noopener"
+      >
+        View on GitHub
+      </a>
+    </p>
+  </main>
+</Layout>
+
+<style>
+  header.icon-and-name {
+    display: flex;
+    align-items: center;
+  }
+
+  header.icon-and-name h1 {
+    margin-left: 10px;
+  }
+
+  ul.download-button-container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 2em;
+    list-style: none;
+    padding: 0;
+  }
+
+  ul.download-button-container li a {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-weight: bold;
+    color: white;
+    background-color: var(--color-button-1);
+    box-shadow: 0 4px 8px var(--color-box-shadow);
+    text-decoration: none;
+    transition: background-color 0.3s ease;
+  }
+
+  ul.download-button-container li a:hover,
+  ul.download-button-container li a:focus {
+    background-color: var(--color-button-2);
+  }
+
+  .ask-anything-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1em 2em;
+    font-size: 1.2em;
+    border-radius: 999px;
+    background: var(--color-button-2, #4f8cff);
+    color: #fff;
+    text-decoration: none;
+    box-shadow: 0 4px 16px var(--color-box-shadow, rgba(0, 0, 0, 0.1));
+    margin: 1em auto;
+    transition:
+      background-color 0.2s,
+      box-shadow 0.2s;
+    font-weight: bold;
+  }
+  .ask-anything-button:hover,
+  .ask-anything-button:focus {
+    background: var(--color-button-1, #2563eb);
+    box-shadow: 0 6px 24px var(--color-box-shadow, rgba(0, 0, 0, 0.15));
+  }
+</style>

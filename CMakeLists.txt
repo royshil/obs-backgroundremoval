@@ -11,7 +11,6 @@ set(VCPKG_TARGET_TRIPLET "" CACHE STRING "Vcpkg target triplet to use")
 option(USE_PKGCONFIG "Use pkg-config to find dependencies" OFF)
 
 option(USE_SYSTEM_ONNXRUNTIME "Use system ONNX Runtime" OFF)
-option(DISABLE_ONNXRUNTIME_GPU "Disables GPU support of ONNX Runtime (Only valid on Linux)" OFF)
 
 include(compilerconfig)
 include(defaults)
@@ -86,9 +85,7 @@ else()
   find_package(OpenCV CONFIG REQUIRED)
 endif()
 
-if(DISABLE_ONNXRUNTIME_GPU)
-  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE DISABLE_ONNXRUNTIME_GPU)
-endif()
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE DISABLE_ONNXRUNTIME_GPU)
 
 if(USE_SYSTEM_ONNXRUNTIME)
   if(OS_LINUX)
@@ -118,24 +115,24 @@ elseif(APPLE)
   )
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
 elseif(MSVC)
-  set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime")
+  set(ONNXRUNTIME_DIR "${CMAKE_SOURCE_DIR}/onnxruntime")
 
   add_library(onnxruntime::onnxruntime_provider_shared SHARED IMPORTED)
   set_target_properties(
     onnxruntime::onnxruntime_provider_shared
     PROPERTIES
-      IMPORTED_IMPLIB "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.lib"
-      IMPORTED_LOCATION "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
-      INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_ROOT}/include"
+      IMPORTED_IMPLIB "${ONNXRUNTIME_DIR}/lib/onnxruntime_providers_shared.lib"
+      IMPORTED_LOCATION "${ONNXRUNTIME_DIR}/lib/onnxruntime_providers_shared.dll"
+      INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_DIR}/include"
   )
 
   add_library(onnxruntime::onnxruntime SHARED IMPORTED)
   set_target_properties(
     onnxruntime::onnxruntime
     PROPERTIES
-      IMPORTED_IMPLIB "${ONNXRUNTIME_ROOT}/lib/onnxruntime.lib"
-      IMPORTED_LOCATION "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
-      INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_ROOT}/include"
+      IMPORTED_IMPLIB "${ONNXRUNTIME_DIR}/lib/onnxruntime.lib"
+      IMPORTED_LOCATION "${ONNXRUNTIME_DIR}/lib/onnxruntime.dll"
+      INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_DIR}/include"
       INTERFACE_LINK_OPTIONS "/DELAYLOAD:onnxruntime.dll"
   )
   target_link_libraries(onnxruntime::onnxruntime INTERFACE onnxruntime::onnxruntime_provider_shared)
@@ -145,16 +142,23 @@ elseif(MSVC)
 
   install(
     FILES
-      "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
-      "${ONNXRUNTIME_ROOT}/lib/onnxruntime.pdb"
-      "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
-      "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.pdb"
+      "${ONNXRUNTIME_DIR}/lib/onnxruntime.dll"
+      "${ONNXRUNTIME_DIR}/lib/onnxruntime.pdb"
+      "${ONNXRUNTIME_DIR}/lib/onnxruntime_providers_shared.dll"
+      "${ONNXRUNTIME_DIR}/lib/onnxruntime_providers_shared.pdb"
     DESTINATION "${CMAKE_PROJECT_NAME}/bin/64bit/obs-backgroundremoval"
   )
 else()
-  list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/onnxruntime")
+  set(ONNXRUNTIME_DIR "${CMAKE_SOURCE_DIR}/onnxruntime")
+  list(PREPEND CMAKE_PREFIX_PATH "${ONNXRUNTIME_DIR}")
   find_package(onnxruntime CONFIG REQUIRED)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
+  file(GLOB ONNXRUNTIME_SO_FILES "${ONNXRUNTIME_DIR}/lib64/libonnxruntime.so.*")
+  install(
+    FILES ${ONNXRUNTIME_SO_FILES} "${ONNXRUNTIME_DIR}/lib64/libonnxruntime_providers_shared.so"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/obs-plugins/${CMAKE_PROJECT_NAME}
+  )
+  set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/${CMAKE_PROJECT_NAME}")
 endif()
 
 add_subdirectory(src/update-checker/CurlClient)

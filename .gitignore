@@ -18,6 +18,7 @@
 !buildspec.json
 !CMakeLists.txt
 !CMakePresets.json
+!FAQ.md
 !LICENSE
 !README.md
 !vcpkg-configuration.json

@@ -1,0 +1,58 @@
+---
+import { joinURL } from "ufo";
+
+import Layout from "../layouts/Layout.astro";
+import Chat from "../components/Chat.svelte";
+
+const { BASE_URL } = import.meta.env;
+---
+
+<Layout
+  lang="en"
+  title="Interactive Help for OBS Background Removal"
+  description="Interactive Help for OBS Background Removal"
+>
+  <main class="white-box">
+    <Chat client:load />
+
+    <div class="disclaimer-note">
+      <p>
+        <strong>🔬 Experimental Notice:</strong> This is an experimental feature and may experience unexpected behavior or changes.
+      </p>
+      <p>
+        <strong>🔒 Privacy Notice:</strong> This chat operates entirely within your
+        local machine (browser). No data, messages, or sensitive information is ever
+        sent to external servers or third parties.
+      </p>
+      <p>
+        <strong>⚠️ Accuracy Warning:</strong> This chatbot may occasionally display
+        inaccurate or outdated information. Always verify critical details presented
+        in the response.
+      </p>
+    </div>
+    <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
+  </main>
+</Layout>
+
+<style>
+  .disclaimer-note {
+    max-width: 600px;
+    margin: 15px auto 0 auto;
+    padding: 10px 15px;
+    font-size: 0.85em;
+    color: #555;
+    background-color: #fffde7; /* 淡い黄色や目立つ色 */
+    border: 1px solid #f0e68c;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .disclaimer-note p {
+    margin: 5px 0;
+  }
+
+  .disclaimer-note strong {
+    font-weight: bold;
+    color: #333;
+  }
+</style>
