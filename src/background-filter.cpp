@@ -38,7 +38,7 @@ struct background_removal_filter : public filter_data {
 	float contourFilter = 0.05f;
 	float smoothContour = 0.5f;
 	float feather = 0.0f;
-	float maskExpansion = 0.0f;
+	int maskExpansion = 0;
 
 	cv::Mat backgroundMask;
 	cv::Mat lastBackgroundMask;
@@ -150,7 +150,7 @@ obs_properties_t *background_filter_properties(void *data)
 				 threshold_props);
 
 	/* Mask expansion slider - in advanced settings */
-	obs_properties_add_float_slider(props, "mask_expansion", obs_module_text("MaskExpansion"), 0.0, 1.0, 0.05);
+	obs_properties_add_int_slider(props, "mask_expansion", obs_module_text("MaskExpansion"), -30, 30, 1);
 
 	/* GPU, CPU and performance Props */
 	obs_property_t *p_use_gpu = obs_properties_add_list(props, "useGPU", obs_module_text("InferenceDevice"),
@@ -231,7 +231,7 @@ void background_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "threshold", 0.5);
 	obs_data_set_default_double(settings, "contour_filter", 0.05);
 	obs_data_set_default_double(settings, "smooth_contour", 0.5);
-	obs_data_set_default_double(settings, "mask_expansion", 0.0);
+	obs_data_set_default_double(settings, "mask_expansion", 0);
 	obs_data_set_default_double(settings, "feather", 0.0);
 #if defined(__APPLE__)
 	obs_data_set_default_string(settings, "useGPU", USEGPU_CPU);
@@ -566,12 +566,13 @@ void background_filter_video_tick(void *data, float seconds)
 					backgroundMask = backgroundMask > 128;
 				}
 
-				// Expand the mask to create a larger "safe" area around the detected person
+				// Expand or shrink the mask
 				if (tf->maskExpansion > 0.0) {
-					// Scale from 0.0-1.0 to 1-11 dilation iterations
-					int expansion_iterations = (int)(1 + 10 * tf->maskExpansion);
+					cv::erode(backgroundMask, backgroundMask, cv::Mat(), cv::Point(-1, -1),
+						   tf->maskExpansion);
+				} else if (tf->maskExpansion < 0.0) {
 					cv::dilate(backgroundMask, backgroundMask, cv::Mat(), cv::Point(-1, -1),
-						   expansion_iterations);
+						  -tf->maskExpansion);
 				}
 
 				if (tf->feather > 0.0) {
