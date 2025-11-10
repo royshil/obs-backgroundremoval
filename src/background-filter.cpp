@@ -569,10 +569,10 @@ void background_filter_video_tick(void *data, float seconds)
 				// Expand or shrink the mask
 				if (tf->maskExpansion > 0.0) {
 					cv::erode(backgroundMask, backgroundMask, cv::Mat(), cv::Point(-1, -1),
-						   tf->maskExpansion);
+						  tf->maskExpansion);
 				} else if (tf->maskExpansion < 0.0) {
 					cv::dilate(backgroundMask, backgroundMask, cv::Mat(), cv::Point(-1, -1),
-						  -tf->maskExpansion);
+						   -tf->maskExpansion);
 				}
 
 				if (tf->feather > 0.0) {
