@@ -57,10 +57,10 @@ obs_properties_t *enhance_filter_properties(void *data)
 	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUTensorRT"), USEGPU_TENSORRT);
 #endif
 #ifdef HAVE_ONNXRUNTIME_CUDA
-	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUCuda"), USEGPU_CUDA);
+	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUCUDA"), USEGPU_CUDA);
 #endif
 #ifdef HAVE_ONNXRUNTIME_ROCM
-	obs_property_list_add_string(p_use_gpu, obs_module_text("GPURocm"), USEGPU_ROCM);
+	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUROCM"), USEGPU_ROCM);
 #endif
 #if defined(__APPLE__)
 	obs_property_list_add_string(p_use_gpu, obs_module_text("CoreML"), USEGPU_COREML);
