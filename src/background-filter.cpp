@@ -104,7 +104,7 @@ static bool enable_advanced_settings(obs_properties_t *ppts, obs_property_t *p, 
 	for (const char *prop_name :
 	     {"model_select", "useGPU", "mask_every_x_frames", "numThreads", "enable_focal_blur", "enable_threshold",
 	      "threshold_group", "focal_blur_group", "temporal_smooth_factor", "image_similarity_threshold",
-	      "enable_image_similarity"}) {
+	      "enable_image_similarity", "mask_expansion"}) {
 		p = obs_properties_get(ppts, prop_name);
 		obs_property_set_visible(p, enabled);
 	}
@@ -143,14 +143,14 @@ obs_properties_t *background_filter_properties(void *data)
 	obs_properties_add_float_slider(threshold_props, "smooth_contour", obs_module_text("SmoothSilhouette"), 0.0,
 					1.0, 0.05);
 
-	obs_properties_add_float_slider(threshold_props, "mask_expansion", obs_module_text("MaskExpansion"), 0.0, 1.0,
-					0.05);
-
 	obs_properties_add_float_slider(threshold_props, "feather", obs_module_text("FeatherBlendSilhouette"), 0.0, 1.0,
 					0.05);
 
 	obs_properties_add_group(props, "threshold_group", obs_module_text("ThresholdGroup"), OBS_GROUP_NORMAL,
 				 threshold_props);
+
+	/* Mask expansion slider - in advanced settings */
+	obs_properties_add_float_slider(props, "mask_expansion", obs_module_text("MaskExpansion"), 0.0, 1.0, 0.05);
 
 	/* GPU, CPU and performance Props */
 	obs_property_t *p_use_gpu = obs_properties_add_list(props, "useGPU", obs_module_text("InferenceDevice"),
