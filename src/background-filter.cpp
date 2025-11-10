@@ -571,7 +571,10 @@ void background_filter_video_tick(void *data, float seconds)
 			}
 
 			// Save the mask for the next frame
-			backgroundMask.copyTo(tf->backgroundMask);
+			{
+				std::lock_guard<std::mutex> lock(tf->outputLock);
+				backgroundMask.copyTo(tf->backgroundMask);
+			}
 		}
 	} catch (const Ort::Exception &e) {
 		obs_log(LOG_ERROR, "ONNXRuntime Exception: %s", e.what());
@@ -665,8 +668,18 @@ void background_filter_video_render(void *data, gs_effect_t *_effect)
 	gs_texture_t *alphaTexture = nullptr;
 	{
 		std::lock_guard<std::mutex> lock(tf->outputLock);
+
+		if (tf->backgroundMask.empty()) {
+			obs_log(LOG_WARNING, "Background mask is empty during render, skipping frame.");
+			if (tf->source) {
+				obs_source_skip_video_filter(tf->source);
+			}
+			return;
+		}
+
 		alphaTexture = gs_texture_create(tf->backgroundMask.cols, tf->backgroundMask.rows, GS_R8, 1,
 						 (const uint8_t **)&tf->backgroundMask.data, 0);
+
 		if (!alphaTexture) {
 			obs_log(LOG_ERROR, "Failed to create alpha texture");
 			if (tf->source) {
