@@ -172,6 +172,7 @@ check_library_exists(
   HAVE_ONNXRUNTIME_CUDA_EP
 )
 if(HAVE_ONNXRUNTIME_CUDA_EP)
+  message(STATUS "ONNX Runtime CUDA Execution Provider found")
   target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_CUDA_EP)
 endif()
 
@@ -181,7 +182,9 @@ check_library_exists(
   onnxruntime_c_api.h
   HAVE_ONNXRUNTIME_ROCM_EP
 )
+message(FATAL_ERROR ${HAVE_ONNXRUNTIME_ROCM_EP})
 if(HAVE_ONNXRUNTIME_ROCM_EP)
+  message(STATUS "ONNX Runtime ROCM Execution Provider found")
   target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_ROCM_EP)
 endif()
 
