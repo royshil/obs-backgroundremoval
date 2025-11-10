@@ -7,77 +7,7 @@
 
 ---
 
-## Applicable sources
-
-### Q1. What types of sources can the filter be applied to?
-**A:**
-- The filter is mainly intended for real-time camera input.
-- It can also be applied to any video source in OBS, including pre-recorded video files.
-
----
-
-## Multi-camera usage
-
-### Q1. Can I use the filter with multiple video sources?
-**A:**
-- Yes, you can add the filter to multiple video sources.
-- Note that CPU usage will increase with each additional source using the filter.
-
----
-
-## Limitations
-
-### Q1. Are there any limitations to the background removal?
-**A:**
-- The current implementation focuses on foreground segmentation for a single person.
-- Results may not be optimal in scenarios with multiple people in the frame.
-
----
-
-## Other notes
-
-### Q1. Are there any other important notes or caveats?
-**A:**
-- The plugin can be used with OBS Virtual Camera.
-- Simultaneous use with other background removal plugins is not recommended to avoid conflicts.
-- Segmentation quality may decrease in low-light or noisy environments.
-
----
-
-## Troubleshooting
-
-### Q1. I see "Failed to load Background Removal plugin". What should I do?
-**A:**
-- This usually means some dependencies are missing or the plugin was installed to the wrong path.
-- Please review the installation instructions for your platform.
-- Make sure all required runtimes are installed.
-
----
-
-### Q2. The background becomes black or transparent. Why?
-**A:**
-- This may be due to incorrect filter settings or missing/incorrectly added background image/video sources.
-- Check the order in which filters are applied.
-- Ensure your background source is correctly added below your camera source.
-
----
-
-### Q3. OBS crashes when using the plugin.
-**A:**
-- Make sure you are using the latest version of OBS Studio and the plugin.
-- Remove any conflicting plugins.
-- If the problem persists, report the issue on GitHub with your OBS log file attached.
-
----
-
-### Q4. I see "Cannot find model file". What should I do?
-**A:**
-- This error means not all required model files were extracted or placed correctly.
-- Please reinstall the plugin and ensure all files are present.
-
----
-
-## Basic features
+## Basic Features
 
 ### Q1. Do I need a green screen (chroma key) to use this plugin?
 **A:**
@@ -87,7 +17,36 @@
 
 ---
 
-## How to apply the filter
+### Q2. What types of sources can the filter be applied to?
+**A:**
+- The filter is mainly intended for real-time camera input.
+- It can also be applied to any video source in OBS, including pre-recorded video files.
+
+---
+
+### Q3. Can I use the filter with multiple video sources?
+**A:**
+- Yes, you can add the filter to multiple video sources.
+- Note that CPU usage will increase with each additional source using the filter.
+
+---
+
+### Q4. Are there any limitations to the background removal?
+**A:**
+- The current implementation focuses on foreground segmentation for a single person.
+- Results may not be optimal in scenarios with multiple people in the frame.
+
+---
+
+### Q5. Are there any other important notes or caveats?
+**A:**
+- The plugin can be used with OBS Virtual Camera.
+- Simultaneous use with other background removal plugins is not recommended to avoid conflicts.
+- Segmentation quality may decrease in low-light or noisy environments.
+
+---
+
+## How to Use
 
 ### Q1. How do I apply background removal in OBS?
 **A:**
@@ -97,9 +56,7 @@
 
 ---
 
-## Background replacement
-
-### Q1. Can I replace the background with a custom image or video?
+### Q2. Can I replace the background with a custom image or video?
 **A:**
 - Yes, you can replace the background.
 - Add a custom image or video source below your camera source in the scene.
@@ -107,9 +64,7 @@
 
 ---
 
-## Quality adjustment
-
-### Q1. How can I improve or adjust the background removal quality?
+### Q3. How can I improve or adjust the background removal quality?
 **A:**
 - In the filter settings, you can adjust:
   - The AI model used.
@@ -119,9 +74,7 @@
 
 ---
 
-## Special features
-
-### Q1. Is there a background blur feature?
+### Q4. Is there a background blur feature?
 **A:**
 - Yes, you can enable AI-based background blur.
 - In the filter settings, enable "Blur Background" to use this feature.
@@ -216,6 +169,31 @@
 
 ---
 
+## Hardware and Performance
+
+### Q1. What are the hardware requirements?
+**A:**
+- A CPU with AVX instruction set support is required.
+- For optimal performance, a modern multi-core CPU is recommended.
+
+---
+
+### Q2. Can I use a GPU for processing?
+**A:**
+- Currently, GPU support is disabled and all processing is performed on the CPU.
+- There are plans to reintroduce GPU support (AMD, NVIDIA, Intel) in the future.
+
+---
+
+### Q3. How does the plugin affect performance?
+**A:**
+- All processing relies on the CPU, so performance may be affected on low-spec PCs, especially during streaming.
+- If you experience lag or high CPU usage:
+  - Lower your camera resolution.
+  - Consider using a lighter AI model (such as SelfieSeg) if available.
+
+---
+
 ## Upgrade
 
 ### Q1. How do I upgrade the plugin to the latest version?
@@ -282,28 +260,38 @@
 
 [More info](https://royshil.github.io/obs-backgroundremoval/arch/#uninstall)
 
-## Hardware requirement
+---
 
-### Q1. What are the hardware requirements?
+## Troubleshooting
+
+### Q1. I see "Failed to load Background Removal plugin". What should I do?
 **A:**
-- A CPU with AVX instruction set support is required.
-- For optimal performance, a modern multi-core CPU is recommended.
+- This usually means some dependencies are missing or the plugin was installed to the wrong path.
+- Please review the installation instructions for your platform.
+- Make sure all required runtimes are installed.
 
-## GPU
+---
 
-### Q1. Can I use a GPU for processing?
+### Q2. The background becomes black or transparent. Why?
 **A:**
-- Currently, GPU support is disabled and all processing is performed on the CPU.
-- There are plans to reintroduce GPU support (AMD, NVIDIA, Intel) in the future.
+- This may be due to incorrect filter settings or missing/incorrectly added background image/video sources.
+- Check the order in which filters are applied.
+- Ensure your background source is correctly added below your camera source.
 
-## Performance impact
+---
 
-### Q1. How does the plugin affect performance?
+### Q3. OBS crashes when using the plugin.
 **A:**
-- All processing relies on the CPU, so performance may be affected on low-spec PCs, especially during streaming.
-- If you experience lag or high CPU usage:
-  - Lower your camera resolution.
-  - Consider using a lighter AI model (such as SelfieSeg) if available.
+- Make sure you are using the latest version of OBS Studio and the plugin.
+- Remove any conflicting plugins.
+- If the problem persists, report the issue on GitHub with your OBS log file attached.
+
+---
+
+### Q4. I see "Cannot find model file". What should I do?
+**A:**
+- This error means not all required model files were extracted or placed correctly.
+- Please reinstall the plugin and ensure all files are present.
 
 ---
 
@@ -317,7 +305,7 @@
 
 ---
 
-## Bug reports / Feature requests
+## Bug Reports / Feature Requests
 
 ### Q1. How can I report bugs or request features?
 **A:**
@@ -326,7 +314,7 @@
 
 ---
 
-## Contributing to the project
+## Contributing to the Project
 
 ### Q1. How can I support or contribute to the project?
 **A:**
