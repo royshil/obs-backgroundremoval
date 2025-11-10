@@ -85,8 +85,6 @@ else()
   find_package(OpenCV CONFIG REQUIRED)
 endif()
 
-target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE DISABLE_ONNXRUNTIME_GPU)
-
 if(USE_SYSTEM_ONNXRUNTIME)
   if(OS_LINUX)
     find_package(Onnxruntime 1.16.3 REQUIRED)

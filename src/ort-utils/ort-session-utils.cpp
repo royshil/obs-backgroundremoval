@@ -95,8 +95,16 @@ int createOrtSession(filter_data *tf)
 
 			// Append execution provider
 			sessionOptions.AppendExecutionProvider_TensorRT_V2(*tensorrt_options);
-		} else if (tf->useGPU == USEGPU_CUDA) {
+		}
+#endif
+#ifdef HAVE_ONNXRUNTIME_CUDA
+		if (tf->useGPU == USEGPU_CUDA) {
 			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sessionOptions, 0));
+		}
+#endif
+#ifdef HAVE_ONNXRUNTIME_ROCM
+		if (tf->useGPU == USEGPU_ROCM) {
+			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_ROCM(sessionOptions, 0));
 		}
 #endif
 #if defined(__APPLE__)
