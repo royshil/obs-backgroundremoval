@@ -1,7 +1,7 @@
 ---
 import { joinURL } from "ufo";
 
-import { Code } from 'astro:components';
+import { Code } from "astro:components";
 
 import Layout from "../layouts/Layout.astro";
 
@@ -35,13 +35,18 @@ if (!asset) throw new Error("Ubuntu asset not found!");
         <ul>
           <li>
             <strong>Option 1: Using the GUI</strong><br />
-            Double-click the downloaded <code>.deb</code> file and follow the prompts in your software installer.
+            Double-click the downloaded <code>.deb</code> file and follow the prompts
+            in your software installer.
           </li>
           <li>
             <strong>Option 2: Using the Terminal</strong><br />
-            Open a terminal in the folder where you downloaded the file and run:<br />
-            <Code code={`sudo dpkg -i ./obs-backgroundremoval_*_x86_64-linux-gnu.deb
-sudo apt-get install -f`} lang="bash" />
+            Open a terminal in the folder where you downloaded the file and run:<br
+            />
+            <Code
+              code={`sudo dpkg -i ./obs-backgroundremoval_*_x86_64-linux-gnu.deb
+sudo apt-get install -f`}
+              lang="bash"
+            />
           </li>
         </ul>
       </li>
@@ -51,7 +56,8 @@ sudo apt-get install -f`} lang="bash" />
       </li>
       <li>
         <strong>Usage:</strong><br />
-        See the <a href={joinURL(BASE_URL, "usage/")}>usage page</a> for how to use the plugin.
+        See the <a href={joinURL(BASE_URL, "usage/")}>usage page</a> for how to use
+        the plugin.
       </li>
     </ol>
 

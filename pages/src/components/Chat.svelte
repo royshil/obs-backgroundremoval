@@ -1,31 +1,37 @@
 <script lang="ts">
-  import { writable } from 'svelte/store';
-  import { llmStore } from '../lib/llm.ts'; 
+  import { writable } from "svelte/store";
+  import { llmStore } from "../lib/llm.ts";
   // Please correct the appropriate path
-  import type { MLCEngineInterface, ChatCompletionMessageParam } from '@mlc-ai/web-llm';
+  import type {
+    MLCEngineInterface,
+    ChatCompletionMessageParam,
+  } from "@mlc-ai/web-llm";
 
-  import FaqContent from '../../../FAQ.md?raw';
+  import FaqContent from "../../../FAQ.md?raw";
 
   // Define the message structure for the UI, independent of the LLM type
   type SimpleMessage = {
     id: string;
-    role: 'user' | 'assistant';
+    role: "user" | "assistant";
     // parts structure inherited from the original UIMessage
-    parts: { type: 'text'; text: string }[];
+    parts: { type: "text"; text: string }[];
     metadata?: {
       createdAt: Date;
     };
   };
 
   // Helper type for a simple text part for clarity
-  type TextPart = { type: 'text'; text: string };
+  type TextPart = { type: "text"; text: string };
 
   // Helper function to create a new message
-  const createMessage = (role: 'user' | 'assistant', text: string): SimpleMessage => ({
-    id: Date.now().toString() + '-' + role,
+  const createMessage = (
+    role: "user" | "assistant",
+    text: string,
+  ): SimpleMessage => ({
+    id: Date.now().toString() + "-" + role,
     role,
     // Fix cast to SimpleMessage['parts']
-    parts: [{ type: 'text', text }] as SimpleMessage['parts'],
+    parts: [{ type: "text", text }] as SimpleMessage["parts"],
     metadata: {
       createdAt: new Date(),
     },
@@ -33,35 +39,33 @@
 
   // Initialize messages with an initial assistant greeting
   const initialMessage = createMessage(
-    'assistant',
-    'Hi there! I\'m Cora, your interactive support assistant. Feel free to ask me anything about the knowledge base, and I\'ll do my best to help you out! 🤖'
+    "assistant",
+    "Hi there! I'm Cora, your interactive support assistant. Feel free to ask me anything about the knowledge base, and I'll do my best to help you out! 🤖",
   );
 
   // Change writable type to SimpleMessage[]
   const messages = writable<SimpleMessage[]>([initialMessage]);
-  let input = '';
+  let input = "";
   let isLoading = false; // Loading during conversation
-  // let isPreloading = false; // Removed
-  // let hasFaqBeenPreloaded = false; // Removed
   let messagesEnd: HTMLDivElement;
-  
+
   // Monitor LLM store status
   const llmState = llmStore;
-  
+
   // Determine LLM status
-  $: isLLMReady = $llmState.status === 'ready';
-  $: isLLMLoading = $llmState.status === 'loading';
-  $: isLLMPending = $llmState.status === 'pending';
+  $: isLLMReady = $llmState.status === "ready";
+  $: isLLMLoading = $llmState.status === "loading";
+  $: isLLMPending = $llmState.status === "pending";
 
   // Reactive statement to scroll to the bottom when messages change
-  $: $messages, scrollToBottom();
+  $: ($messages, scrollToBottom());
 
   /** Scrolls the chat view to the bottom. */
   function scrollToBottom() {
     if (messagesEnd) {
       // Use setTimeout to ensure the DOM has updated before scrolling
       setTimeout(() => {
-        messagesEnd.scrollIntoView({ behavior: 'smooth' });
+        messagesEnd.scrollIntoView({ behavior: "smooth" });
       }, 0);
     }
   }
@@ -76,20 +80,19 @@
   /** Handles the form submission. */
   const handleSubmit = (event: SubmitEvent) => {
     event.preventDefault();
-    
+
     // Do not allow message submission if the LLM is not ready
-    if (!input.trim() || isLoading || !isLLMReady) return; 
+    if (!input.trim() || isLoading || !isLLMReady) return;
 
     const userMessageContent = input;
-    const userMessage = createMessage('user', userMessageContent);
+    const userMessage = createMessage("user", userMessageContent);
 
     // Add user message and clear input
-    messages.update(msgs => [...msgs, userMessage]);
-    input = '';
-    
+    messages.update((msgs) => [...msgs, userMessage]);
+    input = "";
+
     handleWebLLMChat(userMessageContent);
   };
-  
 
   // System prompt including FAQ content (Used every time)
   const systemPrompt = `
@@ -112,112 +115,115 @@ ${FaqContent}
 
   /** Generates the assistant's response using WebLLM. */
   async function handleWebLLMChat(userMessageContent: string) {
-    if ($llmState.status !== 'ready') {
-        console.error('LLM is not ready.');
-        return;
+    if ($llmState.status !== "ready") {
+      console.error("LLM is not ready.");
+      return;
     }
 
     // Get MLCEngineInterface
     const engine: MLCEngineInterface = $llmState.chat;
-    let assistantResponse = '';
+    let assistantResponse = "";
     isLoading = true;
 
     try {
-        // Construct message history: always use the long systemPrompt including the FAQ
-        const messagesToSend = [
-            { role: "system", content: systemPrompt }, 
-            { role: "user", content: userMessageContent }
-        ] satisfies ChatCompletionMessageParam[]; // Use satisfies for type safety
+      // Construct message history: always use the long systemPrompt including the FAQ
+      const messagesToSend = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessageContent },
+      ] satisfies ChatCompletionMessageParam[]; // Use satisfies for type safety
 
-        // Temporarily add a placeholder message during streaming
-        messages.update(msgs => [...msgs, createMessage('assistant', '')]);
-        
-        // Use engine.chat.completions interface
-        const responseStream = await engine.chat.completions.create({
-            messages: messagesToSend,
-            stream: true, // Enable streaming
-        });
+      // Temporarily add a placeholder message during streaming
+      messages.update((msgs) => [...msgs, createMessage("assistant", "")]);
 
-        // Process the stream
-        for await (const chunk of responseStream) {
-            const content = chunk.choices[0]?.delta.content; // Use delta
-            if (content) {
-                assistantResponse += content;
-                
-                // Update the last message (streaming)
-                messages.update(msgs => {
-                    const lastMessage = msgs[msgs.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                        // Update DOM during streaming
-                        return [...msgs.slice(0, -1), createMessage('assistant', assistantResponse)];
-                    }
-                    return msgs; 
-                });
+      // Use engine.chat.completions interface
+      const responseStream = await engine.chat.completions.create({
+        messages: messagesToSend,
+        stream: true, // Enable streaming
+      });
+
+      // Process the stream
+      for await (const chunk of responseStream) {
+        const content = chunk.choices[0]?.delta.content; // Use delta
+        if (content) {
+          assistantResponse += content;
+
+          // Update the last message (streaming)
+          messages.update((msgs) => {
+            const lastMessage = msgs[msgs.length - 1];
+            if (lastMessage && lastMessage.role === "assistant") {
+              // Update DOM during streaming
+              return [
+                ...msgs.slice(0, -1),
+                createMessage("assistant", assistantResponse),
+              ];
             }
+            return msgs;
+          });
         }
-        
+      }
     } catch (error) {
-        console.error('LLM conversation failed:', error);
-        assistantResponse = 'Error: LLM failed to generate a response.';
-        // If an error occurs, overwrite the last message with the error message
-        messages.update(msgs => {
-             return [...msgs.slice(0, -1), createMessage('assistant', assistantResponse)];
-        });
-        
+      console.error("LLM conversation failed:", error);
+      assistantResponse = "Error: LLM failed to generate a response.";
+      // If an error occurs, overwrite the last message with the error message
+      messages.update((msgs) => {
+        return [
+          ...msgs.slice(0, -1),
+          createMessage("assistant", assistantResponse),
+        ];
+      });
     } finally {
-        isLoading = false;
+      isLoading = false;
     }
   }
-
-  // handleFaqPreload function is removed
 </script>
 
 ---
 
 <div class="chat-container">
   <div class="message-list">
-    
     {#if isLLMPending}
-        <div class="initial-warning message-bubble assistant">
-            <span class="role">System Warning:</span>
-            <p>
-                To use this chat feature, you must download the **Llama-3.1-8B-Instruct-q4f16_1-MLC** model (a large file of several GBs).
-                This is only required on the first launch, but it may take several minutes to complete (depending on your internet speed).
-            </p>
-            <button class="agree-button" onclick={handleAgreeAndStart}>
-                Agree and Start Model Download
-            </button>
-        </div>
+      <div class="initial-warning message-bubble assistant">
+        <span class="role">System Warning:</span>
+        <p>
+          To use this chat feature, you must download the
+          LLM model (a large file of several
+          GBs). This is only required on the first launch, but it may take
+          several minutes to complete (depending on your internet speed).
+        </p>
+        <button class="agree-button" onclick={handleAgreeAndStart}>
+          Agree and Start Model Download
+        </button>
+      </div>
     {/if}
 
     {#if !isLLMLoading && !isLLMPending}
-        {#each $messages as message (message.id)}
-          <div 
-            class="message-bubble" 
-            class:user={message.role === 'user'} 
-            class:assistant={message.role === 'assistant'}
-          >
-            <span class="role">{message.role === 'user' ?
-'You' : 'Cora'}:</span>
-            <p>{(message.parts[0] as TextPart)?.text ||
-'...'}</p>
-          </div>
-        {/each}
+      {#each $messages as message (message.id)}
+        <div
+          class="message-bubble"
+          class:user={message.role === "user"}
+          class:assistant={message.role === "assistant"}
+        >
+          <span class="role">{message.role === "user" ? "You" : "Cora"}:</span>
+          <pre style="white-space: pre-wrap; font-family: inherit;">{(message.parts[0] as TextPart)?.text || "..."}</pre>
+        </div>
+      {/each}
     {/if}
-    
+
     <div bind:this={messagesEnd} style="height: 0;"></div>
   </div>
 
   {#if isLoading || isLLMLoading}
     <div class="loading-indicator">
-        <div class="spinner-container">
-            <div><div class="spinner"></div></div>
-            <p class="loading-text">
-                {isLLMLoading 
-                    ? ($llmState.status === 'loading' ? `Downloading: ${$llmState.message}` : 'Initializing...') 
-                    : 'Thinking...'}
-            </p>
-        </div>
+      <div class="spinner-container">
+        <div><div class="spinner"></div></div>
+        <p class="loading-text">
+          {isLLMLoading
+            ? $llmState.status === "loading"
+              ? `Downloading: ${$llmState.message}`
+              : "Initializing..."
+            : "Thinking..."}
+        </p>
+      </div>
     </div>
   {/if}
 
@@ -225,22 +231,27 @@ ${FaqContent}
     <input
       bind:value={input}
       type="text"
-      placeholder={!isLLMReady 
-        ? ($llmState.status === 'error' 
-            ? 'An error occurred' 
-            : isLLMPending 
-            ? 'Please press the start button' 
-            : 'Loading model...')
-        : (isLoading ? 'Waiting for response...' : 'Enter your message...')
-      }
+      placeholder={!isLLMReady
+        ? $llmState.status === "error"
+          ? "An error occurred"
+          : isLLMPending
+            ? "Please press the start button"
+            : "Loading model..."
+        : isLoading
+          ? "Waiting for response..."
+          : "Enter your message..."}
       disabled={isLoading || !isLLMReady || isLLMLoading || isLLMPending}
       required
     />
-    <button 
-        type="submit" 
-        disabled={isLoading || !input.trim() || !isLLMReady || isLLMLoading || isLLMPending}
+    <button
+      type="submit"
+      disabled={isLoading ||
+        !input.trim() ||
+        !isLLMReady ||
+        isLLMLoading ||
+        isLLMPending}
     >
-      {isLoading ? 'Sending' : (!isLLMReady ? 'Waiting' : 'Send')}
+      {isLoading ? "Sending" : !isLLMReady ? "Waiting" : "Send"}
     </button>
   </form>
 </div>
@@ -250,43 +261,43 @@ ${FaqContent}
     /* position: relative; is unnecessary */
     display: flex;
     flex-direction: column;
-    height: 80vh; 
+    height: 80vh;
     max-width: 600px;
     margin: 0 auto;
     border: 1px solid #ccc;
     border-radius: 8px;
     overflow: hidden;
   }
-  
+
   .message-list {
     flex-grow: 1;
     padding: 15px;
     overflow-y: auto;
     background-color: #f9f9f9;
   }
-  
+
   .message-bubble {
     margin-bottom: 10px;
     padding: 8px 12px;
     border-radius: 18px;
     max-width: 80%;
     word-wrap: break-word;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
   }
-  
+
   .user {
     align-self: flex-end;
     background-color: #007aff;
     color: white;
     margin-left: auto;
   }
-  
+
   .assistant {
     align-self: flex-start;
     background-color: #e5e5ea;
     color: #000;
   }
-  
+
   .role {
     font-size: 0.8em;
     font-weight: bold;
@@ -294,7 +305,7 @@ ${FaqContent}
     margin-bottom: 3px;
     opacity: 0.7;
   }
-  
+
   /* Style for warning and agree button */
   .initial-warning {
     background-color: #fff3cd; /* Warning color */
@@ -309,7 +320,7 @@ ${FaqContent}
   .initial-warning p {
     margin-bottom: 10px;
   }
-  
+
   .agree-button {
     background-color: #28a745; /* Green */
     color: white;
@@ -331,7 +342,7 @@ ${FaqContent}
   .loading-indicator {
     /* Fix: position: absolute; removed and placed within the flow */
     /* bottom, left, transform, z-index are also all removed */
-    
+
     margin: 5px 15px 10px 15px; /* Adjust placement with margin */
     padding: 8px 12px; /* Same padding as message-bubble */
     align-self: flex-start; /* Left-aligned like assistant */
@@ -340,7 +351,7 @@ ${FaqContent}
     border-radius: 18px; /* Same border-radius as message-bubble */
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
     max-width: 50%; /* Limit width */
-    
+
     /* Internal flex layout */
     display: inline-flex; /* Fit content width */
     align-items: center;
@@ -363,8 +374,12 @@ ${FaqContent}
   }
 
   @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
   }
 
   .loading-text {
@@ -379,7 +394,7 @@ ${FaqContent}
     border-top: 1px solid #ccc;
     background-color: white;
   }
-  
+
   input {
     flex-grow: 1;
     padding: 10px;
@@ -387,7 +402,7 @@ ${FaqContent}
     border-radius: 4px;
     margin-right: 10px;
   }
-  
+
   button {
     padding: 10px 15px;
     background-color: #007aff;
