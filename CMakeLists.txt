@@ -8,9 +8,8 @@ option(ENABLE_FRONTEND_API "Use obs-frontend-api for UI functionality" OFF)
 option(ENABLE_QT "Use Qt functionality" OFF)
 
 set(VCPKG_TARGET_TRIPLET "" CACHE STRING "Vcpkg target triplet to use")
-option(USE_PKGCONFIG "Use pkg-config to find dependencies" OFF)
-
-option(USE_SYSTEM_ONNXRUNTIME "Use system ONNX Runtime" OFF)
+option(USE_PKGCONFIG "Use pkg-config to find dependencies" ON)
+option(USE_SYSTEM_ONNXRUNTIME "Use system ONNX Runtime" ON)
 
 include(compilerconfig)
 include(defaults)
@@ -87,34 +86,25 @@ endif()
 
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE DISABLE_ONNXRUNTIME_GPU)
 
-if(USE_SYSTEM_ONNXRUNTIME)
-  if(OS_LINUX)
-    find_package(Onnxruntime 1.16.3 REQUIRED)
-    set(
-      Onnxruntime_INCLUDE_PATH
-      ${Onnxruntime_INCLUDE_DIR}
-      ${Onnxruntime_INCLUDE_DIR}/onnxruntime
-      ${Onnxruntime_INCLUDE_DIR}/onnxruntime/core/session
-      ${Onnxruntime_INCLUDE_DIR}/onnxruntime/core/providers/cpu
-    )
-    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "${Onnxruntime_LIBRARIES}")
-    target_include_directories(${CMAKE_PROJECT_NAME} SYSTEM PUBLIC "${Onnxruntime_INCLUDE_PATH}")
-  else()
-    message(FATAL_ERROR "System ONNX Runtime is only supported on Linux!")
-  endif()
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
-elseif(APPLE)
+if(APPLE)
   list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/onnxruntime")
   find_package(onnxruntime CONFIG REQUIRED)
   get_target_property(ONNXRUNTIME_DYLIB_PATH onnxruntime::onnxruntime IMPORTED_LOCATION_RELEASE)
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${ONNXRUNTIME_DYLIB_PATH}")
-  set_property(SOURCE "${ONNXRUNTIME_DYLIB_PATH}" PROPERTY MACOSX_PACKAGE_LOCATION Frameworks)
-  set_target_properties(
-    ${CMAKE_PROJECT_NAME}
-    PROPERTIES XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@loader_path/../Frameworks"
-  )
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
+
+  if(NOT USE_SYSTEM_ONNXRUNTIME)
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${ONNXRUNTIME_DYLIB_PATH}")
+    set_property(SOURCE "${ONNXRUNTIME_DYLIB_PATH}" PROPERTY MACOSX_PACKAGE_LOCATION Frameworks)
+    set_target_properties(
+      ${CMAKE_PROJECT_NAME}
+      PROPERTIES XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@loader_path/../Frameworks"
+    )
+  endif()
 elseif(MSVC)
+  if(USE_SYSTEM_ONNXRUNTIME)
+    message(FATAL_ERROR "USE_SYSTEM_ONNXRUNTIME is not supported on Windows")
+  endif()
+
   set(ONNXRUNTIME_DIR "${CMAKE_SOURCE_DIR}/onnxruntime")
 
   add_library(onnxruntime::onnxruntime_provider_shared SHARED IMPORTED)
@@ -138,8 +128,8 @@ elseif(MSVC)
   target_link_libraries(onnxruntime::onnxruntime INTERFACE onnxruntime::onnxruntime_provider_shared)
 
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/DelayLoad.cpp)
 
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/DelayLoad.cpp)
   install(
     FILES
       "${ONNXRUNTIME_DIR}/lib/onnxruntime.dll"
@@ -149,16 +139,22 @@ elseif(MSVC)
     DESTINATION "${CMAKE_PROJECT_NAME}/bin/64bit/obs-backgroundremoval"
   )
 else()
-  set(ONNXRUNTIME_DIR "${CMAKE_SOURCE_DIR}/onnxruntime")
-  list(PREPEND CMAKE_PREFIX_PATH "${ONNXRUNTIME_DIR}")
+  if(NOT USE_SYSTEM_ONNXRUNTIME)
+    set(ONNXRUNTIME_DIR "${CMAKE_SOURCE_DIR}/onnxruntime")
+    list(PREPEND CMAKE_PREFIX_PATH "${ONNXRUNTIME_DIR}")
+  endif()
+
   find_package(onnxruntime CONFIG REQUIRED)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
-  file(GLOB ONNXRUNTIME_SO_FILES "${ONNXRUNTIME_DIR}/lib64/libonnxruntime.so.*")
-  install(
-    FILES ${ONNXRUNTIME_SO_FILES} "${ONNXRUNTIME_DIR}/lib64/libonnxruntime_providers_shared.so"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/obs-plugins/${CMAKE_PROJECT_NAME}
-  )
-  set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/${CMAKE_PROJECT_NAME}")
+
+  if(NOT USE_SYSTEM_ONNXRUNTIME)
+    file(GLOB ONNXRUNTIME_SO_FILES "${ONNXRUNTIME_DIR}/lib64/libonnxruntime.so.*")
+    install(
+      FILES ${ONNXRUNTIME_SO_FILES} "${ONNXRUNTIME_DIR}/lib64/libonnxruntime_providers_shared.so"
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}/obs-plugins/${CMAKE_PROJECT_NAME}
+    )
+    set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/${CMAKE_PROJECT_NAME}")
+  endif()
 endif()
 
 add_subdirectory(src/update-checker/CurlClient)
