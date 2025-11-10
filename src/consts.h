@@ -23,10 +23,10 @@ const char *const KAWASE_BLUR_EFFECT_PATH = "effects/kawase_blur.effect";
 const char *const BLEND_EFFECT_PATH = "effects/blend_images.effect";
 
 const char *const PLUGIN_INFO_TEMPLATE =
-	"<a href=\"https://github.com/occ-ai/obs-backgroundremoval/\">Background Removal</a> (%1) by "
-	"<a href=\"https://github.com/occ-ai\">OCC AI</a> ❤️ "
-	"<a href=\"https://www.patreon.com/RoyShilkrot\">Support & Follow</a>";
+	"<a href=\"https://github.com/royshil/obs-backgroundremoval/\">Background Removal</a> (%1) by "
+	"<a href=\"https://github.com/royshil\">Roy Shilkrot</a> ❤️ "
+	"<a href=\"https://github.com/sponsors/royshil\">Support & Follow</a>";
 const char *const PLUGIN_INFO_TEMPLATE_UPDATE_AVAILABLE =
-	"<center><a href=\"https://github.com/occ-ai/obs-backgroundremoval/releases\">🚀 Update available! (%1)</a></center>";
+	"<center><a href=\"https://github.com/royshil/obs-backgroundremoval/releases\">🚀 Update available! (%1)</a></center>";
 
 #endif /* CONSTS_H */
