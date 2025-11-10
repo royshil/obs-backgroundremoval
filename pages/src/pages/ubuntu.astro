@@ -1,9 +1,18 @@
 ---
 import { joinURL } from "ufo";
 
+import { Code } from 'astro:components';
+
 import Layout from "../layouts/Layout.astro";
 
+import { getLatestRelease } from "../lib/github";
+
 const { BASE_URL } = import.meta.env;
+
+const release = await getLatestRelease();
+
+const asset = release.assets.find((e) => /x86_64-linux-gnu\.deb/.test(e.name));
+if (!asset) throw new Error("Ubuntu asset not found!");
 ---
 
 <Layout
@@ -14,7 +23,39 @@ const { BASE_URL } = import.meta.env;
   <main class="white-box">
     <h1>Download and install on Ubuntu</h1>
 
-    <p>TBD</p>
+    <ol>
+      <li>
+        <strong>Download the Plugin (.deb):</strong><br />
+        <a href={asset.browser_download_url} download>
+          Click here to download the latest Ubuntu package (DEB)
+        </a>
+      </li>
+      <li>
+        <strong>Install the Plugin:</strong><br />
+        <ul>
+          <li>
+            <strong>Option 1: Using the GUI</strong><br />
+            Double-click the downloaded <code>.deb</code> file and follow the prompts in your software installer.
+          </li>
+          <li>
+            <strong>Option 2: Using the Terminal</strong><br />
+            Open a terminal in the folder where you downloaded the file and run:<br />
+            <Code code={`sudo dpkg -i ./obs-backgroundremoval_*_x86_64-linux-gnu.deb
+sudo apt-get install -f`} lang="bash" />
+          </li>
+        </ul>
+      </li>
+      <li>
+        <strong>Restart OBS Studio:</strong><br />
+        If OBS Studio is running, close it and open it again.
+      </li>
+      <li>
+        <strong>Usage:</strong><br />
+        See the <a href={joinURL(BASE_URL, "usage/")}>usage page</a> for how to use the plugin.
+      </li>
+    </ol>
+
+    <p>All set!</p>
 
     <p><a href={joinURL(BASE_URL, "/")}>Back to the top page</a></p>
   </main>

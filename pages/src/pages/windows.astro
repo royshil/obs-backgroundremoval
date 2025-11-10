@@ -1,6 +1,8 @@
 ---
 import { joinURL } from "ufo";
 
+import { Code } from 'astro:components';
+
 import Layout from "../layouts/Layout.astro";
 
 import { getLatestRelease } from "../lib/github";
@@ -55,8 +57,7 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
       > to copy files into the OBS Studio directory.
     </p>
     <p>You can automate installation with PowerShell:</p>
-    <pre><code>
-$zipUrl = "{assetX64.browser_download_url}"
+    <Code code={`$zipUrl = "{assetX64.browser_download_url}"
 $zipPath = "$env:TEMP\obs-backgroundremoval-windows-x64.zip"
 $extractPath = "$env:TEMP\obs-backgroundremoval"
 $obsPath = "C:\Program Files\obs-studio"
@@ -65,8 +66,7 @@ Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
 Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
 Copy-Item -Path "$extractPath\*" -Destination $obsPath -Recurse -Force
 Remove-Item $zipPath
-Remove-Item $extractPath -Recurse
-    </code></pre>
+Remove-Item $extractPath -Recurse`} lang="powershell" />
 
     <p>All set!</p>
 

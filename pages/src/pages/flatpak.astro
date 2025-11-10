@@ -1,6 +1,8 @@
 ---
 import { joinURL } from "ufo";
 
+import { Code } from 'astro:components';
+
 import Layout from "../layouts/Layout.astro";
 
 const { BASE_URL } = import.meta.env;
@@ -18,7 +20,7 @@ const { BASE_URL } = import.meta.env;
       <li>
         <strong>Install the Background Removal Plugin:</strong><br />
         Open a terminal and run:<br />
-        <pre><code>flatpak install flathub com.obsproject.Studio.Plugin.BackgroundRemoval</code></pre>
+        <Code code={`flatpak install flathub com.obsproject.Studio.Plugin.BackgroundRemoval`} lang="bash" />
       </li>
       <li>
         <strong>Usage:</strong><br />
