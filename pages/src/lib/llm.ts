@@ -77,4 +77,4 @@ const createLLMStore = (modelId: string) => {
 };
 
 // Initialize the store by passing the default model ID
-export const llmStore = createLLMStore("Llama-3.2-1B-Instruct-q4f16_1-MLC");
+export const llmStore = createLLMStore("Hermes-3-Llama-3.2-3B-q4f16_1-MLC");
