@@ -97,12 +97,12 @@ int createOrtSession(filter_data *tf)
 			sessionOptions.AppendExecutionProvider_TensorRT_V2(*tensorrt_options);
 		}
 #endif
-#ifdef HAVE_ONNXRUNTIME_CUDA
+#ifdef HAVE_ONNXRUNTIME_CUDA_EP
 		if (tf->useGPU == USEGPU_CUDA) {
 			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_CUDA(sessionOptions, 0));
 		}
 #endif
-#ifdef HAVE_ONNXRUNTIME_ROCM
+#ifdef HAVE_ONNXRUNTIME_ROCM_EP
 		if (tf->useGPU == USEGPU_ROCM) {
 			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_ROCM(sessionOptions, 0));
 		}
