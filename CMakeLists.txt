@@ -164,6 +164,29 @@ endif()
 add_subdirectory(src/update-checker/CurlClient)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CurlClient OpenCV::opencv_core OpenCV::opencv_imgproc)
 
+# Check for ONNX Runtime Execution Providers
+include(CheckLibraryExists)
+
+check_library_exists(
+  onnxruntime::onnxruntime
+  OrtSessionOptionsAppendExecutionProvider_CUDA
+  onnxruntime_c_api.h
+  HAVE_ONNXRUNTIME_CUDA_EP
+)
+if(HAVE_ONNXRUNTIME_CUDA_EP)
+  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_CUDA_EP)
+endif()
+
+check_library_exists(
+  onnxruntime::onnxruntime
+  OrtSessionOptionsAppendExecutionProvider_ROCM
+  onnxruntime_c_api.h
+  HAVE_ONNXRUNTIME_ROCM_EP
+)
+if(HAVE_ONNXRUNTIME_ROCM_EP)
+  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_ROCM_EP)
+endif()
+
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
