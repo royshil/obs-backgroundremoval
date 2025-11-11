@@ -31,9 +31,9 @@ elseif(PLATFORM STREQUAL "windows")
     EXPECTED_HASH SHA256=e77afdbbc2b8cb6da4e5a50d89841b48c44f3e47dce4fb87b15a2743786d0bb9
   )
   execute_process(
-    COMMAND ${CMAKE_COMMAND} -E tar xf onnxruntime-win-x64-1.23.2.zip
+    COMMAND ${CMAKE_COMMAND} -E tar xf onnxruntime-win-x64-gpu-1.23.2.zip
   )
-  file(RENAME onnxruntime-win-x64-1.23.2 onnxruntime)
+  file(RENAME onnxruntime-win-x64-gpu-1.23.2 onnxruntime)
 elseif(PLATFORM STREQUAL "linux")
   file(
     DOWNLOAD
