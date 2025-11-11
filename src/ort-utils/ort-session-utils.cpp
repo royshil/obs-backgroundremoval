@@ -109,7 +109,7 @@ int createOrtSession(filter_data *tf)
 		}
 #else
 		if (tf->useGPU == USEGPU_TENSORRT) {
-			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_TensorRT_V2(sessionOptions, 0));
+			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_Tensorrt(sessionOptions, 0));
 		}
 #endif
 #endif
