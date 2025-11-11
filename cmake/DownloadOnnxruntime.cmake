@@ -26,9 +26,9 @@ if(PLATFORM STREQUAL "macos")
 elseif(PLATFORM STREQUAL "windows")
   file(
     DOWNLOAD
-      https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-win-x64-1.23.2.zip
-      onnxruntime-win-x64-1.23.2.zip
-    EXPECTED_HASH SHA256=0b38df9af21834e41e73d602d90db5cb06dbd1ca618948b8f1d66d607ac9f3cd
+      https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-win-x64-gpu-1.23.2.zip
+      onnxruntime-win-x64-gpu-1.23.2.zip
+    EXPECTED_HASH SHA256=e77afdbbc2b8cb6da4e5a50d89841b48c44f3e47dce4fb87b15a2743786d0bb96d607ac9f3cd
   )
   execute_process(
     COMMAND ${CMAKE_COMMAND} -E tar xf onnxruntime-win-x64-1.23.2.zip
