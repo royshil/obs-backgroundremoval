@@ -183,6 +183,17 @@ if(HAVE_ONNXRUNTIME_ROCM_EP)
   target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_ROCM_EP)
 endif()
 
+check_library_exists(
+  onnxruntime::onnxruntime
+  OrtSessionOptionsAppendExecutionProvider_Tensorrt
+  onnxruntime_c_api.h
+  HAVE_ONNXRUNTIME_TENSORRT_EP
+)
+if(HAVE_ONNXRUNTIME_TENSORRT_EP)
+  message(STATUS "ONNX Runtime TensorRT Execution Provider found")
+  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_TENSORRT_EP)
+endif()
+
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
