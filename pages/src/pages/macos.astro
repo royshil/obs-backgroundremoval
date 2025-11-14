@@ -9,8 +9,8 @@ const { BASE_URL } = import.meta.env;
 
 const release = await getLatestRelease();
 
-const asset = release.assets.find((e) => /x86_64-linux-gnu\.deb/.test(e.name));
-if (!asset) throw new Error("Ubuntu asset not found!");
+const asset = release.assets.find((e) => /macos-universal\.pkg/.test(e.name));
+if (!asset) throw new Error("macOS asset not found!");
 ---
 
 <Layout
