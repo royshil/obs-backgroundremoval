@@ -101,13 +101,20 @@
 - CPU: AVX support required. Multi-core recommended. GPU support is planned for the future.
 - High CPU usage with multiple sources or high resolution. Use lighter models (e.g., SelfieSeg) if needed.
 
+### macOS Architecture Compatibility
+
+- **Apple Silicon (M1/M2/M3/etc.):** Use the Universal binary installer. Intel binaries running via Rosetta2 are **not supported** and will cause crashes.
+- **Intel Macs:** Use the Universal binary installer. Apple Silicon binaries running on Intel are **not supported**.
+- Always ensure your OBS Studio installation matches your Mac's architecture to avoid compatibility issues.
+
 ---
 
 ## 5. Troubleshooting
 
 - **"Failed to load" error:** Missing dependencies or wrong install path. Recheck installation steps.
 - **Black/transparent background:** Check filter settings and source order.
-- **OBS crashes:** Use latest OBS/plugin, remove conflicting plugins, report with OBS log on GitHub if needed.
+- **OBS crashes on macOS:** If running on Apple Silicon, ensure you are NOT using an Intel OBS binary via Rosetta2. If on Intel Mac, ensure you are NOT using an Apple Silicon OBS binary. The plugin does not support cross-architecture translation and will crash. Use OBS Studio and the plugin built for your Mac's native architecture.
+- **OBS crashes (other platforms):** Use latest OBS/plugin, remove conflicting plugins, report with OBS log on GitHub if needed.
 - **"Cannot find model file":** Missing model files. Reinstall the plugin.
 
 ---

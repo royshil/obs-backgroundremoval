@@ -60,7 +60,7 @@ If you are looking for hands-on help or private consultation please select a [sp
 GPU support:
 
 - On Windows, we plan to support WinML acceleration.
-- On Mac we support CoreML for acceleration, which is efficient on Appli Silicon.
+- On Mac we support CoreML for acceleration, which is efficient on Apple Silicon. **Note:** This plugin does not support cross-architecture translation (Rosetta2). Intel binaries on Apple Silicon or Apple Silicon binaries on Intel will crash.
 - On Linux CUDA and ROCM are supported if this plugin is built from source. Ensure your ONNX Runtime installation has CUDA or ROCM support.
 - The goal of this plugin is to be available for everyone on every system, even if they don't own a GPU.
 
