@@ -31,7 +31,7 @@
 #include "consts.h"
 #include "update-checker/update-checker.h"
 
-struct background_removal_filter : public filter_data {
+struct background_removal_filter : public filter_data, public std::enable_shared_from_this<background_removal_filter> {
 	bool enableThreshold = true;
 	float threshold = 0.5f;
 	cv::Scalar backgroundColor{0, 0, 0, 0};
@@ -57,6 +57,8 @@ struct background_removal_filter : public filter_data {
 	gs_effect_t *kawaseBlurEffect;
 
 	std::mutex modelMutex;
+
+	~background_removal_filter() { obs_log(LOG_INFO, "Background removal filter destructor called"); }
 };
 
 void background_removal_thread(void *data); // Forward declaration
@@ -259,7 +261,17 @@ void background_filter_defaults(obs_data_t *settings)
 void background_filter_update(void *data, obs_data_t *settings)
 {
 	obs_log(LOG_INFO, "Background filter updated");
-	struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
+
+	// Cast to shared_ptr pointer and create a local shared_ptr
+	auto *ptr = static_cast<std::shared_ptr<background_removal_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
+
+	std::shared_ptr<background_removal_filter> tf = *ptr;
+	if (!tf) {
+		return;
+	}
 
 	tf->isDisabled = true;
 
@@ -316,7 +328,7 @@ void background_filter_update(void *data, obs_data_t *settings)
 			tf->model.reset(new ModelRMBG);
 		}
 
-		int ortSessionResult = createOrtSession(tf);
+		int ortSessionResult = createOrtSession(tf.get());
 		if (ortSessionResult != OBS_BGREMOVAL_ORT_SESSION_SUCCESS) {
 			obs_log(LOG_ERROR, "Failed to create ONNXRuntime session. Error code: %d", ortSessionResult);
 			// disable filter
@@ -374,15 +386,31 @@ void background_filter_update(void *data, obs_data_t *settings)
 void background_filter_activate(void *data)
 {
 	obs_log(LOG_INFO, "Background filter activated");
-	struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
-	tf->isDisabled = false;
+
+	auto *ptr = static_cast<std::shared_ptr<background_removal_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
+
+	std::shared_ptr<background_removal_filter> tf = *ptr;
+	if (tf) {
+		tf->isDisabled = false;
+	}
 }
 
 void background_filter_deactivate(void *data)
 {
 	obs_log(LOG_INFO, "Background filter deactivated");
-	struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
-	tf->isDisabled = true;
+
+	auto *ptr = static_cast<std::shared_ptr<background_removal_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
+
+	std::shared_ptr<background_removal_filter> tf = *ptr;
+	if (tf) {
+		tf->isDisabled = true;
+	}
 }
 
 /**                   FILTER CORE                     */
@@ -390,40 +418,52 @@ void background_filter_deactivate(void *data)
 void *background_filter_create(obs_data_t *settings, obs_source_t *source)
 {
 	obs_log(LOG_INFO, "Background filter created");
-	void *data = bmalloc(sizeof(struct background_removal_filter));
-	struct background_removal_filter *tf = new (data) background_removal_filter();
+	try {
+		// Create the instance as a shared_ptr
+		auto instance = std::make_shared<background_removal_filter>();
 
-	tf->source = source;
-	tf->texrender = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
+		instance->source = source;
+		instance->texrender = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
 
-	std::string instanceName{"background-removal-inference"};
-	tf->env.reset(new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, instanceName.c_str()));
+		std::string instanceName{"background-removal-inference"};
+		instance->env.reset(new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, instanceName.c_str()));
 
-	tf->modelSelection = MODEL_MEDIAPIPE;
-	background_filter_update(tf, settings);
+		instance->modelSelection = MODEL_MEDIAPIPE;
+		background_filter_update(instance.get(), settings);
 
-	return tf;
+		// Return a pointer to the shared_ptr
+		// This keeps the reference count at least 1 until destroy is called
+		return new std::shared_ptr<background_removal_filter>(instance);
+	} catch (const std::exception &e) {
+		obs_log(LOG_ERROR, "Failed to create background filter: %s", e.what());
+		return nullptr;
+	}
 }
 
 void background_filter_destroy(void *data)
 {
 	obs_log(LOG_INFO, "Background filter destroyed");
 
-	struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
+	// Cast back to shared_ptr pointer
+	auto *ptr = static_cast<std::shared_ptr<background_removal_filter> *>(data);
+	if (ptr) {
+		if (*ptr) {
+			// Mark as disabled to prevent further processing
+			(*ptr)->isDisabled = true;
 
-	if (tf) {
-		tf->isDisabled = true;
-
-		obs_enter_graphics();
-		gs_texrender_destroy(tf->texrender);
-		if (tf->stagesurface) {
-			gs_stagesurface_destroy(tf->stagesurface);
+			// Perform cleanup
+			obs_enter_graphics();
+			gs_texrender_destroy((*ptr)->texrender);
+			if ((*ptr)->stagesurface) {
+				gs_stagesurface_destroy((*ptr)->stagesurface);
+			}
+			gs_effect_destroy((*ptr)->effect);
+			gs_effect_destroy((*ptr)->kawaseBlurEffect);
+			obs_leave_graphics();
 		}
-		gs_effect_destroy(tf->effect);
-		gs_effect_destroy(tf->kawaseBlurEffect);
-		obs_leave_graphics();
-		tf->~background_removal_filter();
-		bfree(tf);
+		// Delete the pointer to shared_ptr
+		// This decrements the ref count. If no other threads hold a shared_ptr, the instance is deleted
+		delete ptr;
 	}
 }
 
@@ -450,9 +490,18 @@ void background_filter_video_tick(void *data, float seconds)
 {
 	UNUSED_PARAMETER(seconds);
 
-	struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
+	// Cast to shared_ptr pointer and create a local shared_ptr
+	auto *ptr = static_cast<std::shared_ptr<background_removal_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
 
-	if (tf->isDisabled) {
+	// Create a local shared_ptr
+	// This guarantees the object stays alive for the duration of this function scope
+	// even if filter_destroy is called on the main thread
+	std::shared_ptr<background_removal_filter> tf = *ptr;
+
+	if (!tf || tf->isDisabled) {
 		return;
 	}
 
@@ -511,7 +560,7 @@ void background_filter_video_tick(void *data, float seconds)
 			{
 				std::unique_lock<std::mutex> lock(tf->modelMutex);
 				// Process the image to find the mask.
-				processImageForBackground(tf, imageBGRA, backgroundMask);
+				processImageForBackground(tf.get(), imageBGRA, backgroundMask);
 			}
 
 			if (backgroundMask.empty()) {
@@ -661,17 +710,24 @@ void background_filter_video_render(void *data, gs_effect_t *_effect)
 {
 	UNUSED_PARAMETER(_effect);
 
-	struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
+	// Cast to shared_ptr pointer and create a local shared_ptr
+	auto *ptr = static_cast<std::shared_ptr<background_removal_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
 
-	if (tf->isDisabled) {
-		if (tf->source) {
+	// Create a local shared_ptr
+	std::shared_ptr<background_removal_filter> tf = *ptr;
+
+	if (!tf || tf->isDisabled) {
+		if (tf && tf->source) {
 			obs_source_skip_video_filter(tf->source);
 		}
 		return;
 	}
 
 	uint32_t width, height;
-	if (!getRGBAFromStageSurface(tf, width, height)) {
+	if (!getRGBAFromStageSurface(tf.get(), width, height)) {
 		if (tf->source) {
 			obs_source_skip_video_filter(tf->source);
 		}

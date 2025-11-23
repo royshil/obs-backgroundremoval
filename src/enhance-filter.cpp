@@ -25,12 +25,14 @@
 #include "models/ModelURetinex.h"
 #include "update-checker/update-checker.h"
 
-struct enhance_filter : public filter_data {
+struct enhance_filter : public filter_data, public std::enable_shared_from_this<enhance_filter> {
 	cv::Mat outputBGRA;
 	gs_effect_t *blendEffect;
 	float blendFactor;
 
 	std::mutex modelMutex;
+
+	~enhance_filter() { obs_log(LOG_INFO, "Enhance filter destructor called"); }
 };
 
 const char *enhance_filter_getname(void *unused)
@@ -96,20 +98,43 @@ void enhance_filter_defaults(obs_data_t *settings)
 
 void enhance_filter_activate(void *data)
 {
-	struct enhance_filter *tf = reinterpret_cast<enhance_filter *>(data);
-	tf->isDisabled = false;
+	auto *ptr = static_cast<std::shared_ptr<enhance_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
+
+	std::shared_ptr<enhance_filter> tf = *ptr;
+	if (tf) {
+		tf->isDisabled = false;
+	}
 }
 
 void enhance_filter_deactivate(void *data)
 {
-	struct enhance_filter *tf = reinterpret_cast<enhance_filter *>(data);
-	tf->isDisabled = true;
+	auto *ptr = static_cast<std::shared_ptr<enhance_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
+
+	std::shared_ptr<enhance_filter> tf = *ptr;
+	if (tf) {
+		tf->isDisabled = true;
+	}
 }
 
 void enhance_filter_update(void *data, obs_data_t *settings)
 {
 	UNUSED_PARAMETER(settings);
-	struct enhance_filter *tf = reinterpret_cast<enhance_filter *>(data);
+
+	auto *ptr = static_cast<std::shared_ptr<enhance_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
+
+	std::shared_ptr<enhance_filter> tf = *ptr;
+	if (!tf) {
+		return;
+	}
 
 	tf->blendFactor = (float)obs_data_get_double(settings, "blend");
 	const uint32_t newNumThreads = (uint32_t)obs_data_get_int(settings, "numThreads");
@@ -133,7 +158,7 @@ void enhance_filter_update(void *data, obs_data_t *settings)
 			tf->model.reset(new ModelBCHW);
 		}
 		tf->useGPU = newUseGpu;
-		createOrtSession(tf);
+		createOrtSession(tf.get());
 	}
 
 	if (tf->blendEffect == nullptr) {
@@ -149,43 +174,66 @@ void enhance_filter_update(void *data, obs_data_t *settings)
 
 void *enhance_filter_create(obs_data_t *settings, obs_source_t *source)
 {
-	void *data = bmalloc(sizeof(struct enhance_filter));
-	struct enhance_filter *tf = new (data) enhance_filter();
+	try {
+		// Create the instance as a shared_ptr
+		auto instance = std::make_shared<enhance_filter>();
 
-	tf->source = source;
-	tf->texrender = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
+		instance->source = source;
+		instance->texrender = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
 
-	std::string instanceName{"enhance-portrait-inference"};
-	tf->env.reset(new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, instanceName.c_str()));
+		std::string instanceName{"enhance-portrait-inference"};
+		instance->env.reset(new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, instanceName.c_str()));
 
-	enhance_filter_update(tf, settings);
+		enhance_filter_update(instance.get(), settings);
 
-	return tf;
+		// Return a pointer to the shared_ptr
+		// This keeps the reference count at least 1 until destroy is called
+		return new std::shared_ptr<enhance_filter>(instance);
+	} catch (const std::exception &e) {
+		obs_log(LOG_ERROR, "Failed to create enhance filter: %s", e.what());
+		return nullptr;
+	}
 }
 
 void enhance_filter_destroy(void *data)
 {
-	struct enhance_filter *tf = reinterpret_cast<enhance_filter *>(data);
+	// Cast back to shared_ptr pointer
+	auto *ptr = static_cast<std::shared_ptr<enhance_filter> *>(data);
+	if (ptr) {
+		if (*ptr) {
+			// Mark as disabled to prevent further processing
+			(*ptr)->isDisabled = true;
 
-	if (tf) {
-		obs_enter_graphics();
-		gs_texrender_destroy(tf->texrender);
-		if (tf->stagesurface) {
-			gs_stagesurface_destroy(tf->stagesurface);
+			// Perform cleanup
+			obs_enter_graphics();
+			gs_texrender_destroy((*ptr)->texrender);
+			if ((*ptr)->stagesurface) {
+				gs_stagesurface_destroy((*ptr)->stagesurface);
+			}
+			gs_effect_destroy((*ptr)->blendEffect);
+			obs_leave_graphics();
 		}
-		gs_effect_destroy(tf->blendEffect);
-		obs_leave_graphics();
-		tf->~enhance_filter();
-		bfree(tf);
+		// Delete the pointer to shared_ptr
+		// This decrements the ref count. If no other threads hold a shared_ptr, the instance is deleted
+		delete ptr;
 	}
 }
 
 void enhance_filter_video_tick(void *data, float seconds)
 {
 	UNUSED_PARAMETER(seconds);
-	struct enhance_filter *tf = reinterpret_cast<enhance_filter *>(data);
 
-	if (tf->isDisabled) {
+	auto *ptr = static_cast<std::shared_ptr<enhance_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
+
+	// Create a local shared_ptr
+	// This guarantees the object stays alive for the duration of this function scope
+	// even if filter_destroy is called on the main thread
+	std::shared_ptr<enhance_filter> tf = *ptr;
+
+	if (!tf || tf->isDisabled) {
 		return;
 	}
 
@@ -211,7 +259,7 @@ void enhance_filter_video_tick(void *data, float seconds)
 	{
 		std::unique_lock<std::mutex> lock(tf->modelMutex);
 		try {
-			if (!runFilterModelInference(tf, imageBGRA, outputImage)) {
+			if (!runFilterModelInference(tf.get(), imageBGRA, outputImage)) {
 				return;
 			}
 		} catch (const std::exception &e) {
@@ -236,11 +284,21 @@ void enhance_filter_video_render(void *data, gs_effect_t *_effect)
 {
 	UNUSED_PARAMETER(_effect);
 
-	struct enhance_filter *tf = reinterpret_cast<enhance_filter *>(data);
+	auto *ptr = static_cast<std::shared_ptr<enhance_filter> *>(data);
+	if (!ptr) {
+		return;
+	}
+
+	// Create a local shared_ptr
+	std::shared_ptr<enhance_filter> tf = *ptr;
+
+	if (!tf) {
+		return;
+	}
 
 	// Get input from source
 	uint32_t width, height;
-	if (!getRGBAFromStageSurface(tf, width, height)) {
+	if (!getRGBAFromStageSurface(tf.get(), width, height)) {
 		obs_source_skip_video_filter(tf->source);
 		return;
 	}

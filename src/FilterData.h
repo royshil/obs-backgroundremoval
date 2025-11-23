@@ -4,6 +4,7 @@
 #include <obs-module.h>
 
 #include <atomic>
+#include <memory>
 
 #include "models/Model.h"
 #include "ort-utils/ORTModelData.h"
@@ -14,7 +15,7 @@
   * This struct is used to store the base data needed for ORT filters.
   *
 */
-struct filter_data : public ORTModelData {
+struct filter_data : public ORTModelData, public std::enable_shared_from_this<filter_data> {
 	std::string useGPU;
 	uint32_t numThreads;
 	std::string modelSelection;
