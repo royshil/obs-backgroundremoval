@@ -657,7 +657,7 @@ void background_filter_video_tick(void *data, float seconds)
 	}
 }
 
-static gs_texture_t *blur_background(struct background_removal_filter *tf, uint32_t width, uint32_t height,
+static gs_texture_t *blur_background(std::shared_ptr<background_removal_filter> tf, uint32_t width, uint32_t height,
 				     gs_texture_t *alphaTexture)
 {
 	if (tf->blurBackground == 0 || !tf->kawaseBlurEffect) {
