@@ -429,11 +429,14 @@ void *background_filter_create(obs_data_t *settings, obs_source_t *source)
 		instance->env.reset(new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, instanceName.c_str()));
 
 		instance->modelSelection = MODEL_MEDIAPIPE;
-		background_filter_update(instance.get(), settings);
 
-		// Return a pointer to the shared_ptr
+		// Create pointer to shared_ptr for the update call
+		auto ptr = new std::shared_ptr<background_removal_filter>(instance);
+		background_filter_update(ptr, settings);
+
+		// Return the pointer to the shared_ptr
 		// This keeps the reference count at least 1 until destroy is called
-		return new std::shared_ptr<background_removal_filter>(instance);
+		return ptr;
 	} catch (const std::exception &e) {
 		obs_log(LOG_ERROR, "Failed to create background filter: %s", e.what());
 		return nullptr;

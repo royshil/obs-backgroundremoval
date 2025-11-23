@@ -184,11 +184,13 @@ void *enhance_filter_create(obs_data_t *settings, obs_source_t *source)
 		std::string instanceName{"enhance-portrait-inference"};
 		instance->env.reset(new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, instanceName.c_str()));
 
-		enhance_filter_update(instance.get(), settings);
+		// Create pointer to shared_ptr for the update call
+		auto ptr = new std::shared_ptr<enhance_filter>(instance);
+		enhance_filter_update(ptr, settings);
 
-		// Return a pointer to the shared_ptr
+		// Return the pointer to the shared_ptr
 		// This keeps the reference count at least 1 until destroy is called
-		return new std::shared_ptr<enhance_filter>(instance);
+		return ptr;
 	} catch (const std::exception &e) {
 		obs_log(LOG_ERROR, "Failed to create enhance filter: %s", e.what());
 		return nullptr;
