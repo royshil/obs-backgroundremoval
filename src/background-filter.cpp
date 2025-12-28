@@ -21,6 +21,7 @@
 #include "models/ModelSINET.h"
 #include "models/ModelMediapipe.h"
 #include "models/ModelSelfie.h"
+#include "models/ModelSelfieMulticlass.h"
 #include "models/ModelRVM.h"
 #include "models/ModelPPHumanSeg.h"
 #include "models/ModelTCMonoDepth.h"
@@ -183,6 +184,7 @@ obs_properties_t *background_filter_properties(void *data)
 	obs_property_list_add_string(p_model_select, obs_module_text("SINet"), MODEL_SINET);
 	obs_property_list_add_string(p_model_select, obs_module_text("MediaPipe"), MODEL_MEDIAPIPE);
 	obs_property_list_add_string(p_model_select, obs_module_text("Selfie Segmentation"), MODEL_SELFIE);
+	obs_property_list_add_string(p_model_select, obs_module_text("Selfie Multiclass"), MODEL_SELFIE_MULTICLASS);
 	obs_property_list_add_string(p_model_select, obs_module_text("PPHumanSeg"), MODEL_PPHUMANSEG);
 	obs_property_list_add_string(p_model_select, obs_module_text("Robust Video Matting"), MODEL_RVM);
 	obs_property_list_add_string(p_model_select, obs_module_text("TCMonoDepth"), MODEL_DEPTH_TCMONODEPTH);
@@ -311,6 +313,9 @@ void background_filter_update(void *data, obs_data_t *settings)
 		}
 		if (tf->modelSelection == MODEL_SELFIE) {
 			tf->model.reset(new ModelSelfie);
+		}
+		if (tf->modelSelection == MODEL_SELFIE_MULTICLASS) {
+			tf->model.reset(new ModelSelfieMulticlass);
 		}
 		if (tf->modelSelection == MODEL_MEDIAPIPE) {
 			tf->model.reset(new ModelMediaPipe);

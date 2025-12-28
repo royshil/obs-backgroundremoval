@@ -4,6 +4,7 @@
 const char *const MODEL_SINET = "models/SINet_Softmax_simple.onnx";
 const char *const MODEL_MEDIAPIPE = "models/mediapipe.onnx";
 const char *const MODEL_SELFIE = "models/selfie_segmentation.onnx";
+const char *const MODEL_SELFIE_MULTICLASS = "models/selfie_multiclass_256x256.onnx";
 const char *const MODEL_RVM = "models/rvm_mobilenetv3_fp32.onnx";
 const char *const MODEL_PPHUMANSEG = "models/pphumanseg_fp32.onnx";
 const char *const MODEL_ENHANCE_TBEFN = "models/tbefn_fp32.onnx";
