@@ -8,6 +8,7 @@
 !/data
 !/docs
 !/pages
+!/scripts
 !/src
 !/vcpkg-triplets
 !.clang-format
