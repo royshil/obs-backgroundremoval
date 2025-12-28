@@ -74,32 +74,34 @@ public:
 		const int width = outputImage.cols;
 		const int numClasses = outputImage.channels();
 
-		// Create output single-channel mask
-		cv::Mat mask = cv::Mat::zeros(height, width, CV_32FC1);
+		// Split multi-channel output into separate channels
+		std::vector<cv::Mat> channels(numClasses);
+		cv::split(outputImage, channels);
 
-		// For each pixel, find the class with maximum probability
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
-				const float *pixel = outputImage.ptr<float>(y, x);
+		// Create matrices to store argmax results
+		cv::Mat maxValues = cv::Mat::zeros(height, width, CV_32FC1);
+		cv::Mat maxIndices = cv::Mat::zeros(height, width, CV_8UC1);
 
-				// Find argmax across all classes
-				int maxClass = 0;
-				float maxProb = pixel[0];
-				for (int c = 1; c < numClasses; c++) {
-					if (pixel[c] > maxProb) {
-						maxProb = pixel[c];
-						maxClass = c;
-					}
-				}
-
-				// If the dominant class is not background (class 0), 
-				// set mask to maxProb (the confidence of the foreground class)
-				if (maxClass > 0) {
-					mask.at<float>(y, x) = maxProb;
-				}
-				// else: mask remains 0 (background)
-			}
+		// Find argmax across all channels
+		for (int c = 0; c < numClasses; c++) {
+			// Create a mask where this channel has the maximum value
+			cv::Mat mask = channels[c] > maxValues;
+			
+			// Update maxValues where this channel is larger
+			maxValues.copyTo(channels[c], ~mask);
+			channels[c].copyTo(maxValues, mask);
+			
+			// Update maxIndices where this channel is larger
+			maxIndices.setTo(c, mask);
 		}
+
+		// Create output mask: foreground = 1 where maxIndices > 0 (not background)
+		cv::Mat foregroundMask = maxIndices > 0;
+		
+		// Convert boolean mask to float and multiply by confidence values
+		cv::Mat mask;
+		foregroundMask.convertTo(mask, CV_32FC1, 1.0 / 255.0); // Convert uint8 to float [0,1]
+		mask = mask.mul(maxValues); // Multiply by confidence
 
 		// Replace the multi-channel output with single-channel mask
 		mask.copyTo(outputImage);
