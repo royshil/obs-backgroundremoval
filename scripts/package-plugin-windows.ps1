@@ -1,6 +1,6 @@
 param (
     [string]$Target = "x64",
-    [string]$Configurationuration = "RelWithDebInfo",
+    [string]$Configuration = "RelWithDebInfo",
     [string]$OutputDir = "release"
 )
 
