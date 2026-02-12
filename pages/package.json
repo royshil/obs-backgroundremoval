@@ -8,6 +8,9 @@
     "preview": "astro preview",
     "astro": "astro"
   },
+  "engines": {
+    "node": "24.x"
+  },
   "dependencies": {
     "@ai-sdk/svelte": "^4.0.81",
     "@astrojs/svelte": "^7.2.5",
