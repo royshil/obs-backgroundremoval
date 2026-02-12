@@ -19,15 +19,15 @@ const { pathname, lang, title, description } = Astro.props.frontmatter;
 ---
 
 <Layout lang={lang} title={title}>
-  <main class="white-box">
-    <Fragment slot="head">
-      <meta name="description" content={description} />
-      <link
-        rel="canonical"
-        href={withTrailingSlash(joinURL(PRODUCTION_BASE_URL, pathname))}
-      />
-    </Fragment>
+  <Fragment slot="head-info">
+    <meta name="description" content={description} />
+    <link
+      rel="canonical"
+      href={withTrailingSlash(joinURL(PRODUCTION_BASE_URL, pathname))}
+    />
+  </Fragment>
 
+  <main class="white-box">
     <slot />
 
     <nav class="page-nav" aria-label="Page navigation">
