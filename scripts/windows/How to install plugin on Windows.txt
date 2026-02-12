@@ -1,0 +1,15 @@
+How to Install OBS Background Removal Plugin on Windows
+=============================================================
+
+1. **Copy the Plugin Folder**
+
+    - Copy the `obs-backgroundremoval` folder (this folder) to your OBS Studio plugins directory. The default path is:
+
+       ```
+       C:\ProgramData\obs-studio\plugins\
+       ```
+    - Paste the `obs-backgroundremoval` folder into the `plugins` directory.
+
+2. **Restart OBS Studio**
+
+   - If OBS Studio is running, close it completely and restart it.
