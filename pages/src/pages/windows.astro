@@ -2,8 +2,6 @@
 import { joinURL, withTrailingSlash } from "ufo";
 import { Octokit, type RestEndpointMethodTypes } from "@octokit/rest";
 
-import { Code } from "astro:components";
-
 import Layout from "../layouts/Layout.astro";
 
 import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL } from "../lib/info.js";
@@ -58,8 +56,8 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
       </li>
       <li>
         <strong>Copy Files to OBS Directory:</strong><br />
-        Move the extracted files into your OBS Studio installation folder.<br />
-        <code>C:\Program Files\obs-studio</code>
+        Move the extracted `obs-backgroundremoval` folder into your OBS Studio installation folder.<br />
+        <code>C:\ProgramData\obs-studio\plugins</code>
       </li>
       <li>
         <strong>Restart OBS Studio:</strong><br />
@@ -71,27 +69,6 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
         the plugin.
       </li>
     </ol>
-
-    <h2>Optional: Install using PowerShell</h2>
-    <p>
-      <strong>Note:</strong> You must run PowerShell as <strong
-        >Administrator</strong
-      > to copy files into the OBS Studio directory.
-    </p>
-    <p>You can automate installation with PowerShell:</p>
-    <Code
-      code={`$zipUrl = "{assetX64.browser_download_url}"
-$zipPath = "$env:TEMP\obs-backgroundremoval-windows-x64.zip"
-$extractPath = "$env:TEMP\obs-backgroundremoval"
-$obsPath = "C:\Program Files\obs-studio"
-
-Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
-Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-Copy-Item -Path "$extractPath\*" -Destination $obsPath -Recurse -Force
-Remove-Item $zipPath
-Remove-Item $extractPath -Recurse`}
-      lang="powershell"
-    />
 
     <p>All set!</p>
 
