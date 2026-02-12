@@ -41,8 +41,8 @@ export async function getStaticPaths(
     owner: GITHUB_OWNER,
     repo: GITHUB_REPO,
     headers: {
-      accept: "application/vnd.github.v3.text+json"
-    }
+      accept: "application/vnd.github.v3.text+json",
+    },
   });
 
   return allReleases.map((release) => ({

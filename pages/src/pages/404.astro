@@ -6,7 +6,11 @@ import Layout from "../layouts/Layout.astro";
 const { BASE_URL } = import.meta.env;
 ---
 
-<Layout lang="en" title="404 Not Found" description="404 Not Found">
+<Layout lang="en" title="404 Not Found">
+  <Fragment slot="head-info">
+    <meta name="description" content="404 Not Found" />
+  </Fragment>
+
   <main class="white-box">
     <h1>404 Not Found</h1>
     <a href={joinURL(BASE_URL, "/")}>Back to the top page</a>

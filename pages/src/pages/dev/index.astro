@@ -1,16 +1,25 @@
 ---
-import { joinURL } from "ufo";
+import { joinURL, withTrailingSlash } from "ufo";
 
 import Layout from "../../layouts/Layout.astro";
+
+import { PRODUCTION_BASE_URL } from "../../lib/info.js";
 
 const { BASE_URL } = import.meta.env;
 ---
 
-<Layout
-  lang="en"
-  title="Developer resources for OBS Background Removal"
-  description="Developer resources for OBS Background Removal"
->
+<Layout lang="en" title="Developer resources for OBS Background Removal">
+  <Fragment slot="head-info">
+    <meta
+      name="description"
+      content="Developer resources for OBS Background Removal"
+    />
+    <link
+      rel="canonical"
+      href={withTrailingSlash(joinURL(PRODUCTION_BASE_URL, "dev"))}
+    />
+  </Fragment>
+
   <main class="white-box">
     <h1>Developer resources for OBS Background Removal</h1>
 

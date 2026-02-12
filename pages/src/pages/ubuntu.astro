@@ -1,13 +1,28 @@
 ---
-import { joinURL } from "ufo";
+import { joinURL, withTrailingSlash } from "ufo";
+import { Octokit, type RestEndpointMethodTypes } from "@octokit/rest";
 
 import { Code } from "astro:components";
 
 import Layout from "../layouts/Layout.astro";
 
-import { getLatestRelease } from "../lib/github";
+import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL } from "../lib/info.js";
+
+export type LatestRelease =
+  RestEndpointMethodTypes["repos"]["getLatestRelease"]["response"]["data"];
 
 const { BASE_URL } = import.meta.env;
+
+async function getLatestRelease(): Promise<LatestRelease> {
+  const octokit = new Octokit({ auth: import.meta.env.GITHUB_TOKEN });
+
+  const latestRelease = await octokit.rest.repos.getLatestRelease({
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+  });
+
+  return latestRelease.data;
+}
 
 const release = await getLatestRelease();
 
@@ -15,11 +30,18 @@ const asset = release.assets.find((e) => /x86_64-linux-gnu\.deb/.test(e.name));
 if (!asset) throw new Error("Ubuntu asset not found!");
 ---
 
-<Layout
-  lang="en"
-  title="How to use OBS Background Removal on Ubuntu"
-  description="How to use OBS Background Removal on Ubuntu"
->
+<Layout lang="en" title="How to use OBS Background Removal on Ubuntu">
+  <Fragment slot="head-info">
+    <meta
+      name="description"
+      content="How to use OBS Background Removal on Ubuntu"
+    />
+    <link
+      rel="canonical"
+      href={withTrailingSlash(joinURL(PRODUCTION_BASE_URL, "usage"))}
+    />
+  </Fragment>
+
   <main class="white-box">
     <h1>Download and install on Ubuntu</h1>
 

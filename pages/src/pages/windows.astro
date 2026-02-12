@@ -1,13 +1,28 @@
 ---
-import { joinURL } from "ufo";
+import { joinURL, withTrailingSlash } from "ufo";
+import { Octokit, type RestEndpointMethodTypes } from "@octokit/rest";
 
 import { Code } from "astro:components";
 
 import Layout from "../layouts/Layout.astro";
 
-import { getLatestRelease } from "../lib/github";
+import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL } from "../lib/info.js";
+
+export type LatestRelease =
+  RestEndpointMethodTypes["repos"]["getLatestRelease"]["response"]["data"];
 
 const { BASE_URL } = import.meta.env;
+
+async function getLatestRelease(): Promise<LatestRelease> {
+  const octokit = new Octokit({ auth: import.meta.env.GITHUB_TOKEN });
+
+  const latestRelease = await octokit.rest.repos.getLatestRelease({
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+  });
+
+  return latestRelease.data;
+}
 
 const release = await getLatestRelease();
 
@@ -15,11 +30,18 @@ const assetX64 = release.assets.find((e) => /windows-x64\.zip/.test(e.name));
 if (!assetX64) throw new Error("Windows x64 asset not found!");
 ---
 
-<Layout
-  lang="en"
-  title="How to use OBS Background Removal on Windows"
-  description="How to use OBS Background Removal on Windows"
->
+<Layout lang="en" title="How to use OBS Background Removal on Windows">
+  <Fragment slot="head-info">
+    <meta
+      name="description"
+      content="How to use OBS Background Removal on Windows"
+    />
+    <link
+      rel="canonical"
+      href={withTrailingSlash(joinURL(PRODUCTION_BASE_URL, "windows"))}
+    />
+  </Fragment>
+
   <main class="white-box">
     <h1>Install OBS Background Removal on Windows</h1>
 

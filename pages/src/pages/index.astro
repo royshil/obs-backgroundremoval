@@ -6,11 +6,7 @@ import { Image } from "astro:assets";
 
 import DefineLocalDate from "../components/DefineLocalDate.astro";
 
-import {
-  GITHUB_OWNER,
-  GITHUB_REPO,
-  PRODUCTION_BASE_URL,
-} from "../lib/info.js";
+import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL } from "../lib/info.js";
 
 import Layout from "../layouts/Layout.astro";
 
@@ -36,17 +32,13 @@ async function getLatestRelease(): Promise<LatestRelease> {
 const release = await getLatestRelease();
 ---
 
-<Layout
-  lang="en"
-  title="OBS Background Removal"
->
-
+<Layout lang="en" title="OBS Background Removal">
   <Fragment slot="head-info">
-    <meta name="description" content="OBS Plugin: Background Removal / Virtual Green-screen and Low-Light Enhancement" />
-    <link
-      rel="canonical"
-      href={withTrailingSlash(PRODUCTION_BASE_URL)}
+    <meta
+      name="description"
+      content="OBS Plugin: Background Removal / Virtual Green-screen and Low-Light Enhancement"
     />
+    <link rel="canonical" href={withTrailingSlash(PRODUCTION_BASE_URL)} />
   </Fragment>
 
   <Fragment slot="head-bottom">
@@ -72,21 +64,18 @@ const release = await getLatestRelease();
       />
     </p>
 
-
-      <h2>
-        Download Latest {release.tag_name}
-        {
-          [
-            "(",
-            <local-date data-date={release.published_at}>
-              <time datetime={release.published_at}>
-                {release.published_at}
-              </time>
-            </local-date>,
-            ")",
-          ]
-        }
-      </h2>
+    <h2>
+      Download Latest {release.tag_name}
+      {
+        [
+          "(",
+          <local-date data-date={release.published_at}>
+            <time datetime={release.published_at}>{release.published_at}</time>
+          </local-date>,
+          ")",
+        ]
+      }
+    </h2>
 
     <ul class="download-links">
       <li><a href={joinURL(BASE_URL, "windows/")}>Windows</a></li>

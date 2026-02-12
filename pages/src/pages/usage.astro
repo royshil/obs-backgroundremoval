@@ -1,9 +1,11 @@
 ---
-import { joinURL } from "ufo";
+import { joinURL, withTrailingSlash } from "ufo";
 
 import { Image } from "astro:assets";
 
 import Layout from "../layouts/Layout.astro";
+
+import { PRODUCTION_BASE_URL } from "../lib/info.js";
 
 import addAVideoCaptureSource from "../assets/addAVideoCaptureSource.png";
 import addBackgroundRemoval from "../assets/addBackgroundRemoval.png";
@@ -14,11 +16,15 @@ import filterSettingsAdvanced from "../assets/filterSettingsAdvanced.png";
 const { BASE_URL } = import.meta.env;
 ---
 
-<Layout
-  lang="en"
-  title="How to use OBS Background Removal"
-  description="How to use OBS Background Removal"
->
+<Layout lang="en" title="How to use OBS Background Removal">
+  <Fragment slot="head-info">
+    <meta name="description" content="How to use OBS Background Removal" />
+    <link
+      rel="canonical"
+      href={withTrailingSlash(joinURL(PRODUCTION_BASE_URL, "usage"))}
+    />
+  </Fragment>
+
   <main class="white-box">
     <h1>How to Use OBS Background Removal</h1>
 
