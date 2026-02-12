@@ -40,6 +40,9 @@ export async function getStaticPaths(
   const latestRelease = await octokit.rest.repos.getLatestRelease({
     owner: GITHUB_OWNER,
     repo: GITHUB_REPO,
+    headers: {
+      accept: "application/vnd.github.v3.text+json"
+    }
   });
 
   return allReleases.map((release) => ({
@@ -140,7 +143,6 @@ const dynamicDescription = cleanBody
 
       <section class="downloads-section">
         <h2>Downloads</h2>
-        {release.body_text}
 
         <ul class="download-links">
           {
