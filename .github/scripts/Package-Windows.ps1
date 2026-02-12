@@ -59,8 +59,12 @@ function Package {
     Remove-Item @RemoveArgs
 
     Log-Group "Archiving ${ProductName}..."
+    $FilesToArchive = @()
+    $FilesToArchive += Get-ChildItem -Path "${ProjectRoot}/release/${Configuration}" -Exclude "${OutputName}*.*"
+    $WindowsScriptsDir = Join-Path $ProjectRoot 'scripts/windows'
+    $FilesToArchive += Get-ChildItem -Path $WindowsScriptsDir
     $CompressArgs = @{
-        Path = (Get-ChildItem -Path "${ProjectRoot}/release/${Configuration}" -Exclude "${OutputName}*.*")
+        Path = $FilesToArchive
         CompressionLevel = 'Optimal'
         DestinationPath = "${ProjectRoot}/release/${OutputName}.zip"
         Verbose = ($Env:CI -ne $null)
