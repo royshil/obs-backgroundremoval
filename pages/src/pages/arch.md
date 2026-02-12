@@ -1,5 +1,6 @@
 ---
 layout: ../layouts/MarkdownLayout.astro
+pathname: arch
 lang: en
 title: How to use OBS Background Removal on Arch Linux
 description: How to use OBS Background Removal on Arch Linux

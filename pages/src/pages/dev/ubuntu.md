@@ -1,5 +1,6 @@
 ---
 layout: ../../layouts/MarkdownLayout.astro
+pathname: dev/ubuntu
 lang: en
 title: How to develop OBS Background Removal on Ubuntu
 description: How to develop OBS Background Removal on Ubuntu

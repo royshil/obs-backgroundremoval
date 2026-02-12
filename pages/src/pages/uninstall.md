@@ -1,5 +1,6 @@
 ---
 layout: ../layouts/MarkdownLayout.astro
+pathname: uninstall
 lang: en
 title: Uninstalling the plugin
 description: Uninstalling the plugin
