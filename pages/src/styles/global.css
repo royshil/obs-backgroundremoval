@@ -10,6 +10,8 @@
   --color-download-button-active-bg: #189cff;
   --color-download-button-fg: #fff;
   --color-github-black: #24292f;
+  --color-alert-bg: #fff3cd;
+  --color-alert-fg: #856404;
 }
 
 main.white-box {
