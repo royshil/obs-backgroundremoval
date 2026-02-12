@@ -83,21 +83,3 @@ ul.download-links > li > a {
 ul.download-links > li > a:hover {
   background-color: var(--color-download-button-active-bg);
 }
-
-
-  ul.download-button-container li a {
-    display: inline-block;
-    padding: 10px 20px;
-    border-radius: 5px;
-    font-weight: bold;
-    color: white;
-    background-color: var(--color-button-1);
-    box-shadow: 0 4px 8px var(--color-box-shadow);
-    text-decoration: none;
-    transition: background-color 0.3s ease;
-  }
-
-  ul.download-button-container li a:hover,
-  ul.download-button-container li a:focus {
-    background-color: var(--color-button-2);
-  }
