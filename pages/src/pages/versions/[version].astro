@@ -92,8 +92,11 @@ const releaseAssets = release.assets.map(
 const baseDescription = `Download version ${release.tag_name} of OBS Background Removal.`;
 const cleanBody = stripMarkdown(releaseBody);
 const dynamicDescription = cleanBody
-  ? `${baseDescription} Highlights: ${cleanBody}`.substring(0, 160) +
-    (cleanBody.length > 100 ? "..." : "")
+  ? (() => {
+      const full = `${baseDescription} Highlights: ${cleanBody}`;
+      const truncated = full.substring(0, 160);
+      return truncated + (full.length > 160 ? "..." : "");
+    })()
   : `${baseDescription} Check release notes for details.`;
 ---
 
