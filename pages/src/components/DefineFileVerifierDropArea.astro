@@ -1,0 +1,79 @@
+---
+import { transform } from "esbuild";
+
+import FileVerifierDropAreaRaw from "./FileVerifierDropArea.ts?raw";
+
+export interface FileVerifierFileDroppedDetail {
+  name: string;
+  size: number;
+  sha256Buffer: ArrayBuffer;
+}
+
+export interface FileVerifierErrorDetail {
+  name: string;
+  size: number;
+  error: unknown;
+}
+
+declare global {
+  interface HTMLElementEventMap {
+    "file-verifier-file-dropped": CustomEvent<FileVerifierFileDroppedDetail>;
+    "file-verifier-error": CustomEvent<FileVerifierErrorDetail>;
+  }
+}
+
+export function aggressiveMinify(source: string) {
+  source = source
+    /* --- CSS Optimization --- */
+    // Remove whitespace around separators ({, :, ;, ,)
+    .replace(/\s*(?<!&[a-zA-Z0-9#]+)([{:;,])\s*/g, "$1")
+    // Remove trailing semicolons in style blocks
+    .replace(/;}/g, "}")
+    // Omit leading zero for fractional numbers (e.g., 0.2s -> .2s)
+    .replace(/0\./g, ".")
+
+    /* --- HTML Whitespace Removal --- */
+    // Remove all newlines
+    .replace(/\n/g, "")
+    // Remove whitespace between tags (e.g., </div> <div...)
+    .replace(/>\s+</g, "><")
+    // Collapse multiple consecutive spaces into a single space
+    .replace(/\s+/g, " ")
+
+    /* --- Attributes & Cleanup --- */
+    // Remove quotes around alphanumeric attributes (e.g., id="f" -> id=f)
+    .replace(/="\s*([a-zA-Z0-9_-]+)\s*"/g, "=$1")
+    // Remove whitespace immediately after a CSS closing brace
+    .replace(/}\s+/g, "}")
+
+    // Final trim
+    .trim();
+
+  return source;
+}
+
+export function mangleClassNames(source: string) {
+  return source.replaceAll("active", "a");
+}
+
+export async function generateCode() {
+  const compactFileVerifierDropAreaRaw = FileVerifierDropAreaRaw.replaceAll(
+    /\/\*css\*\/\s*`([\s\S]*?)`/g,
+    (match, innerHTML) => {
+      return "`" + aggressiveMinify(innerHTML) + "`";
+    },
+  );
+
+  const { code } = await transform(compactFileVerifierDropAreaRaw, {
+    loader: "ts",
+    minify: true,
+    target: "esnext",
+  });
+
+  return mangleClassNames(code);
+}
+
+const code = await generateCode();
+---
+
+<script is:inline set:html={code} />

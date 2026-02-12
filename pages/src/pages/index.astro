@@ -35,14 +35,11 @@ const { BASE_URL } = import.meta.env;
       />
     </p>
 
-    <ul class="download-button-container">
+    <ul class="download-links">
       <li><a href={joinURL(BASE_URL, "windows/")}>Windows</a></li>
       <li><a href={joinURL(BASE_URL, "macos/")}>macOS</a></li>
       <li><a href={joinURL(BASE_URL, "ubuntu/")}>Ubuntu</a></li>
       <li><a href={joinURL(BASE_URL, "flatpak/")}>Flatpak</a></li>
-    </ul>
-
-    <ul class="download-button-container">
       <li><a href={joinURL(BASE_URL, "arch/")}>Arch Linux</a></li>
     </ul>
 
@@ -105,32 +102,6 @@ const { BASE_URL } = import.meta.env;
 
   header.icon-and-name h1 {
     margin-left: 10px;
-  }
-
-  ul.download-button-container {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 2em;
-    list-style: none;
-    padding: 0;
-  }
-
-  ul.download-button-container li a {
-    display: inline-block;
-    padding: 10px 20px;
-    border-radius: 5px;
-    font-weight: bold;
-    color: white;
-    background-color: var(--color-button-1);
-    box-shadow: 0 4px 8px var(--color-box-shadow);
-    text-decoration: none;
-    transition: background-color 0.3s ease;
-  }
-
-  ul.download-button-container li a:hover,
-  ul.download-button-container li a:focus {
-    background-color: var(--color-button-2);
   }
 
   .ask-anything-button {

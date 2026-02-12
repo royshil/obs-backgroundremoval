@@ -187,10 +187,10 @@ ${FaqContent}
       <div class="initial-warning message-bubble assistant">
         <span class="role">System Warning:</span>
         <p>
-          To use this chat feature, you must download the
-          LLM model (a large file of several
-          GBs). This is only required on the first launch, but it may take
-          several minutes to complete (depending on your internet speed).
+          To use this chat feature, you must download the LLM model (a large
+          file of several GBs). This is only required on the first launch, but
+          it may take several minutes to complete (depending on your internet
+          speed).
         </p>
         <button class="agree-button" onclick={handleAgreeAndStart}>
           Agree and Start Model Download
@@ -206,7 +206,9 @@ ${FaqContent}
           class:assistant={message.role === "assistant"}
         >
           <span class="role">{message.role === "user" ? "You" : "Cora"}:</span>
-          <pre style="white-space: pre-wrap; font-family: inherit;">{(message.parts[0] as TextPart)?.text || "..."}</pre>
+          <pre style="white-space: pre-wrap; font-family: inherit;">{(
+              message.parts[0] as TextPart
+            )?.text || "..."}</pre>
         </div>
       {/each}
     {/if}

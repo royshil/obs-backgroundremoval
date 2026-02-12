@@ -1,0 +1,142 @@
+---
+import { joinURL, withTrailingSlash } from "ufo";
+import { Octokit, type RestEndpointMethodTypes } from "@octokit/rest";
+
+import {
+  GITHUB_OWNER,
+  GITHUB_REPO,
+  GITHUB_URL,
+  PRODUCTION_BASE_URL,
+} from "../../lib/info.js";
+import DefineLocalDate from "../../components/DefineLocalDate.astro";
+import Layout from "../../layouts/Layout.astro";
+
+export type Releases =
+  RestEndpointMethodTypes["repos"]["listReleases"]["response"]["data"];
+
+const { BASE_URL } = import.meta.env;
+
+async function listReleases(): Promise<Releases> {
+  const octokit = new Octokit({ auth: import.meta.env.GITHUB_TOKEN });
+
+  const allReleases = await octokit.paginate(octokit.rest.repos.listReleases, {
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+    per_page: 100,
+  });
+
+  return allReleases;
+}
+
+const releases = (await listReleases()).filter(
+  (r) => !r.draft && r.published_at,
+);
+
+if (releases.length === 0) {
+  throw new Error("No releases found.");
+}
+
+const latestRelease = releases[0];
+const pastReleases = releases.slice(1);
+---
+
+<Layout lang="en" title="Version History - OBS Background Removal">
+  <Fragment slot="head-info">
+    <meta
+      name="description"
+      content="Official release archive for OBS Background Removal. Access all past versions, release notes, and download links in one place."
+    />
+    <link
+      rel="canonical"
+      href={withTrailingSlash(joinURL(PRODUCTION_BASE_URL, "versions"))}
+    />
+  </Fragment>
+
+  <Fragment slot="head-bottom">
+    <DefineLocalDate />
+  </Fragment>
+
+  <main class="white-box">
+    <hgroup>
+      <h1>Version History</h1>
+      <h2>OBS Background Removal</h2>
+    </hgroup>
+
+    <h2>Latest Release</h2>
+    <p id="latest-release">
+      <a
+        href={withTrailingSlash(
+          joinURL(BASE_URL, "versions", latestRelease.tag_name),
+        )}
+        ><strong>{latestRelease.tag_name}</strong>
+        {
+          [
+            "(",
+            <local-date data-date={latestRelease.published_at}>
+              <time datetime={latestRelease.published_at}>
+                {latestRelease.published_at}
+              </time>
+            </local-date>,
+            ")",
+          ]
+        }
+      </a>
+    </p>
+
+    <nav class="page-nav" aria-label="Page navigation">
+      <ul>
+        <li>
+          <a href={withTrailingSlash(BASE_URL)}>Back to Top</a>
+        </li>
+        <li>
+          <a
+            href={withTrailingSlash(GITHUB_URL)}
+            target="_blank"
+            rel="noopener noreferrer">GitHub Repository</a
+          >
+        </li>
+      </ul>
+    </nav>
+
+    <hr />
+
+    <h2>Past Versions</h2>
+    <ul>
+      {
+        pastReleases.map((release) => (
+          <li>
+            <a
+              href={withTrailingSlash(
+                joinURL(BASE_URL, "versions", release.tag_name),
+              )}
+            >
+              {release.tag_name}
+              {[
+                "(",
+                <local-date data-date={release.published_at}>
+                  <time datetime={release.published_at}>
+                    {release.published_at}
+                  </time>
+                </local-date>,
+                ")",
+              ]}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </main>
+</Layout>
+
+<style is:global>
+  main {
+    ul {
+      max-width: 600px;
+    }
+
+    #latest-release {
+      font-size: 1.25rem;
+      margin-left: 2rem;
+    }
+  }
+</style>

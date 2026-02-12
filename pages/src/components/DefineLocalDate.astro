@@ -1,0 +1,18 @@
+---
+import { transform } from "esbuild";
+
+import LocalDateRaw from "./LocalDate.ts?raw";
+
+export async function generateCode() {
+  const { code } = await transform(LocalDateRaw, {
+    loader: "ts",
+    minify: true,
+    target: "esnext",
+  });
+  return code;
+}
+
+const code = await generateCode();
+---
+
+<script is:inline set:html={code} />
