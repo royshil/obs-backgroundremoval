@@ -37,6 +37,10 @@ export async function getStaticPaths(
     per_page: 100,
   });
 
+  const publishedReleases = allReleases.filter(
+    (release) => !release.draft && release.published_at,
+  );
+
   const latestRelease = await octokit.rest.repos.getLatestRelease({
     owner: GITHUB_OWNER,
     repo: GITHUB_REPO,
@@ -45,7 +49,7 @@ export async function getStaticPaths(
     },
   });
 
-  return allReleases.map((release) => ({
+  return publishedReleases.map((release) => ({
     params: { version: release.tag_name },
     props: { release, latestRelease: latestRelease.data },
   }));
