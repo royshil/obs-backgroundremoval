@@ -86,7 +86,7 @@ const releaseAssets = release.assets.map(
     }) satisfies FileVerifierReleaseAsset,
 );
 
-const baseDescription = `Download version ${release.tag_name} of Live Background Removal Lite.`;
+const baseDescription = `Download version ${release.tag_name} of OBS Background Removal.`;
 const cleanBody = stripMarkdown(releaseBody);
 const dynamicDescription = cleanBody
   ? `${baseDescription} Highlights: ${cleanBody}`.substring(0, 160) +
@@ -166,14 +166,14 @@ const dynamicDescription = cleanBody
           }
           <li>
             <a
-              href="https://github.com/kaito-tokyo/live-backgroundremoval-lite/tree/main/unsupported/arch"
-              >Arch Linux (Latest)</a
+              href="https://github.com/kaito-tokyo/live-backgroundremoval-lite/tree/main/unsupported/flatpak"
+              >Flatpak (Latest)</a
             >
           </li>
           <li>
             <a
-              href="https://github.com/kaito-tokyo/live-backgroundremoval-lite/tree/main/unsupported/flatpak"
-              >Flatpak (Latest)</a
+              href="https://github.com/kaito-tokyo/live-backgroundremoval-lite/tree/main/unsupported/arch"
+              >Arch Linux (Latest)</a
             >
           </li>
         </ul>

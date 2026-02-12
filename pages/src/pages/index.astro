@@ -1,21 +1,58 @@
 ---
-import { joinURL } from "ufo";
+import { joinURL, withTrailingSlash } from "ufo";
+import { Octokit, type RestEndpointMethodTypes } from "@octokit/rest";
 
 import { Image } from "astro:assets";
+
+import DefineLocalDate from "../components/DefineLocalDate.astro";
+
+import {
+  GITHUB_OWNER,
+  GITHUB_REPO,
+  PRODUCTION_BASE_URL,
+} from "../lib/info.js";
 
 import Layout from "../layouts/Layout.astro";
 
 import demo from "../assets/demo.gif";
 import icon from "../assets/obs-backgroundremoval-icon.jpg";
 
+export type LatestRelease =
+  RestEndpointMethodTypes["repos"]["getLatestRelease"]["response"]["data"];
+
 const { BASE_URL } = import.meta.env;
+
+async function getLatestRelease(): Promise<LatestRelease> {
+  const octokit = new Octokit({ auth: import.meta.env.GITHUB_TOKEN });
+
+  const latestRelease = await octokit.rest.repos.getLatestRelease({
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+  });
+
+  return latestRelease.data;
+}
+
+const release = await getLatestRelease();
 ---
 
 <Layout
-  description="OBS Plugin: Background Removal / Virtual Green-screen and Low-Light Enhancement"
   lang="en"
   title="OBS Background Removal"
 >
+
+  <Fragment slot="head-info">
+    <meta name="description" content="OBS Plugin: Background Removal / Virtual Green-screen and Low-Light Enhancement" />
+    <link
+      rel="canonical"
+      href={withTrailingSlash(PRODUCTION_BASE_URL)}
+    />
+  </Fragment>
+
+  <Fragment slot="head-bottom">
+    <DefineLocalDate />
+  </Fragment>
+
   <main class="white-box">
     <header class="icon-and-name">
       <Image src={icon} alt="OBS Background Removal Icon" height="50" />
@@ -34,6 +71,22 @@ const { BASE_URL } = import.meta.env;
         width="600"
       />
     </p>
+
+
+      <h2>
+        Download Latest {release.tag_name}
+        {
+          [
+            "(",
+            <local-date data-date={release.published_at}>
+              <time datetime={release.published_at}>
+                {release.published_at}
+              </time>
+            </local-date>,
+            ")",
+          ]
+        }
+      </h2>
 
     <ul class="download-links">
       <li><a href={joinURL(BASE_URL, "windows/")}>Windows</a></li>
@@ -72,6 +125,10 @@ const { BASE_URL } = import.meta.env;
     <p>
       See our <a href={joinURL(BASE_URL, "usage/")}>Usage</a> page for instructions
       on usage in OBS
+    </p>
+
+    <p>
+      <a href={joinURL(BASE_URL, "versions/")}>Version History</a>
     </p>
 
     <p>
