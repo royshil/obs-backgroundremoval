@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ORT_VERSION="v1.24.1"
-CONFIGURATION="RelWithDebInfo"
-ORT_COMPONENTS=(onnxruntime_session onnxruntime_optimizer onnxruntime_providers onnxruntime_lora onnxruntime_framework onnxruntime_graph onnxruntime_util onnxruntime_mlas onnxruntime_common onnxruntime_flatbuffers)
+CONFIGURATION="Release"
+ORT_COMPONENTS=(onnxruntime_session onnxruntime_optimizer onnxruntime_providers onnxruntime_lora onnxruntime_framework onnxruntime_graph onnxruntime_util onnxruntime_mlas onnxruntime_common onnxruntime_flatbuffers onnxruntime_providers_coreml coreml_proto)
 
 ROOT_DIR="$(pwd)"
 
@@ -47,7 +47,7 @@ if ! [[ -d $ROOT_DIR/.deps_vendor/ort_arm64 ]]; then
 		--disable_rtti \
 		--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
 		--compile_no_warning_as_error \
-		--targets "${ORT_COMPONENTS[@]}"
+		--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
 fi
 
 python3 tools/ci_build/build.py \
@@ -67,13 +67,13 @@ python3 tools/ci_build/build.py \
 	--disable_rtti \
 	--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
 	--compile_no_warning_as_error \
-	--targets "${ORT_COMPONENTS[@]}"
+	--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
 
 # --- 3. Build ONNX Runtime for macOS x86_64 ---
 
 if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
 	python3 tools/ci_build/build.py \
-		--build \
+		--update \
 		--build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
 		--skip_submodule_sync \
 		--config "$CONFIGURATION" \
@@ -89,11 +89,11 @@ if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
 		--disable_rtti \
 		--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
 		--compile_no_warning_as_error \
-		--targets "${ORT_COMPONENTS[@]}"
+		--targets "${ORT_COMPONENTS[@]}" cpuinfo
 fi
 
 python3 tools/ci_build/build.py \
-	--update \
+	--build \
 	--build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
 	--skip_submodule_sync \
 	--config "$CONFIGURATION" \
@@ -109,7 +109,7 @@ python3 tools/ci_build/build.py \
 	--disable_rtti \
 	--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
 	--compile_no_warning_as_error \
-	--targets "${ORT_COMPONENTS[@]}"
+	--targets "${ORT_COMPONENTS[@]}" cpuinfo
 
 # --- 4. Merge vcpkg_installed into universal ---
 
@@ -128,3 +128,10 @@ for name in "${ORT_COMPONENTS[@]}"; do
 		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/$CONFIGURATION/lib$name.a" \
 		-output "$ROOT_DIR/.deps_vendor/lib/lib$name.a"
 done
+
+lipo -create \
+	"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/$CONFIGURATION/libcpuinfo.a" \
+	"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/$CONFIGURATION/libcpuinfo.a" \
+	-output "$ROOT_DIR/.deps_vendor/lib/libcpuinfo.a"
+
+cp -a "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/kleidiai-build/$CONFIGURATION/libkleidiai.a" "$ROOT_DIR/.deps_vendor/lib/"
