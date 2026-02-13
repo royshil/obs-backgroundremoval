@@ -1,0 +1,7 @@
+_obs_module_free_locale
+_obs_module_get_string
+_obs_module_load
+_obs_module_set_locale
+_obs_module_set_pointer
+_obs_module_unload
+_obs_module_ver

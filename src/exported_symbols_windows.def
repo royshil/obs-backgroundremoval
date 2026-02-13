@@ -1,0 +1,9 @@
+LIBRARY
+EXPORTS
+    obs_module_free_locale
+    obs_module_get_string
+    obs_module_load
+    obs_module_set_locale
+    obs_module_set_pointer
+    obs_module_unload
+    obs_module_ver
