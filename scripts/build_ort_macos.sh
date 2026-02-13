@@ -2,14 +2,17 @@
 set -euo pipefail
 
 ORT_VERSION="v1.24.1"
+CONFIGURATION="RelWithDebInfo"
 
-cd "$(dirname "${BASH_SOURCE[0]}" )"/..
+cd "$(dirname "${BASH_SOURCE[0]}" )/.."
 
 ROOT_DIR="$(pwd)"
 
-mkdir -p build_macos
+mkdir -p .deps_vendor
 
-cd build_macos
+cd .deps_vendor
+
+# --- 1. Clone ONNX Runtime repository ---
 
 if [[ -d onnxruntime ]]; then
   cd onnxruntime
@@ -19,30 +22,65 @@ else
   git submodule update --init --recursive --depth 1
 fi
 
-python3 tools/ci_build/build.py \
-  --build_dir "$ROOT_DIR/build_macos/ort_arm64"\
-  --config RelWithDebInfo \
-  --update \
-  --build \
-  --parallel \
-  --skip_tests \
-  --targets onnxruntime_session onnxruntime_framework onnxruntime_graph onnxruntime_providers onnxruntime_mlas onnxruntime_common onnxruntime_flatbuffers onnx_proto \
-  --osx_arch "arm64" \
-  --apple_deploy_target 12.0 \
-  --disable_rtti \
-  --include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
-  --compile_no_warning_as_error
+# --- 2. Build ONNX Runtime for macOS ARM64 ---
+
+if ! [[ -d $ROOT_DIR/.deps_vendor/ort_arm64 ]]; then
+  python3 tools/ci_build/build.py \
+    --build_dir "$ROOT_DIR/.deps_vendor/ort_arm64" \
+    --config "$CONFIGURATION" \
+    --use_xcode \
+    --use_vcpkg \
+    --update \
+    --osx_arch arm64 \
+    --apple_deploy_target 12.0 \
+    --cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+    --disable_rtti \
+    --include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
+    --compile_no_warning_as_error
+fi
 
 python3 tools/ci_build/build.py \
-  --build_dir "$ROOT_DIR/build_macos/ort_x86_64"\
-  --config RelWithDebInfo \
-  --update \
+  --build_dir "$ROOT_DIR/.deps_vendor/ort_arm64" \
+  --config "$CONFIGURATION" \
+  --use_xcode \
+  --use_vcpkg \
   --build \
-  --parallel \
   --skip_tests \
-  --targets onnxruntime_session onnxruntime_framework onnxruntime_graph onnxruntime_providers onnxruntime_mlas onnxruntime_common onnxruntime_flatbuffers onnx_proto \
-  --osx_arch "x86_64" \
-  --apple_deploy_target 12.0 \
-  --disable_rtti \
-  --include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
-  --compile_no_warning_as_error
+  --parallel \
+  --targets onnxruntime_session onnxruntime_framework onnxruntime_graph onnxruntime_providers onnxruntime_mlas onnxruntime_common onnxruntime_flatbuffers
+
+# --- 3. Build ONNX Runtime for macOS x86_64 ---
+
+if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
+  python3 tools/ci_build/build.py \
+    --build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
+    --config "$CONFIGURATION" \
+    --use_xcode \
+    --update \
+    --osx_arch x86_64 \
+    --apple_deploy_target 12.0 \
+    --cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+    --disable_rtti \
+    --include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
+    --compile_no_warning_as_error
+fi
+
+python3 tools/ci_build/build.py \
+  --build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
+  --config "$CONFIGURATION" \
+  --use_xcode \
+  --build \
+  --skip_tests \
+  --parallel \
+  --targets onnxruntime_session onnxruntime_framework onnxruntime_graph onnxruntime_providers onnxruntime_mlas onnxruntime_common onnxruntime_flatbuffers
+
+# --- 4. Create universal libraries ---
+
+mkdir -p "$ROOT_DIR/.deps_vendor/lib"
+
+for name in onnxruntime_session onnxruntime_framework onnxruntime_graph onnxruntime_providers onnxruntime_mlas onnxruntime_common onnxruntime_flatbuffers; do
+  lipo -create \
+    "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/$CONFIGURATION/lib$name.a" \
+    "$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/$CONFIGURATION/lib$name.a" \
+    -output "$ROOT_DIR/.deps_vendor/lib/lib$name.a"
+done

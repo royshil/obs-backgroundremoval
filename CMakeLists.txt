@@ -85,19 +85,59 @@ else()
 endif()
 
 if(APPLE)
-  list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/onnxruntime")
-  find_package(onnxruntime CONFIG REQUIRED)
-  get_target_property(ONNXRUNTIME_DYLIB_PATH onnxruntime::onnxruntime IMPORTED_LOCATION_RELEASE)
+  if(USE_SYSTEM_ONNXRUNTIME)
+    find_package(onnxruntime CONFIG REQUIRED)
+  else()
+    add_library(onnxruntime INTERFACE)
+
+    foreach(
+      name
+      session
+      framework
+      graph
+      providers
+      mlas
+      common
+      flatbuffers
+    )
+      add_library(onnxruntime_${name} STATIC IMPORTED)
+      set_target_properties(
+        onnxruntime_${name}
+        PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/libonnxruntime_${name}.a"
+      )
+      target_link_libraries(onnxruntime INTERFACE onnxruntime_${name})
+    endforeach()
+
+    target_include_directories(
+      onnxruntime_session
+      INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/session"
+    )
+
+    target_include_directories(
+      onnxruntime_providers
+      INTERFACE
+        "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/providers/cpu"
+        "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/providers/coreml"
+    )
+
+    add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
+  endif()
+
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
 
-  if(NOT USE_SYSTEM_ONNXRUNTIME)
-    target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${ONNXRUNTIME_DYLIB_PATH}")
-    set_property(SOURCE "${ONNXRUNTIME_DYLIB_PATH}" PROPERTY MACOSX_PACKAGE_LOCATION Frameworks)
-    set_target_properties(
-      ${CMAKE_PROJECT_NAME}
-      PROPERTIES XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@loader_path/../Frameworks"
-    )
-  endif()
+  # list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/onnxruntime")
+  # find_package(onnxruntime CONFIG REQUIRED)
+  # get_target_property(ONNXRUNTIME_DYLIB_PATH onnxruntime::onnxruntime IMPORTED_LOCATION_RELEASE)
+  # target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
+
+  # if(NOT USE_SYSTEM_ONNXRUNTIME)
+  #   target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${ONNXRUNTIME_DYLIB_PATH}")
+  #   set_property(SOURCE "${ONNXRUNTIME_DYLIB_PATH}" PROPERTY MACOSX_PACKAGE_LOCATION Frameworks)
+  #   set_target_properties(
+  #     ${CMAKE_PROJECT_NAME}
+  #     PROPERTIES XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@loader_path/../Frameworks"
+  #   )
+  # endif()
 elseif(MSVC)
   if(USE_SYSTEM_ONNXRUNTIME)
     message(FATAL_ERROR "USE_SYSTEM_ONNXRUNTIME is not supported on Windows")
@@ -152,51 +192,53 @@ endif()
 add_subdirectory(src/update-checker/CurlClient)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CurlClient OpenCV::opencv_core OpenCV::opencv_imgproc)
 
-# Check for ONNX Runtime Execution Providers
-include(CheckLibraryExists)
+if(NOT APPLE)
+  # Check for ONNX Runtime Execution Providers
+  include(CheckLibraryExists)
 
-check_library_exists(
-  onnxruntime::onnxruntime
-  OrtSessionOptionsAppendExecutionProvider_CUDA
-  onnxruntime_c_api.h
-  HAVE_ONNXRUNTIME_CUDA_EP
-)
-if(HAVE_ONNXRUNTIME_CUDA_EP)
-  message(STATUS "ONNX Runtime CUDA Execution Provider found")
-  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_CUDA_EP)
-endif()
+  check_library_exists(
+    onnxruntime::onnxruntime
+    OrtSessionOptionsAppendExecutionProvider_CUDA
+    onnxruntime_c_api.h
+    HAVE_ONNXRUNTIME_CUDA_EP
+  )
+  if(HAVE_ONNXRUNTIME_CUDA_EP)
+    message(STATUS "ONNX Runtime CUDA Execution Provider found")
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_CUDA_EP)
+  endif()
 
-check_library_exists(
-  onnxruntime::onnxruntime
-  OrtSessionOptionsAppendExecutionProvider_ROCM
-  onnxruntime_c_api.h
-  HAVE_ONNXRUNTIME_ROCM_EP
-)
-if(HAVE_ONNXRUNTIME_ROCM_EP)
-  message(STATUS "ONNX Runtime ROCM Execution Provider found")
-  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_ROCM_EP)
-endif()
+  check_library_exists(
+    onnxruntime::onnxruntime
+    OrtSessionOptionsAppendExecutionProvider_ROCM
+    onnxruntime_c_api.h
+    HAVE_ONNXRUNTIME_ROCM_EP
+  )
+  if(HAVE_ONNXRUNTIME_ROCM_EP)
+    message(STATUS "ONNX Runtime ROCM Execution Provider found")
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_ROCM_EP)
+  endif()
 
-check_library_exists(
-  onnxruntime::onnxruntime
-  OrtSessionOptionsAppendExecutionProvider_MIGraphX
-  onnxruntime_c_api.h
-  HAVE_ONNXRUNTIME_MIGRAPHX_EP
-)
-if(HAVE_ONNXRUNTIME_MIGRAPHX_EP)
-  message(STATUS "ONNX Runtime MIGraphX Execution Provider found")
-  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_MIGRAPHX_EP)
-endif()
+  check_library_exists(
+    onnxruntime::onnxruntime
+    OrtSessionOptionsAppendExecutionProvider_MIGraphX
+    onnxruntime_c_api.h
+    HAVE_ONNXRUNTIME_MIGRAPHX_EP
+  )
+  if(HAVE_ONNXRUNTIME_MIGRAPHX_EP)
+    message(STATUS "ONNX Runtime MIGraphX Execution Provider found")
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_MIGRAPHX_EP)
+  endif()
 
-check_library_exists(
-  onnxruntime::onnxruntime
-  OrtSessionOptionsAppendExecutionProvider_Tensorrt
-  onnxruntime_c_api.h
-  HAVE_ONNXRUNTIME_TENSORRT_EP
-)
-if(HAVE_ONNXRUNTIME_TENSORRT_EP)
-  message(STATUS "ONNX Runtime TensorRT Execution Provider found")
-  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_TENSORRT_EP)
+  check_library_exists(
+    onnxruntime::onnxruntime
+    OrtSessionOptionsAppendExecutionProvider_Tensorrt
+    onnxruntime_c_api.h
+    HAVE_ONNXRUNTIME_TENSORRT_EP
+  )
+  if(HAVE_ONNXRUNTIME_TENSORRT_EP)
+    message(STATUS "ONNX Runtime TensorRT Execution Provider found")
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_TENSORRT_EP)
+  endif()
 endif()
 
 target_sources(

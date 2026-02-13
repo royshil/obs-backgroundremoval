@@ -34,7 +34,6 @@
         "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "VCPKG_TARGET_TRIPLET": "universal-osx-obs",
-        "USE_PKGCONFIG": false,
         "USE_SYSTEM_ONNXRUNTIME": false
       }
     },
