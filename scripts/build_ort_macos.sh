@@ -24,7 +24,7 @@ else
 		echo 'macro(install)'
 		echo 'endmacro()'
 		cat cmake/CMakeLists.txt.orig
-	} > cmake/CMakeLists.txt
+	} >cmake/CMakeLists.txt
 fi
 
 # --- 2. Build ONNX Runtime for macOS ARM64 ---
