@@ -39,6 +39,7 @@ if ! [[ -d $ROOT_DIR/.deps_vendor/ort_arm64 ]]; then
 		--use_vcpkg \
 		--skip_tests \
 		--skip_onnx_tests \
+		--parallel \
 		--osx_arch arm64 \
 		--apple_deploy_target 12.0 \
 		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
@@ -58,6 +59,7 @@ python3 tools/ci_build/build.py \
 	--use_vcpkg \
 	--skip_tests \
 	--skip_onnx_tests \
+	--parallel \
 	--osx_arch arm64 \
 	--apple_deploy_target 12.0 \
 	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
@@ -79,6 +81,7 @@ if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
 		--use_vcpkg \
 		--skip_tests \
 		--skip_onnx_tests \
+		--parallel \
 		--osx_arch x86_64 \
 		--apple_deploy_target 12.0 \
 		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
@@ -98,6 +101,7 @@ python3 tools/ci_build/build.py \
 	--use_vcpkg \
 	--skip_tests \
 	--skip_onnx_tests \
+	--parallel \
 	--osx_arch x86_64 \
 	--apple_deploy_target 12.0 \
 	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
