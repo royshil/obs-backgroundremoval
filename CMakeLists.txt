@@ -157,20 +157,6 @@ if(APPLE)
   endif()
 
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
-
-  # list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/onnxruntime")
-  # find_package(onnxruntime CONFIG REQUIRED)
-  # get_target_property(ONNXRUNTIME_DYLIB_PATH onnxruntime::onnxruntime IMPORTED_LOCATION_RELEASE)
-  # target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
-
-  # if(NOT USE_SYSTEM_ONNXRUNTIME)
-  #   target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${ONNXRUNTIME_DYLIB_PATH}")
-  #   set_property(SOURCE "${ONNXRUNTIME_DYLIB_PATH}" PROPERTY MACOSX_PACKAGE_LOCATION Frameworks)
-  #   set_target_properties(
-  #     ${CMAKE_PROJECT_NAME}
-  #     PROPERTIES XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@loader_path/../Frameworks"
-  #   )
-  # endif()
 elseif(MSVC)
   if(USE_SYSTEM_ONNXRUNTIME)
     message(FATAL_ERROR "USE_SYSTEM_ONNXRUNTIME is not supported on Windows")

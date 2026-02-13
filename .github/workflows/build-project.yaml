@@ -172,9 +172,9 @@ jobs:
 
       - name: "Install dependencies from vcpkg"
         run: ".github/scripts/install-vcpkg-macos.bash"
-      
-      - name: "Download ONNX Runtime"
-        run: "cmake -P cmake/DownloadOnnxruntime.cmake"
+
+      - name: Build ONNX Runtime
+        run: ./scripts/build_ort_macos.sh
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin
