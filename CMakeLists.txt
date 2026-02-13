@@ -88,6 +88,11 @@ if(APPLE)
   if(USE_SYSTEM_ONNXRUNTIME)
     find_package(onnxruntime CONFIG REQUIRED)
   else()
+    list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_vcpkg_installed/universal-osx")
+
+    find_package(absl CONFIG REQUIRED)
+    find_package(Protobuf CONFIG REQUIRED)
+
     add_library(onnxruntime INTERFACE)
 
     foreach(
@@ -119,6 +124,8 @@ if(APPLE)
         "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/providers/cpu"
         "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/providers/coreml"
     )
+
+    # target_link_libraries(onnxruntime_common PUBLIC )
 
     add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
   endif()

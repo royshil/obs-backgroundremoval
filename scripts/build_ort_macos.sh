@@ -56,6 +56,7 @@ if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
 		--build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
 		--config "$CONFIGURATION" \
 		--use_xcode \
+	  --use_vcpkg \
 		--update \
 		--osx_arch x86_64 \
 		--apple_deploy_target 12.0 \
@@ -69,12 +70,20 @@ python3 tools/ci_build/build.py \
 	--build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
 	--config "$CONFIGURATION" \
 	--use_xcode \
+	--use_vcpkg \
 	--build \
 	--skip_tests \
 	--parallel \
 	--targets onnxruntime_session onnxruntime_framework onnxruntime_graph onnxruntime_providers onnxruntime_mlas onnxruntime_common onnxruntime_flatbuffers
 
-# --- 4. Create universal libraries ---
+# --- 4. Merge vcpkg_installed into universal ---
+
+bash "$ROOT_DIR/scripts/merge_vcpkg_installed_into_macos_universal.sh" \
+  "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/vcpkg_installed/arm64-osx" \
+  "$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/vcpkg_installed/x64-osx" \
+  "$ROOT_DIR/.deps_vendor/ort_vcpkg_installed/universal-osx"
+
+# --- 5. Create universal libraries ---
 
 mkdir -p "$ROOT_DIR/.deps_vendor/lib"
 
