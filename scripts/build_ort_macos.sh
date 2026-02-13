@@ -82,10 +82,9 @@ if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
 		--parallel \
 		--osx_arch x86_64 \
 		--apple_deploy_target 12.0 \
-		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
+		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
 		--use_coreml \
 		--disable_rtti \
-		--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
 		--compile_no_warning_as_error \
 		--targets "${ORT_COMPONENTS[@]}" cpuinfo
 fi
@@ -102,10 +101,9 @@ python3 tools/ci_build/build.py \
 	--parallel \
 	--osx_arch x86_64 \
 	--apple_deploy_target 12.0 \
-	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
+	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
 	--use_coreml \
 	--disable_rtti \
-	--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
 	--compile_no_warning_as_error \
 	--targets "${ORT_COMPONENTS[@]}" cpuinfo
 
