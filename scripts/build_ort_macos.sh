@@ -5,13 +5,11 @@ ORT_VERSION="v1.24.1"
 CONFIGURATION="RelWithDebInfo"
 ORT_COMPONENTS=(onnxruntime_session onnxruntime_optimizer onnxruntime_providers onnxruntime_lora onnxruntime_framework onnxruntime_graph onnxruntime_util onnxruntime_mlas onnxruntime_common onnxruntime_flatbuffers)
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
-
 ROOT_DIR="$(pwd)"
 
-mkdir -p .deps_vendor
+mkdir -p "$ROOT_DIR/.deps_vendor"
 
-cd .deps_vendor
+cd "$ROOT_DIR/.deps_vendor"
 
 # --- 1. Clone ONNX Runtime repository ---
 
@@ -27,54 +25,80 @@ fi
 
 if ! [[ -d $ROOT_DIR/.deps_vendor/ort_arm64 ]]; then
 	python3 tools/ci_build/build.py \
+		--update \
 		--build_dir "$ROOT_DIR/.deps_vendor/ort_arm64" \
+		--skip_submodule_sync \
 		--config "$CONFIGURATION" \
 		--use_xcode \
 		--use_vcpkg \
-		--update \
+		--skip_tests \
+		--skip_onnx_tests \
 		--osx_arch arm64 \
 		--apple_deploy_target 12.0 \
-		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
+		--use_coreml \
 		--disable_rtti \
 		--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
-		--compile_no_warning_as_error
+		--compile_no_warning_as_error \
+		--targets "${ORT_COMPONENTS[@]}"
 fi
 
 python3 tools/ci_build/build.py \
+	--build \
 	--build_dir "$ROOT_DIR/.deps_vendor/ort_arm64" \
+	--skip_submodule_sync \
 	--config "$CONFIGURATION" \
 	--use_xcode \
 	--use_vcpkg \
-	--build \
 	--skip_tests \
-	--parallel \
+	--skip_onnx_tests \
+	--osx_arch arm64 \
+	--apple_deploy_target 12.0 \
+	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
+	--use_coreml \
+	--disable_rtti \
+	--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
+	--compile_no_warning_as_error \
 	--targets "${ORT_COMPONENTS[@]}"
 
 # --- 3. Build ONNX Runtime for macOS x86_64 ---
 
 if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
 	python3 tools/ci_build/build.py \
+		--build \
 		--build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
+		--skip_submodule_sync \
 		--config "$CONFIGURATION" \
 		--use_xcode \
 		--use_vcpkg \
-		--update \
+		--skip_tests \
+		--skip_onnx_tests \
 		--osx_arch x86_64 \
 		--apple_deploy_target 12.0 \
-		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
+		--use_coreml \
 		--disable_rtti \
 		--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
-		--compile_no_warning_as_error
+		--compile_no_warning_as_error \
+		--targets "${ORT_COMPONENTS[@]}"
 fi
 
 python3 tools/ci_build/build.py \
+	--update \
 	--build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
+	--skip_submodule_sync \
 	--config "$CONFIGURATION" \
 	--use_xcode \
 	--use_vcpkg \
-	--build \
 	--skip_tests \
-	--parallel \
+	--skip_onnx_tests \
+	--osx_arch x86_64 \
+	--apple_deploy_target 12.0 \
+	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 CMAKE_SKIP_INSTALL_RULES=OFF \
+	--use_coreml \
+	--disable_rtti \
+	--include_ops_by_config "$ROOT_DIR/scripts/required_operators.config" \
+	--compile_no_warning_as_error \
 	--targets "${ORT_COMPONENTS[@]}"
 
 # --- 4. Merge vcpkg_installed into universal ---
