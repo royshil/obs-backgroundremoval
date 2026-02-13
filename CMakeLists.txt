@@ -102,8 +102,6 @@ if(APPLE)
     find_package(Protobuf CONFIG REQUIRED)
     find_package(re2 CONFIG REQUIRED)
 
-    find_library(COREML_FRAMEWORK CoreML REQUIRED)
-
     add_library(cpuinfo STATIC IMPORTED)
     set_target_properties(
       cpuinfo
