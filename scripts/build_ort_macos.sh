@@ -19,6 +19,12 @@ else
 	git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime.git
 	cd onnxruntime
 	git submodule update --init --recursive --depth 1
+	cp cmake/CMakeLists.txt cmake/CMakeLists.txt.orig
+	{
+		echo 'macro(install)'
+		echo 'endmacro()'
+		cat cmake/CMakeLists.txt.orig
+	} > cmake/CMakeLists.txt
 fi
 
 # --- 2. Build ONNX Runtime for macOS ARM64 ---
