@@ -110,4 +110,4 @@ runs:
           Configuration = '${{ inputs.config }}'
         }
 
-        .github/scripts/Package-Windows.ps1 @PackageArgs
+        scripts/package-plugin-windows.ps1 @PackageArgs
