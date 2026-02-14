@@ -1,18 +1,18 @@
 #ifndef CONSTS_H
 #define CONSTS_H
 
-const char *const MODEL_SINET = "models/SINet_Softmax_simple.onnx";
-const char *const MODEL_MEDIAPIPE = "models/mediapipe.onnx";
-const char *const MODEL_SELFIE = "models/selfie_segmentation.onnx";
-const char *const MODEL_SELFIE_MULTICLASS = "models/selfie_multiclass_256x256.onnx";
-const char *const MODEL_RVM = "models/rvm_mobilenetv3_fp32.onnx";
-const char *const MODEL_PPHUMANSEG = "models/pphumanseg_fp32.onnx";
-const char *const MODEL_ENHANCE_TBEFN = "models/tbefn_fp32.onnx";
-const char *const MODEL_ENHANCE_URETINEX = "models/uretinex_net_180x320.onnx";
-const char *const MODEL_ENHANCE_SGLLIE = "models/semantic_guided_llie_180x324.onnx";
-const char *const MODEL_ENHANCE_ZERODCE = "models/zero_dce_180x320.onnx";
-const char *const MODEL_DEPTH_TCMONODEPTH = "models/tcmonodepth_tcsmallnet_192x320.onnx";
-const char *const MODEL_RMBG = "models/bria_rmbg_1_4_qint8.onnx";
+const char *const MODEL_SINET = "models/SINet_Softmax_simple.with_runtime_opt.ort";
+const char *const MODEL_MEDIAPIPE = "models/mediapipe.with_runtime_opt.ort";
+const char *const MODEL_SELFIE = "models/selfie_segmentation.with_runtime_opt.ort";
+const char *const MODEL_SELFIE_MULTICLASS = "models/selfie_multiclass_256x256.with_runtime_opt.ort";
+const char *const MODEL_RVM = "models/rvm_mobilenetv3_fp32.with_runtime_opt.ort";
+const char *const MODEL_PPHUMANSEG = "models/pphumanseg_fp32.with_runtime_opt.ort";
+const char *const MODEL_ENHANCE_TBEFN = "models/tbefn_fp32.with_runtime_opt.ort";
+const char *const MODEL_ENHANCE_URETINEX = "models/uretinex_net_180x320.with_runtime_opt.ort";
+const char *const MODEL_ENHANCE_SGLLIE = "models/semantic_guided_llie_180x324.with_runtime_opt.ort";
+const char *const MODEL_ENHANCE_ZERODCE = "models/zero_dce_180x320.with_runtime_opt.ort";
+const char *const MODEL_DEPTH_TCMONODEPTH = "models/tcmonodepth_tcsmallnet_192x320.with_runtime_opt.ort";
+const char *const MODEL_RMBG = "models/bria_rmbg_1_4_qint8.with_runtime_opt.ort";
 
 const char *const USEGPU_CPU = "cpu";
 const char *const USEGPU_CUDA = "cuda";
