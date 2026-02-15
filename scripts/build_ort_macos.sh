@@ -46,7 +46,9 @@ if ! [[ -d $ROOT_DIR/.deps_vendor/ort_arm64 ]]; then
 		--use_coreml \
 		--disable_rtti \
 		--compile_no_warning_as_error \
-		--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
+		--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai \
+		--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
+		--enable_reduced_operator_type_support
 fi
 
 python3 tools/ci_build/build.py \
@@ -65,7 +67,9 @@ python3 tools/ci_build/build.py \
 	--use_coreml \
 	--disable_rtti \
 	--compile_no_warning_as_error \
-	--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
+	--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai \
+	--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
+	--enable_reduced_operator_type_support
 
 # --- 3. Build ONNX Runtime for macOS x86_64 ---
 
@@ -86,7 +90,9 @@ if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
 		--use_coreml \
 		--disable_rtti \
 		--compile_no_warning_as_error \
-		--targets "${ORT_COMPONENTS[@]}" cpuinfo
+		--targets "${ORT_COMPONENTS[@]}" cpuinfo \
+		--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
+		--enable_reduced_operator_type_support
 fi
 
 python3 tools/ci_build/build.py \
@@ -105,7 +111,9 @@ python3 tools/ci_build/build.py \
 	--use_coreml \
 	--disable_rtti \
 	--compile_no_warning_as_error \
-	--targets "${ORT_COMPONENTS[@]}" cpuinfo
+	--targets "${ORT_COMPONENTS[@]}" cpuinfo \
+	--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
+	--enable_reduced_operator_type_support
 
 # --- 4. Merge vcpkg_installed into universal ---
 
