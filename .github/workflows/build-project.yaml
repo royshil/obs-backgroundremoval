@@ -180,6 +180,7 @@ jobs:
 
       - name: Build ONNX Runtime
         run: |
+          brew install ccache
           pip3 install flatbuffers
           ./scripts/build_ort_macos.sh
 
