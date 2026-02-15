@@ -29,91 +29,83 @@ fi
 
 # --- 2. Build ONNX Runtime for macOS ARM64 ---
 
-if ! [[ -d $ROOT_DIR/.deps_vendor/ort_arm64 ]]; then
-	python3 tools/ci_build/build.py \
-		--update \
-		--build_dir "$ROOT_DIR/.deps_vendor/ort_arm64" \
-		--skip_submodule_sync \
-		--config "$CONFIGURATION" \
-		--use_xcode \
-		--use_vcpkg \
-		--skip_tests \
-		--skip_onnx_tests \
-		--parallel \
-		--osx_arch arm64 \
-		--apple_deploy_target 12.0 \
-		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
-		--use_coreml \
-		--disable_rtti \
-		--compile_no_warning_as_error \
-		--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai \
-		--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
-		--enable_reduced_operator_type_support
-fi
-
-python3 tools/ci_build/build.py \
-	--build \
+[[ -d $ROOT_DIR/.deps_vendor/ort_arm64 ]] || python3 tools/ci_build/build.py \
 	--build_dir "$ROOT_DIR/.deps_vendor/ort_arm64" \
-	--skip_submodule_sync \
-	--config "$CONFIGURATION" \
-	--use_xcode \
-	--use_vcpkg \
-	--skip_tests \
-	--skip_onnx_tests \
-	--parallel \
 	--osx_arch arm64 \
+	--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai \
+	--update \
 	--apple_deploy_target 12.0 \
 	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
-	--use_coreml \
-	--disable_rtti \
 	--compile_no_warning_as_error \
-	--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai \
+	--config "$CONFIGURATION" \
+	--disable_rtti \
+	--enable_reduced_operator_type_support \
 	--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
-	--enable_reduced_operator_type_support
+	--parallel \
+	--skip_onnx_tests \
+	--skip_submodule_sync \
+	--skip_tests \
+	--use_coreml \
+	--use_vcpkg
+
+python3 tools/ci_build/build.py \
+	--build_dir "$ROOT_DIR/.deps_vendor/ort_arm64" \
+	--osx_arch arm64 \
+	--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai \
+	--build \
+	--apple_deploy_target 12.0 \
+	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	--compile_no_warning_as_error \
+	--config "$CONFIGURATION" \
+	--disable_rtti \
+	--enable_reduced_operator_type_support \
+	--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
+	--parallel \
+	--skip_onnx_tests \
+	--skip_submodule_sync \
+	--skip_tests \
+	--use_coreml \
+	--use_vcpkg
 
 # --- 3. Build ONNX Runtime for macOS x86_64 ---
 
-if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
-	python3 tools/ci_build/build.py \
-		--update \
-		--build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
-		--skip_submodule_sync \
-		--config "$CONFIGURATION" \
-		--use_xcode \
-		--use_vcpkg \
-		--skip_tests \
-		--skip_onnx_tests \
-		--parallel \
-		--osx_arch x86_64 \
-		--apple_deploy_target 12.0 \
-		--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
-		--use_coreml \
-		--disable_rtti \
-		--compile_no_warning_as_error \
-		--targets "${ORT_COMPONENTS[@]}" cpuinfo \
-		--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
-		--enable_reduced_operator_type_support
-fi
-
-python3 tools/ci_build/build.py \
-	--build \
+[[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]] || python3 tools/ci_build/build.py \
 	--build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
-	--skip_submodule_sync \
-	--config "$CONFIGURATION" \
-	--use_xcode \
-	--use_vcpkg \
-	--skip_tests \
-	--skip_onnx_tests \
-	--parallel \
 	--osx_arch x86_64 \
+	--targets "${ORT_COMPONENTS[@]}" cpuinfo \
+	--update \
 	--apple_deploy_target 12.0 \
 	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
-	--use_coreml \
-	--disable_rtti \
 	--compile_no_warning_as_error \
-	--targets "${ORT_COMPONENTS[@]}" cpuinfo \
+	--config "$CONFIGURATION" \
+	--disable_rtti \
+	--enable_reduced_operator_type_support \
 	--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
-	--enable_reduced_operator_type_support
+	--parallel \
+	--skip_onnx_tests \
+	--skip_submodule_sync \
+	--skip_tests \
+	--use_coreml \
+	--use_vcpkg
+
+python3 tools/ci_build/build.py \
+	--build_dir "$ROOT_DIR/.deps_vendor/ort_x86_64" \
+	--osx_arch x86_64 \
+	--targets "${ORT_COMPONENTS[@]}" cpuinfo \
+	--build \
+	--apple_deploy_target 12.0 \
+	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	--compile_no_warning_as_error \
+	--config "$CONFIGURATION" \
+	--disable_rtti \
+	--enable_reduced_operator_type_support \
+	--include_ops_by_config "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config" \
+	--parallel \
+	--skip_onnx_tests \
+	--skip_submodule_sync \
+	--skip_tests \
+	--use_coreml \
+	--use_vcpkg
 
 # --- 4. Merge vcpkg_installed into universal ---
 
