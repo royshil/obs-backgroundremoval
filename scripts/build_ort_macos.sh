@@ -35,7 +35,11 @@ fi
 	--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai \
 	--update \
 	--apple_deploy_target 12.0 \
-	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	--cmake_extra_defines \
+	CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+	CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	CMAKE_C_COMPILER_LAUNCHER=ccache \
+	CMAKE_CXX_COMPILER_LAUNCHER=ccache \
 	--compile_no_warning_as_error \
 	--config "$CONFIGURATION" \
 	--disable_rtti \
@@ -54,7 +58,11 @@ python3 tools/ci_build/build.py \
 	--targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai \
 	--build \
 	--apple_deploy_target 12.0 \
-	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	--cmake_extra_defines \
+	CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+	CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	CMAKE_C_COMPILER_LAUNCHER=ccache \
+	CMAKE_CXX_COMPILER_LAUNCHER=ccache \
 	--compile_no_warning_as_error \
 	--config "$CONFIGURATION" \
 	--disable_rtti \
@@ -75,7 +83,11 @@ python3 tools/ci_build/build.py \
 	--targets "${ORT_COMPONENTS[@]}" cpuinfo \
 	--update \
 	--apple_deploy_target 12.0 \
-	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	--cmake_extra_defines \
+	CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+	CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	CMAKE_C_COMPILER_LAUNCHER=ccache \
+	CMAKE_CXX_COMPILER_LAUNCHER=ccache \
 	--compile_no_warning_as_error \
 	--config "$CONFIGURATION" \
 	--disable_rtti \
@@ -94,7 +106,11 @@ python3 tools/ci_build/build.py \
 	--targets "${ORT_COMPONENTS[@]}" cpuinfo \
 	--build \
 	--apple_deploy_target 12.0 \
-	--cmake_extra_defines CMAKE_OSX_DEPLOYMENT_TARGET=12.0 CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	--cmake_extra_defines \
+	CMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+	CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	CMAKE_C_COMPILER_LAUNCHER=ccache \
+	CMAKE_CXX_COMPILER_LAUNCHER=ccache \
 	--compile_no_warning_as_error \
 	--config "$CONFIGURATION" \
 	--disable_rtti \
