@@ -4,9 +4,7 @@ $ErrorActionPreference = 'Stop'
 # --- Configuration ---
 $ORT_VERSION = "v1.24.1"
 $CONFIGURATION = "Release"
-$ORT_COMPONENTS = @( \
-	"onnxruntime_session", "onnxruntime_optimizer", "onnxruntime_providers", "onnxruntime_lora", "onnxruntime_framework", "onnxruntime_graph", "onnxruntime_util", "onnxruntime_mlas", "onnxruntime_common", "onnxruntime_flatbuffers", "onnxruntime_providers_dml", "onnxruntime_providers_cuda" \
-)
+$ORT_COMPONENTS = @( "onnxruntime_session", "onnxruntime_optimizer", "onnxruntime_providers", "onnxruntime_lora", "onnxruntime_framework", "onnxruntime_graph", "onnxruntime_util", "onnxruntime_mlas", "onnxruntime_common", "onnxruntime_flatbuffers", "onnxruntime_providers_dml", "onnxruntime_providers_cuda" )
 
 $ROOT_DIR = Convert-Path .
 $DEPS_DIR = Join-Path $ROOT_DIR ".deps_vendor"
