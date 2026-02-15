@@ -1,4 +1,4 @@
-lsSet-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # --- Configuration ---
