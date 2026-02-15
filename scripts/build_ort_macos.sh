@@ -120,14 +120,14 @@ mkdir -p "$ROOT_DIR/.deps_vendor/lib"
 
 for name in "${ORT_COMPONENTS[@]}"; do
 	lipo -create \
-		"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/$CONFIGURATION/lib$name.a" \
-		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/$CONFIGURATION/lib$name.a" \
+		"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/lib$name.a" \
+		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/lib$name.a" \
 		-output "$ROOT_DIR/.deps_vendor/lib/lib$name.a"
 done
 
 lipo -create \
-	"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/$CONFIGURATION/libcpuinfo.a" \
-	"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/$CONFIGURATION/libcpuinfo.a" \
+	"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
+	"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
 	-output "$ROOT_DIR/.deps_vendor/lib/libcpuinfo.a"
 
-cp -a "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/kleidiai-build/$CONFIGURATION/libkleidiai.a" "$ROOT_DIR/.deps_vendor/lib/"
+cp -a "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/kleidiai-build/libkleidiai.a" "$ROOT_DIR/.deps_vendor/lib/"
