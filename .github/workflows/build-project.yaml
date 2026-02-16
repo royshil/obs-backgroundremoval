@@ -104,8 +104,12 @@ jobs:
     defaults:
       run:
         shell: zsh --no-rcs --errexit --pipefail {0}
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_COMPRESS: "true"
+      CCACHE_BASEDIR: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 0
@@ -138,13 +142,13 @@ jobs:
           print "pluginName=${product_name}" >> $GITHUB_OUTPUT
           print "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v5
         id: ccache-cache
         with:
-          path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-ccache-
+            ccache-${{ runner.os }}-
 
       - name: Set Up Codesigning 🔑
         uses: ./.github/actions/setup-macos-codesigning
@@ -161,7 +165,7 @@ jobs:
           notarizationPassword: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
 
       - name: Checkout vcpkg repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: microsoft/vcpkg
           path: ${{ env.VCPKG_ROOT }}
@@ -207,23 +211,23 @@ jobs:
           codesignPass: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
 
       - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal.*
 
       - name: Upload Debug Symbol Artifacts 🪲
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: ${{ needs.check-event.outputs.config == 'Release' }}
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}-dSYMs
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-dSYMs.*
 
-      - uses: actions/cache/save@v4
-        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
+      - uses: actions/cache/save@v5
+        if: github.event_name != 'pull_request' && success()
         with:
-          path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
 
   ubuntu-build:
     name: Build for Ubuntu 🐧
