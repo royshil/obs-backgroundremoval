@@ -84,7 +84,7 @@ else()
   find_package(OpenCV CONFIG REQUIRED)
 endif()
 
-if(APPLE)
+if(APPLE OR MSVC)
   if(USE_SYSTEM_ONNXRUNTIME)
     find_package(onnxruntime CONFIG REQUIRED)
   else()
