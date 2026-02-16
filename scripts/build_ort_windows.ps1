@@ -7,7 +7,7 @@ $CONFIGURATION = "Release"
 
 $ROOT_DIR = Convert-Path .
 $DEPS_DIR = Join-Path $ROOT_DIR ".deps_vendor"
-if (!(Test-Path $DEPS_DIR)) { New-Item -ItemType Directory -Path $DEPS_DIR | Out-Null }
+if (!(Test-Path $DEPS_DIR)) { New-Item -ItemType Directory -Path $DEPS_DIR }
 $ORT_SRC_DIR = Join-Path $DEPS_DIR "onnxruntime"
 
 if (!(Test-Path $ORT_SRC_DIR)) {
