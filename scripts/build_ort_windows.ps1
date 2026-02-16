@@ -88,7 +88,7 @@ $BUILD_PY = Join-Path $ORT_SRC_DIR "tools\ci_build\build.py"
 $ORT_BUILD_DIR = Join-Path $DEPS_DIR "ort_x64"
 
 $commonArgs = @(
-	"--build_dir", "$ORT_BUILD_DIR".
+	"--build_dir", "$ORT_BUILD_DIR",
 	"--config", "$CONFIGURATION",
 	"--parallel",
 	"--compile_no_warning_as_error",
