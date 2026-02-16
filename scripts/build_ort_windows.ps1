@@ -114,6 +114,6 @@ $LIB_DIR = Join-Path $DEPS_DIR "lib"
 if (!(Test-Path $LIB_DIR)) { New-Item -ItemType Directory -Path $LIB_DIR }
 
 foreach ($name in $ORT_COMPONENTS) {
-	$sourcePath = Join-Path $ORT_BUILD_DIR $CONFIGURATION -AdditionalChildPath $CONFIGURATION "${name}.lib"
+	$sourcePath = Join-Path $ORT_BUILD_DIR -AdditionalChildPath $CONFIGURATION "${name}.lib"
 	Copy-Item -Path $sourcePath -Destination $LIB_DIR -Force
 }
