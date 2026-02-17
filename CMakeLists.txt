@@ -111,16 +111,18 @@ if(APPLE OR MSVC)
 
     if(APPLE)
       find_package(Iconv REQUIRED)
-    endif()
 
-    add_library(cpuinfo STATIC IMPORTED)
-    set_target_properties(
-      cpuinfo
-      PROPERTIES
-        IMPORTED_LOCATION
-          "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/${CMAKE_STATIC_LIBRARY_PREFIX}cpuinfo${CMAKE_STATIC_LIBRARY_SUFFIX}"
-    )
-    add_library(cpuinfo::cpuinfo ALIAS cpuinfo)
+      add_library(cpuinfo STATIC IMPORTED)
+      set_target_properties(
+        cpuinfo
+        PROPERTIES
+          IMPORTED_LOCATION
+            "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/${CMAKE_STATIC_LIBRARY_PREFIX}cpuinfo${CMAKE_STATIC_LIBRARY_SUFFIX}"
+      )
+      add_library(cpuinfo::cpuinfo ALIAS cpuinfo)
+    elseif(MSVC)
+      find_package(cpuinfo CONFIG REQUIRED)
+    endif()
 
     add_library(onnxruntime INTERFACE)
 
