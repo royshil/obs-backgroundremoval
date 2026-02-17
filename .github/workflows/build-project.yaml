@@ -393,72 +393,72 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
 
-  windows-gpu-build:
-    name: Build for Windows (GPU) 🪟
-    runs-on: windows-2022
-    needs: check-event
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
+  # windows-gpu-build:
+  #   name: Build for Windows (GPU) 🪟
+  #   runs-on: windows-2022
+  #   needs: check-event
+  #   defaults:
+  #     run:
+  #       shell: pwsh
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #         fetch-depth: 0
 
-      - name: Set Up Environment 🔧
-        id: setup
-        run: |
-          # Set Up Environment 🔧
-          if ( $Env:RUNNER_DEBUG -ne $null ) {
-            Set-PSDebug -Trace 1
-          }
+  #     - name: Set Up Environment 🔧
+  #       id: setup
+  #       run: |
+  #         # Set Up Environment 🔧
+  #         if ( $Env:RUNNER_DEBUG -ne $null ) {
+  #           Set-PSDebug -Trace 1
+  #         }
 
-          $BuildSpec = Get-Content -Path buildspec.json -Raw | ConvertFrom-Json
-          $ProductName = $BuildSpec.name
-          $ProductVersion = $BuildSpec.version
+  #         $BuildSpec = Get-Content -Path buildspec.json -Raw | ConvertFrom-Json
+  #         $ProductName = $BuildSpec.name
+  #         $ProductVersion = $BuildSpec.version
 
-          "pluginName=${ProductName}" >> $env:GITHUB_OUTPUT
-          "pluginVersion=${ProductVersion}" >> $env:GITHUB_OUTPUT
+  #         "pluginName=${ProductName}" >> $env:GITHUB_OUTPUT
+  #         "pluginVersion=${ProductVersion}" >> $env:GITHUB_OUTPUT
 
-      - name: Checkout vcpkg repository
-        uses: actions/checkout@v5
-        with:
-          repository: microsoft/vcpkg
-          path: ${{ env.VCPKG_ROOT }}
+  #     - name: Checkout vcpkg repository
+  #       uses: actions/checkout@v5
+  #       with:
+  #         repository: microsoft/vcpkg
+  #         path: ${{ env.VCPKG_ROOT }}
 
-      - name: "Bootstrap vcpkg"
-        working-directory: "${{ env.VCPKG_ROOT }}"
-        shell: "pwsh"
-        run: |
-          .\bootstrap-vcpkg.bat
+  #     - name: "Bootstrap vcpkg"
+  #       working-directory: "${{ env.VCPKG_ROOT }}"
+  #       shell: "pwsh"
+  #       run: |
+  #         .\bootstrap-vcpkg.bat
 
-      - name: "Install dependencies from vcpkg"
-        shell: bash
-        run: "$VCPKG_ROOT/vcpkg install --triplet x64-windows-static-md-obs"
+  #     - name: "Install dependencies from vcpkg"
+  #       shell: bash
+  #       run: "$VCPKG_ROOT/vcpkg install --triplet x64-windows-static-md-obs"
       
-      - name: "Download ONNX Runtime"
-        run: "cmake -DGPU=ON -P cmake/DownloadOnnxruntime.cmake"
+  #     - name: "Download ONNX Runtime"
+  #       run: "cmake -DGPU=ON -P cmake/DownloadOnnxruntime.cmake"
 
-      - name: Build Plugin 🧱
-        uses: ./.github/actions/build-plugin
-        with:
-          target: x64
-          config: ${{ needs.check-event.outputs.config }}
+  #     - name: Build Plugin 🧱
+  #       uses: ./.github/actions/build-plugin
+  #       with:
+  #         target: x64
+  #         config: ${{ needs.check-event.outputs.config }}
 
-      - name: Package Plugin 📀
-        uses: ./.github/actions/package-plugin
-        with:
-          target: x64
-          config: ${{ needs.check-event.outputs.config }}
-          package: ${{ fromJSON(needs.check-event.outputs.package) }}
+  #     - name: Package Plugin 📀
+  #       uses: ./.github/actions/package-plugin
+  #       with:
+  #         target: x64
+  #         config: ${{ needs.check-event.outputs.config }}
+  #         package: ${{ fromJSON(needs.check-event.outputs.package) }}
       
-      - name: Rename artifact
-        run: |
-          Rename-Item -Path "${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64.zip" -NewName "${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-gpu.zip"
+  #     - name: Rename artifact
+  #       run: |
+  #         Rename-Item -Path "${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64.zip" -NewName "${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-gpu.zip"
 
-      - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-gpu-${{ needs.check-event.outputs.commitHash }}
-          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
+  #     - name: Upload Artifacts 📡
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-gpu-${{ needs.check-event.outputs.commitHash }}
+  #         path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
