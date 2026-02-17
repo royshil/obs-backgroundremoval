@@ -54,10 +54,6 @@ if (!(Test-Path $ORT_BUILD_DIR)) {
 
 & python3 $BUILD_PY --build @commonArgs
 
-$ortVcpkgSrcPath = Join-Path -Path $ORT_BUILD_DIR -ChildPath $CONFIGURATION -AdditionalChildPath "vcpkg_installed"
-$ortVcpkgDstPath = Join-Path -Path $DEPS_DIR -ChildPath "ort_vcpkg_installed"
-Copy-Item -Path $ortVcpkgSrcPath -Destination $ortVcpkgDstPath -Recurse -Force
-
 $LIB_DIR = Join-Path $DEPS_DIR "lib"
 if (!(Test-Path $LIB_DIR)) { New-Item -ItemType Directory -Path $LIB_DIR }
 
