@@ -192,7 +192,7 @@ endif()
 add_subdirectory(src/update-checker/CurlClient)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CurlClient OpenCV::opencv_core OpenCV::opencv_imgproc)
 
-if(NOT APPLE)
+if(NOT APPLE AND USE_SYSTEM_ONNXRUNTIME)
   # Check for ONNX Runtime Execution Providers
   include(CheckLibraryExists)
 
