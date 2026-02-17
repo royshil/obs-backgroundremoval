@@ -41,6 +41,7 @@ $commonArgs = @(
 	"--config", "$CONFIGURATION",
 	"--parallel",
 	"--compile_no_warning_as_error",
+	"--use_cache",
 	"--cmake_generator", "Ninja",
 	"--cmake_extra_defines", "CMAKE_POLICY_VERSION_MINIMUM=3.5",
 	"--use_vcpkg",
