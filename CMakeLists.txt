@@ -91,7 +91,7 @@ if(APPLE OR MSVC)
     if(APPLE)
       list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_vcpkg_installed/universal-osx")
     elseif(MSVC)
-      list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_vcpkg_installed/universal-osx")
+      list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_vcpkg_installed/x64-windows-static-md")
     endif()
 
     find_package(absl CONFIG REQUIRED)
