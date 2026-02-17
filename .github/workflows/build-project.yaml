@@ -331,10 +331,18 @@ jobs:
       CCACHE_COMPRESS: "true"
       CCACHE_BASEDIR: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 0
+
+      - uses: actions/cache/restore@v5
+        id: ccache-cache
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
 
       - name: Set Up Environment 🔧
         id: setup
@@ -352,7 +360,7 @@ jobs:
           "pluginVersion=${ProductVersion}" >> $env:GITHUB_OUTPUT
 
       - name: Checkout vcpkg repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: microsoft/vcpkg
           path: ${{ env.VCPKG_ROOT }}
@@ -375,7 +383,7 @@ jobs:
       - name: Build ONNX Runtime
         shell: pwsh
         run: |
-          winget install Ccache.Ccache
+          choco install ccache --version=3.7.9
           python -m pip install flatbuffers
           ./scripts/build_ort_windows.ps1
 
@@ -393,10 +401,16 @@ jobs:
           package: ${{ fromJSON(needs.check-event.outputs.package) }}
 
       - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
+
+      - uses: actions/cache/save@v5
+        if: github.event_name != 'pull_request' && success()
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
 
   # windows-gpu-build:
   #   name: Build for Windows (GPU) 🪟
