@@ -106,7 +106,7 @@ if(APPLE OR MSVC)
     find_package(Microsoft.GSL 4.0 CONFIG REQUIRED)
     find_package(nlohmann_json CONFIG REQUIRED)
     find_package(ONNX CONFIG REQUIRED)
-    find_package(Protobuf CONFIG REQUIRED)
+    find_package(protobuf CONFIG REQUIRED)
     find_package(re2 CONFIG REQUIRED)
 
     if(APPLE)
@@ -170,38 +170,6 @@ if(APPLE OR MSVC)
   endif()
 
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
-elseif(MSVC)
-  if(USE_SYSTEM_ONNXRUNTIME)
-    message(FATAL_ERROR "USE_SYSTEM_ONNXRUNTIME is not supported on Windows")
-  endif()
-
-  set(ONNXRUNTIME_DIR "${CMAKE_SOURCE_DIR}/onnxruntime")
-
-  add_library(onnxruntime::onnxruntime_provider_shared SHARED IMPORTED)
-  set_target_properties(
-    onnxruntime::onnxruntime_provider_shared
-    PROPERTIES
-      IMPORTED_IMPLIB "${ONNXRUNTIME_DIR}/lib/onnxruntime_providers_shared.lib"
-      IMPORTED_LOCATION "${ONNXRUNTIME_DIR}/lib/onnxruntime_providers_shared.dll"
-      INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_DIR}/include"
-  )
-
-  add_library(onnxruntime::onnxruntime SHARED IMPORTED)
-  set_target_properties(
-    onnxruntime::onnxruntime
-    PROPERTIES
-      IMPORTED_IMPLIB "${ONNXRUNTIME_DIR}/lib/onnxruntime.lib"
-      IMPORTED_LOCATION "${ONNXRUNTIME_DIR}/lib/onnxruntime.dll"
-      INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_DIR}/include"
-      INTERFACE_LINK_OPTIONS "/DELAYLOAD:onnxruntime.dll"
-  )
-  target_link_libraries(onnxruntime::onnxruntime INTERFACE onnxruntime::onnxruntime_provider_shared)
-
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
-
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/DelayLoad.cpp)
-  file(GLOB ONNXRUNTIME_DLL_PDB_FILES "${ONNXRUNTIME_DIR}/lib/*.dll" "${ONNXRUNTIME_DIR}/lib/*.pdb")
-  install(FILES ${ONNXRUNTIME_DLL_PDB_FILES} DESTINATION "${CMAKE_PROJECT_NAME}/bin/64bit/obs-backgroundremoval")
 else()
   if(NOT USE_SYSTEM_ONNXRUNTIME)
     set(ONNXRUNTIME_DIR "${CMAKE_SOURCE_DIR}/onnxruntime")
