@@ -126,7 +126,8 @@ if(APPLE OR MSVC)
 
     add_library(onnxruntime INTERFACE)
 
-    set(ORT_COMPONENTS
+    set(
+      ORT_COMPONENTS
       onnxruntime_session
       onnxruntime_optimizer
       onnxruntime_providers
@@ -138,14 +139,12 @@ if(APPLE OR MSVC)
       onnxruntime_common
       onnxruntime_flatbuffers
     )
-    
+
     if(APPLE)
       list(APPEND ORT_COMPONENTS onnxruntime_providers_coreml coreml_proto kleidiai)
     endif()
 
-    foreach(
-      name IN LISTS ORT_COMPONENTS
-    )
+    foreach(name IN LISTS ORT_COMPONENTS)
       add_library(${name} STATIC IMPORTED)
       set_target_properties(
         ${name}
@@ -171,7 +170,10 @@ if(APPLE OR MSVC)
     )
 
     if(APPLE)
-      target_link_libraries(onnxruntime INTERFACE Iconv::Iconv onnxruntime::onnxruntime_providers_coreml coreml_proto onnxruntime::kleidiai)
+      target_link_libraries(
+        onnxruntime
+        INTERFACE Iconv::Iconv onnxruntime::onnxruntime_providers_coreml coreml_proto onnxruntime::kleidiai
+      )
     endif()
 
     add_library(safeint_interface IMPORTED INTERFACE)
