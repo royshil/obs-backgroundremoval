@@ -362,9 +362,17 @@ jobs:
       - name: "Install dependencies from vcpkg"
         shell: bash
         run: "$VCPKG_ROOT/vcpkg install --triplet x64-windows-static-md-obs"
-      
-      - name: "Download ONNX Runtime"
-        run: "cmake -P cmake/DownloadOnnxruntime.cmake"
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Build ONNX Runtime
+        shell: pwsh
+        run: |
+          pip3 install flatbuffers
+          ./scripts/build_ort_windows.ps1
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin
