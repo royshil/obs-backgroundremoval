@@ -371,7 +371,7 @@ jobs:
       - name: Build ONNX Runtime
         shell: pwsh
         run: |
-          pip3 install flatbuffers
+          python -m pip install flatbuffers
           ./scripts/build_ort_windows.ps1
 
       - name: Build Plugin 🧱

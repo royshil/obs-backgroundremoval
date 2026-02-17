@@ -55,14 +55,14 @@ $commonArgs += $ORT_COMPONENTS
 
 if (!(Test-Path $ORT_BUILD_DIR)) {
 	try {
-		& python3 $BUILD_PY --update @commonArgs
+		& python $BUILD_PY --update @commonArgs
 	} catch {
 		Remove-Item -Path $ORT_BUILD_DIR -Recurse -Force
 		throw
 	}
 }
 
-& python3 $BUILD_PY --build @commonArgs
+& python $BUILD_PY --build @commonArgs
 
 $LIB_DIR = Join-Path $DEPS_DIR "lib"
 if (!(Test-Path $LIB_DIR)) { New-Item -ItemType Directory -Path $LIB_DIR }
