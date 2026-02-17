@@ -94,7 +94,7 @@ if(APPLE OR MSVC)
       list(
         PREPEND
         CMAKE_PREFIX_PATH
-        "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/Release/ort_x64/vcpkg_installed/x64-windows-static-md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x64/Release/vcpkg_installed/x64-windows-static-md"
       )
     endif()
 
