@@ -116,7 +116,9 @@ if(APPLE OR MSVC)
     add_library(cpuinfo STATIC IMPORTED)
     set_target_properties(
       cpuinfo
-      PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/${CMAKE_STATIC_LIBRARY_PREFIX}cpuinfo${CMAKE_STATIC_LIBRARY_SUFFIX}"
+      PROPERTIES
+        IMPORTED_LOCATION
+          "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/${CMAKE_STATIC_LIBRARY_PREFIX}cpuinfo${CMAKE_STATIC_LIBRARY_SUFFIX}"
     )
     add_library(cpuinfo::cpuinfo ALIAS cpuinfo)
 
@@ -141,7 +143,9 @@ if(APPLE OR MSVC)
       add_library(${name} STATIC IMPORTED)
       set_target_properties(
         ${name}
-        PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${name}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+        PROPERTIES
+          IMPORTED_LOCATION
+            "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${name}${CMAKE_STATIC_LIBRARY_SUFFIX}"
       )
       add_library(onnxruntime::${name} ALIAS ${name})
     endforeach()
