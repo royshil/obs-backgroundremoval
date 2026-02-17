@@ -22,10 +22,15 @@ if (!(Test-Path $DEPS_DIR)) { New-Item -ItemType Directory -Path $DEPS_DIR }
 $ORT_SRC_DIR = Join-Path $DEPS_DIR "onnxruntime"
 
 if (!(Test-Path $ORT_SRC_DIR)) {
-	git clone --depth 1 --branch $ORT_VERSION https://github.com/microsoft/onnxruntime.git $ORT_SRC_DIR
-	Set-Location $ORT_SRC_DIR
-	git submodule update --init --recursive --depth 1
-	Set-Location $ROOT_DIR
+	try {
+		git clone --depth 1 --branch $ORT_VERSION https://github.com/microsoft/onnxruntime.git $ORT_SRC_DIR
+		Set-Location $ORT_SRC_DIR
+		git submodule update --init --recursive --depth 1
+	} catch {
+		throw
+	} finally {
+		Set-Location $ROOT_DIR
+	}
 }
 
 $BUILD_PY = Join-Path $ORT_SRC_DIR "tools\ci_build\build.py"
@@ -49,7 +54,12 @@ $commonArgs = @(
 $commonArgs += $ORT_COMPONENTS
 
 if (!(Test-Path $ORT_BUILD_DIR)) {
-	& python3 $BUILD_PY --update @commonArgs
+	try {
+		& python3 $BUILD_PY --update @commonArgs
+	} catch {
+		Remove-Item -Path $ORT_BUILD_DIR -Recurse -Force
+		throw
+	}
 }
 
 & python3 $BUILD_PY --build @commonArgs
