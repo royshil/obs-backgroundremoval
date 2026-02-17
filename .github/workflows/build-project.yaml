@@ -326,6 +326,10 @@ jobs:
     defaults:
       run:
         shell: pwsh
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_COMPRESS: "true"
+      CCACHE_BASEDIR: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -371,6 +375,7 @@ jobs:
       - name: Build ONNX Runtime
         shell: pwsh
         run: |
+          winget install Ccache.Ccache
           python -m pip install flatbuffers
           ./scripts/build_ort_windows.ps1
 
