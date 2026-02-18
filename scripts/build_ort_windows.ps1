@@ -27,7 +27,7 @@ if (!(Test-Path $ORT_SRC_DIR)) {
 		Set-Location $ORT_SRC_DIR
 		git submodule update --init --recursive --depth 1
 	} catch {
-		throw
+		exit 1
 	} finally {
 		Set-Location $ROOT_DIR
 	}
@@ -62,7 +62,7 @@ if (!(Test-Path $ORT_BUILD_DIR)) {
 		& python $BUILD_PY --update @commonArgs
 	} catch {
 		Remove-Item -Path $ORT_BUILD_DIR -Recurse -Force
-		throw
+		exit 1
 	}
 }
 
