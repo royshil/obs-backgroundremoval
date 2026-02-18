@@ -330,7 +330,9 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_DIRECT: "true"
+      CCACHE_SLOPPINESS: "include_file_ctime,include_file_mtime,time_macros,pch_defines"
       CCACHE_LOGFILE: ${{ github.workspace }}/ccache.log
+      CCACHE_COMPILERCHECK: content
     steps:
       - uses: actions/checkout@v6
         with:
