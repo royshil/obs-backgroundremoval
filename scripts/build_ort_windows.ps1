@@ -30,6 +30,8 @@ if (!(Test-Path $ORT_SRC_DIR)) {
 		Push-Location $ORT_SRC_DIR
 		git submodule update --init --recursive --depth 1
 		if ($LASTEXITCODE -ne 0) { throw "git submodule update failed" }
+
+		(Get-Content $BUILD_PY) -replace 'cmake_args \+= \["-DCMAKE_VS_GLOBALS=UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true"\]', 'pass' | Set-Content $BUILD_PY
 	} catch {
 		throw
 	} finally {
@@ -38,15 +40,14 @@ if (!(Test-Path $ORT_SRC_DIR)) {
 }
 
 $CCACHE_PROGRAM_PATH = (Get-Command ccache.exe -ErrorAction SilentlyContinue).Source
+$CCACHE_PROGRAM_DIR = Split-Path -Parent $CCACHE_PROGRAM_PATH
 
 $commonArgs = @(
 	"--build_dir", "$ORT_BUILD_DIR",
 	"--config", "$CONFIGURATION",
 	"--parallel",
 	"--compile_no_warning_as_error",
-	"--cmake_extra_defines",
-	"CMAKE_POLICY_VERSION_MINIMUM=3.5",
-	"CMAKE_VS_GLOBALS=TrackFileAccess=false;CLToolExe=ccache.exe;CLToolPath=$CCACHE_PROGRAM_PATH",
+	"--use_cache",
 	"--use_vcpkg",
 	"--skip_submodule_sync",
 	"--skip_tests",
@@ -56,6 +57,18 @@ $commonArgs = @(
 	"--targets"
 )
 
+if ($env:CI -eq "true") {
+	$commonArgs += "--cmake_extra_defines"
+	$commonArgs += "CMAKE_POLICY_VERSION_MINIMUM=3.5"
+	$commonArgs += "CMAKE_VS_GLOBALS=UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true;TrackFileAccess=false;CLToolExe=ccache.exe;CLToolPath=$CCACHE_PROGRAM_DIR"
+} else {
+	$commonArgs += "--cmake_extra_defines"
+	$commonArgs += "CMAKE_POLICY_VERSION_MINIMUM=3.5"
+	$commonArgs += "CMAKE_VS_GLOBALS=UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true"
+}
+
+$commonArgs += "--targets"
+
 $commonArgs += $ORT_COMPONENTS
 
 if (!(Test-Path $ORT_BUILD_DIR)) {
@@ -63,7 +76,6 @@ if (!(Test-Path $ORT_BUILD_DIR)) {
 		& python $BUILD_PY --update @commonArgs
 		if ($LASTEXITCODE -ne 0) { throw "build.py update failed" }
 	} catch {
-		Remove-Item -Path $ORT_BUILD_DIR -Recurse -Force
 		exit 1
 	}
 }
