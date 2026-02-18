@@ -31,7 +31,7 @@ $CCACHE_PROGRAM_PATH = (Get-Command ccache.exe -ErrorAction SilentlyContinue).So
 if (Test-Path $WRAPPER_CL_EXE) {
 	Remove-Item -Path $WRAPPER_CL_EXE -Force -ErrorAction SilentlyContinue
 }
-Copy-Item -Path $CCACHE_PROGRAM_PATH -Destination $WRAPPER_CL_EXE -Force
+Copy-Item -Path $CCACHE_PROGRAM_PATH -Destination $WRAPPER_CL_EXE
 
 if (!(Test-Path $ORT_SRC_DIR)) {
 	try {
