@@ -75,7 +75,7 @@ if (!(Test-Path $ORT_BUILD_DIR)) {
 		& python $BUILD_PY --update @commonArgs
 		if ($LASTEXITCODE -ne 0) { throw "build.py update failed" }
 	} catch {
-		exit 1
+		throw
 	}
 }
 
