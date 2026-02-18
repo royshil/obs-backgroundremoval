@@ -24,10 +24,12 @@ $ORT_SRC_DIR = Join-Path $DEPS_DIR "onnxruntime"
 if (!(Test-Path $ORT_SRC_DIR)) {
 	try {
 		git clone --depth 1 --branch $ORT_VERSION https://github.com/microsoft/onnxruntime.git $ORT_SRC_DIR
+		if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
 		Set-Location $ORT_SRC_DIR
 		git submodule update --init --recursive --depth 1
+		if ($LASTEXITCODE -ne 0) { throw "git submodule update failed" }
 	} catch {
-		exit 1
+		throw
 	} finally {
 		Set-Location $ROOT_DIR
 	}
@@ -60,6 +62,7 @@ $commonArgs += $ORT_COMPONENTS
 if (!(Test-Path $ORT_BUILD_DIR)) {
 	try {
 		& python $BUILD_PY --update @commonArgs
+		if ($LASTEXITCODE -ne 0) { throw "build.py update failed" }
 	} catch {
 		Remove-Item -Path $ORT_BUILD_DIR -Recurse -Force
 		exit 1
@@ -67,6 +70,7 @@ if (!(Test-Path $ORT_BUILD_DIR)) {
 }
 
 & python $BUILD_PY --build @commonArgs
+if ($LASTEXITCODE -ne 0) { throw "build.py build failed" }
 
 $LIB_DIR = Join-Path $DEPS_DIR "lib"
 if (!(Test-Path $LIB_DIR)) { New-Item -ItemType Directory -Path $LIB_DIR }
