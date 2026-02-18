@@ -387,6 +387,8 @@ jobs:
         shell: bash
         run: |
           curl -fsSLO https://github.com/ccache/ccache/releases/download/v4.12.3/ccache-4.12.3-windows-x86_64.zip
+          echo "859141059ac950e1e8cd042c66f842f26b9e3a62a1669a69fe6ba180cb58bbdf  ./ccache-4.12.3-windows-x86_64.zip" | sha256sum -c -
+          mkdir -p .deps_vendor/ccache
           unzip -j ccache-4.12.3-windows-x86_64.zip "*/ccache.exe" -d .deps_vendor/ccache
           echo "$(pwd)/.deps_vendor/ccache" >> "$GITHUB_PATH"
 
@@ -420,9 +422,6 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ runner.os }}-${{ github.run_id }}
-
-      - if: always()
-        run: cat .deps_vendor\ort_x64\Release\CMakeFiles\CMakeConfigureLog.yaml
 
   # windows-gpu-build:
   #   name: Build for Windows (GPU) 🪟
