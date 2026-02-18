@@ -55,6 +55,7 @@ $commonArgs = @(
 	"--include_ops_by_config", "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config",
 	"--enable_reduced_operator_type_support",
 	"--disable_rtti",
+	"--no_kleidiai",
 	"--targets"
 )
 
