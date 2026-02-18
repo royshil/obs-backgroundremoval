@@ -386,7 +386,7 @@ jobs:
       - name: Build ONNX Runtime
         shell: pwsh
         run: |
-          choco install ccache --version=3.7.9
+          choco install ccache
           python -m pip install flatbuffers
           ./scripts/build_ort_windows.ps1
 
