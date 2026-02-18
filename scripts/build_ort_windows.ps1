@@ -20,6 +20,8 @@ $ROOT_DIR = Convert-Path .
 $DEPS_DIR = Join-Path $ROOT_DIR ".deps_vendor"
 if (!(Test-Path $DEPS_DIR)) { New-Item -ItemType Directory -Path $DEPS_DIR }
 $ORT_SRC_DIR = Join-Path $DEPS_DIR "onnxruntime"
+$BUILD_PY = Join-Path $ORT_SRC_DIR "tools\ci_build\build.py"
+$ORT_BUILD_DIR = Join-Path $DEPS_DIR "ort_x64"
 
 if (!(Test-Path $ORT_SRC_DIR)) {
 	try {
@@ -28,15 +30,16 @@ if (!(Test-Path $ORT_SRC_DIR)) {
 		Push-Location $ORT_SRC_DIR
 		git submodule update --init --recursive --depth 1
 		if ($LASTEXITCODE -ne 0) { throw "git submodule update failed" }
+
+		$buildPyContent = Get-Content $BUILD_PY -Raw
+		$newContent = $buildPyContent -replace 'target_arch = platform\.machine\(\)', 'target_arch = "AMD64"'
+		Set-Content -Path $BUILD_PY -Value $newContent -Encoding UTF8
 	} catch {
 		throw
 	} finally {
 		Pop-Location
 	}
 }
-
-$BUILD_PY = Join-Path $ORT_SRC_DIR "tools\ci_build\build.py"
-$ORT_BUILD_DIR = Join-Path $DEPS_DIR "ort_x64"
 
 $commonArgs = @(
 	"--build_dir", "$ORT_BUILD_DIR",
