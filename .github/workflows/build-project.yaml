@@ -422,7 +422,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: ccache-log-${{ runner.os }}-${{ github.run_id }}
-          path: ${{ github.workspace }}/.ccache/ccache.log
+          path: ${{ github.workspace }}/ccache.log
 
       - uses: actions/cache/save@v5
         if: github.event_name != 'pull_request' && success()
