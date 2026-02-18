@@ -26,7 +26,7 @@ $WRAPPER_DIR = Join-Path $DEPS_DIR "wrapper"
 if (!(Test-Path $WRAPPER_DIR)) { New-Item -ItemType Directory -Path $WRAPPER_DIR }
 $WRAPPER_CL_EXE = Join-Path $WRAPPER_DIR "cl.exe"
 
-$CCACHE_PROGRAM_PATH = (Get-Command ccache.exe -ErrorAction SilentlyContinue).Source
+$CCACHE_PROGRAM_PATH = (Get-Command ccache.exe).Source
 
 if (Test-Path $WRAPPER_CL_EXE) {
 	Remove-Item -Path $WRAPPER_CL_EXE -Force -ErrorAction SilentlyContinue
