@@ -390,7 +390,7 @@ jobs:
           echo "859141059ac950e1e8cd042c66f842f26b9e3a62a1669a69fe6ba180cb58bbdf  ./ccache-4.12.3-windows-x86_64.zip" | sha256sum -c -
           mkdir -p .deps_vendor/ccache
           unzip -j ccache-4.12.3-windows-x86_64.zip "*/ccache.exe" -d .deps_vendor/ccache
-          echo "$(pwd)/.deps_vendor/ccache" >> "$GITHUB_PATH"
+          cygpath -w $(pwd)/.deps_vendor/ccache >> "$GITHUB_PATH"
 
       - name: Build ONNX Runtime
         shell: pwsh
