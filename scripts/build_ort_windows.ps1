@@ -23,6 +23,7 @@ $ORT_SRC_DIR = Join-Path $DEPS_DIR "onnxruntime"
 $BUILD_PY = Join-Path $ORT_SRC_DIR "tools\ci_build\build.py"
 $ORT_BUILD_DIR = Join-Path $DEPS_DIR "ort_x64"
 $WRAPPER_DIR = Join-Path $DEPS_DIR "wrapper"
+if (!(Test-Path $WRAPPER_DIR)) { New-Item -ItemType Directory -Path $WRAPPER_DIR }
 $WRAPPER_CL_EXE = Join-Path $WRAPPER_DIR "cl.exe"
 
 $CCACHE_PROGRAM_PATH = (Get-Command ccache.exe -ErrorAction SilentlyContinue).Source
