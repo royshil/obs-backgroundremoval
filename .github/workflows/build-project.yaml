@@ -330,7 +330,7 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_DIRECT: "true"
-      CCACHE_LOGFILE: ${{ github.workspace }}/.ccache/ccache.log
+      CCACHE_LOGFILE: ${{ github.workspace }}/ccache.log
     steps:
       - uses: actions/checkout@v6
         with:
