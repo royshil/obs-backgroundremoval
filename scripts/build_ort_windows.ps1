@@ -25,7 +25,11 @@ $ORT_BUILD_DIR = Join-Path $DEPS_DIR "ort_x64"
 $WRAPPER_DIR = Join-Path $DEPS_DIR "wrapper"
 
 $CCACHE_PROGRAM_PATH = (Get-Command ccache.exe -ErrorAction SilentlyContinue).Source
-New-Item -ItemType SymbolicLink -Path (Join-Path $WRAPPER_DIR "cl.exe") -Target $CCACHE_PROGRAM_PATH -Force
+
+if (Test-Path $wrapperClExe) {
+	Remove-Item -Path $wrapperClExe -Force -ErrorAction SilentlyContinue
+}
+Copy-Item -Path $CCACHE_PROGRAM_PATH -Destination (Join-Path $WRAPPER_DIR "cl.exe") -Force
 
 if (!(Test-Path $ORT_SRC_DIR)) {
 	try {
