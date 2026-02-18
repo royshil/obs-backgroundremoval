@@ -375,6 +375,9 @@ jobs:
         shell: bash
         run: "$VCPKG_ROOT/vcpkg install --triplet x64-windows-static-md-obs"
 
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+
       - name: Set Up Python
         uses: actions/setup-python@v6
         with:
