@@ -57,6 +57,7 @@ $commonArgs = @(
 	"--cmake_extra_defines",
 	"CMAKE_POLICY_VERSION_MINIMUM=3.5",
 	"CMAKE_VS_GLOBALS=UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true;TrackFileAccess=false;CLToolExe=cl.exe;CLToolPath=$WRAPPER_DIR",
+	"--use_cache",
 	"--use_vcpkg",
 	"--skip_submodule_sync",
 	"--skip_tests",

@@ -330,9 +330,8 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_COMPRESS: "true"
       CCACHE_BASEDIR: ${{ github.workspace }}
-      CCACHE_MSVC_DEBUG_INFORMATION_FORMAT: Embedded
-      CCACHE_DEPEND: "on"
-      CCACHE_DIRECT: "on"
+      CCACHE_DEPEND: "true"
+      CCACHE_DIRECT: "true"
     steps:
       - uses: actions/checkout@v6
         with:
