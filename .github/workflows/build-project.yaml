@@ -330,6 +330,7 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_DIRECT: "true"
+      CCACHE_LOGFILE: ${{ github.workspace }}/.ccache/ccache.log
     steps:
       - uses: actions/checkout@v6
         with:
@@ -416,6 +417,12 @@ jobs:
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
+
+      - name: Upload ccache.log
+        uses: actions/upload-artifact@v6
+        with:
+          name: ccache-log-${{ runner.os }}-${{ github.run_id }}
+          path: ${{ github.workspace }}/.ccache/ccache.log
 
       - uses: actions/cache/save@v5
         if: github.event_name != 'pull_request' && success()
