@@ -328,9 +328,7 @@ jobs:
         shell: pwsh
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_COMPRESS: "true"
       CCACHE_BASEDIR: ${{ github.workspace }}
-      CCACHE_DEPEND: "true"
       CCACHE_DIRECT: "true"
     steps:
       - uses: actions/checkout@v6
