@@ -1,6 +1,5 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$env:VSLANG = "1033"
 
 $ORT_VERSION = "v1.24.1"
 $CONFIGURATION = "Release"
@@ -31,10 +30,6 @@ if (!(Test-Path $ORT_SRC_DIR)) {
 		Push-Location $ORT_SRC_DIR
 		git submodule update --init --recursive --depth 1
 		if ($LASTEXITCODE -ne 0) { throw "git submodule update failed" }
-
-		$buildPyContent = Get-Content $BUILD_PY -Raw
-		$newContent = $buildPyContent -replace 'target_arch = platform\.machine\(\)', 'target_arch = "AMD64"'
-		Set-Content -Path $BUILD_PY -Value $newContent -Encoding UTF8
 	} catch {
 		throw
 	} finally {
@@ -42,17 +37,16 @@ if (!(Test-Path $ORT_SRC_DIR)) {
 	}
 }
 
+$CCACHE_PROGRAM_PATH = (Get-Command ccache.exe -ErrorAction SilentlyContinue).Source
+
 $commonArgs = @(
 	"--build_dir", "$ORT_BUILD_DIR",
 	"--config", "$CONFIGURATION",
 	"--parallel",
 	"--compile_no_warning_as_error",
-	"--cmake_generator", "Ninja",
 	"--cmake_extra_defines",
 	"CMAKE_POLICY_VERSION_MINIMUM=3.5",
-	"CMAKE_C_COMPILER_LAUNCHER=ccache",
-	"CMAKE_CXX_COMPILER_LAUNCHER=ccache",
-	"CMAKE_SYSTEM_PROCESSOR=AMD64",
+	"CMAKE_VS_GLOBALS=TrackFileAccess=false;CLToolExe=ccache.exe;CLToolPath=$CCACHE_PROGRAM_PATH",
 	"--use_vcpkg",
 	"--skip_submodule_sync",
 	"--skip_tests",
