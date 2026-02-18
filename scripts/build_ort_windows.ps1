@@ -47,26 +47,17 @@ $commonArgs = @(
 	"--config", "$CONFIGURATION",
 	"--parallel",
 	"--compile_no_warning_as_error",
-	"--use_cache",
+	"--cmake_extra_defines",
+	"CMAKE_POLICY_VERSION_MINIMUM=3.5",
+	"CMAKE_VS_GLOBALS=UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true;TrackFileAccess=false;CLToolExe=ccache.exe;CLToolPath=$CCACHE_PROGRAM_DIR",
 	"--use_vcpkg",
 	"--skip_submodule_sync",
 	"--skip_tests",
 	"--include_ops_by_config", "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config",
 	"--enable_reduced_operator_type_support",
-	"--disable_rtti"
+	"--disable_rtti",
+	"--targets"
 )
-
-if ($env:CI -eq "true") {
-	$commonArgs += "--cmake_extra_defines"
-	$commonArgs += "CMAKE_POLICY_VERSION_MINIMUM=3.5"
-	$commonArgs += "CMAKE_VS_GLOBALS=UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true;TrackFileAccess=false;CLToolExe=ccache.exe;CLToolPath=$CCACHE_PROGRAM_DIR"
-} else {
-	$commonArgs += "--cmake_extra_defines"
-	$commonArgs += "CMAKE_POLICY_VERSION_MINIMUM=3.5"
-	$commonArgs += "CMAKE_VS_GLOBALS=UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true"
-}
-
-$commonArgs += "--targets"
 
 $commonArgs += $ORT_COMPONENTS
 
