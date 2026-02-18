@@ -22,7 +22,10 @@ if (!(Test-Path $DEPS_DIR)) { New-Item -ItemType Directory -Path $DEPS_DIR }
 $ORT_SRC_DIR = Join-Path $DEPS_DIR "onnxruntime"
 $BUILD_PY = Join-Path $ORT_SRC_DIR "tools\ci_build\build.py"
 $ORT_BUILD_DIR = Join-Path $DEPS_DIR "ort_x64"
-$WRAPPER_DIR = Join-Path $ROOT_DIR "scripts" "wrapper"
+$WRAPPER_DIR = Join-Path $DEPS_DIR "wrapper"
+
+$CCACHE_PROGRAM_PATH = (Get-Command ccache.exe -ErrorAction SilentlyContinue).Source
+New-Item -ItemType SymbolicLink -Path (Join-Path $WRAPPER_DIR "cl.exe") -Target $CCACHE_PROGRAM_PATH -Force
 
 if (!(Test-Path $ORT_SRC_DIR)) {
 	try {
@@ -47,7 +50,7 @@ $commonArgs = @(
 	"--compile_no_warning_as_error",
 	"--cmake_extra_defines",
 	"CMAKE_POLICY_VERSION_MINIMUM=3.5",
-	"CMAKE_VS_GLOBALS=UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true;TrackFileAccess=false;CLToolExe=ccache-cl.bat;CLToolPath=$WRAPPER_DIR",
+	"CMAKE_VS_GLOBALS=UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true;TrackFileAccess=false;CLToolExe=cl.exe;CLToolPath=$WRAPPER_DIR",
 	"--use_vcpkg",
 	"--skip_submodule_sync",
 	"--skip_tests",
