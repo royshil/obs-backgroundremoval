@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$env:VSLANG = "1033"
 
 $ORT_VERSION = "v1.24.1"
 $CONFIGURATION = "Release"
