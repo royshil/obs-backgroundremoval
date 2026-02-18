@@ -23,13 +23,14 @@ $ORT_SRC_DIR = Join-Path $DEPS_DIR "onnxruntime"
 $BUILD_PY = Join-Path $ORT_SRC_DIR "tools\ci_build\build.py"
 $ORT_BUILD_DIR = Join-Path $DEPS_DIR "ort_x64"
 $WRAPPER_DIR = Join-Path $DEPS_DIR "wrapper"
+$WRAPPER_CL_EXE = Join-Path $WRAPPER_DIR "cl.exe")
 
 $CCACHE_PROGRAM_PATH = (Get-Command ccache.exe -ErrorAction SilentlyContinue).Source
 
-if (Test-Path $wrapperClExe) {
-	Remove-Item -Path $wrapperClExe -Force -ErrorAction SilentlyContinue
+if (Test-Path $WRAPPER_CL_EXE) {
+	Remove-Item -Path $WRAPPER_CL_EXE -Force -ErrorAction SilentlyContinue
 }
-Copy-Item -Path $CCACHE_PROGRAM_PATH -Destination (Join-Path $WRAPPER_DIR "cl.exe") -Force
+Copy-Item -Path $CCACHE_PROGRAM_PATH -Destination $WRAPPER_CL_EXE -Force
 
 if (!(Test-Path $ORT_SRC_DIR)) {
 	try {
