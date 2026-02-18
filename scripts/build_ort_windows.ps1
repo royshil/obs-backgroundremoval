@@ -34,9 +34,10 @@ if (Test-Path $WRAPPER_CL_EXE) {
 Copy-Item -Path $CCACHE_PROGRAM_PATH -Destination $WRAPPER_CL_EXE
 
 if (!(Test-Path $ORT_SRC_DIR)) {
+	git clone --depth 1 --branch $ORT_VERSION https://github.com/microsoft/onnxruntime.git $ORT_SRC_DIR
+	if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
+
 	try {
-		git clone --depth 1 --branch $ORT_VERSION https://github.com/microsoft/onnxruntime.git $ORT_SRC_DIR
-		if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
 		Push-Location $ORT_SRC_DIR
 		git submodule update --init --recursive --depth 1
 		if ($LASTEXITCODE -ne 0) { throw "git submodule update failed" }
