@@ -415,6 +415,9 @@ jobs:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ runner.os }}-${{ github.run_id }}
 
+      - if: always()
+        run: cat .deps_vendor\ort_x64\Release\CMakeFiles\CMakeConfigureLog.yaml
+
   # windows-gpu-build:
   #   name: Build for Windows (GPU) 🪟
   #   runs-on: windows-2022
