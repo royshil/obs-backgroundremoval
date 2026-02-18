@@ -383,10 +383,16 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up Ccache
+        shell: bash
+        run: |
+          curl -fsSLO https://github.com/ccache/ccache/releases/download/v4.12.3/ccache-4.12.3-windows-x86_64.zip
+          unzip -j ccache-4.12.3-windows-x86_64.zip "*/ccache.exe" -d .deps_vendor/ccache
+          echo "$(pwd)/.deps_vendor/ccache" >> "$GITHUB_PATH"
+
       - name: Build ONNX Runtime
         shell: pwsh
         run: |
-          choco install ccache
           python -m pip install flatbuffers
           ./scripts/build_ort_windows.ps1
 
