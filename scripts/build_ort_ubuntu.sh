@@ -28,7 +28,7 @@ LIB_DIR="$DEPS_DIR/lib"
 
 if ! [[ -d $ORT_SRC_DIR ]]; then
 	git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime.git "$ORT_SRC_DIR"
-	( cd "$ORT_SRC_DIR" && git submodule update --init --recursive --depth 1 )
+	(cd "$ORT_SRC_DIR" && git submodule update --init --recursive --depth 1)
 fi
 
 # --- 2. Build ONNX Runtime for Ubuntu x86_64 ---
@@ -58,4 +58,3 @@ python3 "$BUILD_PY" --build "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}"
 # --- 3. Install ORT libraries ---
 
 mkdir -p "$LIB_DIR"
-
