@@ -111,7 +111,7 @@ else()
   find_package(Microsoft.GSL 4.0 CONFIG REQUIRED)
   find_package(nlohmann_json CONFIG REQUIRED)
   find_package(ONNX CONFIG REQUIRED)
-  find_package(Protobuf CONFIG REQUIRED)
+  find_package(protobuf CONFIG REQUIRED)
   find_package(re2 CONFIG REQUIRED)
 
   if(APPLE)
