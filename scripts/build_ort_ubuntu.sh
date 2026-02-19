@@ -40,8 +40,6 @@ commonArgs=(
 	"--compile_no_warning_as_error"
 	"--cmake_extra_defines"
 	"CMAKE_POLICY_VERSION_MINIMUM=3.5"
-	"CMAKE_C_COMPILER_LAUNCHER=ccache"
-	"CMAKE_CXX_COMPILER_LAUNCHER=ccache"
 	"--use_cache"
 	"--use_vcpkg"
 	"--skip_submodule_sync"
