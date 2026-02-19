@@ -58,3 +58,7 @@ python3 "$BUILD_PY" --build "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}"
 # --- 3. Install ORT libraries ---
 
 mkdir -p "$LIB_DIR"
+
+for name in "${ORT_COMPONENTS[@]}"; do
+	cp -a "$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/lib$name.a" "$LIB_DIR/"
+done
