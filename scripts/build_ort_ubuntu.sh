@@ -26,7 +26,7 @@ LIB_DIR="$DEPS_DIR/lib"
 
 # --- 1. Clone ONNX Runtime repository ---
 
-if ! [[ -d "$ORT_SRC_DIR" ]]; then
+if ! [[ -d $ORT_SRC_DIR ]]; then
 	git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime.git "$ORT_SRC_DIR"
 	( cd "$ORT_SRC_DIR" && git submodule update --init --recursive --depth 1 )
 fi
@@ -49,7 +49,7 @@ commonArgs=(
 	"--disable_rtti"
 )
 
-if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
+if ! [[ -d $ORT_BUILD_DIR ]]; then
 	python3 "$BUILD_PY" --update "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}"
 fi
 
