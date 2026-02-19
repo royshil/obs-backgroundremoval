@@ -21,6 +21,7 @@ DEPS_DIR="$ROOT_DIR/.deps_vendor"
 mkdir -p "$DEPS_DIR"
 ORT_SRC_DIR="$DEPS_DIR/onnxruntime"
 BUILD_PY="$ORT_SRC_DIR/tools/ci_build/build.py"
+ORT_BUILD_DIR="$DEPS_DIR/ort_x86_64"
 LIB_DIR="$DEPS_DIR/lib"
 
 # --- 1. Clone ONNX Runtime repository ---
