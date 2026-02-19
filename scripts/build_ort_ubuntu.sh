@@ -52,10 +52,10 @@ commonArgs=(
 )
 
 if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
-	python3 "$BUILD_PY" --update "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
+	python3 "$BUILD_PY" --update "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}"
 fi
 
-python3 "$BUILD_PY" --build "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
+python3 "$BUILD_PY" --build "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}"
 
 # --- 3. Install ORT libraries ---
 
