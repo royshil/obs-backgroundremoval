@@ -277,9 +277,12 @@ jobs:
 
       - name: "Install dependencies from vcpkg"
         run: "$VCPKG_ROOT/vcpkg install --triplet x64-linux-obs"
-      
-      - name: "Download ONNX Runtime"
-        run: "cmake -P cmake/DownloadOnnxruntime.cmake"
+
+      - name: Build ONNX Runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-flatbuffers
+          ./scripts/build_ort_ubuntu.sh
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin
