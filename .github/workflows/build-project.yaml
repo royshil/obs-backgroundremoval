@@ -319,6 +319,9 @@ jobs:
           path: ${{ github.workspace }}/.ccache
           key: ${{ runner.os }}-${{ matrix.os }}-ccache-x86_64-${{ needs.check-event.outputs.config }}
 
+      - if: always()
+        run: find ${{ github.workspace }}/.deps_vendor
+
   windows-build:
     name: Build for Windows 🪟
     runs-on: windows-2022
