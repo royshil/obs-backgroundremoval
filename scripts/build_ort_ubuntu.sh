@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+
+ORT_VERSION="v1.24.1"
+CONFIGURATION="Release"
+ORT_COMPONENTS=(
+	onnxruntime_session
+	onnxruntime_optimizer
+	onnxruntime_providers
+	onnxruntime_lora
+	onnxruntime_framework
+	onnxruntime_graph
+	onnxruntime_util
+	onnxruntime_mlas
+	onnxruntime_common
+	onnxruntime_flatbuffers
+)
+
+ROOT_DIR="$(pwd)"
+DEPS_DIR="$ROOT_DIR/.deps_vendor"
+mkdir -p "$DEPS_DIR"
+ORT_SRC_DIR="$DEPS_DIR/onnxruntime"
+BUILD_PY="$ORT_SRC_DIR/tools/ci_build/build.py"
+LIB_DIR="$DEPS_DIR/lib"
+
+# --- 1. Clone ONNX Runtime repository ---
+
+if ! [[ -d "$ORT_SRC_DIR" ]]; then
+	git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime.git "$ORT_SRC_DIR"
+	( cd "$ORT_SRC_DIR" && git submodule update --init --recursive --depth 1 )
+fi
+
+# --- 2. Build ONNX Runtime for Ubuntu x86_64 ---
+
+commonArgs=(
+	"--build_dir" "$ORT_BUILD_DIR"
+	"--config" "$CONFIGURATION"
+	"--parallel"
+	"--compile_no_warning_as_error"
+	"--cmake_extra_defines"
+	"CMAKE_POLICY_VERSION_MINIMUM=3.5"
+	"CMAKE_C_COMPILER_LAUNCHER=ccache"
+	"CMAKE_CXX_COMPILER_LAUNCHER=ccache"
+	"--use_cache"
+	"--use_vcpkg"
+	"--skip_submodule_sync"
+	"--skip_tests"
+	"--include_ops_by_config" "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config"
+	"--enable_reduced_operator_type_support"
+	"--disable_rtti"
+	"--targets"
+)
+
+if ! [[ -d $ROOT_DIR/.deps_vendor/ort_x86_64 ]]; then
+	python3 "$BUILD_PY" --update "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
+fi
+
+python3 "$BUILD_PY" --build "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
+
+# --- 3. Install ORT libraries ---
+
+mkdir -p "$LIB_DIR"
+
