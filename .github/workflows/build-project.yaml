@@ -301,12 +301,6 @@ jobs:
           config: ${{ needs.check-event.outputs.config }}
           package: ${{ fromJSON(needs.check-event.outputs.package) }}
 
-      - name: Upload Source Tarball 🗜️
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-sources-${{ needs.check-event.outputs.commitHash }}
-          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-source.*
-
       - name: Upload Artifacts 📡
         uses: actions/upload-artifact@v6
         with:

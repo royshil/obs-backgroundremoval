@@ -74,7 +74,6 @@ jobs:
             'windows-x64;zip|exe'
             'macos-universal;tar.xz|pkg'
             'ubuntu-24.04-x86_64;tar.xz|deb|ddeb'
-            'sources;tar.xz'
           )
 
           for variant_data in "${variants[@]}"; do
@@ -110,9 +109,7 @@ jobs:
           name: ${{ needs.build-project.outputs.pluginName }} ${{ steps.check.outputs.version }}
           body_path: ${{ github.workspace }}/CHECKSUMS.txt
           files: |
-            ${{ github.workspace }}/*.exe
             ${{ github.workspace }}/*.zip
             ${{ github.workspace }}/*.pkg
             ${{ github.workspace }}/*.deb
             ${{ github.workspace }}/*.ddeb
-            ${{ github.workspace }}/*.tar.xz

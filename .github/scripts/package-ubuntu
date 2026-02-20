@@ -150,11 +150,6 @@ ${_usage_host:-}"
   local -a cmake_args=()
   if (( _loglevel > 1 )) cmake_args+=(--verbose)
 
-  log_group "Creating source tarball for ${product_name}..."
-  pushd ${project_root}
-  cmake --build build_${target##*-} --config ${config} -t package_source ${cmake_args}
-  popd
-
   if (( package )) {
     log_group "Packaging ${product_name}..."
     pushd ${project_root}
