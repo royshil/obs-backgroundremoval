@@ -37,6 +37,8 @@ jobs:
 
       - name: Build ONNX Runtime
         shell: bash
+        env:
+          NO_BUILD_ARM64: "true"
         run: ./scripts/build_ort_macos.sh
 
       - name: Upload ccache logs

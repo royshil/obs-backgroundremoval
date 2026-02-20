@@ -64,7 +64,7 @@ commonArgs=(
 
 # --- 3. Build ONNX Runtime for macOS ARM64 ---
 
-if ! [[ -z ${NO_BUILD_ARM64-} ]]; then
+if [[ -z ${NO_BUILD_ARM64-} ]]; then
 	ORT_ARM64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_arm64"
 
 	if ! [[ -d $ORT_ARM64_BUILD_DIR ]]; then
@@ -76,7 +76,7 @@ fi
 
 # --- 4. Build ONNX Runtime for macOS x86_64 ---
 
-if ! [[ -z ${NO_BUILD_X86_64-} ]]; then
+if [[ -z ${NO_BUILD_X86_64-} ]]; then
 	ORT_X86_64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_x86_64"
 
 	if ! [[ -d $ORT_X86_64_BUILD_DIR ]]; then
