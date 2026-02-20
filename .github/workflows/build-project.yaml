@@ -29,7 +29,6 @@ permissions:
 
 env:
   VCPKG_BINARY_SOURCES: "clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}"
-  VCPKG_ROOT: "${{ github.workspace }}/vcpkg"
 
 jobs:
   check-event:
@@ -164,18 +163,26 @@ jobs:
           notarizationUser: ${{ secrets.MACOS_NOTARIZATION_USERNAME }}
           notarizationPassword: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
 
-      - name: Checkout vcpkg repository
-        uses: actions/checkout@v6
-        with:
-          repository: microsoft/vcpkg
-          path: ${{ env.VCPKG_ROOT }}
+      - name: Set up vcpkg
+        shell: bash
+        run: |
+          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+          echo "$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_PATH"
 
-      - name: Bootstrap vcpkg
-        working-directory: ${{ env.VCPKG_ROOT }}
-        run: ./bootstrap-vcpkg.sh
+      - name: Install arm64 dependencies with vcpkg
+        shell: bash
+        run: vcpkg install --triplet arm64-osx-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed_arm64"
 
-      - name: "Install dependencies from vcpkg"
-        run: ".github/scripts/install-vcpkg-macos.bash"
+      - name: Install x86_64 dependencies with vcpkg
+        shell: bash
+        run: vcpkg install --triplet x64-osx-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed_x86_64"
+
+      - name: Merge vcpkg dependencies into a universal binary
+        run: |
+          ./.github/scripts/merge-vcpkg-universal.bash \
+            "$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed_arm64" \
+            "$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed_x86_64" \
+            "$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed"
 
       - name: Set Up Python
         uses: actions/setup-python@v6
@@ -271,18 +278,14 @@ jobs:
           restore-keys: |
             ccache-${{ runner.os }}-
 
-      - name: Checkout vcpkg repository
-        uses: actions/checkout@v6
-        with:
-          repository: microsoft/vcpkg
-          path: ${{ env.VCPKG_ROOT }}
+      - name: Set up vcpkg
+        shell: bash
+        run: |
+          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+          echo "$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_PATH"
 
-      - name: Bootstrap vcpkg
-        working-directory: ${{ env.VCPKG_ROOT }}
-        run: ./bootstrap-vcpkg.sh
-
-      - name: "Install dependencies from vcpkg"
-        run: "$VCPKG_ROOT/vcpkg install --triplet x64-linux-obs"
+      - name: Install x86_64 dependencies from vcpkg
+        run: vcpkg install --triplet x64-linux-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed"
 
       - name: Build ONNX Runtime
         run: |
@@ -363,22 +366,15 @@ jobs:
 
           "pluginName=${ProductName}" >> $env:GITHUB_OUTPUT
           "pluginVersion=${ProductVersion}" >> $env:GITHUB_OUTPUT
-
-      - name: Checkout vcpkg repository
-        uses: actions/checkout@v6
-        with:
-          repository: microsoft/vcpkg
-          path: ${{ env.VCPKG_ROOT }}
-
-      - name: "Bootstrap vcpkg"
-        working-directory: "${{ env.VCPKG_ROOT }}"
-        shell: "pwsh"
-        run: |
-          .\bootstrap-vcpkg.bat
-
-      - name: "Install dependencies from vcpkg"
+          
+      - name: Set up vcpkg
         shell: bash
-        run: "$VCPKG_ROOT/vcpkg install --triplet x64-windows-static-md-obs"
+        run: |
+          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+          echo "$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_PATH"
+
+      - name: Install x86_64 dependencies from vcpkg
+        run: vcpkg install --triplet x64-windows-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed"
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
