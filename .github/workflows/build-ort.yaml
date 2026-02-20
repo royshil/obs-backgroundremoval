@@ -1,0 +1,47 @@
+name: Build ORT
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: 17 4 * * 1
+  workflow_dispatch:
+
+env:
+  CCACHE_BASEDIR: ${{ github.workspace }}
+  CCACHE_COMPILERCHECK: content
+  CCACHE_COMPRESS: "true"
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_DIRECT: "true"
+  CCACHE_LOGFILE: ${{ github.workspace }}/ccache.log
+  CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
+
+jobs:
+  build-ort-macos-x86_64:
+    name: Build ORT (macOS x86_64)
+    runs-on: macos-15
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      HOMEBREW_NO_ANALYTICS: 1
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_ENV_HINTS: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build ONNX Runtime
+        shell: bash
+        run: ./scripts/build_ort_macos.sh
+
+      - name: Upload ccache logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ccache-logs-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ env.CCACHE_LOGFILE }}
