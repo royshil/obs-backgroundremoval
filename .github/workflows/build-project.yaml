@@ -241,8 +241,10 @@ jobs:
         shell: bash
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_COMPRESS: "true"
       CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPRESS: "true"
+      CCACHE_COMPILErCHECK: content
+      CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,pch_defines,time_macros
     steps:
       - uses: actions/checkout@v6
         with:
@@ -264,10 +266,10 @@ jobs:
       - uses: actions/cache/restore@v5
         id: ccache-cache
         with:
-          path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-${{ matrix.os }}-ccache-x86_64-${{ needs.check-event.outputs.config }}
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.os }}-ccache-x86_64-
+            ccache-${{ runner.os }}-
 
       - name: Checkout vcpkg repository
         uses: actions/checkout@v6
@@ -321,13 +323,10 @@ jobs:
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*-dbgsym.ddeb
 
       - uses: actions/cache/save@v5
-        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
+        if: github.event_name != 'pull_request' && success()
         with:
-          path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-${{ matrix.os }}-ccache-x86_64-${{ needs.check-event.outputs.config }}
-
-      - if: always()
-        run: find ${{ github.workspace }}/.deps_vendor
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
 
   windows-build:
     name: Build for Windows 🪟
