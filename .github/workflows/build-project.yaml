@@ -374,7 +374,7 @@ jobs:
           echo "$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_PATH"
 
       - name: Install x86_64 dependencies from vcpkg
-        run: vcpkg install --triplet x64-windows-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed"
+        run: vcpkg install --triplet x64-windows-static-md-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed"
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
