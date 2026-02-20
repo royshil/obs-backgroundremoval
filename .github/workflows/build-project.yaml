@@ -179,7 +179,7 @@ jobs:
 
       - name: Merge vcpkg dependencies into a universal binary
         shell: bash
-        run: ./scripts/merge-vcpkg-universal.bash .deps_vendor/vcpkg_installed_arm64 .deps_vendor/vcpkg_installed_x86_64 .deps_vendor/vcpkg_installed
+        run: ./scripts/merge_vcpkg_installed_into_macos_universal.sh .deps_vendor/vcpkg_installed_arm64 .deps_vendor/vcpkg_installed_x86_64 .deps_vendor/vcpkg_installed
 
       - name: Set Up Python
         uses: actions/setup-python@v6
