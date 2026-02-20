@@ -171,18 +171,15 @@ jobs:
 
       - name: Install arm64 dependencies with vcpkg
         shell: bash
-        run: vcpkg install --triplet arm64-osx-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed_arm64"
+        run: vcpkg install --triplet arm64-osx-obs --x-install-root=.deps_vendor/vcpkg_installed_arm64
 
       - name: Install x86_64 dependencies with vcpkg
         shell: bash
-        run: vcpkg install --triplet x64-osx-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed_x86_64"
+        run: vcpkg install --triplet x64-osx-obs --x-install-root=.deps_vendor/vcpkg_installed_x86_64
 
       - name: Merge vcpkg dependencies into a universal binary
-        run: |
-          ./.github/scripts/merge-vcpkg-universal.bash \
-            "$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed_arm64" \
-            "$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed_x86_64" \
-            "$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed"
+        shell: bash
+        run: ./scripts/merge-vcpkg-universal.bash .deps_vendor/vcpkg_installed_arm64 .deps_vendor/vcpkg_installed_x86_64 .deps_vendor/vcpkg_installed
 
       - name: Set Up Python
         uses: actions/setup-python@v6
@@ -285,6 +282,7 @@ jobs:
           echo "$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_PATH"
 
       - name: Install x86_64 dependencies from vcpkg
+        shell: bash
         run: vcpkg install --triplet x64-linux-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed"
 
       - name: Build ONNX Runtime
@@ -374,6 +372,7 @@ jobs:
           echo "$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_PATH"
 
       - name: Install x86_64 dependencies from vcpkg
+        shell: bash
         run: vcpkg install --triplet x64-windows-static-md-obs --x-install-root="$GITHUB_WORKSPACE/.deps_vendor/vcpkg_installed"
 
       - name: Setup MSVC
