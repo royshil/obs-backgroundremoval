@@ -88,25 +88,29 @@ fi
 
 # --- 4. Merge vcpkg_installed into universal ---
 
-bash "$ROOT_DIR/scripts/merge_vcpkg_installed_into_macos_universal.sh" \
-	"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/vcpkg_installed/arm64-osx" \
-	"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/vcpkg_installed/x64-osx" \
-	"$ROOT_DIR/.deps_vendor/ort_vcpkg_installed/universal-osx"
+if [[ -z ${NO_BUILD_UNIVERSAL-} ]]; then
+	bash "$ROOT_DIR/scripts/merge_vcpkg_installed_into_macos_universal.sh" \
+		"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/vcpkg_installed/arm64-osx" \
+		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/vcpkg_installed/x64-osx" \
+		"$ROOT_DIR/.deps_vendor/ort_vcpkg_installed/universal-osx"
+fi
 
 # --- 5. Create universal libraries ---
 
-mkdir -p "$ROOT_DIR/.deps_vendor/lib"
+if [[ -z ${NO_BUILD_UNIVERSAL-} ]]; then
+	mkdir -p "$ROOT_DIR/.deps_vendor/lib"
 
-for name in "${ORT_COMPONENTS[@]}"; do
+	for name in "${ORT_COMPONENTS[@]}"; do
+		lipo -create \
+			"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/lib$name.a" \
+			"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/lib$name.a" \
+			-output "$ROOT_DIR/.deps_vendor/lib/lib$name.a"
+	done
+
 	lipo -create \
-		"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/lib$name.a" \
-		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/lib$name.a" \
-		-output "$ROOT_DIR/.deps_vendor/lib/lib$name.a"
-done
+		"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
+		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
+		-output "$ROOT_DIR/.deps_vendor/lib/libcpuinfo.a"
 
-lipo -create \
-	"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
-	"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
-	-output "$ROOT_DIR/.deps_vendor/lib/libcpuinfo.a"
-
-cp -a "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/kleidiai-build/libkleidiai.a" "$ROOT_DIR/.deps_vendor/lib/"
+	cp -a "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/kleidiai-build/libkleidiai.a" "$ROOT_DIR/.deps_vendor/lib/"
+fi
