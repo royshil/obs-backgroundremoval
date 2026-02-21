@@ -46,12 +46,12 @@ jobs:
       - name: Set up ccache
         uses: ./.github/actions/setup-ccache
         with:
-          version: 4.12.3
+          version: "4.12.3"
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: 3.12
+          python-version: "3.12"
           pip-install: flatbuffers
 
       - name: Restore ORT Ccache (macOS universal)
@@ -110,12 +110,12 @@ jobs:
       - name: Set up ccache
         uses: ./.github/actions/setup-ccache
         with:
-          version: 4.12.3
+          version: "4.12.3"
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: 3.12
+          python-version: "3.12"
           pip-install: flatbuffers
 
       - name: Restore ORT Ccache (Ubuntu x86_64)
@@ -173,12 +173,12 @@ jobs:
       - name: Set up ccache
         uses: ./.github/actions/setup-ccache
         with:
-          version: 4.12.3
+          version: "4.12.3"
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: 3.12
+          python-version: "3.12"
           pip-install: flatbuffers
 
       - name: Restore ORT Ccache (Windows x86_64)
