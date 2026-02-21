@@ -59,7 +59,7 @@ jobs:
         id: ort-ccache-restore
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
-          key: ort-ccache-ort-${{ runner.os }}-universal-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          key: ort-ccache-${{ runner.os }}-universal-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
 
       - name: Build ORT (macOS universal)
         shell: bash
@@ -123,7 +123,7 @@ jobs:
         id: ort-ccache-restore
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
-          key: ort-ccache-ort-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_ubuntu.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_ubuntu.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
 
       - name: Build ORT (Ubuntu x86_64)
         shell: bash
@@ -186,7 +186,7 @@ jobs:
         id: ort-ccache-restore
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
-          key: ort-ccache-ort-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_windows.ps1', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_windows.ps1', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
 
       - name: Build ORT (Windows x86_64)
         shell: pwsh
