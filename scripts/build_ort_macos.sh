@@ -83,29 +83,25 @@ python3 "$BUILD_PY" --build --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]
 
 # --- 5. Merge vcpkg_installed into universal ---
 
-if [[ -z ${NO_BUILD_UNIVERSAL-} ]]; then
-	bash "$ROOT_DIR/scripts/merge_vcpkg_installed_into_macos_universal.sh" \
-		"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/vcpkg_installed/arm64-osx" \
-		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/vcpkg_installed/x64-osx" \
-		"$ROOT_DIR/.deps_vendor/ort_vcpkg_installed/universal-osx"
-fi
+bash "$ROOT_DIR/scripts/merge_vcpkg_installed_into_macos_universal.sh" \
+	"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/vcpkg_installed/arm64-osx" \
+	"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/vcpkg_installed/x64-osx" \
+	"$ROOT_DIR/.deps_vendor/ort_vcpkg_installed/universal-osx"
 
 # --- 6. Create universal libraries ---
 
-if [[ -z ${NO_BUILD_UNIVERSAL-} ]]; then
-	mkdir -p "$ROOT_DIR/.deps_vendor/lib"
+mkdir -p "$ROOT_DIR/.deps_vendor/lib"
 
-	for name in "${ORT_COMPONENTS[@]}"; do
-		lipo -create \
-			"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/lib$name.a" \
-			"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/lib$name.a" \
-			-output "$LIB_DIR/lib$name.a"
-	done
-
+for name in "${ORT_COMPONENTS[@]}"; do
 	lipo -create \
-		"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
-		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
-		-output "$LIB_DIR/libcpuinfo.a"
+		"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/lib$name.a" \
+		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/lib$name.a" \
+		-output "$LIB_DIR/lib$name.a"
+done
 
-	cp -a "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/kleidiai-build/libkleidiai.a" "$LIB_DIR/"
-fi
+lipo -create \
+	"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
+	"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
+	-output "$LIB_DIR/libcpuinfo.a"
+
+cp -a "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/kleidiai-build/libkleidiai.a" "$LIB_DIR/"
