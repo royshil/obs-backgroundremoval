@@ -1,0 +1,48 @@
+name: Set up ccache
+description: Set up ccache for macOS, Ubuntu, and WIndows
+inputs:
+  version:
+    description: Version of ccache to install.
+    required: true
+  verify:
+    description: Whether to verify downloaded ccache.
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Install ccache
+      id: install
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_VERIFY: ${{ inputs.verify }}
+      run: |
+        case "${{ runner.os }}" in
+          macOS) FILE="ccache-$INPUT_VERSION-darwin.tar.gz" ;;
+          Linux) FILE="ccache-$INPUT_VERSION-linux-x86_64.tar.xz" ;;
+          Windows) FILE="ccache-$INPUT_VERSION-windows-x86_64.zip" ;;
+        esac
+        printf 'file=%s\n' "$FILE"
+
+        DOWNLOAD_DIR="$RUNNER_TEMP/setup-ccache-download"
+        BIN_DIR="$RUNNER_TEMP/setup-ccache-bin"
+        mkdir -p "$DOWNLOAD_DIR" "$BIN_DIR"
+
+        cd "$DOWNLOAD_DIR"
+        curl -fsSLO "https://github.com/ccache/ccache/releases/download/v$INPUT_VERSION/$FILE"
+
+        if [[ -n $INPUT_VERIFY ]]; then
+          if ! sha256sum --ignore-missing -c "$GITHUB_ACTION_PATH/SHA256SUMS-$INPUT_VERSION.txt"; then
+            exit 1
+          fi
+        fi
+
+        tar -xf "$FILE" -C "$BIN_DIR" --strip-components=1
+        chmod +x "$BIN_DIR/ccache*" || true
+
+        if [[ $RUNNER_OS == Windows ]]; then
+          cygpath -w "$BIN_DIR" >> "$GITHUB_PATH"
+        else
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
+        fi
