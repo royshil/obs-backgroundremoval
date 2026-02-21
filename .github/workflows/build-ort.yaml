@@ -54,9 +54,9 @@ jobs:
           python-version: "3.12"
           pip-install: flatbuffers
 
+      # Discard the exising cache whenever build scripts change, ensuring a compact and consistent cache.
       - name: Restore ORT Ccache (macOS universal)
         uses: actions/cache/restore@v5
-        id: ort-ccache-restore
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
           key: ort-ccache-${{ runner.os }}-universal-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
@@ -69,7 +69,7 @@ jobs:
 
       - name: Save ORT Ccache (macOS universal)
         uses: actions/cache/save@v5
-        if: github.event_name != 'pull_request' && steps.ort-ccache-restore.outputs.cache-hit != 'true' && success()
+        if: github.event_name != 'pull_request' && success()
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
           key: ort-ccache-${{ runner.os }}-universal-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
@@ -117,9 +117,9 @@ jobs:
           python-version: "3.12"
           pip-install: flatbuffers
 
+      # Discard the exising cache whenever build scripts change, ensuring a compact and consistent cache.
       - name: Restore ORT Ccache (Ubuntu x86_64)
         uses: actions/cache/restore@v5
-        id: ort-ccache-restore
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
           key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_ubuntu.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
@@ -132,7 +132,7 @@ jobs:
 
       - name: Save ORT Ccache (Ubuntu x86_64)
         uses: actions/cache/save@v5
-        if: github.event_name != 'pull_request' && steps.ort-ccache-restore.outputs.cache-hit != 'true' && success()
+        if: github.event_name != 'pull_request' && success()
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
           key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_ubuntu.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
@@ -180,9 +180,9 @@ jobs:
           python-version: "3.12"
           pip-install: flatbuffers
 
+      # Discard the exising cache whenever build scripts change, ensuring a compact and consistent cache.
       - name: Restore ORT Ccache (Windows x86_64)
         uses: actions/cache/restore@v5
-        id: ort-ccache-restore
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
           key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_windows.ps1', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
@@ -195,7 +195,7 @@ jobs:
 
       - name: Save ORT Ccache (Windows x86_64)
         uses: actions/cache/save@v5
-        if: github.event_name != 'pull_request' && steps.ort-ccache-restore.outputs.cache-hit != 'true' && success()
+        if: github.event_name != 'pull_request' && success()
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
           key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_windows.ps1', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
