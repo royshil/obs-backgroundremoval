@@ -43,6 +43,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Set up ccache
+        uses: ./.github/actions/setup-ccache
+        with:
+          version: 4.12.3
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -102,6 +107,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Set up ccache
+        uses: ./.github/actions/setup-ccache
+        with:
+          version: 4.12.3
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -159,6 +169,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Set up ccache
+        uses: ./.github/actions/setup-ccache
+        with:
+          version: 4.12.3
 
       - name: Set up Python
         uses: actions/setup-python@v6
