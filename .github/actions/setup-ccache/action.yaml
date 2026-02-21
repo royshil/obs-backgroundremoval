@@ -33,7 +33,8 @@ runs:
         curl -fsSLO "https://github.com/ccache/ccache/releases/download/v$INPUT_VERSION/$FILE"
 
         if [[ -n $INPUT_VERIFY ]]; then
-          if ! sha256sum --ignore-missing -c "$GITHUB_ACTION_PATH/SHA256SUMS-$INPUT_VERSION.txt"; then
+          grep "$FILE" "$GITHUB_ACTION_PATH/SHA256SUMS-$INPUT_VERSION.txt" | tr -d '\r' > checksum.txt
+          if ! sha256sum -c checksum.txt; then
             exit 1
           fi
         fi
