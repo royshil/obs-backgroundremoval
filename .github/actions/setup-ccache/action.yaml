@@ -1,5 +1,5 @@
 name: Set up ccache
-description: Set up ccache for macOS, Ubuntu, and WIndows
+description: Set up ccache for macOS, Ubuntu, and Windows
 inputs:
   version:
     description: Version of ccache to install.
@@ -32,7 +32,7 @@ runs:
         cd "$DOWNLOAD_DIR"
         curl -fsSLO "https://github.com/ccache/ccache/releases/download/v$INPUT_VERSION/$FILE"
 
-        if [[ -n $INPUT_VERIFY ]]; then
+        if [[ $INPUT_VERIFY == true ]]; then
           grep "$FILE" "$GITHUB_ACTION_PATH/SHA256SUMS-$INPUT_VERSION.txt" | tr -d '\r' > checksum.txt
           if ! sha256sum -c checksum.txt; then
             exit 1
