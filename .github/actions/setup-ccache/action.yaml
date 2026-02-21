@@ -39,11 +39,15 @@ runs:
           fi
         fi
 
-        tar -xf "$FILE" -C "$BIN_DIR" --strip-components=1
-        chmod +x "$BIN_DIR/ccache*" || true
-
         if [[ $RUNNER_OS == Windows ]]; then
+          unzip -o "$FILE" -d "$BIN_DIR"
           cygpath -w "$BIN_DIR" >> "$GITHUB_PATH"
         else
+          tar -xf "$FILE" -C "$BIN_DIR" --strip-components=1
+          chmod +x "$BIN_DIR/ccache*" || true
           echo "$BIN_DIR" >> "$GITHUB_PATH"
         fi
+
+    - name: Show Ccache version
+      shell: bash
+      run: ccache --version
