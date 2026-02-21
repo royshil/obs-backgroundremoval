@@ -25,7 +25,6 @@ runs:
           Linux) FILE="ccache-$INPUT_VERSION-linux-x86_64.tar.xz" ;;
           Windows) FILE="ccache-$INPUT_VERSION-windows-x86_64.zip" ;;
         esac
-        printf 'file=%s\n' "$FILE"
 
         DOWNLOAD_DIR="$RUNNER_TEMP/setup-ccache-download"
         BIN_DIR="$RUNNER_TEMP/setup-ccache-bin"
