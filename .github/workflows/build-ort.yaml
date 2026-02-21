@@ -6,26 +6,29 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: 17 4 * * 1
+    - cron: 17 4 * * *
   workflow_dispatch:
 
 env:
   CCACHE_BASEDIR: ${{ github.workspace }}
   CCACHE_COMPILERCHECK: content
   CCACHE_COMPRESS: "true"
-  CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_DIRECT: "true"
-  CCACHE_LOGFILE: ${{ github.workspace }}/ccache.log
+  CCACHE_LOGFILE: ${{ github.workspace }}/ort-ccache.log
   CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
+  ORT_CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+
+permissions:
+  contents: read
 
 jobs:
   build-ort-macos-x86_64:
-    name: Build ORT (macOS x86_64)
+    name: Build ORT (macOS)
     runs-on: macos-15
     timeout-minutes: 180
-    permissions:
-      contents: read
+
     env:
+      CCACHE_DEPEND: "true"
       HOMEBREW_NO_ANALYTICS: 1
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_ENV_HINTS: 1
@@ -35,15 +38,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Build ONNX Runtime
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.12
+          pip-install: flatbuffers
+
+      - name: Restore ORT Ccache (macOS)
+        uses: actions/cache/restore@v5
+        id: ort-ccache-restore
+        with:
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ort-ccache-ort-${{ runner.os }}-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+
+      - name: Build ORT (macOS)
         shell: bash
         env:
-          NO_BUILD_ARM64: "true"
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+          NO_BUILD_UNIVERSAL: 1
         run: ./scripts/build_ort_macos.sh
 
-      - name: Upload ccache logs
+      - name: Save ORT Ccache (macOS)
+        uses: actions/cache/save@v5
+        if: github.event_name != 'pull_request' && steps.ort-ccache-restore.outputs.cache-hit != 'true' && success()
+        with:
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ort-ccache-${{ runner.os }}-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+
+      - name: Output ORT Ccache stats
         if: always()
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+        run: |
+          {
+            echo "### ORT Ccache Stats"
+            echo "```"
+            ccache -s
+            echo "```"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ORT Ccache logs
+        if: always() && runner.debug == '1'
         uses: actions/upload-artifact@v6
         with:
-          name: ccache-logs-${{ runner.os }}-${{ runner.arch }}
+          name: ort-ccache-logs-${{ runner.os }}
           path: ${{ env.CCACHE_LOGFILE }}

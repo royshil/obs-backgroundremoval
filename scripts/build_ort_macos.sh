@@ -64,27 +64,23 @@ commonArgs=(
 
 # --- 3. Build ONNX Runtime for macOS ARM64 ---
 
-if [[ -z ${NO_BUILD_ARM64-} ]]; then
-	ORT_ARM64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_arm64"
+ORT_ARM64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_arm64"
 
-	if ! [[ -d $ORT_ARM64_BUILD_DIR ]]; then
-		python3 "$BUILD_PY" --update --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
-	fi
-
-	python3 "$BUILD_PY" --build --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
+if ! [[ -d $ORT_ARM64_BUILD_DIR ]]; then
+	python3 "$BUILD_PY" --update --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
 fi
+
+python3 "$BUILD_PY" --build --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
 
 # --- 4. Build ONNX Runtime for macOS x86_64 ---
 
-if [[ -z ${NO_BUILD_X86_64-} ]]; then
-	ORT_X86_64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_x86_64"
+ORT_X86_64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_x86_64"
 
-	if ! [[ -d $ORT_X86_64_BUILD_DIR ]]; then
-		python3 "$BUILD_PY" --update --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]}" --osx_arch x86_64 --targets "${ORT_COMPONENTS[@]}"
-	fi
-
-	python3 "$BUILD_PY" --build --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]}" --osx_arch x86_64 --targets "${ORT_COMPONENTS[@]}"
+if ! [[ -d $ORT_X86_64_BUILD_DIR ]]; then
+	python3 "$BUILD_PY" --update --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]}" --osx_arch x86_64 --targets "${ORT_COMPONENTS[@]}"
 fi
+
+python3 "$BUILD_PY" --build --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]}" --osx_arch x86_64 --targets "${ORT_COMPONENTS[@]}"
 
 # --- 4. Merge vcpkg_installed into universal ---
 
