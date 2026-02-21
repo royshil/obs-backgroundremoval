@@ -1,6 +1,10 @@
 name: Build ORT
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   schedule:
     - cron: 17 4 * * *
   workflow_dispatch:
