@@ -7,7 +7,7 @@ inputs:
   verify:
     description: Whether to verify downloaded ccache.
     required: false
-    default: 'true'
+    default: "true"
 runs:
   using: composite
   steps:
