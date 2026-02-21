@@ -65,7 +65,6 @@ jobs:
         shell: bash
         env:
           CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
-          NO_BUILD_UNIVERSAL: 1
         run: ./scripts/build_ort_macos.sh
 
       - name: Save ORT Ccache (macOS universal)
