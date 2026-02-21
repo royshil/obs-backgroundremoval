@@ -16,7 +16,6 @@ ORT_COMPONENTS=(
 	onnxruntime_flatbuffers
 	onnxruntime_providers_coreml
 	coreml_proto
-	cpuinfo
 )
 OSX_DEPLOY_TARGET=12.0
 
@@ -67,22 +66,22 @@ commonArgs=(
 ORT_ARM64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_arm64"
 
 if ! [[ -d $ORT_ARM64_BUILD_DIR ]]; then
-	python3 "$BUILD_PY" --update --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" kleidiai
+	python3 "$BUILD_PY" --update --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
 fi
 
-python3 "$BUILD_PY" --build --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" kleidiai
+python3 "$BUILD_PY" --build --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
 
 # --- 4. Build ONNX Runtime for macOS x86_64 ---
 
 ORT_X86_64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_x86_64"
 
 if ! [[ -d $ORT_X86_64_BUILD_DIR ]]; then
-	python3 "$BUILD_PY" --update --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]}" --osx_arch x86_64 --targets "${ORT_COMPONENTS[@]}"
+	python3 "$BUILD_PY" --update --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]}" --osx_arch x86_64 --targets "${ORT_COMPONENTS[@]}" cpuinfo
 fi
 
-python3 "$BUILD_PY" --build --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]}" --osx_arch x86_64 --targets "${ORT_COMPONENTS[@]}"
+python3 "$BUILD_PY" --build --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]}" --osx_arch x86_64 --targets "${ORT_COMPONENTS[@]}" cpuinfo
 
-# --- 4. Merge vcpkg_installed into universal ---
+# --- 5. Merge vcpkg_installed into universal ---
 
 if [[ -z ${NO_BUILD_UNIVERSAL-} ]]; then
 	bash "$ROOT_DIR/scripts/merge_vcpkg_installed_into_macos_universal.sh" \
@@ -91,7 +90,7 @@ if [[ -z ${NO_BUILD_UNIVERSAL-} ]]; then
 		"$ROOT_DIR/.deps_vendor/ort_vcpkg_installed/universal-osx"
 fi
 
-# --- 5. Create universal libraries ---
+# --- 6. Create universal libraries ---
 
 if [[ -z ${NO_BUILD_UNIVERSAL-} ]]; then
 	mkdir -p "$ROOT_DIR/.deps_vendor/lib"
