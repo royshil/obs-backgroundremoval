@@ -18,6 +18,8 @@ runs:
         INPUT_VERSION: ${{ inputs.version }}
         INPUT_VERIFY: ${{ inputs.verify }}
       run: |
+        set -euo pipefail
+
         case "${{ runner.os }}" in
           macOS) FILE="ccache-$INPUT_VERSION-darwin.tar.gz" ;;
           Linux) FILE="ccache-$INPUT_VERSION-linux-x86_64.tar.xz" ;;
