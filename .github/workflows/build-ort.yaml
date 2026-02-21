@@ -164,7 +164,7 @@ jobs:
     timeout-minutes: 180
 
     env:
-      CCACHE_DIRECT: "false"
+      CCACHE_NODIRECT: "true"
 
     steps:
       - name: Checkout
