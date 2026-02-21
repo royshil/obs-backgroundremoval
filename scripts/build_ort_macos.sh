@@ -25,7 +25,6 @@ DEPS_DIR="$ROOT_DIR/.deps_vendor"
 mkdir -p "$DEPS_DIR"
 ORT_SRC_DIR="$DEPS_DIR/onnxruntime"
 BUILD_PY="$ORT_SRC_DIR/tools/ci_build/build.py"
-ORT_BUILD_DIR="$DEPS_DIR/ort_x86_64"
 LIB_DIR="$DEPS_DIR/lib"
 
 # --- 1. Clone ONNX Runtime repository ---
@@ -101,13 +100,13 @@ if [[ -z ${NO_BUILD_UNIVERSAL-} ]]; then
 		lipo -create \
 			"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/lib$name.a" \
 			"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/lib$name.a" \
-			-output "$ROOT_DIR/.deps_vendor/lib/lib$name.a"
+			-output "$LIB_DIR/lib$name.a"
 	done
 
 	lipo -create \
 		"$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
 		"$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/_deps/pytorch_cpuinfo-build/libcpuinfo.a" \
-		-output "$ROOT_DIR/.deps_vendor/lib/libcpuinfo.a"
+		-output "$LIB_DIR/libcpuinfo.a"
 
-	cp -a "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/kleidiai-build/libkleidiai.a" "$ROOT_DIR/.deps_vendor/lib/"
+	cp -a "$ROOT_DIR/.deps_vendor/ort_arm64/$CONFIGURATION/_deps/kleidiai-build/libkleidiai.a" "$LIB_DIR/"
 fi
