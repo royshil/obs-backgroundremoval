@@ -8,7 +8,7 @@
 #include "plugin-support.h"
 
 static const std::string GITHUB_LATEST_RELEASE_URL =
-	"https://api.github.com/repos/occ-ai/obs-backgroundremoval/releases/latest";
+	"https://api.github.com/repos/royshil/obs-backgroundremoval/releases/latest";
 
 void github_utils_get_release_information(std::function<void(github_utils_release_information)> callback)
 {

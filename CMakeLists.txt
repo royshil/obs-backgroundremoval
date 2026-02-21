@@ -43,7 +43,7 @@ if(NOT VCPKG_TARGET_TRIPLET STREQUAL "")
 
   message(STATUS "Using vcpkg with target triplet: ${VCPKG_TARGET_TRIPLET}")
 
-  list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}")
+  list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/.deps_vendor/vcpkg_installed/${VCPKG_TARGET_TRIPLET}")
 
   find_package(CURL CONFIG REQUIRED)
   find_package(OpenCV CONFIG REQUIRED)
