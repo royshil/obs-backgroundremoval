@@ -13,22 +13,23 @@ env:
   CCACHE_BASEDIR: ${{ github.workspace }}
   CCACHE_COMPILERCHECK: content
   CCACHE_COMPRESS: "true"
-  CCACHE_DIRECT: "true"
+  CCACHE_DEPEND: "true"
   CCACHE_LOGFILE: ${{ github.workspace }}/ort-ccache.log
   CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
   ORT_CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+  VCPKG_BINARY_SOURCES: "clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}"
 
 permissions:
   contents: read
 
 jobs:
-  build-ort-macos-x86_64:
-    name: Build ORT (macOS)
+  build-ort-macos-universal:
+    name: Build ORT (macOS universal)
     runs-on: macos-15
     timeout-minutes: 180
 
     env:
-      CCACHE_DEPEND: "true"
+      CCACHE_DIRECT: "true"
       HOMEBREW_NO_ANALYTICS: 1
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_ENV_HINTS: 1
@@ -44,26 +45,142 @@ jobs:
           python-version: 3.12
           pip-install: flatbuffers
 
-      - name: Restore ORT Ccache (macOS)
+      - name: Restore ORT Ccache (macOS universal)
         uses: actions/cache/restore@v5
         id: ort-ccache-restore
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
-          key: ort-ccache-ort-${{ runner.os }}-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          key: ort-ccache-ort-${{ runner.os }}-universal-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
 
-      - name: Build ORT (macOS)
+      - name: Build ORT (macOS universal)
         shell: bash
         env:
           CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
           NO_BUILD_UNIVERSAL: 1
         run: ./scripts/build_ort_macos.sh
 
-      - name: Save ORT Ccache (macOS)
+      - name: Save ORT Ccache (macOS universal)
         uses: actions/cache/save@v5
         if: github.event_name != 'pull_request' && steps.ort-ccache-restore.outputs.cache-hit != 'true' && success()
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
-          key: ort-ccache-${{ runner.os }}-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          key: ort-ccache-${{ runner.os }}-universal-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+
+      - name: Output ORT Ccache stats
+        if: always()
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+        run: |
+          {
+            echo "### ORT Ccache Stats"
+            echo "```"
+            ccache -s
+            echo "```"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ORT Ccache logs
+        if: always() && runner.debug == '1'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ort-ccache-logs-${{ runner.os }}
+          path: ${{ env.CCACHE_LOGFILE }}
+
+  build-ort-ubuntu-x86_64:
+    name: Build ORT (Ubuntu x86_64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    env:
+      CCACHE_DIRECT: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.12
+          pip-install: flatbuffers
+
+      - name: Restore ORT Ccache (Ubuntu x86_64)
+        uses: actions/cache/restore@v5
+        id: ort-ccache-restore
+        with:
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ort-ccache-ort-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_ubuntu.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+
+      - name: Build ORT (Ubuntu x86_64)
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+        run: ./scripts/build_ort_ubuntu.sh
+
+      - name: Save ORT Ccache (Ubuntu x86_64)
+        uses: actions/cache/save@v5
+        if: github.event_name != 'pull_request' && steps.ort-ccache-restore.outputs.cache-hit != 'true' && success()
+        with:
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_ubuntu.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+
+      - name: Output ORT Ccache stats
+        if: always()
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+        run: |
+          {
+            echo "### ORT Ccache Stats"
+            echo "```"
+            ccache -s
+            echo "```"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ORT Ccache logs
+        if: always() && runner.debug == '1'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ort-ccache-logs-${{ runner.os }}
+          path: ${{ env.CCACHE_LOGFILE }}
+
+  build-ort-windows-x86_64:
+    name: Build ORT (Windows x86_64)
+    runs-on: windows-2022
+    timeout-minutes: 180
+
+    env:
+      CCACHE_DIRECT: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.12
+          pip-install: flatbuffers
+
+      - name: Restore ORT Ccache (Windows x86_64)
+        uses: actions/cache/restore@v5
+        id: ort-ccache-restore
+        with:
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ort-ccache-ort-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_windows.ps1', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+
+      - name: Build ORT (Windows x86_64)
+        shell: pwsh
+        env:
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+        run: ./scripts/build_ort_windows.ps1
+
+      - name: Save ORT Ccache (Windows x86_64)
+        uses: actions/cache/save@v5
+        if: github.event_name != 'pull_request' && steps.ort-ccache-restore.outputs.cache-hit != 'true' && success()
+        with:
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_windows.ps1', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
 
       - name: Output ORT Ccache stats
         if: always()
