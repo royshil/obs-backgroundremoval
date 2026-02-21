@@ -44,7 +44,8 @@ runs:
           cp ccache-*/ccache.exe "$BIN_DIR/ccache.exe"
           cygpath -w "$BIN_DIR" >> "$GITHUB_PATH"
         else
-          tar -xf "$FILE" -C "$BIN_DIR" --strip-components=1 "*/ccache"
+          tar -xf "$FILE"
+          cp ccache-*/ccache "$BIN_DIR/"
           chmod +x "$BIN_DIR/ccache" || true
           echo "$BIN_DIR" >> "$GITHUB_PATH"
         fi
