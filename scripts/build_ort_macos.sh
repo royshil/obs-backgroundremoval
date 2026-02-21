@@ -28,7 +28,7 @@ LIB_DIR="$DEPS_DIR/lib"
 
 # --- 1. Clone ONNX Runtime repository ---
 
-if ! [[ -d $ORT_SRC_DIR ]]; then
+if ! [[ -d "$ORT_SRC_DIR" ]]; then
 	git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime.git "$ORT_SRC_DIR"
 	(cd "$ORT_SRC_DIR" && git submodule update --init --recursive --depth 1)
 	cp "$ORT_SRC_DIR/cmake/CMakeLists.txt" "$ORT_SRC_DIR/cmake/CMakeLists.txt.orig"
@@ -65,7 +65,7 @@ commonArgs=(
 
 ORT_ARM64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_arm64"
 
-if ! [[ -d $ORT_ARM64_BUILD_DIR ]]; then
+if ! [[ -d "$ORT_ARM64_BUILD_DIR" ]]; then
 	python3 "$BUILD_PY" --update --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
 fi
 
@@ -75,7 +75,7 @@ python3 "$BUILD_PY" --build --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}
 
 ORT_X86_64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_x86_64"
 
-if ! [[ -d $ORT_X86_64_BUILD_DIR ]]; then
+if ! [[ -d "$ORT_X86_64_BUILD_DIR" ]]; then
 	python3 "$BUILD_PY" --update --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]}" --osx_arch x86_64 --targets "${ORT_COMPONENTS[@]}" cpuinfo
 fi
 
