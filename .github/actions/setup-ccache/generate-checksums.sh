@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-if [[ -z ${1:-} ]]; then
+if [[ -z "${1:-}" ]]; then
 	echo "Usage: $0 <version>"
 	echo "# $0 4.12.3"
 	exit 1

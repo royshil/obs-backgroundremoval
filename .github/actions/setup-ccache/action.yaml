@@ -20,7 +20,7 @@ runs:
       run: |
         set -euo pipefail
 
-        case "${{ runner.os }}" in
+        case "$RUNNER_OS" in
           macOS) FILE="ccache-$INPUT_VERSION-darwin.tar.gz" ;;
           Linux) FILE="ccache-$INPUT_VERSION-linux-x86_64.tar.xz" ;;
           Windows) FILE="ccache-$INPUT_VERSION-windows-x86_64.zip" ;;
@@ -33,14 +33,14 @@ runs:
         cd "$DOWNLOAD_DIR"
         curl -fsSLO "https://github.com/ccache/ccache/releases/download/v$INPUT_VERSION/$FILE"
 
-        if [[ $INPUT_VERIFY == true ]]; then
+        if [[ "$INPUT_VERIFY" == true ]]; then
           grep "$FILE" "$GITHUB_ACTION_PATH/SHA256SUMS-$INPUT_VERSION.txt" | tr -d '\r' > checksum.txt
           if ! sha256sum -c checksum.txt; then
             exit 1
           fi
         fi
 
-        if [[ $RUNNER_OS == Windows ]]; then
+        if [[ "$RUNNER_OS" == Windows ]]; then
           unzip -o "$FILE"
           cp ccache-*/ccache.exe "$BIN_DIR/ccache.exe"
           cygpath -w "$BIN_DIR" >> "$GITHUB_PATH"

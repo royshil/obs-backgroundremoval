@@ -54,7 +54,7 @@ jobs:
           python-version: "3.12"
           pip-install: flatbuffers
 
-      # Discard the exising cache whenever build scripts change, ensuring a compact and consistent cache.
+      # Discard the existing cache whenever build scripts change, ensuring a compact and consistent cache.
       - name: Restore ORT Ccache (macOS universal)
         uses: actions/cache/restore@v5
         with:
@@ -117,7 +117,7 @@ jobs:
           python-version: "3.12"
           pip-install: flatbuffers
 
-      # Discard the exising cache whenever build scripts change, ensuring a compact and consistent cache.
+      # Discard the existing cache whenever build scripts change, ensuring a compact and consistent cache.
       - name: Restore ORT Ccache (Ubuntu x86_64)
         uses: actions/cache/restore@v5
         with:
@@ -180,7 +180,7 @@ jobs:
           python-version: "3.12"
           pip-install: flatbuffers
 
-      # Discard the exising cache whenever build scripts change, ensuring a compact and consistent cache.
+      # Discard the existing cache whenever build scripts change, ensuring a compact and consistent cache.
       - name: Restore ORT Ccache (Windows x86_64)
         uses: actions/cache/restore@v5
         with:
