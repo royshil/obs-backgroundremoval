@@ -9,6 +9,13 @@ on:
     - cron: 17 4 * * *
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CCACHE_BASEDIR: ${{ github.workspace }}
   CCACHE_COMPILERCHECK: content
@@ -18,9 +25,6 @@ env:
   CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
   ORT_CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
   VCPKG_BINARY_SOURCES: "clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}"
-
-permissions:
-  contents: read
 
 jobs:
   build-ort-macos-universal:
