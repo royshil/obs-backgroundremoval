@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-ORT_VERSION="v1.24.1"
-CONFIGURATION="Release"
+ORT_VERSION=v1.24.1
+CONFIGURATION=Release
 ORT_COMPONENTS=(
 	onnxruntime_session
 	onnxruntime_optimizer
