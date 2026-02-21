@@ -16,6 +16,7 @@ ORT_COMPONENTS=(
 	onnxruntime_flatbuffers
 	onnxruntime_providers_coreml
 	coreml_proto
+	cpuinfo
 )
 OSX_DEPLOY_TARGET=12.0
 
@@ -67,10 +68,10 @@ commonArgs=(
 ORT_ARM64_BUILD_DIR="$ROOT_DIR/.deps_vendor/ort_arm64"
 
 if ! [[ -d $ORT_ARM64_BUILD_DIR ]]; then
-	python3 "$BUILD_PY" --update --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
+	python3 "$BUILD_PY" --update --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" kleidiai
 fi
 
-python3 "$BUILD_PY" --build --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" cpuinfo kleidiai
+python3 "$BUILD_PY" --build --build_dir "$ORT_ARM64_BUILD_DIR" "${commonArgs[@]}" --osx_arch arm64 --targets "${ORT_COMPONENTS[@]}" kleidiai
 
 # --- 4. Build ONNX Runtime for macOS x86_64 ---
 
