@@ -5,8 +5,17 @@
 #pragma once
 
 #include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace pipeline {
+
+// Single resize of the full frame.
+inline cv::Mat preprocess_resize(const cv::Mat &imageBGRA, int width, int height)
+{
+	cv::Mat resized;
+	cv::resize(imageBGRA, resized, cv::Size(width, height), 0, 0, cv::INTER_NEAREST);
+	return resized;
+}
 
 // Similarity check: skip processing when the frame is nearly identical
 // to the previous one (PSNR above threshold).

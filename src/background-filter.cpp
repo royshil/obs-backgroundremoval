@@ -545,7 +545,8 @@ void background_filter_video_tick(void *data, float seconds)
 	}
 
 	if (tf->enableImageSimilarity) {
-		if (pipeline::check_similarity(imageBGRA, tf->lastImageBGRA, tf->imageSimilarityThreshold))
+		cv::Mat thumbnail = pipeline::preprocess_resize(imageBGRA, 192, 108);
+		if (pipeline::check_similarity(thumbnail, tf->lastImageBGRA, tf->imageSimilarityThreshold))
 			return;
 	}
 

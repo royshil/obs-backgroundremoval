@@ -4,7 +4,7 @@ project(obs-bgremoval-bench LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(OpenCV REQUIRED COMPONENTS core)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 find_package(Threads REQUIRED)
 find_package(onnxruntime CONFIG QUIET)
 

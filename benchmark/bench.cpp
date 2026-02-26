@@ -106,8 +106,9 @@ static double get_cpu_seconds()
 // ─── Pipeline benchmark ──────────────────────────────────────────────
 
 // Exercises the same pre-inference pipeline the plugin uses in video_tick:
-// 1. Clone the input frame      (simulates inputBGRA.clone())
-// 2. pipeline::check_similarity (PSNR skip check on full-size frame)
+// 1. Clone the input frame          (simulates inputBGRA.clone())
+// 2. Resize to 192x108 thumbnail    (pipeline::preprocess_resize)
+// 3. pipeline::check_similarity     (PSNR skip check on thumbnail)
 static double process_frame(cv::Mat &lastImage, std::mutex &mtx, const cv::Mat &frame)
 {
 	auto t0 = Clock::now();
@@ -119,8 +120,11 @@ static double process_frame(cv::Mat &lastImage, std::mutex &mtx, const cv::Mat &
 		cloned = frame.clone();
 	}
 
-	// Step 2: Similarity check on the full-size frame
-	pipeline::check_similarity(cloned, lastImage, 35.0);
+	// Step 2: Downsample to thumbnail for fast PSNR comparison
+	cv::Mat thumbnail = pipeline::preprocess_resize(cloned, 192, 108);
+
+	// Step 3: Similarity check on thumbnail (~81KB vs ~7.9MB)
+	pipeline::check_similarity(thumbnail, lastImage, 35.0);
 
 	auto t1 = Clock::now();
 	return duration<double, std::micro>(t1 - t0).count();
