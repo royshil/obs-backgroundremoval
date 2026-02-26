@@ -107,6 +107,13 @@ jobs:
           set -euo pipefail
           shopt -s extglob nullglob
 
+          ASSETS=(
+            *.zip
+            *.pkg
+            *.deb
+            *.ddeb
+          )
+
           CREATE_RELEASE_FLAGS=(
             --draft
             --generate-notes
@@ -118,4 +125,4 @@ jobs:
             CREATE_RELEASE_FLAGS+=(--prerelease)
           fi
 
-          gh release create "$TAG_NAME" *.zip *.pkg *.deb *.ddeb "${CREATE_RELEASE_FLAGS[@]}"
+          gh release create "$TAG_NAME" "${ASSETS[@]}" "${CREATE_RELEASE_FLAGS[@]}"
