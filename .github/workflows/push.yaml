@@ -32,6 +32,10 @@ jobs:
     defaults:
       run:
         shell: bash
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
     steps:
       - name: Check Release Tag ☑️
         id: check
@@ -86,30 +90,27 @@ jobs:
             done
           done
 
-      - name: Generate Checksums 🪪
-        if: fromJSON(steps.check.outputs.validTag)
-        run: |
-          : Generate Checksums 🪪
-          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
-          shopt -s extglob
-
-          echo "### Checksums" > ${{ github.workspace }}/CHECKSUMS.txt
-          for file in ${{ github.workspace }}/@(*.exe|*.deb|*.ddeb|*.pkg|*.tar.xz|*.zip); do
-            echo "    ${file##*/}: $(sha256sum "${file}" | cut -d " " -f 1)" >> ${{ github.workspace }}/CHECKSUMS.txt
-          done
-
-      - name: Create Release 🛫
-        if: fromJSON(steps.check.outputs.validTag)
-        id: create_release
-        uses: softprops/action-gh-release@9d7c94cfd0a1f3ed45544c887983e9fa900f0564
+      - name: Attest build artifacts
+        id: attest
+        uses: actions/attest-build-provenance@v3
         with:
-          draft: true
-          prerelease: ${{ fromJSON(steps.check.outputs.prerelease) }}
-          tag_name: ${{ steps.check.outputs.version }}
-          name: ${{ needs.build-project.outputs.pluginName }} ${{ steps.check.outputs.version }}
-          body_path: ${{ github.workspace }}/CHECKSUMS.txt
-          files: |
-            ${{ github.workspace }}/*.zip
-            ${{ github.workspace }}/*.pkg
-            ${{ github.workspace }}/*.deb
-            ${{ github.workspace }}/*.ddeb
+          subject-path: ${{ github.workspace }}/*
+
+      - name: Create Draft Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.check.outputs.version }}
+        run: |
+          CREATE_RELEASE_FLAGS=(
+            --draft
+            --generate-notes
+            --title "$TAG_NAME"
+            --verify-tag
+          )
+
+          if [[ "$TAG_NAME" == *"-"* ]]; then
+            CREATE_RELEASE_FLAGS+=(--prerelease)
+          fi
+
+          gh release create "$TAG_NAME" * "${CREATE_RELEASE_FLAGS[@]}"
