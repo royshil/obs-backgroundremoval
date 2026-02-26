@@ -91,6 +91,7 @@ jobs:
           done
 
       - name: Attest build artifacts
+        if: fromJSON(steps.check.outputs.validTag)
         id: attest
         uses: actions/attest-build-provenance@v3
         with:
