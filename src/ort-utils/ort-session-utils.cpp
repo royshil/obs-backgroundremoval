@@ -138,16 +138,16 @@ bool runFilterModelInference(filter_data *tf, const cv::Mat &imageBGRA, cv::Mat 
 		return false;
 	}
 
-	// To RGB
-	cv::Mat imageRGB;
-	cv::cvtColor(imageBGRA, imageRGB, cv::COLOR_BGRA2RGB);
-
-	// Resize to network input size
+	// Resize to network input size first (operate on smaller image)
 	uint32_t inputWidth, inputHeight;
 	tf->model->getNetworkInputSize(tf->inputDims, inputWidth, inputHeight);
 
+	cv::Mat resizedBGRA;
+	cv::resize(imageBGRA, resizedBGRA, cv::Size(inputWidth, inputHeight), 0, 0, cv::INTER_NEAREST);
+
+	// To RGB (on already-resized image)
 	cv::Mat resizedImageRGB;
-	cv::resize(imageRGB, resizedImageRGB, cv::Size(inputWidth, inputHeight));
+	cv::cvtColor(resizedBGRA, resizedImageRGB, cv::COLOR_BGRA2RGB);
 
 	// Prepare input to nework
 	cv::Mat resizedImage, preprocessedImage;
