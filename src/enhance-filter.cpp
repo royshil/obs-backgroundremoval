@@ -247,10 +247,6 @@ void enhance_filter_video_tick(void *data, float seconds)
 		return;
 	}
 
-	if (tf->inputBGRA.empty()) {
-		return;
-	}
-
 	// Get input image from source rendering pipeline
 	cv::Mat imageBGRA;
 	{
@@ -258,7 +254,11 @@ void enhance_filter_video_tick(void *data, float seconds)
 		if (!lock.owns_lock()) {
 			return;
 		}
-		imageBGRA = tf->inputBGRA.clone();
+		if (!tf->newFrameAvailable) {
+			return;
+		}
+		cv::swap(imageBGRA, tf->inputBGRA);
+		tf->newFrameAvailable = false;
 	}
 
 	cv::Mat outputImage;

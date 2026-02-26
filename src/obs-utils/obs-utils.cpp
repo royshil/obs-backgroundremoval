@@ -67,9 +67,10 @@ bool getRGBAFromStageSurface(filter_data *tf, uint32_t &width, uint32_t &height)
 		std::lock_guard<std::mutex> lock(tf->inputBGRALock);
 		// Create a temporary Mat that wraps the video_data pointer
 		cv::Mat temp(height, width, CV_8UC4, video_data, linesize);
-		// Clone the data to ensure tf->inputBGRA has its own copy
-		// This prevents use-after-unmap race condition
-		tf->inputBGRA = temp.clone();
+		// Copy frame data into tf->inputBGRA, reusing its allocation
+		// when dimensions match. Ensures we own the pixels before unmap.
+		temp.copyTo(tf->inputBGRA);
+		tf->newFrameAvailable = true;
 	}
 	gs_stagesurface_unmap(tf->stagesurface);
 	return true;

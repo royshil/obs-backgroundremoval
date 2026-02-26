@@ -536,11 +536,11 @@ void background_filter_video_tick(void *data, float seconds)
 			// No data to process
 			return;
 		}
-		if (tf->inputBGRA.empty()) {
-			// No data to process
+		if (!tf->newFrameAvailable) {
 			return;
 		}
-		imageBGRA = tf->inputBGRA.clone();
+		cv::swap(imageBGRA, tf->inputBGRA);
+		tf->newFrameAvailable = false;
 	}
 
 	if (tf->enableImageSimilarity) {
