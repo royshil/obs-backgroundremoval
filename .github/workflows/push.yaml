@@ -104,6 +104,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ steps.check.outputs.version }}
         run: |
+          set -euo pipefail
+          shopt -s extglob nullglob
+
           CREATE_RELEASE_FLAGS=(
             --draft
             --generate-notes
@@ -115,4 +118,4 @@ jobs:
             CREATE_RELEASE_FLAGS+=(--prerelease)
           fi
 
-          gh release create "$TAG_NAME" * "${CREATE_RELEASE_FLAGS[@]}"
+          gh release create "$TAG_NAME" *.zip *.pkg *.deb *.ddeb "${CREATE_RELEASE_FLAGS[@]}"
