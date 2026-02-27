@@ -42,16 +42,18 @@ We always welcome every contribution! To deliver the value of your work to our u
 - **No Unverified Code**: Do not submit any code that you cannot fully understand and explain. Submitting any raw outputs from LLMs or Generative-AI is strictly prohibited.
 - **Responsibility**: You must take responsibility for your code. Please ensure that your contribution has clean licensing and is reliable. We are here to help you to accomplish this, of course!
 
-### 4. Developer Certificate of Origin (DCO)
+### 4. Developer Certificate of Origin (DCO)　and Commit Signing
 
-Please sign off all your commits for Developer Certificate of Origin (DCO):
+Please sign off (Developer Certificate of Origin) and verify all your commits:
 
 ```
-git commit -s
+git commit -s -S
 ```
 
-Or if you want to sign off in our repository automatically:
+If you want to sign off your commits in our repository automatically:
 
 ```
 git config format.signOff true
 ```
+
+For details of commit signing, please refer to the [GitHub Document for commit signing](https://docs.github.com/authentication/managing-commit-signature-verification).
