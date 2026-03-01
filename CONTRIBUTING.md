@@ -44,10 +44,10 @@ We always welcome every contribution! To deliver the value of your work to our u
 
 ### 4. Developer Certificate of Origin (DCO) and Commit Signing
 
-Please sign off (Developer Certificate of Origin) and verify all your commits:
+Please sign off (-s) all your commits (DCO), and sign all your commits (-S) with your GPG or SSH key:
 
 ```
 git commit -s -S
 ```
 
-For details of commit signing, please refer to the [GitHub Document for commit signing](https://docs.github.com/authentication/managing-commit-signature-verification).
+Please refer to the [GitHub Document for commit signing](https://docs.github.com/authentication/managing-commit-signature-verification) for configuring commit signing.
