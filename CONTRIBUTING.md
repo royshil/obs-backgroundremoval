@@ -2,7 +2,7 @@
 
 ## Legal and Community Guidelines
 
-To keep the `obs-backgroundremoval` project safe and reliable for everyone including its users, its contributors, and its maintainers, those who are involved in development of this project must know the following terms. Whenever we receive your Pull Request, we will explicitly ask you that your PRs conform to our policy.
+To keep the `obs-backgroundremoval` project safe and reliable for everyone including its users, its contributors, and its maintainers, those who are involved in development of this project must know the following terms. Whenever we receive your Pull Request, we will explicitly ask you to confirm that your PR conforms to our policy.
 
 ### 1. Licensing and Patent Grant
 
@@ -48,12 +48,6 @@ Please sign off (Developer Certificate of Origin) and verify all your commits:
 
 ```
 git commit -s -S
-```
-
-If you want to sign off your commits in our repository automatically:
-
-```
-git config format.signOff true
 ```
 
 For details of commit signing, please refer to the [GitHub Document for commit signing](https://docs.github.com/authentication/managing-commit-signature-verification).
