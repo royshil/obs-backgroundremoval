@@ -75,14 +75,12 @@ The pretrained model weights used for portrait foreground segmentation are taken
 - https://github.com/PINTO0309/PINTO_model_zoo/tree/main/082_MediaPipe_Meet_Segmentation
 - https://github.com/PeterL1n/RobustVideoMatting
 - https://github.com/PINTO0309/PINTO_model_zoo/tree/main/384_TCMonoDepth and https://github.com/yu-li/TCMonoDepth
-- https://huggingface.co/briaai/RMBG-1.4
 
 Image enhancement (low light) models are taken from:
 
 - https://github.com/PINTO0309/PINTO_model_zoo/tree/main/213_TBEFN
 - https://github.com/PINTO0309/PINTO_model_zoo/tree/main/372_URetinex-Net
 - https://github.com/PINTO0309/PINTO_model_zoo/tree/main/370_Semantic-Guided-Low-Light-Image-Enhancement
-- https://github.com/PINTO0309/PINTO_model_zoo/tree/main/243_Zero-DCE-improved
 
 Some more information about how I built it: https://www.morethantechnical.com/2021/04/15/obs-plugin-for-portrait-background-removal-with-onnx-sinet-model/ and https://www.morethantechnical.com/2023/05/20/building-an-obs-background-removal-plugin-a-walkthrough/
 
@@ -101,3 +99,10 @@ This video on YouTube will take you through the major parts of the code and expl
   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=royshil/obs-backgroundremoval&type=Date" />
   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=royshil/obs-backgroundremoval&type=Date" />
 </picture>
+
+---
+
+> SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>  
+> SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>  
+>
+> SPDX-License-Identifier: GPL-3.0-or-later  

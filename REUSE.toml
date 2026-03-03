@@ -1,0 +1,32 @@
+version = 1
+
+# Configuration files
+[[annotations]]
+path = [
+    ".gitignore",
+    ".python-version",
+    "buildspec.json",
+    "CMakePresets.json",
+    "data/config.json",
+    "scripts/windows/*",
+    "src/exported*",
+    "vcpkg-configuration.json",
+    "vcpkg.json",
+]
+SPDX-FileCopyrightText = [
+    "2018-2026 OBS Project and its contributors",
+    "2021-2026 Roy Shilkrot <roy.shil@gmail.com>",
+    "2023-2026 Kaito Udagawa <umireon@kaito.tokyo>",
+]
+SPDX-License-Identifier = "CC0-1.0"
+
+# Locale files (reuse tool has some bug around reading not-ASCII files)
+[[annotations]]
+path = [
+    "data/locale/*.ini"
+]
+SPDX-FileCopyrightText = [
+    "2021-2026 Roy Shilkrot <roy.shil@gmail.com>",
+    "2023-2026 Kaito Udagawa <umireon@kaito.tokyo>",
+]
+SPDX-License-Identifier = "CC0-1.0"

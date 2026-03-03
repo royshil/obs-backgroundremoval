@@ -1,0 +1,9 @@
+version = 1
+
+[[annotations]]
+path = "*.cmake"
+SPDX-FileCopyrightText = [
+    "2021-2026 Roy Shilkrot <roy.shil@gmail.com>",
+    "2023-2026 Kaito Udagawa <umireon@kaito.tokyo>",
+]
+SPDX-License-Identifier = "CC0-1.0"

@@ -7,6 +7,7 @@
 !/cmake
 !/data
 !/docs
+!/LICENSES
 !/models
 !/pages
 !/scripts
@@ -21,9 +22,12 @@
 !CMakeLists.txt
 !CMakePresets.json
 !CONTRIBUTING.md
+!demo.gif
+!demo.gif.license
 !FAQ.md
 !LICENSE
 !README.md
+!REUSE.toml
 !vcpkg-configuration.json
 !vcpkg.json
 

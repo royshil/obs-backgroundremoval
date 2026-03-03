@@ -213,3 +213,10 @@ To start a new release, the user will instruct Copilot (e.g., "Start release"). 
 ---
 
 **Trust these instructions**. Only search for additional information if these instructions are incomplete or incorrect.
+
+<!--
+SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->

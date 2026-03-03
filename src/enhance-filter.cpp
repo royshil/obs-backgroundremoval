@@ -1,22 +1,7 @@
-/*
- * SPDX-FileCopyrightText: Copyright (C) 2021 Roy Shilkrot roy.shil@gmail.com
- * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * OBS Plugin: Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
+// SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+// SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "enhance-filter.h"
 
@@ -38,11 +23,10 @@
 
 #include <plugin-support.h>
 #include "consts.h"
-#include "obs-utils/obs-utils.h"
-#include "ort-utils/ort-session-utils.h"
-#include "models/ModelTBEFN.h"
-#include "models/ModelZeroDCE.h"
-#include "models/ModelURetinex.h"
+#include "obs-utils/obs-utils.hpp"
+#include "ort-utils/ort-session-utils.hpp"
+#include "models/ModelTBEFN.hpp"
+#include "models/ModelURetinex.hpp"
 #include "update-checker/update-checker.h"
 
 struct enhance_filter : public filter_data, public std::enable_shared_from_this<enhance_filter> {
@@ -73,7 +57,6 @@ obs_properties_t *enhance_filter_properties(void *data)
 	obs_property_list_add_string(p_model_select, obs_module_text("TBEFN"), MODEL_ENHANCE_TBEFN);
 	obs_property_list_add_string(p_model_select, obs_module_text("URETINEX"), MODEL_ENHANCE_URETINEX);
 	obs_property_list_add_string(p_model_select, obs_module_text("SGLLIE"), MODEL_ENHANCE_SGLLIE);
-	obs_property_list_add_string(p_model_select, obs_module_text("ZERODCE"), MODEL_ENHANCE_ZERODCE);
 	obs_property_t *p_use_gpu = obs_properties_add_list(props, "useGPU", obs_module_text("InferenceDevice"),
 							    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(p_use_gpu, obs_module_text("CPU"), USEGPU_CPU);
@@ -173,8 +156,6 @@ void enhance_filter_update(void *data, obs_data_t *settings)
 		tf->modelSelection = newModel;
 		if (tf->modelSelection == MODEL_ENHANCE_TBEFN) {
 			tf->model.reset(new ModelTBEFN);
-		} else if (tf->modelSelection == MODEL_ENHANCE_ZERODCE) {
-			tf->model.reset(new ModelZeroDCE);
 		} else if (tf->modelSelection == MODEL_ENHANCE_URETINEX) {
 			tf->model.reset(new ModelURetinex);
 		} else {

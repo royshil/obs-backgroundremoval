@@ -1,3 +1,8 @@
+REM SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+REM SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+REM
+REM SPDX-License-Identifier: GPL-3.0-or-later
+
 @echo off
 REM Remove old installation of obs-backgroundremoval plugin
 setlocal

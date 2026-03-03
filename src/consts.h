@@ -1,21 +1,8 @@
 /*
- * SPDX-FileCopyrightText: Copyright (C) 2021 Roy Shilkrot roy.shil@gmail.com
+ * SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+ * SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+ *
  * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * OBS Plugin: Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CONSTS_H
@@ -30,9 +17,7 @@ const char *const MODEL_PPHUMANSEG = "models/pphumanseg_fp32.with_runtime_opt.or
 const char *const MODEL_ENHANCE_TBEFN = "models/tbefn_fp32.with_runtime_opt.ort";
 const char *const MODEL_ENHANCE_URETINEX = "models/uretinex_net_180x320.with_runtime_opt.ort";
 const char *const MODEL_ENHANCE_SGLLIE = "models/semantic_guided_llie_180x324.with_runtime_opt.ort";
-const char *const MODEL_ENHANCE_ZERODCE = "models/zero_dce_180x320.with_runtime_opt.ort";
 const char *const MODEL_DEPTH_TCMONODEPTH = "models/tcmonodepth_tcsmallnet_192x320.with_runtime_opt.ort";
-const char *const MODEL_RMBG = "models/bria_rmbg_1_4_qint8.with_runtime_opt.ort";
 
 const char *const USEGPU_CPU = "cpu";
 const char *const USEGPU_CUDA = "cuda";

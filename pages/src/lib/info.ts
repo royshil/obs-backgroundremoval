@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+// SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 export const GITHUB_OWNER = "royshil";
 export const GITHUB_REPO = "obs-backgroundremoval";
 export const GITHUB_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;

@@ -125,3 +125,10 @@ sudo cmake --install build
 ## 4. Verification
 
 If the steps were completed successfully, the `obs-backgroundremoval` plugin is now installed. Launch OBS Studio, and you should find the "Background Removal" filter available when you right-click on a video source and select "Filters". It should now function correctly without the previous CUDA-related errors.
+
+---
+
+> SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>  
+> SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>  
+>
+> SPDX-License-Identifier: GPL-3.0-or-later  

@@ -1,22 +1,7 @@
-/*
- * SPDX-FileCopyrightText: Copyright (C) 2021 Roy Shilkrot roy.shil@gmail.com
- * SPDX-License-Identifier: GPL-3.0-or-later
- *
- * OBS Plugin: Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
+// SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+// SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "background-filter.h"
 
@@ -38,17 +23,16 @@
 #include <thread>
 
 #include <plugin-support.h>
-#include "models/ModelSINET.h"
-#include "models/ModelMediapipe.h"
-#include "models/ModelSelfie.h"
-#include "models/ModelSelfieMulticlass.h"
-#include "models/ModelRVM.h"
-#include "models/ModelPPHumanSeg.h"
-#include "models/ModelTCMonoDepth.h"
-#include "models/ModelRMBG.h"
-#include "FilterData.h"
-#include "ort-utils/ort-session-utils.h"
-#include "obs-utils/obs-utils.h"
+#include "models/ModelSINET.hpp"
+#include "models/ModelMediapipe.hpp"
+#include "models/ModelSelfie.hpp"
+#include "models/ModelSelfieMulticlass.hpp"
+#include "models/ModelRVM.hpp"
+#include "models/ModelPPHumanSeg.hpp"
+#include "models/ModelTCMonoDepth.hpp"
+#include "FilterData.hpp"
+#include "ort-utils/ort-session-utils.hpp"
+#include "obs-utils/obs-utils.hpp"
 #include "consts.h"
 #include "update-checker/update-checker.h"
 
@@ -215,7 +199,6 @@ obs_properties_t *background_filter_properties(void *data)
 	obs_property_list_add_string(p_model_select, obs_module_text("PPHumanSeg"), MODEL_PPHUMANSEG);
 	obs_property_list_add_string(p_model_select, obs_module_text("Robust Video Matting"), MODEL_RVM);
 	obs_property_list_add_string(p_model_select, obs_module_text("TCMonoDepth"), MODEL_DEPTH_TCMONODEPTH);
-	obs_property_list_add_string(p_model_select, obs_module_text("RMBG"), MODEL_RMBG);
 
 	obs_properties_add_float_slider(props, "temporal_smooth_factor", obs_module_text("TemporalSmoothFactor"), 0.0,
 					1.0, 0.01);
@@ -357,9 +340,6 @@ void background_filter_update(void *data, obs_data_t *settings)
 		}
 		if (tf->modelSelection == MODEL_DEPTH_TCMONODEPTH) {
 			tf->model.reset(new ModelTCMonoDepth);
-		}
-		if (tf->modelSelection == MODEL_RMBG) {
-			tf->model.reset(new ModelRMBG);
 		}
 
 		int ortSessionResult = createOrtSession(tf.get());

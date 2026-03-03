@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: REUSE
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ["*"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: REUSE Lint
+
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python and REUSE tool
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          pip-install: reuse
+
+      - name: Run REUSE lint
+        shell: bash
+        run: set -euo pipefail && reuse lint | tee -a "$GITHUB_STEP_SUMMARY"
