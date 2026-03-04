@@ -1,4 +1,4 @@
-# Pull Request Checklist
+## Pull Request Checklist
 
 Please read our latest [CONTRIBUTING.md](https://github.com/royshil/obs-backgroundremoval/blob/main/CONTRIBUTING.md).
 
