@@ -12,6 +12,7 @@
 !/pages
 !/scripts
 !/src
+!/tools
 !/vcpkg-triplets
 !/vendor
 !.clang-format
