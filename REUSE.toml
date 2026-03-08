@@ -3,6 +3,9 @@ version = 1
 # Configuration files
 [[annotations]]
 path = [
+    ".gitattributes",
+    ".github/pull_request_template.md",
+    ".github/workflows/*.lock.yml",
     ".gitignore",
     ".python-version",
     "buildspec.json",

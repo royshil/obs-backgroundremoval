@@ -4,12 +4,12 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+description: Validate if this Pull Request meets our project criteria (royshil/live-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured.
+
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
     branches: [main]
-
-description: "Validate if this Pull Request meets our project criteria (royshil/obs-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured."
 
 permissions:
   contents: read
@@ -33,18 +33,22 @@ safe-inputs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 safe-outputs:
-  add-comment:
-    hide-older-comments: true
-    discussions: false
+  submit-pull-request-review: {}
 
 engine:
   id: copilot
-  model: gpt-5.1-mini
+  model: gpt-5-mini
 ---
 
 # Pull Request Validator
 
-Validate if this Pull Request meets our project criteria (royshil/obs-backgroundremoval)
+Validate if this Pull Request meets our project criteria (royshil/live-backgroundremoval).
+
+## Additional Inputs
+
+<PullRequestText>
+${{ needs.activation.outputs.text }}
+</PullRequestText>
 
 ## Requirements
 
@@ -58,17 +62,12 @@ Validate if this Pull Request meets our project criteria (royshil/obs-background
   - **Verification**: Inspect the `message` field of every commit on this Pull Request, and verify if all commits on this Pull Request have DCO.
   - **Context**: Refer to `<PROJECT_ROOT>/CONTRIBUTING.md` for this policy.
 
-- **License Header**
-  - **Tooling**: Use `git` command.
-  - **Condition**: Run this check when the changeset has any files with a C/C++ source or header extensions (.c, .h, .cpp, and .hpp).
-  - **Verification**: All C/C++ source and header files newly added by this Pull Request MUST have a license header.
-  - **Context**: Refer to `<PROJECT_ROOT>/CONTRIBUTING.md` and `<PROJECT_ROOT>/.github/instructions/license-header-c-cpp.instructions.md` for this policy.
-
-<!-- end list -->
+- **Pull Request Checklist**
+  - **Verification**: Read the Pull Request text provided above, and verify if it contains the Pull Request template and all the items are checked.
 
 ## Outputs
 
-- **Output Format**: Add a comment as the output of this validation to this Pull Request using safe-output.
+- **Output Format**: Use Pull Request review.
 - **Summary Line**: The first line of your comment MUST be a single-line summary of this validation, starting with either ✅ or 🚫.
-- **Success**: If this Pull Request meets all criteria, add a comment stating that this Pull Request is ready to merge.
-- **Failure**: If this Pull Request fails to meet any criteria, add a comment that explains what the problems are on this Pull Request, and provides instructions on how Author can fix them.
+- **Success**: If this Pull Request meets all criteria, submit an approval review, attaching this Pull Request's text including the checklist provided above as a code block.
+- **Failure**: If this Pull Request fails to meet any criteria, submit a request-changes review that states what the problems are on this Pull Request.
