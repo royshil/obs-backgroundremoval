@@ -21,9 +21,9 @@
 #
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
-# Validate if this Pull Request meets our project criteria (royshil/live-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured.
+# Validate if this Pull Request meets our project criteria (royshil/obs-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured.
 #
-# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"1b744f9bc2676226eb6bcc2efefbfb4557711e30206b117877f0675350a72d2b","compiler_version":"v0.56.0","strict":true}
+# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"9ad55c6afffbee3c5894333eeff86b64caa129ad9a2ef26da98981eadb3628ae","compiler_version":"v0.56.0","strict":true}
 
 name: "Pull Request Validator"
 "on":
@@ -975,7 +975,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           WORKFLOW_NAME: "Pull Request Validator"
-          WORKFLOW_DESCRIPTION: "Validate if this Pull Request meets our project criteria (royshil/live-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured."
+          WORKFLOW_DESCRIPTION: "Validate if this Pull Request meets our project criteria (royshil/obs-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured."
           HAS_PATCH: ${{ steps.collect_output.outputs.has_patch }}
         with:
           script: |
