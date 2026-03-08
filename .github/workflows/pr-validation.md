@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-description: Validate if this Pull Request meets our project criteria (royshil/live-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured.
+description: Validate if this Pull Request meets our project criteria (royshil/obs-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured.
 
 on:
   pull_request:
@@ -42,7 +42,7 @@ engine:
 
 # Pull Request Validator
 
-Validate if this Pull Request meets our project criteria (royshil/live-backgroundremoval).
+Validate if this Pull Request meets our project criteria (royshil/obs-backgroundremoval).
 
 ## Additional Inputs
 
