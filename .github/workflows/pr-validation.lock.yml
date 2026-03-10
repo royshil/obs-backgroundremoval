@@ -23,7 +23,7 @@
 #
 # Validate if this Pull Request meets our project criteria (royshil/obs-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured.
 #
-# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"9ad55c6afffbee3c5894333eeff86b64caa129ad9a2ef26da98981eadb3628ae","compiler_version":"v0.56.0","strict":true}
+# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"a9c88be07d2f889a81a0f394843193d98b902bfe5f6b49fc2aa8b05f1d3a50d0","compiler_version":"v0.56.0","strict":true}
 
 name: "Pull Request Validator"
 "on":
@@ -644,7 +644,8 @@ jobs:
             "/repos/$GITHUB_REPOSITORY/pulls/$INPUT_PRNUMBER/commits" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            --paginate
+            --paginate \
+            --jq 'map({sha: .sha, message: .commit.message, verification: .commit.verification})'
           
           
           GH_AW_SAFE_INPUTS_SH_PULL-REQUEST-COMMITS_EOF

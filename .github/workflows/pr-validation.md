@@ -28,7 +28,8 @@ safe-inputs:
         "/repos/$GITHUB_REPOSITORY/pulls/$INPUT_PRNUMBER/commits" \
         -H "Accept: application/vnd.github+json" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
-        --paginate
+        --paginate \
+        --jq 'map({sha: .sha, message: .commit.message, verification: .commit.verification})'
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
