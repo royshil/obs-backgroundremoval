@@ -1,7 +1,8 @@
-# SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
-# SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
+
+# In this workflow, we use ubuntu-slim runners. Refer to https://docs.github.com/en/actions/reference/runners/github-hosted-runners for the detail of ubuntu-slim runner.
 
 name: Pages
 
@@ -10,6 +11,8 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    - cron: '43 2 * * *' # Every day at 2:43 UTC
   workflow_dispatch:
 
 concurrency:
@@ -32,11 +35,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
-          node-version-file: ${{ env.BUILD_PATH }}/package.json
+          node-version-file: ${{ env.BUILD_PATH }}/.node-version
           cache: npm
           cache-dependency-path: ${{ env.BUILD_PATH }}/package-lock.json
 
@@ -53,14 +58,16 @@ jobs:
         shell: bash
         working-directory: ${{ env.BUILD_PATH }}
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SITE: ${{ steps.pages.outputs.origin }}
           BASE: ${{ steps.pages.outputs.base_path }}
+          PRODUCTION_BASE_URL: ${{ steps.pages.outputs.base_url }}
         run: |
           set -euo pipefail
           npx astro build --site "$SITE" --base "$BASE"
-          node scripts/add-sri.mjs dist
+          node scripts/add-sri.mjs "$PRODUCTION_BASE_URL" dist
           node scripts/add-csp-hashes.mjs dist
-          node scripts/generate-provenance.mjs dist provenance.json
+          node scripts/generate-provenance.mjs "$PRODUCTION_BASE_URL" dist provenance.json
           mv provenance.json dist/provenance.json
 
       - name: Upload artifact
@@ -73,15 +80,11 @@ jobs:
   deploy:
     name: Deploy Pages
 
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
 
     runs-on: ubuntu-slim
     needs: build
     timeout-minutes: 10
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     permissions:
       attestations: write
@@ -89,29 +92,36 @@ jobs:
       id-token: write
       pages: write
 
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Download artifact
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
         with:
           name: pages-build
+          path: dist
 
+      # Establish chain of trust by attesting the provenance of the build artifact.
       - name: Attest provenance
         id: attest
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
-          subject-path: ${{ env.BUILD_PATH }}/dist/provenance.json
+          subject-path: dist/provenance.json
 
+      # ubuntu-slim has jq command pre-installed
       - name: Copy attestation bundle
         env:
           BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
         shell: bash
         run: |
-          jq -c . "$BUNDLE_PATH" > "$BUILD_PATH/dist/provenance.attestation.jsonl"
+          jq -c . "$BUNDLE_PATH" > dist/provenance.attestation.jsonl
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
-          path: ${{ env.BUILD_PATH }}/dist
+          path: dist
 
       - name: Deploy to GitHub Pages
         id: deployment

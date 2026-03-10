@@ -1,7 +1,10 @@
-// SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+#!/usr/bin/env node
+
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+/// <reference types="node" />
 
 import { readFile, writeFile, glob } from "node:fs/promises";
 import posthtml from "posthtml";
@@ -11,6 +14,7 @@ console.time("[CSP] Total time");
 const args = process.argv.slice(2);
 if (args.length < 1) {
   console.error("Usage: node add-csp-hashes.mjs <dist-dir>");
+  console.error("Run this script with Node.js 24.x or later");
   process.exit(1);
 }
 
@@ -27,21 +31,66 @@ async function generateHash(content) {
   return `sha256-${base64String}`;
 }
 
-function updateCSPDirective(cspString, directiveName, hashes) {
-  if (hashes.length === 0) return cspString;
-
-  const directiveRegex = new RegExp(`(${directiveName}[^;]*)`);
-  const hashesString = hashes.map((h) => `'${h}'`).join(" ");
-
-  if (!directiveRegex.test(cspString)) {
-    throw new Error(
-      `CSP directive "${directiveName}" not found in CSP string.`,
-    );
+/**
+ * @param {string} cspString
+ * @returns {Generator<{name: string, values: string[]}, void, unknown>}
+ */
+function* parseCsp(cspString) {
+  function* splitDirectives(cspString) {
+    for (const rawToken of cspString.split(/;/)) {
+      const token = rawToken.trim();
+      if (token === "") continue;
+      const m = token.match(/^([^ ]+)(.*)$/);
+      if (m == null || m.length !== 3) continue;
+      const name = m[1].toLowerCase();
+      const values = m[2]
+        .trim()
+        .split(/ +/)
+        .filter((v) => v !== "");
+      yield { name, values };
+    }
   }
 
-  return cspString.replace(directiveRegex, `$1 ${hashesString}`);
+  /** @type {Set<string>} */
+  const processedDirectives = new Set();
+
+  for (const { name, values } of splitDirectives(cspString)) {
+    if (!processedDirectives.has(name)) {
+      processedDirectives.add(name);
+      yield { name, values };
+    }
+  }
 }
 
+/**
+ * @param {string} cspString
+ * @param {string} directiveName
+ * @param {string[]} hashes
+ * @return {string}
+ */
+function updateCSPDirective(cspString, directiveName, hashes) {
+  const hashValues = hashes.map((h) => `'${h}'`);
+
+  const csp = Array.from(parseCsp(cspString));
+  const index = csp.findIndex(({ name }) => name === directiveName);
+  if (index >= 0) {
+    csp[index].values = Array.from(
+      new Set([...csp[index].values, ...hashValues]),
+    ).toSorted();
+  } else {
+    csp.push({ name: directiveName, values: hashValues.toSorted() });
+  }
+
+  return (
+    csp.map(({ name, values }) => `${name} ${values.join(" ")}`).join("; ") +
+    ";"
+  );
+}
+
+/**
+ * @param {import("posthtml").Node} tree
+ * @returns {Promise<import("posthtml").Node>}
+ */
 const cspHashPlugin = async (tree) => {
   const scriptsToHash = [];
   const stylesToHash = [];
@@ -66,23 +115,29 @@ const cspHashPlugin = async (tree) => {
   const scriptHashes = await Promise.all(scriptsToHash.map(generateHash));
   const styleHashes = await Promise.all(stylesToHash.map(generateHash));
 
-  tree.match(
-    { tag: "meta", attrs: { "http-equiv": "Content-Security-Policy" } },
-    (node) => {
-      let csp = node.attrs.content || "";
-
-      if (scriptHashes.length > 0) {
-        csp = updateCSPDirective(csp, "script-src", scriptHashes);
-      }
-
-      if (styleHashes.length > 0) {
-        csp = updateCSPDirective(csp, "style-src", styleHashes);
-      }
-
-      node.attrs.content = csp;
+  tree.match({ tag: "meta" }, (node) => {
+    if (!node.attrs) {
       return node;
-    },
-  );
+    }
+
+    const httpEquiv = node.attrs["http-equiv"];
+    if (!httpEquiv || httpEquiv.toLowerCase() !== "content-security-policy") {
+      return node;
+    }
+
+    let csp = node.attrs.content ?? "";
+
+    if (scriptHashes.length > 0) {
+      csp = updateCSPDirective(csp, "script-src", scriptHashes);
+    }
+
+    if (styleHashes.length > 0) {
+      csp = updateCSPDirective(csp, "style-src", styleHashes);
+    }
+
+    node.attrs.content = csp;
+    return node;
+  });
 
   return tree;
 };
@@ -99,5 +154,5 @@ for await (const htmlPath of glob(`${distDir}/**/*.html`)) {
   processedCount++;
 }
 
-console.log(`[CSP] Updated CSP headers in ${processedCount} HTML files.`);
+console.log(`[CSP] Updated CSP meta tags in ${processedCount} HTML files.`);
 console.timeEnd("[CSP] Total time");

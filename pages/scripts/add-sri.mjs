@@ -1,48 +1,101 @@
-// SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+#!/usr/bin/env node
+
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { readFile, writeFile, glob } from "node:fs/promises";
-import { relative, sep } from "node:path";
-import { createHash } from "node:crypto";
+/// <reference types="node" />
+
+import { glob, readFile, writeFile } from "node:fs/promises";
+import { relative, resolve, sep } from "node:path";
 import posthtml from "posthtml";
 
-console.time("[SRI] Total time");
-
-const args = process.argv.slice(2);
-if (args.length < 1) {
-  console.error("Usage: node add-sri.mjs <dist-dir>");
-  process.exit(1);
+/**
+ * @param {string} urlString
+ * @returns {URL}
+ */
+function toNormalizedURL(urlString) {
+  const url = new URL(`${urlString}/`);
+  url.pathname = url.pathname.replace(/\/+$/, "/");
+  return url;
 }
 
-const distDir = args[0];
-const integrityMap = new Map();
+/**
+ * @param {string} filePath
+ * @returns {string}
+ */
+function toPosixPath(filePath) {
+  return filePath.split(sep).join("/");
+}
 
-console.log("[SRI] Hashing JS/CSS assets...");
+/**
+ * @param {string} url
+ * @return {boolean}
+ */
+function isExternalUrl(url) {
+  return (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("//")
+  );
+}
 
-for await (const filePath of glob(`${distDir}/**/*.{js,css}`)) {
+/**
+ * @param {string} filePath
+ * @returns {Promise<string>}
+ */
+async function sha384(filePath) {
   const content = await readFile(filePath);
-  const hash = createHash("sha384").update(content).digest("base64");
-
-  const relativePath = relative(distDir, filePath).split(sep).join("/");
-  integrityMap.set(relativePath, `sha384-${hash}`);
+  const hash = await crypto.subtle.digest("SHA-384", content);
+  return `sha384-${Buffer.from(hash).toString("base64")}`;
 }
 
-console.log(`[SRI] Processing HTML with ${integrityMap.size} hashed assets...`);
+async function createIntegrityMap(distDir, productionBaseUrl) {
+  /** @type {Map<string, string>} */
+  const integrityMap = new Map();
 
-const parser = posthtml([
-  (tree) => {
+  for await (const filePath of glob(`${distDir}/**/*.{js,css}`)) {
+    const relativePath = toPosixPath(relative(distDir, filePath));
+    const url = new URL(relativePath, productionBaseUrl);
+    integrityMap.set(url.pathname, await sha384(filePath));
+  }
+
+  return integrityMap;
+}
+
+/**
+ * @param {string} distDir
+ * @param {string} productionBaseUrl
+ * @param {Map<string, string>} integrityMap
+ * @return {import("posthtml").Plugin}
+ */
+function addSriPlugin(distDir, productionBaseUrl, integrityMap) {
+  /**
+   * @param {import("posthtml").Node} tree
+   * @return {Promise<import("posthtml").Node>}
+   */
+  return async function (tree) {
+    if (!tree.options || !tree.options.htmlPath) {
+      throw new Error("addSriPlugin requires htmlPath option");
+    }
+
+    const htmlRelativePath = toPosixPath(
+      relative(distDir, resolve(tree.options.htmlPath)),
+    );
+    const htmlBaseUrl = new URL(htmlRelativePath, productionBaseUrl);
+
     tree.match(
       [{ tag: "script" }, { tag: "link", attrs: { rel: "stylesheet" } }],
       (node) => {
-        const attrs = node.attrs || {};
-        const url = attrs.src || attrs.href;
+        const attrs = node.attrs ?? {};
+        const assetRef = attrs.src ?? attrs.href;
 
-        if (!url || url.startsWith("http") || url.startsWith("//")) return node;
+        if (!assetRef || isExternalUrl(assetRef)) {
+          return node;
+        }
 
-        const key = url.startsWith("/") ? url.slice(1) : url;
-        const integrity = integrityMap.get(key);
+        const url = new URL(assetRef, htmlBaseUrl);
+        const integrity = integrityMap.get(url.pathname);
 
         if (integrity) {
           node.attrs = {
@@ -55,14 +108,34 @@ const parser = posthtml([
       },
     );
     return tree;
-  },
+  };
+}
+
+if (process.argv.length !== 4) {
+  console.error("Usage: node add-sri.mjs <production-base-url> <dist-dir>");
+  process.exit(1);
+}
+
+console.time("[SRI] Total time");
+
+const PRODUCTION_BASE_URL = toNormalizedURL(process.argv[2]);
+const distDir = process.argv[3];
+
+console.log("[SRI] Hashing JS/CSS assets...");
+
+const integrityMap = await createIntegrityMap(distDir, PRODUCTION_BASE_URL);
+
+console.log(`[SRI] Processing HTML with ${integrityMap.size} hashed assets...`);
+
+const processor = posthtml([
+  addSriPlugin(distDir, PRODUCTION_BASE_URL, integrityMap),
 ]);
 
 let processedCount = 0;
 
 for await (const htmlPath of glob(`${distDir}/**/*.html`)) {
-  const html = await readFile(htmlPath, "utf-8");
-  const result = await parser.process(html);
+  const html = await readFile(htmlPath, "utf8");
+  const result = await processor.process(html, { htmlPath });
 
   await writeFile(htmlPath, result.html);
   processedCount++;
