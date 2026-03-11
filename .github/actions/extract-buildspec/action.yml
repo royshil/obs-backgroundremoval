@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Extract buildspec
+description: Extract and output plugin metadata from buildspec.json
+
+outputs:
+  name:
+    description: .name from buildspec.json
+    value: ${{ fromJSON(steps.extract.outputs.json).name }}
+  version:
+    description: .version from buildspec.json
+    value: ${{ fromJSON(steps.extract.outputs.json).version }}
+  displayName:
+    description: .displayName from buildspec.json
+    value: ${{ fromJSON(steps.extract.outputs.json).displayName }}
+  bundleId:
+    description: .platformConfig.macos.bundleId from buildspec.json
+    value: ${{ fromJSON(steps.extract.outputs.json).platformConfig.macos.bundleId }}
+
+runs:
+  using: composite
+  steps:
+    - name: Extract plugin metadata
+      id: extract
+      shell: bash
+      run: |
+        {
+          printf 'json='
+          jq -c . "$GITHUB_WORKSPACE/buildspec.json"
+        } >> "$GITHUB_OUTPUT"

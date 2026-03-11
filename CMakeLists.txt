@@ -1,358 +1,165 @@
-# SPDX-FileCopyrightText: 2018-2026 OBS Project and its contributors
-# SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
-# SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.28)
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/bootstrap.cmake" NO_POLICY_SCOPE)
+# Read buildspec.json for project metadata
+block(
+  PROPAGATE PLUGIN_NAME PLUGIN_VERSION PREBUILT_VERSION QT6_VERSION MACOS_BUNDLEID
+)
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.json" FILE_CONTENT)
+  string(JSON PLUGIN_NAME GET "${FILE_CONTENT}" name)
+  string(JSON PLUGIN_VERSION GET "${FILE_CONTENT}" version)
+  string(JSON PREBUILT_VERSION GET "${FILE_CONTENT}" dependencies prebuilt version)
+  string(JSON QT6_VERSION GET "${FILE_CONTENT}" dependencies qt6 version)
+  string(JSON MACOS_BUNDLEID GET "${FILE_CONTENT}" platformConfig macos bundleId)
+endblock()
 
-project(${_name} VERSION ${_version})
+if(DEFINED ENV{GITHUB_RUN_ID})
+  set(PLUGIN_BUILD_NUMBER "$ENV{GITHUB_RUN_ID}")
+else()
+  set(PLUGIN_BUILD_NUMBER "1")
+endif()
 
-option(ENABLE_FRONTEND_API "Use obs-frontend-api for UI functionality" OFF)
-option(ENABLE_QT "Use Qt functionality" OFF)
+project("${PLUGIN_NAME}" VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
 
+# Build options
 set(VCPKG_TARGET_TRIPLET "" CACHE STRING "Vcpkg target triplet to use")
-option(USE_PKGCONFIG "Use pkg-config to find dependencies" ON)
-option(USE_SYSTEM_ONNXRUNTIME "Use system ONNX Runtime" ON)
 
+# Basic configuration
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED TRUE)
+set(CMAKE_C_EXTENSIONS FALSE)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+set(CMAKE_CXX_EXTENSIONS FALSE)
+
+set(CMAKE_COMPILE_WARNING_AS_ERROR TRUE)
+
+if(MSVC)
+  add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+elseif(APPLE)
+  add_link_options("-Wl,-no_warn_duplicate_libraries")
+endif()
+
+# Include paths
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/common")
+if(MSVC)
+  list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/windows")
+  list(
+    PREPEND
+    CMAKE_PREFIX_PATH
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-qt6-${QT6_VERSION}-x64"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-${PREBUILT_VERSION}-x64"
+  )
+elseif(APPLE)
+  list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos")
+  list(
+    PREPEND
+    CMAKE_PREFIX_PATH
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/Frameworks"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-qt6-${QT6_VERSION}-universal"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-${PREBUILT_VERSION}-universal"
+  )
+else()
+  list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/linux")
+endif()
+
+if(VCPKG_TARGET_TRIPLET STREQUAL "")
+  message(STATUS "Build without vcpkg")
+else()
+  message(STATUS "Build with vcpkg with target triplet: ${VCPKG_TARGET_TRIPLET}")
+  list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/vcpkg_installed/${VCPKG_TARGET_TRIPLET}")
+endif()
+
+# Common initialization
+include(bootstrap)
 include(compilerconfig)
 include(defaults)
 include(helpers)
 
-add_library(${CMAKE_PROJECT_NAME} MODULE)
+# Dependent packages
 
+## OBS and Qt
 find_package(libobs REQUIRED)
+find_package(obs-frontend-api REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Core)
+
+## CURL
+find_package(CURL CONFIG QUIET)
+if(NOT CURL_FOUND)
+  find_package(CURL QUIET)
+endif()
+
+if(NOT CURL_FOUND AND PkgConfig_FOUND)
+  pkg_check_modules(PC_CURL libcurl)
+  if(PC_CURL_FOUND)
+    add_library(CURL::libcurl INTERFACE IMPORTED)
+    target_link_libraries(CURL::libcurl INTERFACE ${PC_CURL_LIBRARIES})
+    target_include_directories(CURL::libcurl INTERFACE ${PC_CURL_INCLUDE_DIRS})
+    target_compile_definitions(CURL::libcurl INTERFACE ${PC_CURL_CFLAGS_OTHER})
+    target_link_directories(CURL::libcurl INTERFACE ${PC_CURL_LIBRARY_DIRS})
+    set(CURL_FOUND TRUE)
+  endif()
+endif()
+
+if(NOT CURL_FOUND)
+  message(FATAL_ERROR "CURL not found via CMake or pkg-config.")
+endif()
+
+## OpenCV
+find_package(OpenCV CONFIG QUIET)
+if(NOT OpenCV_FOUND)
+  find_package(OpenCV QUIET)
+endif()
+
+if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
+  pkg_check_modules(PC_OPENCV opencv4)
+  if(PC_OPENCV_FOUND)
+    add_library(opencv_core INTERFACE IMPORTED)
+    target_link_libraries(opencv_core INTERFACE opencv_core)
+    target_include_directories(opencv_core INTERFACE ${PC_OPENCV_INCLUDE_DIRS})
+    target_compile_definitions(opencv_core INTERFACE ${PC_OPENCV_CFLAGS_OTHER})
+    target_link_directories(opencv_core INTERFACE ${PC_OPENCV_LIBRARY_DIRS})
+    add_library(opencv_imgproc INTERFACE IMPORTED)
+    target_link_libraries(opencv_imgproc INTERFACE opencv_imgproc)
+    target_link_directories(opencv_imgproc INTERFACE ${PC_OPENCV_LIBRARY_DIRS})
+    set(OpenCV_FOUND TRUE)
+
+    add_library(OpenCV::opencv_core ALIAS opencv_core)
+    add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
+  endif()
+endif()
+
+if(NOT OpenCV_FOUND)
+  message(FATAL_ERROR "OpenCV not found via CMake or pkg-config.")
+endif()
+
+add_library(OpenCV::opencv_core ALIAS opencv_core)
+add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
+
+## ONNX Runtime
+include(onnxruntime)
+
+# Plugin build definitions
+add_library(${CMAKE_PROJECT_NAME} MODULE)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
-
-if(ENABLE_FRONTEND_API)
-  find_package(obs-frontend-api REQUIRED)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
-endif()
-
-if(ENABLE_QT)
-  find_package(Qt6 COMPONENTS Widgets Core)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets)
-  target_compile_options(
-    ${CMAKE_PROJECT_NAME}
-    PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
-  )
-  set_target_properties(
-    ${CMAKE_PROJECT_NAME}
-    PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON
-  )
-endif()
-
-if(NOT VCPKG_TARGET_TRIPLET STREQUAL "")
-  # Use vcpkg to find dependencies (Official binary)
-
-  message(STATUS "Using vcpkg with target triplet: ${VCPKG_TARGET_TRIPLET}")
-
-  list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/.deps_vendor/vcpkg_installed/${VCPKG_TARGET_TRIPLET}")
-
-  find_package(CURL CONFIG REQUIRED)
-  find_package(OpenCV CONFIG REQUIRED)
-
-  add_library(OpenCV::opencv_core ALIAS opencv_core)
-  add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
-elseif(USE_PKGCONFIG)
-  # Use pkg-config to find dependencies (Arch Linux, etc.)
-
-  message(STATUS "Using pkg-config to find dependencies")
-
-  find_package(PkgConfig REQUIRED)
-
-  # CURL
-  pkg_check_modules(PC_CURL REQUIRED libcurl)
-  add_library(CURL::libcurl INTERFACE IMPORTED)
-  target_link_libraries(CURL::libcurl INTERFACE ${PC_CURL_LIBRARIES})
-  target_include_directories(CURL::libcurl INTERFACE ${PC_CURL_INCLUDE_DIRS})
-  target_compile_definitions(CURL::libcurl INTERFACE ${PC_CURL_CFLAGS_OTHER})
-  target_link_directories(CURL::libcurl INTERFACE ${PC_CURL_LIBRARY_DIRS})
-
-  # OpenCV
-  pkg_check_modules(PC_OPENCV REQUIRED opencv4)
-  add_library(OpenCV::opencv_core INTERFACE IMPORTED)
-  target_link_libraries(OpenCV::opencv_core INTERFACE opencv_core)
-  target_include_directories(OpenCV::opencv_core INTERFACE ${PC_OPENCV_INCLUDE_DIRS})
-  target_compile_definitions(OpenCV::opencv_core INTERFACE ${PC_OPENCV_CFLAGS_OTHER})
-  target_link_directories(OpenCV::opencv_core INTERFACE ${PC_OPENCV_LIBRARY_DIRS})
-  add_library(OpenCV::opencv_imgproc INTERFACE IMPORTED)
-  target_link_libraries(OpenCV::opencv_imgproc INTERFACE opencv_imgproc)
-  target_link_directories(OpenCV::opencv_imgproc INTERFACE ${PC_OPENCV_LIBRARY_DIRS})
-else()
-  # Let system find dependencies (Fallback)
-
-  message(STATUS "Using system to find dependencies")
-
-  find_package(CURL REQUIRED)
-  find_package(OpenCV CONFIG REQUIRED)
-endif()
-
-if(USE_SYSTEM_ONNXRUNTIME)
-  find_package(onnxruntime CONFIG REQUIRED)
-else()
-  if(APPLE)
-    list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_vcpkg_installed/universal-osx")
-  elseif(MSVC)
-    list(
-      PREPEND
-      CMAKE_PREFIX_PATH
-      "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x64/Release/vcpkg_installed/x64-windows-static-md"
-    )
-  else()
-    list(
-      PREPEND
-      CMAKE_PREFIX_PATH
-      "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x86_64/Release/vcpkg_installed/x64-linux"
-    )
-  endif()
-
-  find_package(absl CONFIG REQUIRED)
-  find_package(Boost COMPONENTS mp11 REQUIRED)
-  find_package(date CONFIG REQUIRED)
-  find_package(Eigen3 CONFIG REQUIRED)
-  find_package(flatbuffers CONFIG REQUIRED)
-  find_package(Microsoft.GSL 4.0 CONFIG REQUIRED)
-  find_package(nlohmann_json CONFIG REQUIRED)
-  find_package(ONNX CONFIG REQUIRED)
-  find_package(protobuf CONFIG REQUIRED)
-  find_package(re2 CONFIG REQUIRED)
-
-  if(APPLE)
-    find_package(Iconv REQUIRED)
-
-    add_library(cpuinfo STATIC IMPORTED)
-    set_target_properties(
-      cpuinfo
-      PROPERTIES
-        IMPORTED_LOCATION
-          "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/${CMAKE_STATIC_LIBRARY_PREFIX}cpuinfo${CMAKE_STATIC_LIBRARY_SUFFIX}"
-    )
-    add_library(cpuinfo::cpuinfo ALIAS cpuinfo)
-  elseif(MSVC)
-    find_package(cpuinfo CONFIG REQUIRED)
-  else()
-    find_package(Iconv REQUIRED)
-    find_package(cpuinfo CONFIG REQUIRED)
-  endif()
-
-  add_library(onnxruntime INTERFACE)
-
-  set(
-    ORT_COMPONENTS
-    onnxruntime_session
-    onnxruntime_optimizer
-    onnxruntime_providers
-    onnxruntime_lora
-    onnxruntime_framework
-    onnxruntime_graph
-    onnxruntime_util
-    onnxruntime_mlas
-    onnxruntime_common
-    onnxruntime_flatbuffers
-  )
-
-  if(APPLE)
-    list(APPEND ORT_COMPONENTS onnxruntime_providers_coreml coreml_proto kleidiai)
-  endif()
-
-  foreach(name IN LISTS ORT_COMPONENTS)
-    add_library(${name} STATIC IMPORTED)
-    set_target_properties(
-      ${name}
-      PROPERTIES
-        IMPORTED_LOCATION
-          "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${name}${CMAKE_STATIC_LIBRARY_SUFFIX}"
-    )
-    add_library(onnxruntime::${name} ALIAS ${name})
-  endforeach()
-
-  target_include_directories(
-    onnxruntime
-    INTERFACE
-      "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/session"
-      "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/providers/cpu"
-      "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/providers/coreml"
-  )
-
-  target_link_libraries(
-    onnxruntime
-    INTERFACE
-      onnxruntime::onnxruntime_session
-      onnxruntime::onnxruntime_optimizer
-      onnxruntime::onnxruntime_providers
-      onnxruntime::onnxruntime_lora
-      onnxruntime::onnxruntime_framework
-      onnxruntime::onnxruntime_graph
-      onnxruntime::onnxruntime_util
-      onnxruntime::onnxruntime_mlas
-      onnxruntime::onnxruntime_common
-      onnxruntime::onnxruntime_flatbuffers
-      nlohmann_json::nlohmann_json
-      ONNX::onnx
-      ONNX::onnx_proto
-      protobuf::libprotobuf-lite
-      re2::re2
-      Boost::headers
-      safeint_interface
-      flatbuffers::flatbuffers
-      Microsoft.GSL::GSL
-      absl::synchronization
-      absl::tracing_internal
-      absl::time
-      absl::time_zone
-      absl::civil_time
-      absl::symbolize
-      absl::demangle_internal
-      absl::demangle_rust
-      absl::stacktrace
-      absl::debugging_internal
-      absl::malloc_internal
-      absl::kernel_timeout_internal
-      absl::graphcycles_internal
-      absl::str_format
-      absl::str_format_internal
-      absl::flat_hash_set
-      absl::flat_hash_map
-      absl::algorithm_container
-      absl::raw_hash_map
-      absl::raw_hash_set
-      absl::prefetch
-      absl::hashtablez_sampler
-      absl::hashtable_debug_hooks
-      absl::hashtable_control_bytes
-      absl::hash_policy_traits
-      absl::common_policy_traits
-      absl::hash_container_defaults
-      absl::hash_function_defaults
-      absl::cord
-      absl::inlined_vector
-      absl::inlined_vector_internal
-      absl::span
-      absl::crc_cord_state
-      absl::crc32c
-      absl::cordz_update_tracker
-      absl::cordz_update_scope
-      absl::cordz_info
-      absl::cordz_functions
-      absl::cord_internal
-      absl::container_common
-      absl::container_memory
-      absl::hash
-      absl::variant
-      absl::optional
-      absl::strings
-      absl::charset
-      absl::strings_internal
-      absl::string_view
-      absl::int128
-      absl::compare
-      absl::function_ref
-      absl::any_invocable
-      absl::city
-      absl::bits
-      absl::endian
-      absl::flags
-      absl::fixed_array
-      absl::weakly_mixed_integer
-      absl::memory
-      absl::meta
-      absl::throw_delegate
-      absl::iterator_traits_internal
-      absl::algorithm
-      absl::compressed_tuple
-      absl::utility
-      absl::base
-      absl::type_traits
-      absl::spinlock_wait
-      absl::raw_logging_internal
-      absl::errno_saver
-      absl::nullability
-      absl::log_severity
-      absl::dynamic_annotations
-      absl::base_internal
-      absl::atomic_hook
-      absl::core_headers
-      absl::config
-      absl::absl_log
-      absl::log_internal_log_impl
-      absl::absl_check
-      absl::log_internal_check_impl
-      date::date
-      Eigen3::Eigen
-      Threads::Threads
-      cpuinfo::cpuinfo
-  )
-
-  if(APPLE)
-    target_link_libraries(
-      onnxruntime
-      INTERFACE Iconv::Iconv onnxruntime::onnxruntime_providers_coreml coreml_proto onnxruntime::kleidiai
-    )
-  elseif(NOT MSVC)
-    target_link_libraries(onnxruntime INTERFACE Iconv::Iconv dl rt)
-  endif()
-
-  add_library(safeint_interface IMPORTED INTERFACE)
-
-  add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
-endif()
-
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets)
+target_compile_options(
+  ${CMAKE_PROJECT_NAME}
+  PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
+)
+set_target_properties(
+  ${CMAKE_PROJECT_NAME}
+  PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON
+)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
-
 add_subdirectory(src/update-checker/CurlClient)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CurlClient OpenCV::opencv_core OpenCV::opencv_imgproc)
-
-if(NOT APPLE AND USE_SYSTEM_ONNXRUNTIME)
-  # Check for ONNX Runtime Execution Providers
-  include(CheckLibraryExists)
-
-  check_library_exists(
-    onnxruntime::onnxruntime
-    OrtSessionOptionsAppendExecutionProvider_CUDA
-    onnxruntime_c_api.h
-    HAVE_ONNXRUNTIME_CUDA_EP
-  )
-  if(HAVE_ONNXRUNTIME_CUDA_EP)
-    message(STATUS "ONNX Runtime CUDA Execution Provider found")
-    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_CUDA_EP)
-  endif()
-
-  check_library_exists(
-    onnxruntime::onnxruntime
-    OrtSessionOptionsAppendExecutionProvider_ROCM
-    onnxruntime_c_api.h
-    HAVE_ONNXRUNTIME_ROCM_EP
-  )
-  if(HAVE_ONNXRUNTIME_ROCM_EP)
-    message(STATUS "ONNX Runtime ROCM Execution Provider found")
-    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_ROCM_EP)
-  endif()
-
-  check_library_exists(
-    onnxruntime::onnxruntime
-    OrtSessionOptionsAppendExecutionProvider_MIGraphX
-    onnxruntime_c_api.h
-    HAVE_ONNXRUNTIME_MIGRAPHX_EP
-  )
-  if(HAVE_ONNXRUNTIME_MIGRAPHX_EP)
-    message(STATUS "ONNX Runtime MIGraphX Execution Provider found")
-    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_MIGRAPHX_EP)
-  endif()
-
-  check_library_exists(
-    onnxruntime::onnxruntime
-    OrtSessionOptionsAppendExecutionProvider_Tensorrt
-    onnxruntime_c_api.h
-    HAVE_ONNXRUNTIME_TENSORRT_EP
-  )
-  if(HAVE_ONNXRUNTIME_TENSORRT_EP)
-    message(STATUS "ONNX Runtime TensorRT Execution Provider found")
-    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_TENSORRT_EP)
-  endif()
-endif()
 
 target_sources(
   ${CMAKE_PROJECT_NAME}
@@ -387,4 +194,4 @@ else()
   )
 endif()
 
-set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
+set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PLUGIN_NAME})

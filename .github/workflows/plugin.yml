@@ -1,0 +1,509 @@
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Plugin CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ["*"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VCPKG_BINARY_SOURCES: clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}
+  PLUGINBINARY_RETENTION_DAYS: "7"
+  HOMEBREW_NO_ANALYTICS: "1"
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_ENV_HINTS: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+
+jobs:
+  build-windows-x64:
+    name: Build plugin for Windows x64
+
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Extract plugin metadata
+        id: metadata
+        uses: ./.github/actions/extract-buildspec
+
+      - name: Set up ccache
+        uses: ./.github/actions/setup-ccache
+        with:
+          version: "4.12.3"
+
+      # flatbuffers package is required to build ONNX Runtime with reduced operator config file
+      - name: Set up Python for plugin build
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          pip-install: flatbuffers
+
+      - name: Install dependencies from vcpkg (Windows x64)
+        shell: bash
+        run: |
+          VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT" "$VCPKG_INSTALLATION_ROOT/vcpkg" install \
+            --x-install-root=./.deps_vendor/vcpkg_installed \
+            --triplet=x64-windows-static-md-obs
+
+      - name: Download dependencies
+        shell: bash
+        run: cmake -P ./scripts/download_deps.cmake
+
+      - name: Build libobs
+        shell: pwsh
+        run: ./scripts/build_libobs_windows.ps1
+
+      # Load ccache built in the build-ort workflow, which runs on regular basis
+      - name: Restore ONNX Runtime ccache (Windows x64)
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/.ort_ccache
+          key: ort-ccache-${{ runner.os }}-x64-${{ hashFiles('scripts/build_ort_windows_x64.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          restore-keys: |
+            ort-ccache-${{ runner.os }}-x64-
+
+      - name: Build ONNX Runtime (Windows x64)
+        shell: pwsh
+        env:
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPILERCHECK: content
+          CCACHE_COMPRESS: "true"
+          CCACHE_DEPEND: "true"
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_NODIRECT: "true"
+          CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
+        run: ./scripts/build_ort_windows_x64.ps1
+
+      - name: Show ccache stats for ONNX Runtime
+        if: always()
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+        run: |
+          {
+            echo "## Ccache stats for ONNX Runtime"
+            echo
+            echo '```'
+            ccache -s
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Configure (Windows x64)
+        shell: bash
+        run: cmake --preset windows-ci-x64
+
+      - name: Build (Windows x64)
+        shell: bash
+        run: cmake --build --preset windows-ci-x64
+
+      - name: Package (Windows x64)
+        shell: pwsh
+        run: ./scripts/package_plugin_windows.ps1 -Target x64
+
+      - name: Upload Plugin Binary
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ steps.metadata.outputs.name }}-pluginbinary-windows-x64-${{ github.run_id }}
+          path: |
+            release/*-windows-x64.zip
+            release/*-windows-x64-pdb.zip
+
+  build-macos-universal:
+    name: Build plugin for macOS universal
+
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Extract plugin metadata
+        id: metadata
+        uses: ./.github/actions/extract-buildspec
+
+      - name: Set up ccache
+        uses: ./.github/actions/setup-ccache
+        with:
+          version: "4.12.3"
+
+      # flatbuffers package is required to build ONNX Runtime with reduced operator config file
+      - name: Set up Python for plugin build
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          pip-install: flatbuffers
+
+      - name: Install dependencies from vcpkg (macOS arm64)
+        shell: bash
+        run: |
+          VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT" "$VCPKG_INSTALLATION_ROOT/vcpkg" install \
+            --x-install-root=./.deps_vendor/vcpkg_installed_arm64 \
+            --triplet=arm64-osx-obs
+
+      - name: Install dependencies from vcpkg (macOS x64)
+        shell: bash
+        run: |
+          VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT" "$VCPKG_INSTALLATION_ROOT/vcpkg" install \
+            --x-install-root=./.deps_vendor/vcpkg_installed_x64 \
+            --triplet=x64-osx-obs
+
+      - name: Make universal binaries for vcpkg dependencies (macOS universal)
+        shell: bash
+        run: |
+          ./scripts/merge_vcpkg_installed_into_macos_universal.sh \
+            ./.deps_vendor/vcpkg_installed_arm64/arm64-osx-obs \
+            ./.deps_vendor/vcpkg_installed_x64/x64-osx-obs \
+            ./.deps_vendor/vcpkg_installed/universal-osx-obs
+
+      - name: Download dependencies
+        shell: bash
+        run: cmake -P ./scripts/download_deps.cmake
+
+      - name: Build libobs (macOS universal)
+        shell: bash
+        env:
+          ENABLE_XCBEAUTIFY: ${{ runner.debug != '1' }}
+        run: ./scripts/build_libobs_macos.sh
+
+      # Load ccache built in the build-ort workflow, which runs on regular basis
+      - name: Restore ONNX Runtime ccache (macOS universal)
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/.ort_ccache
+          key: ort-ccache-${{ runner.os }}-universal-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          restore-keys: ort-ccache-${{ runner.os }}-universal-
+
+      - name: Build ONNX Runtime (macOS universal)
+        shell: bash
+        env:
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPILERCHECK: content
+          CCACHE_COMPRESS: "true"
+          CCACHE_DEPEND: "true"
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_DIRECT: "true"
+          CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
+        run: ./scripts/build_ort_macos.sh
+
+      - name: Show ccache stats for ONNX Runtime
+        if: always()
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+        run: |
+          {
+            echo "## Ccache stats for ONNX Runtime"
+            echo
+            echo '```'
+            ccache -s
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Configure (macOS universal)
+        shell: bash
+        run: cmake --preset macos-ci
+
+      - name: Build (macOS universal)
+        shell: bash
+        run: set -euo pipefail && cmake --build --preset macos-ci | tee ./Build.txt | xcbeautify
+
+      - name: Set up macOS Signing Certificates
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        id: codesign
+        uses: ./.github/actions/setup-macos-codesigning
+        with:
+          MACOS_SIGNING_APPLICATION_IDENTITY: ${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}
+          MACOS_SIGNING_CERT: ${{ secrets.MACOS_SIGNING_CERT }}
+          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+
+      - name: Package (macOS universal)
+        shell: bash
+        env:
+          NO_CODESIGN: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')) }}
+          MACOS_SIGNING_APPLICATION_IDENTITY: ${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}
+          MACOS_SIGNING_INSTALLER_IDENTITY: ${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}
+          PLUGIN_NAME: ${{ steps.metadata.outputs.name }}
+          PLUGIN_VERSION: ${{ steps.metadata.outputs.version }}
+          BUNDLE_ID: ${{ steps.metadata.outputs.bundleId }}
+          DISPLAY_NAME: ${{ steps.metadata.outputs.displayName }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          cmake --install build_macos --config RelWithDebInfo --strip \
+            --prefix ./release/payload/Library/Application\ Support/obs-studio/plugins
+
+          PLUGIN_BUNDLE=(./release/payload/Library/Application\ Support/obs-studio/plugins/*.plugin)
+
+          if [[ "${#PLUGIN_BUNDLE[@]}" -ne 1 ]]; then
+            echo "Error: PLUGIN_BUNDLE = ${PLUGIN_BUNDLE[@]}"
+            exit 1
+          fi
+
+          if [[ "$NO_CODESIGN" != true ]]; then
+            codesign --sign "$MACOS_SIGNING_APPLICATION_IDENTITY" --force --deep --options runtime --timestamp "${PLUGIN_BUNDLE[0]}"
+          fi
+
+          pkgbuild --root ./release/payload --identifier "$BUNDLE_ID" --version "$PLUGIN_VERSION" ./release/component.pkg
+
+          {
+            printf '<?xml version="1.0" encoding="utf-8"?>\n'
+            printf '<installer-gui-script minSpecVersion="2">\n'
+            printf '  <title>%s</title>\n' "$DISPLAY_NAME"
+            printf '  <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64"/>\n'
+            printf '  <domains enable_localSystem="false" enable_currentUserHome="true" enable_anywhere="false"/>\n'
+            printf '  <choices-outline>\n'
+            printf '    <line choice="default"/>\n'
+            printf '  </choices-outline>\n'
+            printf '  <choice id="default" title="%s" visible="false">\n' "$DISPLAY_NAME"
+            printf '    <pkg-ref id="%s"/>\n' "$BUNDLE_ID"
+            printf '  </choice>\n'
+            printf '  <pkg-ref id="%s" version="%s" onConclusion="none" auth="none">component.pkg</pkg-ref>\n' "$BUNDLE_ID" "$PLUGIN_VERSION"
+            printf '</installer-gui-script>\n'
+          } | tee ./release/distribution.xml
+
+          PRODUCTBUILD_ARGS=(
+            --distribution release/distribution.xml
+            --package-path release
+          )
+
+          if [[ "$NO_CODESIGN" != true ]]; then
+            PRODUCTBUILD_ARGS+=(--sign "$MACOS_SIGNING_INSTALLER_IDENTITY")
+          fi
+
+          productbuild "${PRODUCTBUILD_ARGS[@]}" "./release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-universal.pkg"
+
+      - name: Notarize Installer
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.MACOS_NOTARIZATION_USERNAME }}
+          APPLE_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
+          TEAM_ID: ${{ steps.codesign.outputs.CODESIGN_TEAM }}
+        run: |
+          set -euo pipefail
+
+          xcrun notarytool submit ./release/*-macos-universal.pkg \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+          xcrun stapler staple ./release/*-macos-universal.pkg
+
+      - name: Archive Plugin dSYM
+        shell: bash
+        working-directory: ${{ github.workspace }}/build_macos/RelWithDebInfo
+        run: tar -cJf "$GITHUB_WORKSPACE/release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-universal.dSYM.tar.xz" "$PLUGIN_NAME.plugin.dSYM"
+
+      - name: Upload Plugin Binary
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ steps.metadata.outputs.name }}-pluginbinary-${{ runner.os }}-universal-${{ github.run_id }}
+          path: |
+            release/*-macos-universal.pkg
+            release/*-macos-universal.dSYM.tar.xz
+          if-no-files-found: error
+          retention-days: ${{ env.PLUGINBINARY_RETENTION_DAYS }}
+
+      - name: Upload Logs
+        if: always() && runner.debug == '1'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: logs-plugin-${{ runner.os }}-${{ github.run_id }}
+          path: Build.txt
+
+  build-ubuntu-x86_64:
+    name: Build plugin for Ubuntu x86_64
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Extract plugin metadata
+        id: metadata
+        uses: ./.github/actions/extract-buildspec
+
+      - name: Set up ccache
+        uses: ./.github/actions/setup-ccache
+        with:
+          version: "4.12.3"
+
+      # flatbuffers package is required to build ONNX Runtime with reduced operator config file
+      - name: Set up Python for plugin build
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          pip-install: flatbuffers
+
+      - name: Install dependencies from apt (Ubuntu x86_64)
+        run: |
+          echo "man-db man-db/auto-update boolean false" | sudo debconf-set-selections
+          sudo apt-get remove --purge -y man-db
+          sudo add-apt-repository -y ppa:obsproject/obs-studio
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgles2-mesa-dev \
+            libqt6svg6-dev \
+            libsimde-dev \
+            obs-studio \
+            qt6-base-dev \
+            qt6-base-private-dev
+
+      - name: Install dependencies from vcpkg (Ubuntu x86_64)
+        shell: bash
+        run: |
+          VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT" "$VCPKG_INSTALLATION_ROOT/vcpkg" install \
+            --x-install-root=./.deps_vendor/vcpkg_installed \
+            --triplet=x86_64-linux-obs
+
+      - name: Download dependencies
+        shell: bash
+        run: cmake -P ./scripts/download_deps.cmake
+
+      # Load ccache built in the build-ort workflow, which runs on regular basis
+      - name: Restore ONNX Runtime ccache (Ubuntu x86_64)
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/.ort_ccache
+          key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_ubuntu.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          restore-keys: ort-ccache-${{ runner.os }}-x86_64-
+
+      - name: Build ONNX Runtime (Ubuntu x86_64)
+        shell: bash
+        env:
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPILERCHECK: content
+          CCACHE_COMPRESS: "true"
+          CCACHE_DEPEND: "true"
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_DIRECT: "true"
+          CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
+        run: ./scripts/build_ort_ubuntu.sh
+
+      - name: Show ccache stats for ONNX Runtime
+        if: always()
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+        run: |
+          {
+            echo "## Ccache stats for ONNX Runtime"
+            echo
+            echo '```'
+            ccache -s
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Configure (Ubuntu x86_64)
+        shell: bash
+        run: cmake --preset ubuntu-ci-x86_64
+
+      - name: Build (Ubuntu x86_64)
+        shell: bash
+        run: make --build --preset ubuntu-ci-x86_64
+
+      - name: Package (Ubuntu x86_64)
+        shell: bash
+        working-directory: ${{ github.workspace }}/build_x86_64
+        run: cpack -G DEB
+
+      - name: Upload Plugin Binary
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ steps.metadata.outputs.name }}-pluginbinary-${{ runner.os }}-x86_64-${{ github.run_id }}
+          path: |
+            release/*.deb
+            release/*.ddeb
+          if-no-files-found: error
+          retention-days: ${{ env.PLUGINBINARY_RETENTION_DAYS }}
+
+  create-release:
+    name: Create Release
+
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [build-windows-x64, build-macos-universal, build-ubuntu-x86_64]
+
+    runs-on: ubuntu-slim
+
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Extract plugin metadata
+        id: metadata
+        uses: ./.github/actions/extract-buildspec
+
+      - name: Select secure directory
+        id: secure-dir
+        run: |
+          {
+            printf 'artifacts='
+            mktemp -d -p "$RUNNER_TEMP" "artifacts.XXXXXXXXXX"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download plugin binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: ${{ steps.metadata.outputs.name }}-pluginbinary-*
+          merge-multiple: true
+          path: ${{ steps.secure-dir.outputs.artifacts }}
+
+      - name: Attest plugin binary artifacts
+        id: attest
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-path: ${{ steps.secure-dir.outputs.artifacts }}/*
+
+      - name: Create Draft Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        working-directory: ${{ steps.secure-dir.outputs.artifacts }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+
+          gh release delete "$TAG_NAME" --yes || true
+
+          GH_RELEASE_CREATE_ARGS=(
+            "$BUNDLE_PATH"
+            --draft
+            --generate-notes
+            --title "$TAG_NAME"
+          )
+
+          gh release create "$TAG_NAME" ./* "${GH_RELEASE_CREATE_ARGS[@]}"

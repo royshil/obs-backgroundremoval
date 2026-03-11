@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Check CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ["*"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-clang-format:
+    name: Check clang-format
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install clang-format with Linuxbrew
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install obsproject/tools/clang-format@19
+          echo "$(brew --prefix obsproject/tools/clang-format@19)/bin" >> "$GITHUB_PATH"
+
+      - name: Check with clang-format
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-files "*.c" "*.cpp" "*.h" "*.hpp" | xargs --no-run-if-empty clang-format-19 --dry-run --Werror
+
+  check-gersemi:
+    name: Check gersemi
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install gersemi with Linuxbrew
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install obsproject/tools/gersemi
+          echo "$(brew --prefix obsproject/tools/gersemi)/bin" >> "$GITHUB_PATH"
+
+      - name: Check with clang-format
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-files CMakeLists.txt "*.cmake" | xargs --no-run-if-empty gersemi --check

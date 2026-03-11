@@ -23,7 +23,7 @@
 #
 # Validate if this Pull Request meets our project criteria (royshil/obs-backgroundremoval). COPILOT_GITHUB_TOKEN needs to be configured.
 #
-# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"a9c88be07d2f889a81a0f394843193d98b902bfe5f6b49fc2aa8b05f1d3a50d0","compiler_version":"v0.56.0","strict":true}
+# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"4f6810763d928051a0c2250c9a421359d0cf0d7307efc4ff54e7b1a0d078d22a","compiler_version":"v0.56.0","strict":true}
 
 name: "Pull Request Validator"
 "on":

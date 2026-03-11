@@ -1,7 +1,6 @@
-# SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 
 name: REUSE
 
@@ -28,14 +27,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - name: Set up Python and REUSE tool
-        uses: actions/setup-python@v6
+      - name: Set up Python for REUSE
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
           pip-install: reuse
 
-      - name: Run REUSE lint
+      - name: Lint with REUSE
         shell: bash
-        run: set -euo pipefail && reuse lint | tee -a "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -euo pipefail
+          reuse lint | tee -a "$GITHUB_STEP_SUMMARY"

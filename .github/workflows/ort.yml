@@ -1,0 +1,227 @@
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: ORT CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  schedule:
+    - cron: 17 4 * * *
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CCACHE_BASEDIR: ${{ github.workspace }}
+  CCACHE_COMPILERCHECK: content
+  CCACHE_COMPRESS: "true"
+  CCACHE_DEPEND: "true"
+  CCACHE_LOGFILE: ${{ github.workspace }}/ort-ccache.log
+  CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
+  ORT_CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+  VCPKG_BINARY_SOURCES: "clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}"
+  HOMEBREW_NO_ANALYTICS: "1"
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_ENV_HINTS: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+
+jobs:
+  build-windows-x64:
+    name: Build ORT for Windows x64
+
+    runs-on: windows-2022
+    timeout-minutes: 180
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up ccache
+        uses: ./.github/actions/setup-ccache
+        with:
+          version: "4.12.3"
+
+      # flatbuffers package is required to build ONNX Runtime with reduced operator config file
+      - name: Set up Python for ONNX Runtime build
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          pip-install: flatbuffers
+
+      # Discard the existing cache whenever build scripts change, ensuring a compact and consistent cache.
+      - name: Restore ONNX Runtime ccache (Windows x64)
+        id: restore-ort-ccache
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/.ort_ccache
+          key: ort-ccache-${{ runner.os }}-x64-${{ hashFiles('scripts/build_ort_windows_x64.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+
+      - name: Build ONNX Runtime (Windows x64)
+        shell: pwsh
+        env:
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPILERCHECK: content
+          CCACHE_COMPRESS: "true"
+          CCACHE_DEPEND: "true"
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_NODIRECT: "true"
+          CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
+        run: ./scripts/build_ort_windows_x64.ps1
+
+      - name: Show ccache stats for ONNX Runtime
+        if: always()
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+        run: |
+          {
+            echo "## Ccache stats for ONNX Runtime"
+            echo
+            echo '```'
+            ccache -s
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save ORT Ccache
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/.ort_ccache
+          key: ${{ steps.restore-ort-ccache.outputs.cache-primary-key }}
+
+  build-macos-universal:
+    name: Build ORT for macOS universal
+
+    runs-on: macos-15
+    timeout-minutes: 180
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up ccache
+        uses: ./.github/actions/setup-ccache
+        with:
+          version: "4.12.3"
+
+      # flatbuffers package is required to build ONNX Runtime with reduced operator config file
+      - name: Set up Python for ONNX Runtime build
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          pip-install: flatbuffers
+
+      # Discard the existing cache whenever build scripts change, ensuring a compact and consistent cache.
+      - name: Restore ONNX Runtime ccache (macOS universal)
+        id: restore-ort-ccache
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/.ort_ccache
+          key: ort-ccache-${{ runner.os }}-universal-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+
+      - name: Build ONNX Runtime (macOS universal)
+        shell: bash
+        env:
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPILERCHECK: content
+          CCACHE_COMPRESS: "true"
+          CCACHE_DEPEND: "true"
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_DIRECT: "true"
+          CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
+        run: ./scripts/build_ort_macos.sh
+
+      - name: Show ccache stats for ONNX Runtime
+        if: always()
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+        run: |
+          {
+            echo "## Ccache stats for ONNX Runtime"
+            echo
+            echo '```'
+            ccache -s
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save ORT Ccache
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/.ort_ccache
+          key: ${{ steps.restore-ort-ccache.outputs.cache-primary-key }}
+
+  build-ubuntu-x86_64:
+    name: Build ORT for Ubuntu x86_64
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up ccache
+        uses: ./.github/actions/setup-ccache
+        with:
+          version: "4.12.3"
+
+      # flatbuffers package is required to build ONNX Runtime with reduced operator config file
+      - name: Set up Python for ONNX Runtime build
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+          pip-install: flatbuffers
+
+      # Discard the existing cache whenever build scripts change, ensuring a compact and consistent cache.
+      - name: Restore ONNX Runtime ccache (Ubuntu x86_64)
+        id: restore-ort-ccache
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/.ort_ccache
+          key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_ubuntu.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+
+      - name: Build ONNX Runtime (Ubuntu x86_64)
+        shell: bash
+        env:
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPILERCHECK: content
+          CCACHE_COMPRESS: "true"
+          CCACHE_DEPEND: "true"
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_DIRECT: "true"
+          CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
+        run: ./scripts/build_ort_ubuntu.sh
+
+      - name: Show ccache stats for ONNX Runtime
+        if: always()
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+        run: |
+          {
+            echo "## Ccache stats for ONNX Runtime"
+            echo
+            echo '```'
+            ccache -s
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save ORT Ccache
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/.ort_ccache
+          key: ${{ steps.restore-ort-ccache.outputs.cache-primary-key }}

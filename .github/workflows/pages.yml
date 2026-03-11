@@ -1,10 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 
-# In this workflow, we use ubuntu-slim runners. Refer to https://docs.github.com/en/actions/reference/runners/github-hosted-runners for the detail of ubuntu-slim runner.
-
-name: Pages
+name: Pages CI
 
 on:
   pull_request:
@@ -34,12 +32,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: ${{ env.BUILD_PATH }}/.node-version
           cache: npm
@@ -47,7 +45,7 @@ jobs:
 
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - name: Install dependencies
         shell: bash
@@ -71,7 +69,7 @@ jobs:
           mv provenance.json dist/provenance.json
 
       - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: pages-build
           path: ${{ env.BUILD_PATH }}/dist
@@ -81,9 +79,9 @@ jobs:
     name: Deploy Pages
 
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    needs: build
 
     runs-on: ubuntu-slim
-    needs: build
     timeout-minutes: 10
 
     permissions:
@@ -98,31 +96,29 @@ jobs:
 
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: pages-build
           path: dist
 
       # Establish chain of trust by attesting the provenance of the build artifact.
-      - name: Attest provenance
+      - name: Attest site provenance
         id: attest
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-path: dist/provenance.json
 
-      # ubuntu-slim has jq command pre-installed
       - name: Copy attestation bundle
         env:
           BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
         shell: bash
-        run: |
-          jq -c . "$BUNDLE_PATH" > dist/provenance.attestation.jsonl
+        run: cp "$BUNDLE_PATH" dist/provenance.attestation.json
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
         with:
           path: dist
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

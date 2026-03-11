@@ -15,7 +15,6 @@ if(NOT XCODE)
   message(FATAL_ERROR "Building OBS Studio on macOS requires Xcode generator.")
 endif()
 
-include(ccache)
 include(compiler_common)
 
 add_compile_options("$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-fopenmp-simd>")
@@ -63,12 +62,6 @@ function(check_sdk_requirements)
 endfunction()
 
 check_sdk_requirements()
-
-# Enable dSYM generator for release builds
-string(APPEND CMAKE_C_FLAGS_RELEASE " -g")
-string(APPEND CMAKE_CXX_FLAGS_RELEASE " -g")
-string(APPEND CMAKE_OBJC_FLAGS_RELEASE " -g")
-string(APPEND CMAKE_OBJCXX_FLAGS_RELEASE " -g")
 
 # Default ObjC compiler options used by Xcode:
 #
