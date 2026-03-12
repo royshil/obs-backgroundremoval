@@ -93,20 +93,6 @@ set(CMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_WEAK YES)
 # Disable strict aliasing
 set(CMAKE_XCODE_ATTRIBUTE_GCC_STRICT_ALIASING NO)
 
-# Set C++ language default to c17
-#
-# * CMake explicitly sets the version via compiler flag when transitive dependencies require specific compiler feature
-#   set, resulting in the flag being added twice. Report to KitWare as a feature request for Xcode generator
-# * See also: https://gitlab.kitware.com/cmake/cmake/-/issues/17183
-#
-# set(CMAKE_XCODE_ATTRIBUTE_GCC_C_LANGUAGE_STANDARD c17)
-#
-# Set C++ language default to c++17
-#
-# * See above. Report to KitWare as a feature request for Xcode generator
-#
-# set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD c++17)
-
 # Enable support for module imports in ObjC
 set(CMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES YES)
 # Enable automatic linking of imported modules in ObjC

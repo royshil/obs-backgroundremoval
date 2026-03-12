@@ -114,7 +114,9 @@ lipo -create \
 echo 'void __attribute__((visibility("hidden"))) __dummy__(){}' |
   clang -x c -arch x86_64 -c -o "$ORT_X86_64_BUILD_DIR/dummy.o" -mmacosx-version-min="$OSX_DEPLOY_TARGET" -
 
+libtool -static -o "$ORT_X86_64_BUILD_DIR/dummy.a" "$ORT_X86_64_BUILD_DIR/dummy.o"
+
 lipo -create \
 	"$ORT_ARM64_BUILD_DIR/$CONFIGURATION/_deps/kleidiai-build/libkleidiai.a" \
-	"$ORT_X86_64_BUILD_DIR/dummy.o" \
+	"$ORT_X86_64_BUILD_DIR/dummy.a" \
     -output "$LIB_DIR/libkleidiai.a"

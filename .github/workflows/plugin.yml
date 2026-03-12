@@ -73,7 +73,7 @@ jobs:
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ github.workspace }}/.ort_ccache
-          key: ort-ccache-${{ runner.os }}-x64-${{ hashFiles('scripts/build_ort_windows_x64.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          key: ort-ccache-${{ runner.os }}-x64-${{ hashFiles('scripts/build_ort_windows_x64.ps1', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
           restore-keys: |
             ort-ccache-${{ runner.os }}-x64-
 
@@ -122,6 +122,8 @@ jobs:
           path: |
             release/*-windows-x64.zip
             release/*-windows-x64-pdb.zip
+          if-no-files-found: error
+          retention-days: ${{ env.PLUGINBINARY_RETENTION_DAYS }}
 
   build-macos-universal:
     name: Build Plugin for macOS universal
@@ -180,8 +182,6 @@ jobs:
 
       - name: Build libobs (macOS universal)
         shell: bash
-        env:
-          ENABLE_XCBEAUTIFY: ${{ runner.debug != '1' }}
         run: ./scripts/build_libobs_macos.sh
 
       # Load ccache built in the build-ort workflow, which runs on regular basis
@@ -224,7 +224,9 @@ jobs:
 
       - name: Build (macOS universal)
         shell: bash
-        run: set -euo pipefail && cmake --build --preset macos-ci | tee ./Build.txt | xcbeautify
+        run: |
+          set -euo pipefail
+          cmake --build --preset macos-ci | tee ./Build.txt | xcbeautify
 
       - name: Set up macOS Signing Certificates
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
@@ -495,8 +497,6 @@ jobs:
           shopt -s nullglob
 
           TAG_NAME=${GITHUB_REF#refs/tags/}
-
-          gh release delete "$TAG_NAME" --yes || true
 
           GH_RELEASE_CREATE_ARGS=(
             "$BUNDLE_PATH"

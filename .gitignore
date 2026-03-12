@@ -1,44 +1,7 @@
-# Exclude everything
-/*
-
-# Except for default project files
-!/.github
-!/build-aux
-!/cmake
-!/data
-!/docs
-!/LICENSES
-!/models
-!/pages
-!/scripts
-!/src
-!/vcpkg-triplets
-!/vendor
-!.clang-format
-!.cmake-format.json
-!.gersemirc
-!.gitattributes
-!.gitignore
-!buildspec.json
-!CMakeLists.txt
-!CMakePresets.json
-!CONTRIBUTING.md
-!demo.gif
-!demo.gif.license
-!FAQ.md
-!LICENSE
-!README.md
-!REUSE.toml
-!vcpkg-configuration.json
-!vcpkg.json
-
-# Exclude lock files
-*.lock.json
-
-# Exclude macOS legacy resource forks
+.deps_vendor/
+.deps/
 .DS_Store
-
-# Exclude CMake build number cache
-/cmake/.CMakeBuildNumber
-
-src/*.generated.*
+.venv/
+.vscode/
+build_*/
+release/

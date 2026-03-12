@@ -62,7 +62,7 @@ jobs:
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ github.workspace }}/.ort_ccache
-          key: ort-ccache-${{ runner.os }}-x64-${{ hashFiles('scripts/build_ort_windows_x64.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          key: ort-ccache-${{ runner.os }}-x64-${{ hashFiles('scripts/build_ort_windows_x64.ps1', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
 
       - name: Build ONNX Runtime (Windows x64)
         shell: pwsh

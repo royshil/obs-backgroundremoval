@@ -33,7 +33,10 @@
 				"macos"
 			],
 			"displayName": "macOS universal (CI)",
-			"description": "Build universal binary for macOS 12.0+ (CI)"
+			"description": "Build universal binary for macOS 12.0+ (CI)",
+			"cacheVariables": {
+				"CMAKE_COMPILE_WARNING_AS_ERROR": true
+			}
 		},
 		{
 			"name": "windows-x64",
@@ -61,7 +64,10 @@
 				"windows-x64"
 			],
 			"displayName": "Windows x64 (CI)",
-			"description": "Build x64 binary for Windows (CI)"
+			"description": "Build x64 binary for Windows (CI)",
+			"cacheVariables": {
+				"CMAKE_COMPILE_WARNING_AS_ERROR": true
+			}
 		},
 		{
 			"name": "ubuntu-x86_64",
@@ -90,7 +96,10 @@
 				"ubuntu-x86_64"
 			],
 			"displayName": "Ubuntu x86_64 (CI)",
-			"description": "Build x86_64 binary for Ubuntu (CI)"
+			"description": "Build x86_64 binary for Ubuntu (CI)",
+			"cacheVariables": {
+				"CMAKE_COMPILE_WARNING_AS_ERROR": true
+			}
 		}
 	],
 	"buildPresets": [
@@ -119,7 +128,7 @@
 			"name": "windows-ci-x64",
 			"configurePreset": "windows-ci-x64",
 			"displayName": "Windows x64 (CI)",
-			"description": "Byukd x64 binary for Windows (CI)",
+			"description": "Build x64 binary for Windows (CI)",
 			"configuration": "RelWithDebInfo"
 		},
 		{

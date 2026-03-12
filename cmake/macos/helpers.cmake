@@ -71,7 +71,6 @@ function(set_target_properties_plugin target)
   source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "UI Files" FILES ${target_ui_files})
 
   install(TARGETS ${target} LIBRARY DESTINATION .)
-  install(FILES "$<TARGET_BUNDLE_DIR:${target}>.dsym" CONFIGURATIONS Release DESTINATION . OPTIONAL)
 endfunction()
 
 # target_install_resources: Helper function to add resources into bundle

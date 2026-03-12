@@ -56,7 +56,7 @@ jobs:
           brew install obsproject/tools/gersemi
           echo "$(brew --prefix obsproject/tools/gersemi)/bin" >> "$GITHUB_PATH"
 
-      - name: Check with clang-format
+      - name: Check with gersemi
         shell: bash
         run: |
           set -euo pipefail

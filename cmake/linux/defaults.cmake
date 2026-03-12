@@ -17,7 +17,3 @@ endif()
 
 # Enable find_package targets to become globally available targets
 set(CMAKE_FIND_PACKAGE_TARGETS_GLOBAL TRUE)
-
-set(CPACK_ARCHIVE_THREADS 0)
-
-include(CPack)

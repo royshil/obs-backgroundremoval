@@ -6,7 +6,7 @@
 
 # please use clang-format version 16 or later
 
-Standard: c++17
+Standard: c++20
 AccessModifierOffset: -8
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments: false
@@ -210,6 +210,6 @@ SpacesInConditionalStatement: false
 SpacesInLineCommentPrefix:
   Minimum: 1
   Maximum: -1
-Standard: c++17
+Standard: c++20
 TabWidth: 4
 UseTab: Never

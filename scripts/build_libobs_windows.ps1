@@ -44,7 +44,7 @@ $BuildDir = Join-Path $SourceDir "build_x64"
 
 if (-not (Test-Path $SourceDir)) {
     Write-Error "Error: OBS source directory not found at $SourceDir"
-    Write-Error "Please run 'cmake -P scripts/download-deps.cmake' first."
+    Write-Error "Please run 'cmake -P scripts/download_deps.cmake' first."
     exit 1
 }
 

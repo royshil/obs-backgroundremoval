@@ -41,7 +41,15 @@ runs:
         MACOS_SIGNING_APPLICATION_IDENTITY: ${{ inputs.MACOS_SIGNING_APPLICATION_IDENTITY }}
       run: |
         set -euo pipefail
-        awk -F'[()]' '{ print "CODESIGN_TEAM=" $2 }' <<< "$MACOS_SIGNING_APPLICATION_IDENTITY" >> "$GITHUB_OUTPUT"
+
+        CODESIGN_TEAM="$(awk -F'[()]' '{ print $2 }' <<< "$MACOS_SIGNING_APPLICATION_IDENTITY")"
+
+        if [[ -z "$CODESIGN_TEAM" ]]; then
+          echo "Error: Failed to extract Team ID from MACOS_SIGNING_APPLICATION_IDENTITY" >&2
+          exit 1
+        fi
+
+        printf 'CODESIGN_TEAM=%s\n' >> "$GITHUB_OUTPUT"
 
     - name: Import Signing Certificate
       shell: bash

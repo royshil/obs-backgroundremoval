@@ -14,6 +14,8 @@ VCPKG_ARM64_DIR="$DEPS_VENDOR_DIR/vcpkg_installed_arm64"
 VCPKG_X64_DIR="$DEPS_VENDOR_DIR/vcpkg_installed_x64"
 VCPKG_DIR="$DEPS_VENDOR_DIR/vcpkg_installed"
 
+cd "$PROJECT_ROOT_DIR"
+
 vcpkg --version
 cmake --version
 

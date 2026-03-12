@@ -30,6 +30,9 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_package(ONNX CONFIG REQUIRED)
 find_package(protobuf CONFIG REQUIRED)
 find_package(re2 CONFIG REQUIRED)
+find_package(Threads REQUIRED)
+
+add_library(safeint_interface IMPORTED INTERFACE)
 
 if(APPLE)
   find_package(Iconv REQUIRED)
@@ -200,12 +203,15 @@ target_link_libraries(
 if(APPLE)
   target_link_libraries(
     onnxruntime
-    INTERFACE Iconv::Iconv onnxruntime::onnxruntime_providers_coreml coreml_proto onnxruntime::kleidiai
+    INTERFACE
+      Iconv::Iconv
+      onnxruntime::onnxruntime_providers_coreml
+      coreml_proto
+      onnxruntime::kleidiai
+      "-framework Foundation"
   )
 elseif(NOT MSVC)
   target_link_libraries(onnxruntime INTERFACE Iconv::Iconv dl rt)
 endif()
-
-add_library(safeint_interface IMPORTED INTERFACE)
 
 add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
