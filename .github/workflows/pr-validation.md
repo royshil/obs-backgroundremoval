@@ -7,7 +7,7 @@ description: Validate if this Pull Request meets our project criteria (royshil/o
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
 
 permissions:
@@ -38,6 +38,8 @@ safe-outputs:
 engine:
   id: copilot
   model: gpt-5-mini
+
+if: github.event.pull_request.draft == false
 ---
 
 # Pull Request Validator

@@ -5,6 +5,7 @@ version = 1
 path = [
     ".gitattributes",
     ".github/actions/setup-ccache/SHA256SUMS-*.txt",
+    ".github/dependabot.yml",
     ".github/pull_request_template.md",
     ".github/workflows/*.lock.yml",
     ".gitignore",

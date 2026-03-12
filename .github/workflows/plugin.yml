@@ -25,7 +25,7 @@ env:
 
 jobs:
   build-windows-x64:
-    name: Build plugin for Windows x64
+    name: Build Plugin for Windows x64
 
     runs-on: windows-2022
     timeout-minutes: 60
@@ -124,7 +124,7 @@ jobs:
             release/*-windows-x64-pdb.zip
 
   build-macos-universal:
-    name: Build plugin for macOS universal
+    name: Build Plugin for macOS universal
 
     runs-on: macos-15
     timeout-minutes: 60
@@ -313,6 +313,9 @@ jobs:
       - name: Archive Plugin dSYM
         shell: bash
         working-directory: ${{ github.workspace }}/build_macos/RelWithDebInfo
+        env:
+          PLUGIN_NAME: ${{ steps.metadata.outputs.name }}
+          PLUGIN_VERSION: ${{ steps.metadata.outputs.version }}
         run: tar -cJf "$GITHUB_WORKSPACE/release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-universal.dSYM.tar.xz" "$PLUGIN_NAME.plugin.dSYM"
 
       - name: Upload Plugin Binary
@@ -333,7 +336,7 @@ jobs:
           path: Build.txt
 
   build-ubuntu-x86_64:
-    name: Build plugin for Ubuntu x86_64
+    name: Build Plugin for Ubuntu x86_64
 
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -380,11 +383,7 @@ jobs:
         run: |
           VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT" "$VCPKG_INSTALLATION_ROOT/vcpkg" install \
             --x-install-root=./.deps_vendor/vcpkg_installed \
-            --triplet=x86_64-linux-obs
-
-      - name: Download dependencies
-        shell: bash
-        run: cmake -P ./scripts/download_deps.cmake
+            --triplet=x64-linux-obs
 
       # Load ccache built in the build-ort workflow, which runs on regular basis
       - name: Restore ONNX Runtime ccache (Ubuntu x86_64)
@@ -426,7 +425,7 @@ jobs:
 
       - name: Build (Ubuntu x86_64)
         shell: bash
-        run: make --build --preset ubuntu-ci-x86_64
+        run: cmake --build --preset ubuntu-ci-x86_64
 
       - name: Package (Ubuntu x86_64)
         shell: bash
@@ -438,8 +437,8 @@ jobs:
         with:
           name: ${{ steps.metadata.outputs.name }}-pluginbinary-${{ runner.os }}-x86_64-${{ github.run_id }}
           path: |
-            release/*.deb
-            release/*.ddeb
+            release/*-x86_64-linux-gnu.deb
+            release/*-x86_64-linux-gnu-dbgsym.ddeb
           if-no-files-found: error
           retention-days: ${{ env.PLUGINBINARY_RETENTION_DAYS }}
 

@@ -8,7 +8,6 @@
 
 include_guard(GLOBAL)
 
-include(ccache)
 include(compiler_common)
 
 option(ENABLE_COMPILER_TRACE "Enable Clang time-trace (required Clang and Ninja)" OFF)
