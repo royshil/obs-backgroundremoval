@@ -88,6 +88,7 @@ if(MSVC)
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps"
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-qt6-${QT6_VERSION}-x64"
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-${PREBUILT_VERSION}-x64"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x64/Release/vcpkg_installed/x64-windows-static-md"
   )
 elseif(APPLE)
   list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos")
@@ -98,9 +99,15 @@ elseif(APPLE)
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps"
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-qt6-${QT6_VERSION}-universal"
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-${PREBUILT_VERSION}-universal"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_vcpkg_installed/universal-osx"
   )
 else()
   list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/linux")
+  list(
+    PREPEND
+    CMAKE_PREFIX_PATH
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x86_64/Release/vcpkg_installed/x64-linux"
+  )
 endif()
 
 if(VCPKG_TARGET_TRIPLET STREQUAL "")

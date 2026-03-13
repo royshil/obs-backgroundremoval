@@ -4,22 +4,6 @@
 
 include_guard(GLOBAL)
 
-if(APPLE)
-  list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_vcpkg_installed/universal-osx")
-elseif(MSVC)
-  list(
-    PREPEND
-    CMAKE_PREFIX_PATH
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x64/Release/vcpkg_installed/x64-windows-static-md"
-  )
-else()
-  list(
-    PREPEND
-    CMAKE_PREFIX_PATH
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x86_64/Release/vcpkg_installed/x64-linux"
-  )
-endif()
-
 find_package(absl CONFIG REQUIRED)
 find_package(Boost CONFIG COMPONENTS mp11 REQUIRED)
 find_package(date CONFIG REQUIRED)
