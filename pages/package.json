@@ -14,7 +14,7 @@
   "dependencies": {
     "@ai-sdk/svelte": "^4.0.81",
     "@astrojs/svelte": "^7.2.5",
-    "@mlc-ai/web-llm": "^0.2.80",
+    "@mlc-ai/web-llm": "^0.2.82",
     "@octokit/rest": "^22.0.1",
     "astro": "^5.17.2",
     "pretty-bytes": "^7.1.0",
