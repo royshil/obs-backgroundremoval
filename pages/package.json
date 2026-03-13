@@ -16,7 +16,7 @@
     "@astrojs/svelte": "^7.2.5",
     "@mlc-ai/web-llm": "^0.2.80",
     "@octokit/rest": "^22.0.1",
-    "astro": "^5.17.2",
+    "astro": "^6.0.4",
     "pretty-bytes": "^7.1.0",
     "svelte": "^5.50.2",
     "typescript": "^5.9.3"
