@@ -12,7 +12,7 @@
     "node": "24.x"
   },
   "dependencies": {
-    "@ai-sdk/svelte": "^4.0.81",
+    "@ai-sdk/svelte": "^4.0.116",
     "@astrojs/svelte": "^7.2.5",
     "@mlc-ai/web-llm": "^0.2.80",
     "@octokit/rest": "^22.0.1",
