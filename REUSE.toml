@@ -13,10 +13,11 @@ path = [
     "buildspec.json",
     "CMakePresets.json",
     "data/config.json",
+    "requirements-build.txt",
     "scripts/windows/*",
     "src/exported*",
-    "vcpkg-configuration.json",
     "vcpkg.json",
+    "vcpkg-configuration.json",
 ]
 SPDX-FileCopyrightText = [
     "2018-2026 OBS Project and its contributors",

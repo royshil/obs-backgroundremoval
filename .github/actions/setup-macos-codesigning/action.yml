@@ -49,7 +49,7 @@ runs:
           exit 1
         fi
 
-        printf 'CODESIGN_TEAM=%s\n' >> "$GITHUB_OUTPUT"
+        printf 'CODESIGN_TEAM=%s\n' "$CODESIGN_TEAM" >> "$GITHUB_OUTPUT"
 
     - name: Import Signing Certificate
       shell: bash

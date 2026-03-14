@@ -18,10 +18,6 @@ concurrency:
 
 env:
   CCACHE_LOGFILE_RETENTION_DAYS: "1"
-  HOMEBREW_NO_ANALYTICS: "1"
-  HOMEBREW_NO_AUTO_UPDATE: "1"
-  HOMEBREW_NO_ENV_HINTS: "1"
-  HOMEBREW_NO_INSTALL_CLEANUP: "1"
   VCPKG_BINARY_SOURCES: clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}
 
 jobs:
@@ -57,33 +53,34 @@ jobs:
         with:
           version: "4.12.3"
 
-      # flatbuffers package is required to build ONNX Runtime with reduced operator config file
-      - name: Set up Python for ONNX Runtime build
+      - name: Set up Python for build requirements
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: "3.12"
-          pip-install: flatbuffers
+          python-version-file: ${{ github.workspace }}/.python-version
+          pip-install: -r ${{ github.workspace }}/requirements-build.txt
 
       - name: Compute Toolchain Hash of ONNX Runtime (Windows x64)
         id: ort-toolchain
         shell: bash
         env:
-          HASH: >
+          HASH: >-
             ${{ hashFiles(
               'data/models/required_operators_and_types.with_runtime_opt.config',
               'scripts/build_ort_windows_x64.ps1'
             ) }}
         run: echo "hash=$HASH" >> "$GITHUB_OUTPUT"
 
-      # Discard the existing cache whenever build scripts change, ensuring a compact and consistent cache.
-      - name: Restore ONNX Runtime ccache (Windows x64)
+      - name: Restore ONNX Runtime ccache with ImageVersion and toolchain hash matched (Windows x64)
         id: restore-ort-ccache
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
           key: ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
+          restore-keys: |
+            ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-
 
       - name: Build ONNX Runtime (Windows x64)
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         shell: pwsh
         env:
           CCACHE_BASEDIR: ${{ github.workspace }}
@@ -97,12 +94,12 @@ jobs:
         run: ./scripts/build_ort_windows_x64.ps1
 
       - name: Show ccache stats for ONNX Runtime
-        if: always()
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
         shell: bash
         env:
           CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+        continue-on-error: true
         run: |
-          set -euo pipefail
           {
             echo "## Ccache stats for ONNX Runtime"
             echo
@@ -112,7 +109,7 @@ jobs:
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload ORT ccache log (Windows x64)
-        if: always()
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ort-ccache-log-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}
@@ -121,6 +118,7 @@ jobs:
           retention-days: ${{ env.CCACHE_LOGFILE_RETENTION_DAYS }}
 
       - name: Save ORT ccache
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
@@ -154,18 +152,17 @@ jobs:
         with:
           version: "4.12.3"
 
-      # flatbuffers package is required to build ONNX Runtime with reduced operator config file
-      - name: Set up Python for ONNX Runtime build
+      - name: Set up Python for build requirements
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: "3.12"
-          pip-install: flatbuffers
+          python-version-file: ${{ github.workspace }}/.python-version
+          pip-install: -r ${{ github.workspace }}/requirements-build.txt
 
       - name: Compute Toolchain Hash of ONNX Runtime (macOS universal)
         id: ort-toolchain
         shell: bash
         env:
-          HASH: >
+          HASH: >-
             ${{ hashFiles(
               'data/models/required_operators_and_types.with_runtime_opt.config',
               'scripts/build_ort_macos.sh',
@@ -173,15 +170,17 @@ jobs:
             ) }}
         run: echo "hash=$HASH" >> "$GITHUB_OUTPUT"
 
-      # Discard the existing cache whenever build scripts change, ensuring a compact and consistent cache.
-      - name: Restore ONNX Runtime ccache (macOS universal)
+      - name: Restore ONNX Runtime ccache with ImageVersion and toolchain hash matched (macOS universal)
         id: restore-ort-ccache
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
           key: ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
+          restore-keys: |
+            ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-
 
       - name: Build ONNX Runtime (macOS universal)
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         shell: bash
         env:
           CCACHE_BASEDIR: ${{ github.workspace }}
@@ -195,12 +194,12 @@ jobs:
         run: ./scripts/build_ort_macos.sh
 
       - name: Show ccache stats for ONNX Runtime
-        if: always()
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
         shell: bash
         env:
           CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+        continue-on-error: true
         run: |
-          set -euo pipefail
           {
             echo "## Ccache stats for ONNX Runtime"
             echo
@@ -210,7 +209,7 @@ jobs:
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload ORT ccache log (macOS universal)
-        if: always()
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ort-ccache-log-${{ runner.os }}-universal
@@ -219,6 +218,7 @@ jobs:
           retention-days: ${{ env.CCACHE_LOGFILE_RETENTION_DAYS }}
 
       - name: Save ORT ccache
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
@@ -251,33 +251,34 @@ jobs:
         with:
           version: "4.12.3"
 
-      # flatbuffers package is required to build ONNX Runtime with reduced operator config file
-      - name: Set up Python for ONNX Runtime build
+      - name: Set up Python for build requirements
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: "3.12"
-          pip-install: flatbuffers
+          python-version-file: ${{ github.workspace }}/.python-version
+          pip-install: -r ${{ github.workspace }}/requirements-build.txt
 
       - name: Compute Toolchain Hash of ONNX Runtime (Ubuntu x86_64)
         id: ort-toolchain
         shell: bash
         env:
-          HASH: >
+          HASH: >-
             ${{ hashFiles(
               'data/models/required_operators_and_types.with_runtime_opt.config',
               'scripts/build_ort_ubuntu.sh'
             ) }}
         run: echo "hash=$HASH" >> "$GITHUB_OUTPUT"
 
-      # Discard the existing cache whenever build scripts change, ensuring a compact and consistent cache.
-      - name: Restore ONNX Runtime ccache (Ubuntu x86_64)
+      - name: Restore ONNX Runtime ccache with ImageVersion and toolchain hash matched (Ubuntu x86_64)
         id: restore-ort-ccache
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
           key: ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
+          restore-keys: |
+            ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-
 
       - name: Build ONNX Runtime (Ubuntu x86_64)
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         shell: bash
         env:
           CCACHE_BASEDIR: ${{ github.workspace }}
@@ -291,12 +292,12 @@ jobs:
         run: ./scripts/build_ort_ubuntu.sh
 
       - name: Show ccache stats for ONNX Runtime
-        if: always()
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
         shell: bash
         env:
           CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+        continue-on-error: true
         run: |
-          set -euo pipefail
           {
             echo "## Ccache stats for ONNX Runtime"
             echo
@@ -306,7 +307,7 @@ jobs:
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload ORT ccache log (Ubuntu x86_64)
-        if: always()
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ort-ccache-log-${{ runner.os }}-x86_64
@@ -315,6 +316,7 @@ jobs:
           retention-days: ${{ env.CCACHE_LOGFILE_RETENTION_DAYS }}
 
       - name: Save ORT ccache
+        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
