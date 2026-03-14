@@ -80,7 +80,6 @@ jobs:
             ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-
 
       - name: Build ONNX Runtime (Windows x64)
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         shell: pwsh
         env:
           CCACHE_BASEDIR: ${{ github.workspace }}
@@ -94,7 +93,7 @@ jobs:
         run: ./scripts/build_ort_windows_x64.ps1
 
       - name: Show ccache stats for ONNX Runtime
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
+        if: always()
         shell: bash
         env:
           CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
@@ -109,7 +108,7 @@ jobs:
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload ORT ccache log (Windows x64)
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
+        if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ort-ccache-log-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}
@@ -118,7 +117,6 @@ jobs:
           retention-days: ${{ env.CCACHE_LOGFILE_RETENTION_DAYS }}
 
       - name: Save ORT ccache
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
@@ -180,7 +178,6 @@ jobs:
             ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-
 
       - name: Build ONNX Runtime (macOS universal)
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         shell: bash
         env:
           CCACHE_BASEDIR: ${{ github.workspace }}
@@ -194,7 +191,7 @@ jobs:
         run: ./scripts/build_ort_macos.sh
 
       - name: Show ccache stats for ONNX Runtime
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
+        if: always()
         shell: bash
         env:
           CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
@@ -209,7 +206,7 @@ jobs:
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload ORT ccache log (macOS universal)
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
+        if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ort-ccache-log-${{ runner.os }}-universal
@@ -218,7 +215,6 @@ jobs:
           retention-days: ${{ env.CCACHE_LOGFILE_RETENTION_DAYS }}
 
       - name: Save ORT ccache
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
@@ -278,7 +274,6 @@ jobs:
             ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-
 
       - name: Build ONNX Runtime (Ubuntu x86_64)
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         shell: bash
         env:
           CCACHE_BASEDIR: ${{ github.workspace }}
@@ -292,7 +287,7 @@ jobs:
         run: ./scripts/build_ort_ubuntu.sh
 
       - name: Show ccache stats for ONNX Runtime
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
+        if: always()
         shell: bash
         env:
           CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
@@ -307,7 +302,7 @@ jobs:
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload ORT ccache log (Ubuntu x86_64)
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true' && always()
+        if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ort-ccache-log-${{ runner.os }}-x86_64
@@ -316,7 +311,6 @@ jobs:
           retention-days: ${{ env.CCACHE_LOGFILE_RETENTION_DAYS }}
 
       - name: Save ORT ccache
-        if: steps.restore-ort-ccache.outputs.cache-hit != 'true'
         uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
