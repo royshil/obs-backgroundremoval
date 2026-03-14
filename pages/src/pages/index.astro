@@ -90,32 +90,6 @@ const release = await getLatestRelease();
       <li><a href={joinURL(BASE_URL, "arch/")}>Arch Linux</a></li>
     </ul>
 
-    <div style="text-align: center;">
-      <a
-        href={joinURL(BASE_URL, "interactive-help/")}
-        class="ask-anything-button"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="32"
-          height="32"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          style="vertical-align: middle; margin-right: 0.5em;"
-          ><path
-            d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-          ></path></svg
-        >
-        <span style="vertical-align: middle; font-weight: bold;"
-          >Ask Anything (Experimental)</span
-        >
-      </a>
-    </div>
-
     <p>
       See our <a href={joinURL(BASE_URL, "usage/")}>Usage</a> page for instructions
       on usage in OBS
@@ -153,28 +127,5 @@ const release = await getLatestRelease();
 
   header.icon-and-name h1 {
     margin-left: 10px;
-  }
-
-  .ask-anything-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1em 2em;
-    font-size: 1.2em;
-    border-radius: 999px;
-    background: var(--color-button-2, #4f8cff);
-    color: #fff;
-    text-decoration: none;
-    box-shadow: 0 4px 16px var(--color-box-shadow, rgba(0, 0, 0, 0.1));
-    margin: 1em auto;
-    transition:
-      background-color 0.2s,
-      box-shadow 0.2s;
-    font-weight: bold;
-  }
-  .ask-anything-button:hover,
-  .ask-anything-button:focus {
-    background: var(--color-button-1, #2563eb);
-    box-shadow: 0 6px 24px var(--color-box-shadow, rgba(0, 0, 0, 0.15));
   }
 </style>
