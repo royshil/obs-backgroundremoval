@@ -85,7 +85,7 @@ jobs:
         id: ort-toolchain
         shell: bash
         env:
-          HASH: >
+          HASH: >-
             ${{ hashFiles(
               'data/models/required_operators_and_types.with_runtime_opt.config',
               'scripts/build_ort_windows_x64.ps1'
@@ -223,7 +223,7 @@ jobs:
         id: ort-toolchain
         shell: bash
         env:
-          HASH: >
+          HASH: >-
             ${{ hashFiles(
               'data/models/required_operators_and_types.with_runtime_opt.config',
               'scripts/build_ort_macos.sh',
@@ -451,7 +451,7 @@ jobs:
         id: ort-toolchain
         shell: bash
         env:
-          HASH: >
+          HASH: >-
             ${{ hashFiles(
               'data/models/required_operators_and_types.with_runtime_opt.config',
               'scripts/build_ort_ubuntu.sh'

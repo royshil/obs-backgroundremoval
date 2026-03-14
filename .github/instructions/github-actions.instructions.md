@@ -17,3 +17,7 @@ applyTo: "**/*.{yml,yaml}"
 - **PPA**: We use the PPA provided by the OBS project (ppa:obsproject/obs-studio) to install OBS Studio and its development headers on Ubuntu.
 - **Development Headers**: The package named obs-studio includes both the OBS Studio application and its development headers.
 </ObsStudioOnUbuntu>
+
+<CcacheReferences>
+- **Official manual**: Refer [ccache(1) man page](https://ccache.dev/manual/latest.html) for environment variables.
+</CcacheReferences>
