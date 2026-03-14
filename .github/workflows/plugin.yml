@@ -44,7 +44,7 @@ jobs:
       - name: Output Image Metadata
         id: image-metadata
         shell: bash
-        run: echo "image-version=$ImageVersion" >> "$GITHUB_OUTPUT"
+        run: echo "ImageVersion=$ImageVersion" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -97,10 +97,10 @@ jobs:
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
-          key: ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
+          key: ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
           restore-keys: |
-            ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-
-            ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.image-version }}-
+            ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-
+            ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-
 
       - name: Build ONNX Runtime (Windows x64)
         shell: pwsh
@@ -167,7 +167,7 @@ jobs:
       - name: Output Image Metadata
         id: image-metadata
         shell: bash
-        run: echo "image-version=$ImageVersion" >> "$GITHUB_OUTPUT"
+        run: echo "ImageVersion=$ImageVersion" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -236,10 +236,10 @@ jobs:
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
-          key: ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
+          key: ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
           restore-keys: |
-            ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-
-            ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.image-version }}-
+            ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-
+            ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-
 
       - name: Build ONNX Runtime (macOS universal)
         shell: bash
@@ -403,7 +403,7 @@ jobs:
       - name: Output Image Metadata
         id: image-metadata
         shell: bash
-        run: echo "image-version=$ImageVersion" >> "$GITHUB_OUTPUT"
+        run: echo "ImageVersion=$ImageVersion" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -462,10 +462,10 @@ jobs:
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
-          key: ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
+          key: ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
           restore-keys: |
-            ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-
-            ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.image-version }}-
+            ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.hash }}-
+            ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-
 
       - name: Build ONNX Runtime (Ubuntu x86_64)
         shell: bash
