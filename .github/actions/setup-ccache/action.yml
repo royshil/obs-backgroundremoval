@@ -12,6 +12,10 @@ inputs:
     description: Whether to verify downloaded ccache.
     required: false
     default: "true"
+outputs:
+  version:
+    description: Version of ccache installed.
+    value: ${{ inputs.version }}
 runs:
   using: composite
   steps:

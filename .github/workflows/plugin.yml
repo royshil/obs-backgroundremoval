@@ -33,7 +33,19 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      ORT_CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+
     steps:
+      - name: Enable Windows long path
+        shell: pwsh
+        run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\FileSystem' -Name 'LongPathsEnabled' -Value 1
+
+      - name: Output Image Metadata
+        id: image-metadata
+        shell: bash
+        run: echo "image-version=$ImageVersion" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -42,6 +54,7 @@ jobs:
         uses: ./.github/actions/extract-buildspec
 
       - name: Set up ccache
+        id: setup-ccache
         uses: ./.github/actions/setup-ccache
         with:
           version: "4.12.3"
@@ -68,14 +81,26 @@ jobs:
         shell: pwsh
         run: ./scripts/build_libobs_windows.ps1
 
+      - name: Compute Toolchain Hash of ONNX Runtime (Windows x64)
+        id: ort-toolchain
+        shell: bash
+        env:
+          HASH: >
+            ${{ hashFiles(
+              'data/models/required_operators_and_types.with_runtime_opt.config',
+              'scripts/build_ort_windows_x64.ps1'
+            ) }}
+        run: echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
       # Load ccache built in the build-ort workflow, which runs on regular basis
       - name: Restore ONNX Runtime ccache (Windows x64)
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ${{ github.workspace }}/.ort_ccache
-          key: ort-ccache-${{ runner.os }}-x64-${{ hashFiles('scripts/build_ort_windows_x64.ps1', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
           restore-keys: |
-            ort-ccache-${{ runner.os }}-x64-
+            ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-
+            ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.image-version }}-
 
       - name: Build ONNX Runtime (Windows x64)
         shell: pwsh
@@ -83,9 +108,9 @@ jobs:
           CCACHE_BASEDIR: ${{ github.workspace }}
           CCACHE_COMPILERCHECK: content
           CCACHE_COMPRESS: "true"
-          CCACHE_DEPEND: "true"
-          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
-          CCACHE_NODIRECT: "true"
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
+          CCACHE_DIRECT: "true"
+          CCACHE_NODEPEND: "true"
           CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
         run: ./scripts/build_ort_windows_x64.ps1
 
@@ -93,15 +118,16 @@ jobs:
         if: always()
         shell: bash
         env:
-          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
         run: |
+          set -euo pipefail
           {
             echo "## Ccache stats for ONNX Runtime"
             echo
             echo '```'
             ccache -s
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Configure (Windows x64)
         shell: bash
@@ -134,7 +160,15 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      ORT_CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+
     steps:
+      - name: Output Image Metadata
+        id: image-metadata
+        shell: bash
+        run: echo "image-version=$ImageVersion" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -143,6 +177,7 @@ jobs:
         uses: ./.github/actions/extract-buildspec
 
       - name: Set up ccache
+        id: setup-ccache
         uses: ./.github/actions/setup-ccache
         with:
           version: "4.12.3"
@@ -184,13 +219,27 @@ jobs:
         shell: bash
         run: ./scripts/build_libobs_macos.sh
 
+      - name: Compute Toolchain Hash of ONNX Runtime (macOS universal)
+        id: ort-toolchain
+        shell: bash
+        env:
+          HASH: >
+            ${{ hashFiles(
+              'data/models/required_operators_and_types.with_runtime_opt.config',
+              'scripts/build_ort_macos.sh',
+              'scripts/merge_vcpkg_installed_into_macos_universal.sh'
+            ) }}
+        run: echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
       # Load ccache built in the build-ort workflow, which runs on regular basis
       - name: Restore ONNX Runtime ccache (macOS universal)
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ${{ github.workspace }}/.ort_ccache
-          key: ort-ccache-${{ runner.os }}-universal-${{ hashFiles('scripts/build_ort_macos.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
-          restore-keys: ort-ccache-${{ runner.os }}-universal-
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
+          restore-keys: |
+            ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-
+            ort-ccache-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.image-version }}-
 
       - name: Build ONNX Runtime (macOS universal)
         shell: bash
@@ -199,7 +248,7 @@ jobs:
           CCACHE_COMPILERCHECK: content
           CCACHE_COMPRESS: "true"
           CCACHE_DEPEND: "true"
-          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
           CCACHE_DIRECT: "true"
           CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
         run: ./scripts/build_ort_macos.sh
@@ -208,15 +257,16 @@ jobs:
         if: always()
         shell: bash
         env:
-          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
         run: |
+          set -euo pipefail
           {
             echo "## Ccache stats for ONNX Runtime"
             echo
             echo '```'
             ccache -s
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Configure (macOS universal)
         shell: bash
@@ -346,7 +396,15 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      ORT_CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+
     steps:
+      - name: Output Image Metadata
+        id: image-metadata
+        shell: bash
+        run: echo "image-version=$ImageVersion" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -355,6 +413,7 @@ jobs:
         uses: ./.github/actions/extract-buildspec
 
       - name: Set up ccache
+        id: setup-ccache
         uses: ./.github/actions/setup-ccache
         with:
           version: "4.12.3"
@@ -387,13 +446,26 @@ jobs:
             --x-install-root=./.deps_vendor/vcpkg_installed \
             --triplet=x64-linux-obs
 
-      # Load ccache built in the build-ort workflow, which runs on regular basis
+      - name: Compute Toolchain Hash of ONNX Runtime (Ubuntu x86_64)
+        id: ort-toolchain
+        shell: bash
+        env:
+          HASH: >
+            ${{ hashFiles(
+              'data/models/required_operators_and_types.with_runtime_opt.config',
+              'scripts/build_ort_ubuntu.sh'
+            ) }}
+        run: echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      # Load ccache built in the ort workflow, which runs on regular basis
       - name: Restore ONNX Runtime ccache (Ubuntu x86_64)
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ${{ github.workspace }}/.ort_ccache
-          key: ort-ccache-${{ runner.os }}-x86_64-${{ hashFiles('scripts/build_ort_ubuntu.sh', 'data/models/required_operators_and_types.with_runtime_opt.config') }}
-          restore-keys: ort-ccache-${{ runner.os }}-x86_64-
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-${{ steps.setup-ccache.outputs.version }}
+          restore-keys: |
+            ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.image-version }}-${{ steps.ort-toolchain.outputs.hash }}-
+            ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.image-version }}-
 
       - name: Build ONNX Runtime (Ubuntu x86_64)
         shell: bash
@@ -402,7 +474,7 @@ jobs:
           CCACHE_COMPILERCHECK: content
           CCACHE_COMPRESS: "true"
           CCACHE_DEPEND: "true"
-          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
           CCACHE_DIRECT: "true"
           CCACHE_SLOPPINESS: include_file_ctime,include_file_mtime,time_macros,pch_defines
         run: ./scripts/build_ort_ubuntu.sh
@@ -411,15 +483,16 @@ jobs:
         if: always()
         shell: bash
         env:
-          CCACHE_DIR: ${{ github.workspace }}/.ort_ccache
+          CCACHE_DIR: ${{ env.ORT_CCACHE_DIR }}
         run: |
+          set -euo pipefail
           {
             echo "## Ccache stats for ONNX Runtime"
             echo
             echo '```'
             ccache -s
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Configure (Ubuntu x86_64)
         shell: bash
