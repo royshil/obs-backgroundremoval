@@ -386,6 +386,7 @@ jobs:
         with:
           name: logs-plugin-${{ runner.os }}-${{ github.run_id }}
           path: Build.txt
+          if-no-files-found: warn
 
   build-ubuntu-x86_64:
     name: Build Plugin for Ubuntu x86_64

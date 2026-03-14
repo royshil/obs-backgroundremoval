@@ -117,6 +117,7 @@ jobs:
         with:
           name: ort-ccache-log-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}
           path: ${{ env.ORT_CCACHE_LOGFILE }}
+          if-no-files-found: warn
           retention-days: ${{ env.CCACHE_LOGFILE_RETENTION_DAYS }}
 
       - name: Save ORT ccache
@@ -214,6 +215,7 @@ jobs:
         with:
           name: ort-ccache-log-${{ runner.os }}-universal
           path: ${{ env.ORT_CCACHE_LOGFILE }}
+          if-no-files-found: warn
           retention-days: ${{ env.CCACHE_LOGFILE_RETENTION_DAYS }}
 
       - name: Save ORT ccache
@@ -309,6 +311,7 @@ jobs:
         with:
           name: ort-ccache-log-${{ runner.os }}-x86_64
           path: ${{ env.ORT_CCACHE_LOGFILE }}
+          if-no-files-found: warn
           retention-days: ${{ env.CCACHE_LOGFILE_RETENTION_DAYS }}
 
       - name: Save ORT ccache
