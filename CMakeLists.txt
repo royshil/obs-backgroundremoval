@@ -14,7 +14,6 @@ block(
     PREBUILT_VERSION
     QT6_VERSION
     MACOS_BUNDLEID
-    PLUGIN_DESCRIPTION
 )
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.json" BUILDSPEC_CONTENT)
   string(JSON PLUGIN_NAME GET "${BUILDSPEC_CONTENT}" name)
@@ -24,9 +23,6 @@ block(
   string(JSON PREBUILT_VERSION GET "${BUILDSPEC_CONTENT}" dependencies prebuilt version)
   string(JSON QT6_VERSION GET "${BUILDSPEC_CONTENT}" dependencies qt6 version)
   string(JSON MACOS_BUNDLEID GET "${BUILDSPEC_CONTENT}" platformConfig macos bundleId)
-
-  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/data/manifest.json" MANIFEST_CONTENT)
-  string(JSON PLUGIN_DESCRIPTION GET "${MANIFEST_CONTENT}" description)
 endblock()
 
 if(DEFINED ENV{GITHUB_RUN_ID})
@@ -210,7 +206,6 @@ target_compile_options(
   ${CMAKE_PROJECT_NAME}
   PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-error=unused-command-line-argument>
 )
-target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE PLUGIN_DESCRIPTION="${PLUGIN_DESCRIPTION}")
 
 if(APPLE)
   target_link_options(

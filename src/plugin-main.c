@@ -41,8 +41,3 @@ const char *obs_module_name(void)
 {
 	return PLUGIN_NAME;
 }
-
-const char *obs_module_description(void)
-{
-	return PLUGIN_DESCRIPTION;
-}
