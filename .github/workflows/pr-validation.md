@@ -14,7 +14,7 @@ permissions:
   contents: read
   pull-requests: read
 
-safe-inputs:
+mcp-scripts:
   pull-request-commits:
     description: Returns the JSON from the GitHub API to list commits on a specified pull request
     inputs:
@@ -55,12 +55,12 @@ ${{ needs.activation.outputs.text }}
 ## Requirements
 
 - **Commit Signing**
-  - **Tooling**: Use the pull-request-commits safe input to fetch commit data of this Pull Request.
+  - **Tooling**: Use the pull-request-commits MCP script tool to fetch commit data of this Pull Request.
   - **Verification**: Inspect the `verification` object of every commit on this Pull Request, and verify if all commits on this Pull Request are properly signed.
   - **Context**: Refer to `<PROJECT_ROOT>/CONTRIBUTING.md` for this commit signing policy.
 
 - **DCO (Developer’s Certificate of Origin)**
-  - **Tooling**: Use the pull-request-commits safe input to fetch commit data of this Pull Request.
+  - **Tooling**: Use the pull-request-commits MCP script tool to fetch commit data of this Pull Request.
   - **Verification**: Inspect the `message` field of every commit on this Pull Request, and verify if all commits on this Pull Request have DCO.
   - **Context**: Refer to `<PROJECT_ROOT>/CONTRIBUTING.md` for this policy.
 
