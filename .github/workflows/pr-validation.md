@@ -7,14 +7,20 @@ description: Validate if this Pull Request meets our project criteria (royshil/o
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types:
+      - labeled
+      - opened
+      - ready_for_review
+      - reopened
+      - synchronize
+      - unlabeled
     branches: [main]
 
 permissions:
   contents: read
   pull-requests: read
 
-safe-inputs:
+mcp-scripts:
   pull-request-commits:
     description: Returns the JSON from the GitHub API to list commits on a specified pull request
     inputs:
@@ -30,7 +36,7 @@ safe-inputs:
         --paginate \
         --jq 'map({sha: .sha, message: .commit.message, verification: .commit.verification})'
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
 
 safe-outputs:
   submit-pull-request-review: {}
@@ -39,7 +45,7 @@ engine:
   id: copilot
   model: gpt-5-mini
 
-if: github.event.pull_request.draft == false
+if: github.event.pull_request.draft == false && contains(github.event.pull_request.labels.*.name, 'auto-review')
 ---
 
 # Pull Request Validator
@@ -48,20 +54,24 @@ Validate if this Pull Request meets our project criteria (royshil/obs-background
 
 ## Additional Inputs
 
-<PullRequestText>
-${{ needs.activation.outputs.text }}
-</PullRequestText>
+<PullRequestTitle>
+${{ steps.sanitized.outputs.title }}
+</PullRequestTitle>
+
+<PullRequestBody>
+${{ steps.sanitized.outputs.body }}
+</PullRequestBody>
 
 ## Requirements
 
 - **Commit Signing**
-  - **Tooling**: Use the pull-request-commits safe input to fetch commit data of this Pull Request.
+  - **Tooling**: Use the pull-request-commits tool to fetch commit data of this Pull Request.
   - **Verification**: Inspect the `verification` object of every commit on this Pull Request, and verify if all commits on this Pull Request are properly signed.
   - **Context**: Refer to `<PROJECT_ROOT>/CONTRIBUTING.md` for this commit signing policy.
 
 - **DCO (Developer’s Certificate of Origin)**
-  - **Tooling**: Use the pull-request-commits safe input to fetch commit data of this Pull Request.
-  - **Verification**: Inspect the `message` field of every commit on this Pull Request, and verify if all commits on this Pull Request have DCO.
+  - **Tooling**: Use the pull-request-commits tool to fetch commit data of this Pull Request.
+  - **Verification**: Inspect the `message` field of every commit on this Pull Request, and verify if all commits on this Pull Request contain a valid `Signed-off-by:` trailer for DCO compliance.
   - **Context**: Refer to `<PROJECT_ROOT>/CONTRIBUTING.md` for this policy.
 
 - **Pull Request Checklist**
@@ -71,5 +81,5 @@ ${{ needs.activation.outputs.text }}
 
 - **Output Format**: Use Pull Request review.
 - **Summary Line**: The first line of your comment MUST be a single-line summary of this validation, starting with either ✅ or 🚫.
-- **Success**: If this Pull Request meets all criteria, submit an approval review, attaching this Pull Request's text including the checklist provided above as a code block.
+- **Success**: If this Pull Request meets all criteria, submit an approval review, attaching this Pull Request's title and body including the checklist provided above as a code block for later reference.
 - **Failure**: If this Pull Request fails to meet any criteria, submit a request-changes review that states what the problems are on this Pull Request.

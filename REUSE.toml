@@ -5,6 +5,8 @@ version = 1
 path = [
     ".gitattributes",
     ".github/actions/setup-ccache/SHA256SUMS-*.txt",
+    ".github/agents/agentic-workflows.agent.md",
+    ".github/aw/actions-lock.json",
     ".github/dependabot.yml",
     ".github/pull_request_template.md",
     ".github/workflows/*.lock.yml",
@@ -15,7 +17,10 @@ path = [
     "data/config.json",
     "requirements-build.txt",
     "scripts/windows/*",
-    "src/exported*",
+    "src/exported_symbols_linux.map",
+    "src/exported_symbols_macos.txt",
+    "src/exported_symbols_windows.def",
+    "vcpkg-configuration.json",
     "vcpkg.json",
     "vcpkg-configuration.json",
 ]
