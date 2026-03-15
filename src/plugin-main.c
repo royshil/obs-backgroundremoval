@@ -14,11 +14,6 @@
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
-MODULE_EXPORT const char *obs_module_description(void)
-{
-	return obs_module_text("PortraitBackgroundFilterPlugin");
-}
-
 extern struct obs_source_info background_removal_filter_info;
 extern struct obs_source_info enhance_filter_info;
 

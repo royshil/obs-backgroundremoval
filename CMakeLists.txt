@@ -214,4 +214,10 @@ else()
   )
 endif()
 
+block()
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/manifest.json" MANIFEST_CONTENT)
+  string(REPLACE 0.0.0-alpha "${PLUGIN_VERSION}" MANIFEST_CONTENT "${MANIFEST_CONTENT}")
+  file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/data/manifest.json" "${MANIFEST_CONTENT}")
+endblock()
+
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PLUGIN_NAME})
