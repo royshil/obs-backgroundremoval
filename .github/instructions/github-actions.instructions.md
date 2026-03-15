@@ -24,3 +24,8 @@ applyTo: "**/*.{yml,yaml}"
 - **CCACHE_NODEPEND**: Set to `true` to disable depend mode. Other values than `true` are not permitted.
 - **CCACHE_NODIRECT**: Set to `true` to disable direct mode. Other values than `true` are not permitted.
 </CcacheEnvironmentVariables>
+
+<ActionsSetupPythonInputs>
+- **python-version-file**: File containing the Python version to use. Example: .python-version
+- **pip-install**: Used to specify the packages to install with pip after setting up Python. Can be a requirements file or package names.
+</ActionsSetupPythonInputs>
