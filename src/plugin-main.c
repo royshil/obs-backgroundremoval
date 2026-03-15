@@ -11,10 +11,6 @@
 
 #include "update-checker/update-checker.h"
 
-#ifndef PLUGIN_DESCRIPTION
-#define PLUGIN_DESCRIPTION "(description not set)"
-#endif
-
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
@@ -35,9 +31,4 @@ bool obs_module_load(void)
 void obs_module_unload()
 {
 	obs_log(LOG_INFO, "plugin unloaded");
-}
-
-const char *obs_module_name(void)
-{
-	return PLUGIN_NAME;
 }
