@@ -15,6 +15,7 @@ path = [
     "buildspec.json",
     "CMakePresets.json",
     "data/config.json",
+    "data/manifest.json",
     "requirements-build.txt",
     "scripts/windows/*",
     "src/exported_symbols_linux.map",
