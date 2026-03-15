@@ -4,5 +4,4 @@
 .venv/
 .vscode/
 build_*/
-data/manifest.json
 release/

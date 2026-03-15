@@ -6,16 +6,19 @@ cmake_minimum_required(VERSION 3.28)
 
 # Read buildspec.json for project metadata
 block(
-  PROPAGATE PLUGIN_NAME PLUGIN_VERSION PLUGIN_AUTHOR PLUGIN_EMAIL PREBUILT_VERSION QT6_VERSION MACOS_BUNDLEID
+  PROPAGATE PLUGIN_NAME PLUGIN_VERSION PLUGIN_AUTHOR PLUGIN_EMAIL PREBUILT_VERSION QT6_VERSION MACOS_BUNDLEID PLUGIN_DESCRIPTION
 )
-  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.json" FILE_CONTENT)
-  string(JSON PLUGIN_NAME GET "${FILE_CONTENT}" name)
-  string(JSON PLUGIN_VERSION GET "${FILE_CONTENT}" version)
-  string(JSON PLUGIN_AUTHOR GET "${FILE_CONTENT}" author)
-  string(JSON PLUGIN_EMAIL GET "${FILE_CONTENT}" email)
-  string(JSON PREBUILT_VERSION GET "${FILE_CONTENT}" dependencies prebuilt version)
-  string(JSON QT6_VERSION GET "${FILE_CONTENT}" dependencies qt6 version)
-  string(JSON MACOS_BUNDLEID GET "${FILE_CONTENT}" platformConfig macos bundleId)
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.json" BUILDSPEC_CONTENT)
+  string(JSON PLUGIN_NAME GET "${BUILDSPEC_CONTENT}" name)
+  string(JSON PLUGIN_VERSION GET "${BUILDSPEC_CONTENT}" version)
+  string(JSON PLUGIN_AUTHOR GET "${BUILDSPEC_CONTENT}" author)
+  string(JSON PLUGIN_EMAIL GET "${BUILDSPEC_CONTENT}" email)
+  string(JSON PREBUILT_VERSION GET "${BUILDSPEC_CONTENT}" dependencies prebuilt version)
+  string(JSON QT6_VERSION GET "${BUILDSPEC_CONTENT}" dependencies qt6 version)
+  string(JSON MACOS_BUNDLEID GET "${BUILDSPEC_CONTENT}" platformConfig macos bundleId)
+
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/data/manifest.json" MANIFEST_CONTENT)
+  string(JSON PLUGIN_DESCRIPTION GET "${MANIFEST_CONTENT}" description)
 endblock()
 
 if(DEFINED ENV{GITHUB_RUN_ID})
@@ -199,6 +202,7 @@ target_compile_options(
   ${CMAKE_PROJECT_NAME}
   PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-error=unused-command-line-argument>
 )
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE PLUGIN_DESCRIPTION="${PLUGIN_DESCRIPTION}")
 
 if(APPLE)
   target_link_options(
@@ -213,11 +217,5 @@ else()
     PRIVATE "-Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/src/exported_symbols_linux.map" "-Wl,-Bsymbolic"
   )
 endif()
-
-block()
-  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/manifest.json" MANIFEST_CONTENT)
-  string(REPLACE 0.0.0-alpha "${PLUGIN_VERSION}" MANIFEST_CONTENT "${MANIFEST_CONTENT}")
-  file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/data/manifest.json" "${MANIFEST_CONTENT}")
-endblock()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PLUGIN_NAME})
