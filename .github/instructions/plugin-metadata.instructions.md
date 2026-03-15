@@ -3,18 +3,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-applyTo: "{buildspec,metadata}.json"
+applyTo: "{buildspec,data/metadata}.json"
 ---
 
 # Metadata Management Guideline
 
 <MetadataDescriptions>
 - **buildspec.json** is a file inherited from obsproject/obs-plugintemplate. This file is kept for convention among the OBS community.
-- **data/manifest.json** is a file for Plugin Manager included in OBS Studio. The content of this file will be read by [the obs_module_load_metadata function defined in obs-module.c](http://github.com/obsproject/obs-studio/blob/master/libobs/obs-module.c).
+- **data/manifest.json** is a file for Plugin Manager included in OBS Studio. The content of this file will be read by [the obs_module_load_metadata function defined in obs-module.c](https://github.com/obsproject/obs-studio/blob/master/libobs/obs-module.c).
 </MetadataDescriptions>
 
 <KeepingSameValueRules>
-The fields listed below MUST have the same value, and let me know when you are reviwing and find the difference.
+The fields listed below MUST have the same value, and let me know when you are reviewing and find the difference.
 
 | buildspec.json                 | data/manifest.json |
 | ------------------------------ | ------------------ |
