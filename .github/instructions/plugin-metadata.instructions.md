@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-applyTo: "{buildspec,data/metadata}.json"
+applyTo: "{buildspec,data/manifest}.json"
 ---
 
 # Metadata Management Guideline
