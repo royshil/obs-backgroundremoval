@@ -1,10 +1,22 @@
 version: 2
+
+multi-ecosystem-groups:
+  plugin:
+    schedule:
+      interval: weekly
+    assignees: [umireon]
+
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
-  - package-ecosystem: "npm"
-    directory: "/pages"
+      interval: weekly
+    multi-ecosystem-group: plugin
+    patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /pages
     schedule:
-      interval: "weekly"
+      interval: weekly
+    multi-ecosystem-group: plugin
+    patterns: ["*"]
