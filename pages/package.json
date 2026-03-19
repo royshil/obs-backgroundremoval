@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
-    "astro": "^6.0.4",
+    "astro": "^6.0.7",
     "pretty-bytes": "^7.1.0",
     "typescript": "^5.9.3"
   },

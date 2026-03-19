@@ -18,5 +18,8 @@ updates:
     directory: /pages
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "@types/node"
+        versions: ["*"]
     multi-ecosystem-group: plugin
     patterns: ["*"]
