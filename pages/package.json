@@ -13,12 +13,12 @@
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
-    "astro": "^6.0.4",
+    "astro": "^6.0.7",
     "pretty-bytes": "^7.1.0",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@types/node": "^24.12.0",
+    "@types/node": "^25.5.0",
     "posthtml": "^0.16.7",
     "prettier": "3.8.1",
     "prettier-plugin-astro": "0.14.1"
