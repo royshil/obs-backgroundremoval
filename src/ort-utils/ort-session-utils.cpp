@@ -12,6 +12,9 @@
 #endif
 
 #ifdef _WIN32
+#ifdef HAVE_ONNXRUNTIME_DML_EP
+#include <dml_provider_factory.h>
+#endif
 #include <wchar.h>
 #include <windows.h>
 #endif // _WIN32
@@ -68,6 +71,11 @@ int createOrtSession(filter_data *tf)
 #ifdef HAVE_ONNXRUNTIME_ROCM_EP
 		if (tf->useGPU == USEGPU_ROCM) {
 			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_ROCM(sessionOptions, 0));
+		}
+#endif
+#ifdef HAVE_ONNXRUNTIME_DML_EP
+		if (tf->useGPU == USEGPU_DML) {
+			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(sessionOptions, 0));
 		}
 #endif
 #ifdef HAVE_ONNXRUNTIME_MIGRAPHX_EP

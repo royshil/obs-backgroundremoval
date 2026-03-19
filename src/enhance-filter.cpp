@@ -60,6 +60,9 @@ obs_properties_t *enhance_filter_properties(void *data)
 	obs_property_t *p_use_gpu = obs_properties_add_list(props, "useGPU", obs_module_text("InferenceDevice"),
 							    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(p_use_gpu, obs_module_text("CPU"), USEGPU_CPU);
+#if defined(_WIN32) && defined(HAVE_ONNXRUNTIME_DML_EP)
+	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUDirectML"), USEGPU_DML);
+#endif
 #ifdef HAVE_ONNXRUNTIME_CUDA_EP
 	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUCUDA"), USEGPU_CUDA);
 #endif
@@ -96,8 +99,9 @@ void enhance_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, "model_select", MODEL_ENHANCE_TBEFN);
 #if defined(__APPLE__)
 	obs_data_set_default_string(settings, "useGPU", USEGPU_CPU);
+#elif defined(_WIN32) && defined(HAVE_ONNXRUNTIME_DML_EP)
+	obs_data_set_default_string(settings, "useGPU", USEGPU_DML);
 #else
-	// Linux
 	obs_data_set_default_string(settings, "useGPU", USEGPU_CPU);
 #endif
 }

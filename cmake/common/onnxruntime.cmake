@@ -43,6 +43,7 @@ set(
   onnxruntime_session
   onnxruntime_optimizer
   onnxruntime_providers
+  onnxruntime_providers_dml
   onnxruntime_lora
   onnxruntime_framework
   onnxruntime_graph
@@ -75,12 +76,25 @@ target_include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/providers/coreml"
 )
 
+if(MSVC)
+  set(DIRECTML_LIB "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/lib/DirectML.lib")
+  if(EXISTS "${DIRECTML_LIB}")
+    target_include_directories(
+      onnxruntime INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/onnxruntime/include/onnxruntime/core/providers/dml"
+    )
+    target_compile_definitions(onnxruntime INTERFACE HAVE_ONNXRUNTIME_DML_EP)
+  else()
+    message(STATUS "DirectML import library not found; Windows DirectML support disabled.")
+  endif()
+endif()
+
 target_link_libraries(
   onnxruntime
   INTERFACE
     onnxruntime::onnxruntime_session
     onnxruntime::onnxruntime_optimizer
     onnxruntime::onnxruntime_providers
+    onnxruntime::onnxruntime_providers_dml
     onnxruntime::onnxruntime_lora
     onnxruntime::onnxruntime_framework
     onnxruntime::onnxruntime_graph
@@ -194,6 +208,10 @@ if(APPLE)
       onnxruntime::kleidiai
       "-framework Foundation"
   )
+elseif(MSVC)
+  if(EXISTS "${DIRECTML_LIB}")
+    target_link_libraries(onnxruntime INTERFACE "${DIRECTML_LIB}" d3d12 dxgi dxguid dxcore)
+  endif()
 elseif(NOT MSVC)
   target_link_libraries(onnxruntime INTERFACE Iconv::Iconv dl rt)
 endif()

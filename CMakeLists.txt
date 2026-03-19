@@ -215,3 +215,19 @@ else()
 endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PLUGIN_NAME})
+
+if(MSVC)
+  file(GLOB ORT_RUNTIME_DLLS "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/bin/*.dll")
+  foreach(ort_runtime_dll IN LISTS ORT_RUNTIME_DLLS)
+    get_filename_component(ort_runtime_name "${ort_runtime_dll}" NAME)
+    install(FILES "${ort_runtime_dll}" DESTINATION "${CMAKE_PROJECT_NAME}/bin/64bit")
+    add_custom_command(
+      TARGET ${CMAKE_PROJECT_NAME}
+      POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ort_runtime_dll}"
+              "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${ort_runtime_name}"
+      COMMENT "Copy ONNX Runtime dependency ${ort_runtime_name} to rundir"
+      VERBATIM
+    )
+  endforeach()
+endif()
