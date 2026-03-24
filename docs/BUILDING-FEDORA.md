@@ -18,7 +18,8 @@ sudo dnf install \
   curl-devel \
   gcc-c++ \
   obs-studio-devel \
-  opencv-devel
+  opencv-devel \
+  onnxruntime-devel
 ```
 
 Run the following command to compile the plugin:  
