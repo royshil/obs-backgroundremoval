@@ -1,5 +1,3 @@
 {
-  "reject": [
-    "@types/node"
-  ]
+  "reject": ["@types/node"]
 }

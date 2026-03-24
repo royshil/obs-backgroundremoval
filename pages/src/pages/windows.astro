@@ -33,11 +33,11 @@ const assetX64 = release.assets.find((e) => /windows-x64\.zip/.test(e.name));
 if (!assetX64) throw new Error("Windows x64 asset not found!");
 ---
 
-<Layout lang="en" title="How to use OBS Background Removal on Windows">
+<Layout lang="en" title="Windows Installation Guide - Background Removal">
   <Fragment slot="head-info">
     <meta
       name="description"
-      content="How to use OBS Background Removal on Windows"
+      content="This page describes how Windows users can install the Background Removal plugin into their OBS Studio. Unzip the latest version of the plugin and copy obs-backgroundremoval folder into C:/ProgramData/obs-studio/plugins. Restart OBS Studio and Background Removal and Low-Light Enhancement filters will be available on the list of effect filters on any video sources."
     />
     <link
       rel="canonical"
@@ -46,45 +46,110 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
   </Fragment>
 
   <main class="white-box">
-    <h1>Install OBS Background Removal on Windows</h1>
+    <h1>Windows Installation Guide</h1>
+    <p>How to use our Background Removal plugin on Windows</p>
+
+    <aside
+      class="alert-box prominent"
+      aria-label="Important Notice for Windows Users"
+    >
+      <p>
+        <strong>⚠️ NO Program Files:</strong>
+        DO NOT install OBS plugins under <code>Program Files</code>.
+        <strong>TOTALLY</strong> unsupported and will <strong>BREAK SOON</strong
+        >.
+        <a href="https://obsproject.com/kb/plugins-guide"
+          >OBS Project's Plugins Guide</a
+        >
+      </p>
+    </aside>
+
+    <p>
+      Here we describe how you can install our Background Removal plugin into
+      your OBS Studio on Windows.
+    </p>
+
+    <h2>Installing version {release.tag_name}</h2>
 
     <ol>
       <li>
-        <strong>Download the Plugin:</strong><br />
-        <a href={assetX64.browser_download_url} download>
-          Click here to download the latest Windows version (ZIP)
-        </a>
+        <strong>Download ZIP:</strong> The latest release of our plugin is {
+          release.tag_name
+        }.<br />
+        Please download our plugin from the GitHub Release of version {
+          release.tag_name
+        }.<br />
+        <dl>
+          <dt>
+            <strong>📝 The {release.tag_name} release page on GitHub:</strong>
+          </dt>
+          <dd><a href={release.html_url}>{release.html_url}</a></dd>
+          <dt><strong>⬇️ Direct download link for Windows x64 ZIP:</strong></dt>
+          <dd>
+            <a href={assetX64.browser_download_url}
+              >{assetX64.browser_download_url}</a>
+          </dd>
+        </dl>
       </li>
       <li>
-        <strong>Extract the ZIP File:</strong><br />
-        Right-click the downloaded ZIP file and select <em>Extract All...</em>
+        <strong>Extract ZIP File:</strong><br />
+        The ZIP file you downloaded has some files and a folder named <code
+          >obs-backgroundremoval</code
+        >. This folder is the bundle of our plugin, and you need to place this
+        folder where your OBS Studio can find it. Please read README.txt in the
+        ZIP file and follow the instructions to install our plugin.
       </li>
       <li>
-        <strong>Copy Files to OBS Directory:</strong><br />
-        Move the extracted `obs-backgroundremoval` folder into your OBS Studio installation folder.<br />
-        <code>C:\ProgramData\obs-studio\plugins</code>
+        <strong
+          >Place obs-backgroundremoval Folder into
+          C:\ProgramData\obs-studio\plugins</strong
+        ><br />
+        <dl>
+          <dt><strong>📝 How to install plugin on Windows.txt:</strong></dt>
+          <dd>
+            A text file to guide you through the installation process on
+            Windows.
+          </dd>
+          <dt><strong>⤵️ Install Into Here:</strong></dt>
+          <dd>A shortcut to <code>C:\ProgramData\obs-studio\plugins</code>.</dd>
+          <dt><strong>📂 obs-backgroundremoval:</strong></dt>
+          <dd>The plugin itself.</dd>
+        </dl>
+        ProgramData is one of system folders that keeps custom data such as databases
+        and plugins. You can open this system folder by pressing <code
+          >Win + R</code
+        > in combination, and typing <code>C:\ProgramData</code> on it, then pressing
+        Enter. Now you should see Explorer window of ProgramData. Please create a
+        <code>obs-studio\plugins</code> folder and place the <code
+          >obs-backgroundremoval</code
+        > folder into it. When you complete this step in correct way, you have <code
+          >C:\ProgramData\obs-studio\plugins\obs-backgroundremoval</code
+        >.
       </li>
       <li>
         <strong>Restart OBS Studio:</strong><br />
-        Close OBS Studio if it's running, then open it again.
+        Once you have installed a new plugin into OBS Studio, you need to restart
+        OBS Studio to take effects. Open the effect filters list of any video sources
+        to check if there are Background Removal and Low-Light Enhancement filters
+        available.
       </li>
       <li>
-        <strong>Usage:</strong><br />
-        See the <a href={joinURL(BASE_URL, "usage/")}>usage page</a> for how to use
-        the plugin.
+        <strong
+          >Set up our plugin as described in <a
+            href={withTrailingSlash(joinURL(BASE_URL, "usage/"))}>Usage page</a
+          ></strong
+        >:<br />
+        Background Removal and Low-Light Enhancement filters can be applied to any
+        video sources or groups in OBS Studio. If you don't see any of our filters,
+        please check Plugin Manager in Tools menu.
+        <a href="https://github.com/royshil/obs-backgroundremoval/discussions"
+          >GitHub Discussions</a
+        > may be helpful to solve your problem as well.
       </li>
     </ol>
-
-    <p>All set!</p>
 
     <p>
       <a href={joinURL(BASE_URL, "/")}>Back to the top page</a>
     </p>
   </main>
 </Layout>
-
-<style>
-  pre {
-    overflow: scroll;
-  }
-</style>

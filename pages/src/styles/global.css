@@ -90,3 +90,15 @@ ul.download-links > li > a {
 ul.download-links > li > a:hover {
   background-color: var(--color-download-button-active-bg);
 }
+
+.alert-box {
+  background-color: var(--color-alert-bg);
+  color: var(--color-alert-fg);
+  padding: 0.5rem 1rem;
+  border-radius: 1rem;
+}
+
+.prominent {
+  font-size: 1.5rem;
+  font-style: italic;
+}
