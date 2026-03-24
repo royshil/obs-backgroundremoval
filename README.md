@@ -32,7 +32,7 @@ Check out the [usage guide page](https://royshil.github.io/obs-backgroundremoval
 
 Additional tutorial videos:
 
-- Usage tutorial: https://youtu.be/veqNEsMqEE0
+- [▶︎ Official Guide of Background Removal Plugin for OBS Studio on YouTube](https://www.youtube.com/playlist?list=PLfd4SnaQQz_DVr_18OQozucYmiC56rRhy)
 - Depth of Field effect: https://youtu.be/jC3EKSpNjQk
 - Low-light enhancement: https://youtu.be/WSBLYWFrn2Q
 - Remove background from ANY object (not just human): https://youtu.be/N74VCDCToX8

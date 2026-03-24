@@ -193,17 +193,21 @@ const dynamicDescription = cleanBody
         </ul>
       </section>
 
-      <div class="github-row">
-        <a
-          href={release.html_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="github-button"
-        >
-          <GitHubMarkWhite viewBox="0 0 98 96" width="24" height="24" />
-          <span>View on GitHub</span>
-        </a>
-      </div>
+      <section class="material-button-section">
+        <div class="github-button">
+          <a href={release.html_url} target="_blank" rel="noopener noreferrer">
+            <GitHubMarkWhite viewBox="0 0 98 96" width="24" height="24" />
+            <span>View on GitHub</span>
+          </a>
+        </div>
+        <div class="video-tutorials-button">
+          <a
+            href="https://youtube.com/playlist?list=PLfd4SnaQQz_DVr_18OQozucYmiC56rRhy&si=jQFfoclvIQWCr13b"
+          >
+            ▶︎ YouTube Tutorials
+          </a>
+        </div>
+      </section>
 
       <file-verifier-drop-area id="verifier"></file-verifier-drop-area>
 
@@ -379,25 +383,6 @@ const dynamicDescription = cleanBody
       max-width: 100%;
       background-color: #f8f9fa;
       padding: 1.5rem;
-    }
-
-    .github-row {
-      display: flex;
-      justify-content: center;
-      margin: 1rem 0;
-    }
-
-    .github-button {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background-color: var(--color-github-black);
-      color: #fff;
-      padding: 10px 20px;
-      border-radius: 5px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 18px;
     }
   }
 </style>

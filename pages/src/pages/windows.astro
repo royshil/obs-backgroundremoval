@@ -11,6 +11,8 @@ import Layout from "../layouts/Layout.astro";
 
 import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL } from "../lib/info.js";
 
+import GitHubMarkWhite from "../../public/github-mark-white.svg";
+
 export type LatestRelease =
   RestEndpointMethodTypes["repos"]["getLatestRelease"]["response"]["data"];
 
@@ -69,6 +71,22 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
       your OBS Studio on Windows.
     </p>
 
+    <section class="material-button-section">
+      <div class="github-button">
+        <a href={release.html_url} target="_blank" rel="noopener noreferrer">
+          <GitHubMarkWhite viewBox="0 0 98 96" width="24" height="24" />
+          <span>View on GitHub</span>
+        </a>
+      </div>
+      <div class="video-tutorials-button">
+        <a
+          href="https://youtube.com/playlist?list=PLfd4SnaQQz_DVr_18OQozucYmiC56rRhy&si=jQFfoclvIQWCr13b"
+        >
+          ▶︎ YouTube Tutorials
+        </a>
+      </div>
+    </section>
+
     <h2>Installing version {release.tag_name}</h2>
 
     <ol>
@@ -87,7 +105,8 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
           <dt><strong>⬇️ Direct download link for Windows x64 ZIP:</strong></dt>
           <dd>
             <a href={assetX64.browser_download_url}
-              >{assetX64.browser_download_url}</a>
+              >{assetX64.browser_download_url}</a
+            >
           </dd>
         </dl>
       </li>

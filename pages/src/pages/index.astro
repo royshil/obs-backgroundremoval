@@ -17,6 +17,7 @@ import Layout from "../layouts/Layout.astro";
 
 import demo from "../assets/demo.gif";
 import icon from "../assets/obs-backgroundremoval-icon.jpg";
+import GitHubMarkWhite from "../../public/github-mark-white.svg";
 
 export type LatestRelease =
   RestEndpointMethodTypes["repos"]["getLatestRelease"]["response"]["data"];
@@ -94,6 +95,22 @@ const release = await getLatestRelease();
       See our <a href={joinURL(BASE_URL, "usage/")}>Usage</a> page for instructions
       on usage in OBS
     </p>
+
+    <section class="material-button-section">
+      <div class="github-button">
+        <a href={release.html_url} target="_blank" rel="noopener noreferrer">
+          <GitHubMarkWhite viewBox="0 0 98 96" width="24" height="24" />
+          <span>View on GitHub</span>
+        </a>
+      </div>
+      <div class="video-tutorials-button">
+        <a
+          href="https://youtube.com/playlist?list=PLfd4SnaQQz_DVr_18OQozucYmiC56rRhy&si=jQFfoclvIQWCr13b"
+        >
+          ▶︎ YouTube Tutorials
+        </a>
+      </div>
+    </section>
 
     <p>
       <a href={joinURL(BASE_URL, "versions/")}>Version History</a>
