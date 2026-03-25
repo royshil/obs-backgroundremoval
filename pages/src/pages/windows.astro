@@ -9,7 +9,7 @@ import { Octokit, type RestEndpointMethodTypes } from "@octokit/rest";
 
 import Layout from "../layouts/Layout.astro";
 
-import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL } from "../lib/info.js";
+import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL, PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL } from "../lib/info.js";
 
 import GitHubMarkWhite from "../../public/github-mark-white.svg";
 
@@ -80,7 +80,7 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
       </div>
       <div class="video-tutorials-button">
         <a
-          href="https://youtube.com/playlist?list=PLfd4SnaQQz_DVr_18OQozucYmiC56rRhy"
+          href={PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL}
         >
           ▶︎ YouTube Tutorials
         </a>
@@ -148,7 +148,7 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
       <li>
         <strong>Restart OBS Studio:</strong><br />
         Once you have installed a new plugin into OBS Studio, you need to restart
-        OBS Studio for this changes to take effect. Open the effect filters list of
+        OBS Studio for these changes to take effect. Open the effect filters list of
         any video sources to check if there are Background Removal and Low-Light Enhancement
         filters available.
       </li>
@@ -160,7 +160,7 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
         >:<br />
         Background Removal and Low-Light Enhancement filters can be applied to any
         video sources or groups in OBS Studio. If you don't see any of our filters,
-        please check Plugin Manager in Tools menu.
+        please check the Plugin Manager in the Tools menu.
         <a href="https://github.com/royshil/obs-backgroundremoval/discussions"
           >GitHub Discussions</a
         > may be helpful to solve your problem as well.

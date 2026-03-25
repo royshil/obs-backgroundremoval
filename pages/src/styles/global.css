@@ -112,10 +112,13 @@ ul.download-links > li > a:hover {
   row-gap: 0.5rem;
 }
 
+.material-button-section > div {
+  margin: .3rem 0;
+}
+
 .github-button {
   display: flex;
   justify-content: center;
-  margin: 1rem 0;
 }
 
 .github-button a {

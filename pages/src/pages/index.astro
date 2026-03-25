@@ -11,7 +11,7 @@ import { Image } from "astro:assets";
 
 import DefineLocalDate from "../components/DefineLocalDate.astro";
 
-import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL } from "../lib/info.js";
+import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL, PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL } from "../lib/info.js";
 
 import Layout from "../layouts/Layout.astro";
 
@@ -105,7 +105,7 @@ const release = await getLatestRelease();
       </div>
       <div class="video-tutorials-button">
         <a
-          href="https://youtube.com/playlist?list=PLfd4SnaQQz_DVr_18OQozucYmiC56rRhy"
+          href={PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL}
         >
           ▶︎ YouTube Tutorials
         </a>
@@ -122,16 +122,6 @@ const release = await getLatestRelease();
 
     <p>
       <a href={joinURL(BASE_URL, "uninstall/")}>Uninstall instructions</a>
-    </p>
-
-    <p>
-      <a
-        href="https://github.com/royshil/obs-backgroundremoval"
-        target="_blank"
-        rel="noopener"
-      >
-        View on GitHub
-      </a>
     </p>
   </main>
 </Layout>

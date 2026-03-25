@@ -14,6 +14,7 @@ import {
   GITHUB_REPO,
   GITHUB_URL,
   PRODUCTION_BASE_URL,
+  PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL,
 } from "../../lib/info.js";
 import DefineFileVerifierDropArea from "../../components/DefineFileVerifierDropArea.astro";
 import DefineLocalDate from "../../components/DefineLocalDate.astro";
@@ -202,7 +203,7 @@ const dynamicDescription = cleanBody
         </div>
         <div class="video-tutorials-button">
           <a
-            href="https://youtube.com/playlist?list=PLfd4SnaQQz_DVr_18OQozucYmiC56rRhy"
+            href={PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL}
           >
             ▶︎ YouTube Tutorials
           </a>
