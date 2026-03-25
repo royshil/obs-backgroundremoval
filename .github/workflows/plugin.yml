@@ -555,16 +555,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
-        working-directory: ${{ steps.secure-dir.outputs.artifacts }}
+          ARTIFACTS_DIR: ${{ steps.secure-dir.outputs.artifacts }}
         run: |
           # Output the existing release info, or create a new draft release if not exists.
-          if !gh release view "$GITHUB_REF_NAME"; then
+          if ! gh release view "$GITHUB_REF_NAME"; then
             gh release create "$GITHUB_REF_NAME" --draft --notes-from-tag --title "$GITHUB_REF_NAME" --verify-tag
           fi
 
           ASSETS=("$BUNDLE_PATH")
 
-          for f in *; do
+          for f in "$ARTIFACTS_DIR"/*; do
             case "$f" in
             *-windows-x64.zip) ASSETS+=("$f#ZIP Binary for Windows (x64)") ;;
             *-windows-x64-pdb.zip) ASSETS+=("$f") ;;
