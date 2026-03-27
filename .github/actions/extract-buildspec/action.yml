@@ -3,30 +3,40 @@
 # SPDX-License-Identifier: Apache-2.0
 
 name: Extract buildspec
-description: Extract and output plugin metadata from buildspec.json
+description: Extract and output plugin buildspec.
+
+# file: .github/actions/extract-buildspec/action.yml
+# author: Kaito Udagawa <umireon@kaito.tokyo>
+# version: 1.1.0
+# date: 2026-03-30
+
+inputs:
+  path:
+    description: Path to buildspec.json.
+    required: false
+    default: buildspec.json
 
 outputs:
-  name:
-    description: .name from buildspec.json
-    value: ${{ fromJSON(steps.extract.outputs.json).name }}
-  version:
-    description: .version from buildspec.json
-    value: ${{ fromJSON(steps.extract.outputs.json).version }}
-  displayName:
-    description: .displayName from buildspec.json
-    value: ${{ fromJSON(steps.extract.outputs.json).displayName }}
-  bundleId:
+  BUNDLE_ID:
     description: .platformConfig.macos.bundleId from buildspec.json
-    value: ${{ fromJSON(steps.extract.outputs.json).platformConfig.macos.bundleId }}
+    value: ${{ fromJSON(steps.extract.outputs.JSON).platformConfig.macos.bundleId }}
+  DISPLAY_NAME:
+    description: .displayName from buildspec.json
+    value: ${{ fromJSON(steps.extract.outputs.JSON).displayName }}
+  NAME:
+    description: .name from buildspec.json
+    value: ${{ fromJSON(steps.extract.outputs.JSON).name }}
+  VERSION:
+    description: .version from buildspec.json
+    value: ${{ fromJSON(steps.extract.outputs.JSON).version }}
 
 runs:
   using: composite
   steps:
-    - name: Extract plugin metadata
+    - name: Extract plugin buildspec
       id: extract
-      shell: bash
+      shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+      env:
+        INPUT_PATH: '${{ inputs.path }}'
       run: |
-        {
-          printf 'json='
-          jq -c . "$GITHUB_WORKSPACE/buildspec.json"
-        } >> "$GITHUB_OUTPUT"
+        printf 'JSON=%s\n' "$(jq -c . "$INPUT_PATH")" >> "$GITHUB_OUTPUT"

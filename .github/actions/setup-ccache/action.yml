@@ -3,49 +3,57 @@
 # SPDX-License-Identifier: Apache-2.0
 
 name: Set up ccache
-description: Set up ccache for macOS, Ubuntu, and Windows
+description: Set up ccache, and verify its installation.
+
+# file: .github/actions/setup-ccache/action.yml
+# author: Kaito Udagawa <umireon@kaito.tokyo>
+# version: 1.1.0
+# date: 2026-03-30
+
 inputs:
   version:
     description: Version of ccache to install.
-    required: true
+    required: false
+    default: '4.12.3'
   verify:
     description: Whether to verify downloaded ccache.
     required: false
-    default: "true"
+    default: 'true'
+
 outputs:
-  version:
+  VERSION:
     description: Version of ccache installed.
     value: ${{ inputs.version }}
+
 runs:
   using: composite
   steps:
     - name: Install ccache
       id: install
-      shell: bash
+      shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
       env:
-        INPUT_VERSION: ${{ inputs.version }}
-        INPUT_VERIFY: ${{ inputs.verify }}
+        CCACHE_PUBKEY: 'RWQX7yXbBedVfI4PNx6FLdFXu9GHUFsr28s4BVGxm4BeybtnX3P06saF'
+        INPUT_VERSION: '${{ inputs.version }}'
+        INPUT_VERIFY: '${{ inputs.verify }}'
       run: |
-        set -euo pipefail
+        BIN_DIR="$(mktemp -d -p "$RUNNER_TEMP" setup-ccache-bin.XXXXXXXXXX)"
+        DOWNLOAD_DIR="$(mktemp -d -p "$RUNNER_TEMP" setup-ccache-download.XXXXXXXXXX)"
 
         case "$RUNNER_OS" in
           macOS) FILE="ccache-$INPUT_VERSION-darwin.tar.gz" ;;
           Linux) FILE="ccache-$INPUT_VERSION-linux-x86_64.tar.xz" ;;
           Windows) FILE="ccache-$INPUT_VERSION-windows-x86_64.zip" ;;
+          * ) echo "Unsupported OS: $RUNNER_OS" >&2; exit 1 ;;
         esac
 
-        DOWNLOAD_DIR="$RUNNER_TEMP/setup-ccache-download"
-        BIN_DIR="$RUNNER_TEMP/setup-ccache-bin"
-        mkdir -p "$DOWNLOAD_DIR" "$BIN_DIR"
-
         cd "$DOWNLOAD_DIR"
-        curl -fsSLO "https://github.com/ccache/ccache/releases/download/v$INPUT_VERSION/$FILE"
+        curl -fsSL \
+          -O "https://github.com/ccache/ccache/releases/download/v$INPUT_VERSION/$FILE" \
+          -O "https://github.com/ccache/ccache/releases/download/v$INPUT_VERSION/$FILE.minisig"
+
 
         if [[ "$INPUT_VERIFY" == true ]]; then
-          grep "$FILE" "$GITHUB_ACTION_PATH/SHA256SUMS-$INPUT_VERSION.txt" | tr -d '\r' > checksum.txt
-          if ! sha256sum -c checksum.txt; then
-            exit 1
-          fi
+          node "$GITHUB_ACTION_PATH/verify-js/minisign-verify-cli.mjs" -V -P "$CCACHE_PUBKEY" -m "$FILE"
         fi
 
         if [[ "$RUNNER_OS" == Windows ]]; then
@@ -59,6 +67,7 @@ runs:
           echo "$BIN_DIR" >> "$GITHUB_PATH"
         fi
 
-    - name: Show Ccache version
-      shell: bash
-      run: ccache --version
+    - name: Show ccache version
+      shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+      run: |
+        ccache --version

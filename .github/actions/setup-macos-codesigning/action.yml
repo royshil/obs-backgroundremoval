@@ -3,45 +3,38 @@
 # SPDX-License-Identifier: Apache-2.0
 
 name: Set up macOS Code Signing
-description: Configure code signing for macOS
+description: Configure code signing for macOS.
+
+# file: .github/actions/setup-macos-codesigning/action.yml
+# author: Kaito Udagawa <umireon@kaito.tokyo>
+# version: 1.1.0
+# date: 2026-03-30
 
 inputs:
   MACOS_SIGNING_APPLICATION_IDENTITY:
-    description: Application Identity for code signing
+    description: Application Identity for code signing.
     required: true
   MACOS_SIGNING_CERT:
-    description: Base64 encoded .p12 certificate
+    description: Base64 encoded .p12 certificate.
     required: true
   MACOS_SIGNING_CERT_PASSWORD:
-    description: Password for the .p12 certificate
+    description: Password for the .p12 certificate.
     required: true
 
 outputs:
   CODESIGN_TEAM:
-    description: The Team ID
+    description: The Team ID.
     value: ${{ steps.extract.outputs.CODESIGN_TEAM }}
 
 runs:
   using: composite
   steps:
-    - name: Mask Sensitive Information
-      shell: bash
-      env:
-        MACOS_SIGNING_CERT: ${{ inputs.MACOS_SIGNING_CERT }}
-        MACOS_SIGNING_CERT_PASSWORD: ${{ inputs.MACOS_SIGNING_CERT_PASSWORD }}
-      run: |
-        set -euo pipefail
-        printf '::add-mask::%s\n' "$(tr -cd '[:print:]' <<< "$MACOS_SIGNING_CERT")"
-        printf '::add-mask::%s\n' "$(tr -cd '[:print:]' <<< "$MACOS_SIGNING_CERT_PASSWORD")"
-
     - name: Extract Codesign Identity
       id: extract
-      shell: bash
+      shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
       env:
-        MACOS_SIGNING_APPLICATION_IDENTITY: ${{ inputs.MACOS_SIGNING_APPLICATION_IDENTITY }}
+        MACOS_SIGNING_APPLICATION_IDENTITY: '${{ inputs.MACOS_SIGNING_APPLICATION_IDENTITY }}'
       run: |
-        set -euo pipefail
-
         CODESIGN_TEAM="$(awk -F'[()]' '{ print $2 }' <<< "$MACOS_SIGNING_APPLICATION_IDENTITY")"
 
         if [[ -z "$CODESIGN_TEAM" ]]; then
@@ -52,27 +45,23 @@ runs:
         printf 'CODESIGN_TEAM=%s\n' "$CODESIGN_TEAM" >> "$GITHUB_OUTPUT"
 
     - name: Import Signing Certificate
-      shell: bash
+      shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
       env:
-        MACOS_SIGNING_CERT: ${{ inputs.MACOS_SIGNING_CERT }}
-        MACOS_SIGNING_CERT_PASSWORD: ${{ inputs.MACOS_SIGNING_CERT_PASSWORD }}
-        KEYCHAIN_DIR: ${{ runner.temp }}/setup-macos-codesigning
+        MACOS_SIGNING_CERT: '${{ inputs.MACOS_SIGNING_CERT }}'
+        MACOS_SIGNING_CERT_PASSWORD: '${{ inputs.MACOS_SIGNING_CERT_PASSWORD }}'
       run: |
-        set -euo pipefail
-
-        KEYCHAIN_PATH="$KEYCHAIN_DIR/app-signing.keychain-db"
+        KEYCHAIN_DIR="$(mktemp -d -p "$RUNNER_TEMP" setup-macos-codesigning.XXXXXXXXXX)"
+        KEYCHAIN_DB="$KEYCHAIN_DIR/app-signing.keychain-db"
         KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
 
-        mkdir -p "$KEYCHAIN_DIR"
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_DB"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_DB"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_DB"
 
-        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-        security default-keychain -s "$KEYCHAIN_PATH"
+        security default-keychain -s "$KEYCHAIN_DB"
 
         base64 --decode <<< "$MACOS_SIGNING_CERT" > "$KEYCHAIN_DIR/certificate.p12"
-        security import "$KEYCHAIN_DIR/certificate.p12" -k "$KEYCHAIN_PATH" -P "$MACOS_SIGNING_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+        security import "$KEYCHAIN_DIR/certificate.p12" -k "$KEYCHAIN_DB" -P "$MACOS_SIGNING_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
         rm "$KEYCHAIN_DIR/certificate.p12"
 
-        security set-key-partition-list -S "apple-tool:,apple:,codesign:" -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+        security set-key-partition-list -S "apple-tool:,apple:,codesign:" -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_DB"
