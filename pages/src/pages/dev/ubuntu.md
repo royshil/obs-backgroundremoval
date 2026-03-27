@@ -22,7 +22,21 @@ Welcome! This guide will walk you through setting up your development environmen
 Open your terminal and run:
 
 ```sh
-sudo apt install build-essential zsh cmake git curl zip unzip tar
+sudo apt install build-essential zsh cmake ninja-build git curl zip unzip tar python3 python3-pip
+```
+
+Then add the OBS Studio PPA and install the required OBS and Qt6 development packages:
+
+```sh
+sudo add-apt-repository ppa:obsproject/obs-studio
+sudo apt-get update
+sudo apt-get install -y \
+  libgles2-mesa-dev \
+  libqt6svg6-dev \
+  libsimde-dev \
+  obs-studio \
+  qt6-base-dev \
+  qt6-base-private-dev
 ```
 
 ---
@@ -55,27 +69,29 @@ export VCPKG_ROOT=~/vcpkg
 This step may take 10–20 minutes:
 
 ```sh
-${VCPKG_ROOT}/vcpkg install --triplet x64-linux-obs
+${VCPKG_ROOT}/vcpkg install --x-install-root=./.deps_vendor/vcpkg_installed --triplet x64-linux-obs
 ```
 
 ---
 
-## 5. Download ONNX Runtime
+## 5. Build ONNX Runtime
 
-Use CMake to download ONNX Runtime:
+Install Python build requirements, then build ONNX Runtime from source (this may take a significant amount of time):
 
 ```sh
-cmake -P cmake/DownloadOnnxruntime.cmake
+pip install --user -r requirements-build.txt
+./scripts/build_ort_ubuntu.sh
 ```
 
 ---
 
 ## 6. Build the Project
 
-Build using the provided CI scripts:
+Configure and build using the provided CMake preset:
 
 ```sh
-./.github/scripts/build-ubuntu --target ubuntu-x86_64 --config RelWithDebInfo
+cmake --preset ubuntu-x86_64
+cmake --build --preset ubuntu-x86_64
 ```
 
 ---
@@ -95,7 +111,9 @@ sudo cmake --install build_x86_64
 Create a Debian package:
 
 ```sh
-./.github/scripts/package-ubuntu --target ubuntu-x86_64 --config RelWithDebInfo --package
+cd build_x86_64
+cpack -G DEB
+cd ..
 ```
 
 ---
