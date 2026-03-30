@@ -22,7 +22,7 @@ cmake --version
 vcpkg install --triplet=arm64-osx-obs --x-install-root="$VCPKG_ARM64_DIR"
 vcpkg install --triplet=x64-osx-obs --x-install-root="$VCPKG_X64_DIR"
 
-"$SCRIPTS_DIR/merge_vcpkg_installed_into_macos_universal.sh" \
+"$SCRIPTS_DIR/lipo_vcpkg_macos.sh" \
   "$VCPKG_ARM64_DIR/arm64-osx-obs" \
   "$VCPKG_X64_DIR/x64-osx-obs" \
   "$VCPKG_DIR/universal-osx-obs"

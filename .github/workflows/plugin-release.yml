@@ -45,27 +45,28 @@ jobs:
         id: secure-dir
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          printf 'artifacts=%s\n' "$(mktemp -d -p "$RUNNER_TEMP" artifacts.XXXXXXXXXX)" >> "$GITHUB_OUTPUT"
+          printf 'ARTIFACTS_DIR=%s\n' "$(mktemp -d -p "$RUNNER_TEMP" artifacts.XXXXXXXXXX)" >> "$GITHUB_OUTPUT"
 
       - name: Download plugin binaries
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: ${{ steps.buildspec.outputs.name }}-pluginbinary-*
+          pattern: ${{ steps.buildspec.outputs.NAME }}-pluginbinary-*
           merge-multiple: true
-          path: ${{ steps.secure-dir.outputs.artifacts }}
+          path: ${{ steps.secure-dir.outputs.ARTIFACTS_DIR }}
 
       - name: Attest plugin binary artifacts
         id: attest
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
-          subject-path: ${{ steps.secure-dir.outputs.artifacts }}/*
+          subject-path: ${{ steps.secure-dir.outputs.ARTIFACTS_DIR }}/*
 
       - name: Create a draft release with artifacts
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
+          ARTIFACTS_DIR: '${{ steps.secure-dir.outputs.ARTIFACTS_DIR }}'
           BUNDLE_PATH: '${{ steps.attest.outputs.bundle-path }}'
           GH_TOKEN: '${{ github.token }}'
-        working-directory: ${{ steps.secure-dir.outputs.artifacts }}
+        working-directory: ${{ steps.secure-dir.outputs.ARTIFACTS_DIR }}
         run: |
           # Output the existing release info, or create a new draft release if not exists.
           if ! gh release view "$GITHUB_REF_NAME"; then

@@ -117,7 +117,7 @@ jobs:
         env:
           BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
           GIT_CONFIG_PARAMETERS: '${{ env.CREDENTIAL_GIT_CONFIG_PARAMETERS }}'
-          PATH: '${{ env.CMAKE_PATH }};${{ env.MINIMAL_PATH }}'
+          PATH: '${{ env.CMAKE_PATH }}:${{ env.MINIMAL_PATH }}'
         run: |
           "$VCPKG_ROOT/vcpkg" install --x-install-root=./.deps_vendor/vcpkg_installed_arm64 --triplet=arm64-osx-obs
 
@@ -126,7 +126,7 @@ jobs:
         env:
           BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
           GIT_CONFIG_PARAMETERS: '${{ env.CREDENTIAL_GIT_CONFIG_PARAMETERS }}'
-          PATH: '${{ env.MINIMAL_PATH }}'
+          PATH: '${{ env.CMAKE_PATH }}:${{ env.MINIMAL_PATH }}'
         run: |
           "$VCPKG_ROOT/vcpkg" install --x-install-root=./.deps_vendor/vcpkg_installed_x64 --triplet=x64-osx-obs
 
@@ -159,7 +159,7 @@ jobs:
         id: ort-toolchain
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          HASH: ${{ hashFiles( 'data/models/required_operators_and_types.with_runtime_opt.config', 'scripts/build_ort_macos.sh', 'scripts/lipo_vcpkg_macos.sh') }}
+          HASH: ${{ hashFiles('data/models/required_operators_and_types.with_runtime_opt.config', 'scripts/build_ort_macos.sh', 'scripts/lipo_vcpkg_macos.sh') }}
         run: |
           echo "HASH=$HASH" >> "$GITHUB_OUTPUT"
 
@@ -227,13 +227,13 @@ jobs:
         env:
           BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
           PATH: '${{ env.CMAKE_PATH }}:${{ env.MINIMAL_PATH }}'
-          PLUGIN_BUNDLE_ID: '${{ steps.buildspec.outputs.bundleId }}'
+          PLUGIN_BUNDLE_ID: '${{ steps.buildspec.outputs.BUNDLE_ID }}'
           PLUGIN_CODESIGN_ENABLED: ${{ inputs.codesign-enabled && 'true' || 'false' }}
-          PLUGIN_DISPLAY_NAME: '${{ steps.buildspec.outputs.displayName }}'
+          PLUGIN_DISPLAY_NAME: '${{ steps.buildspec.outputs.DISPLAY_NAME }}'
           PLUGIN_MACOS_SIGNING_APPLICATION_IDENTITY: '${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}'
           PLUGIN_MACOS_SIGNING_INSTALLER_IDENTITY: '${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}'
-          PLUGIN_NAME: '${{ steps.buildspec.outputs.name }}'
-          PLUGIN_VERSION: '${{ steps.buildspec.outputs.version }}'
+          PLUGIN_NAME: '${{ steps.buildspec.outputs.NAME }}'
+          PLUGIN_VERSION: '${{ steps.buildspec.outputs.VERSION }}'
         run: |
           cmake --install build_macos --config RelWithDebInfo --strip \
             --prefix ./release/payload/Library/Application\ Support/obs-studio/plugins
@@ -301,8 +301,8 @@ jobs:
         working-directory: ${{ github.workspace }}/build_macos/RelWithDebInfo
         env:
           BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PLUGIN_NAME: '${{ steps.buildspec.outputs.name }}'
-          PLUGIN_VERSION: '${{ steps.buildspec.outputs.version }}'
+          PLUGIN_NAME: '${{ steps.buildspec.outputs.NAME }}'
+          PLUGIN_VERSION: '${{ steps.buildspec.outputs.VERSION }}'
           PATH: '${{ env.MINIMAL_PATH }}'
         run: |
           tar -cJf "$GITHUB_WORKSPACE/release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-universal.dSYM.tar.xz" "$PLUGIN_NAME.plugin.dSYM"
@@ -310,7 +310,7 @@ jobs:
       - name: Upload Plugin Binary
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: ${{ steps.buildspec.outputs.name }}-pluginbinary-${{ runner.os }}-universal-${{ github.run_id }}
+          name: ${{ steps.buildspec.outputs.NAME }}-pluginbinary-${{ runner.os }}-universal-${{ github.run_id }}
           path: |
             release/*-macos-universal.pkg
             release/*-macos-universal.dSYM.tar.xz

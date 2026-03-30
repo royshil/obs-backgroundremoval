@@ -132,7 +132,7 @@ jobs:
         uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ${{ env.ORT_CCACHE_DIR }}
-          key: ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.HASH }}-${{ steps.setup-ccache.outputs.version }}
+          key: ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.HASH }}-${{ steps.setup-ccache.outputs.VERSION }}
           restore-keys: |
             ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain.outputs.HASH }}-
             ort-ccache-${{ runner.os }}-x86_64-${{ steps.image-metadata.outputs.ImageVersion }}-
@@ -168,7 +168,8 @@ jobs:
           BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
           GIT_CONFIG_PARAMETERS: '${{ env.CREDENTIAL_GIT_CONFIG_PARAMETERS }}'
           PATH: '${{ env.MINIMAL_PATH }}'
-        run: cmake --preset ubuntu-ci-x86_64
+        run: |
+          cmake --preset ubuntu-ci-x86_64
 
       - name: Build (Ubuntu x86_64)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
@@ -192,7 +193,7 @@ jobs:
       - name: Upload Plugin Binary
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: ${{ steps.buildspec.outputs.name }}-pluginbinary-${{ runner.os }}-x86_64-${{ github.run_id }}
+          name: ${{ steps.buildspec.outputs.NAME }}-pluginbinary-${{ runner.os }}-x86_64-${{ github.run_id }}
           path: |
             release/*-x86_64-linux-gnu.deb
             release/*-x86_64-linux-gnu-dbgsym.ddeb

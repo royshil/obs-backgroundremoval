@@ -8,7 +8,7 @@ filter_env_ubuntu() {
   for name in "${names[@]}"; do
     case "$name" in
     # Pattern
-    ACTIONS_* | GIT_* | GITHUB_* | PLUGIN_* | RUNNER_*) ;;
+    ACTIONS_* | CCACHE_* | GIT_* | GITHUB_* | PLUGIN_* | RUNNER_*) ;;
     # Common
     CI | HOME | LANG | LC_ALL | LC_CTYPE | LOGNAME | PATH | PSModulePath | SHELL | TERM | TMPDIR | USER | XDG_CONFIG_HOME) ;;
     # Ubuntu

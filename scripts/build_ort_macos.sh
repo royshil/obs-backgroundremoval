@@ -90,7 +90,7 @@ python3 "$BUILD_PY" --build --build_dir "$ORT_X86_64_BUILD_DIR" "${commonArgs[@]
 # --- 5. Merge vcpkg_installed into universal ---
 
 
-bash "$PROJECT_ROOT_DIR/scripts/merge_vcpkg_installed_into_macos_universal.sh" \
+bash "$PROJECT_ROOT_DIR/scripts/lipo_vcpkg_macos.sh" \
 	"$ORT_ARM64_BUILD_DIR/$CONFIGURATION/vcpkg_installed/arm64-osx" \
 	"$ORT_X86_64_BUILD_DIR/$CONFIGURATION/vcpkg_installed/x64-osx" \
 	"$ORT_VCPKG_DIR/universal-osx"
