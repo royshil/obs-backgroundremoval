@@ -1,70 +1,121 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
-# SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
+
+# file: scripts/build_ort_ubuntu.sh
+# description: Helper script to build ONNX Runtime for Ubuntu.
+# author: Kaito Udagawa <umireon@kaito.tokyo>
+# version: 1.1.0
+# date: 2026-04-04
 
 set -euo pipefail
+shopt -s nullglob
 
-ORT_VERSION=v1.24.1
-CONFIGURATION=Release
+PYTHON="${PYTHON:-python3}"
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ORT_SRC_DIR="${ROOT_DIR}/.deps_vendor/onnxruntime"
+BUILD_PY="${ORT_SRC_DIR}/tools/ci_build/build.py"
+REDUCED_OPS_CONFIG="${ROOT_DIR}/src/required_operators_and_types.with_runtime_opt.config"
+ORT_X86_64_BUILD_DIR="${ROOT_DIR}/.deps_vendor/ort_x86_64"
+ORT_X86_64_PREFIX="${ROOT_DIR}/.deps_vendor/ort_x86_64-prefix"
+
 ORT_COMPONENTS=(
-	onnxruntime_session
-	onnxruntime_optimizer
-	onnxruntime_providers
-	onnxruntime_lora
-	onnxruntime_framework
-	onnxruntime_graph
-	onnxruntime_util
-	onnxruntime_mlas
-	onnxruntime_common
-	onnxruntime_flatbuffers
+  onnxruntime_session
+  onnxruntime_optimizer
+  onnxruntime_providers
+  onnxruntime_lora
+  onnxruntime_framework
+  onnxruntime_graph
+  onnxruntime_util
+  onnxruntime_mlas
+  onnxruntime_common
+  onnxruntime_flatbuffers
 )
 
-ROOT_DIR="$(pwd)"
-DEPS_DIR="$ROOT_DIR/.deps_vendor"
-mkdir -p "$DEPS_DIR"
-ORT_SRC_DIR="$DEPS_DIR/onnxruntime"
-BUILD_PY="$ORT_SRC_DIR/tools/ci_build/build.py"
-ORT_BUILD_DIR="$DEPS_DIR/ort_x86_64"
-LIB_DIR="$DEPS_DIR/lib"
-
-# --- 1. Clone ONNX Runtime repository ---
-
-if ! [[ -d $ORT_SRC_DIR ]]; then
-	git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime.git "$ORT_SRC_DIR"
-	(cd "$ORT_SRC_DIR" && git submodule update --init --recursive --depth 1)
-fi
-
-# --- 2. Build ONNX Runtime for Ubuntu x86_64 ---
-
-commonArgs=(
-	"--build_dir" "$ORT_BUILD_DIR"
-	"--config" "$CONFIGURATION"
-	"--parallel"
-	"--compile_no_warning_as_error"
-	"--cmake_extra_defines"
-	"CMAKE_POLICY_VERSION_MINIMUM=3.5"
-	"--use_cache"
-	"--use_vcpkg"
-	"--skip_submodule_sync"
-	"--skip_tests"
-	"--include_ops_by_config" "$ROOT_DIR/data/models/required_operators_and_types.with_runtime_opt.config"
-	"--enable_reduced_operator_type_support"
-	"--disable_rtti"
+BUILD_PY_ARGS=(
+  --cmake_generator Ninja
+  --compile_no_warning_as_error
+  --config Release
+  --disable_rtti
+  --parallel
+  --skip_submodule_sync
+  --skip_tests
+  --use_vcpkg
 )
 
-if ! [[ -d $ORT_BUILD_DIR ]]; then
-	python3 "$BUILD_PY" --update "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}"
+if [[ -f "${REDUCED_OPS_CONFIG}" ]]; then
+  BUILD_PY_ARGS+=(
+    --enable_reduced_operator_type_support
+    --include_ops_by_config "${REDUCED_OPS_CONFIG}"
+  )
 fi
 
-python3 "$BUILD_PY" --build "${commonArgs[@]}" --targets "${ORT_COMPONENTS[@]}"
+BUILD_PY_CMAKE_EXTRA_DEFINES=(
+  "CMAKE_POLICY_VERSION_MINIMUM=3.5"
+  "onnxruntime_BUILD_UNIT_TESTS=OFF"
+)
 
-# --- 3. Install ORT libraries ---
+run_build_py() {
+  local -r arch="$1"
+  local -r command="$2"
 
-mkdir -p "$LIB_DIR"
+  if ! [[ -d "${ORT_SRC_DIR}" ]]; then
+    echo "ERROR: ONNX Runtime tree is not found." >&2
+    exit 1
+  fi
 
-for name in "${ORT_COMPONENTS[@]}"; do
-	cp -a "$ROOT_DIR/.deps_vendor/ort_x86_64/$CONFIGURATION/lib$name.a" "$LIB_DIR/"
-done
+  local commandline=(
+    "${PYTHON}"
+    "${BUILD_PY}"
+    "${BUILD_PY_ARGS[@]}"
+    --cmake_extra_defines "${BUILD_PY_CMAKE_EXTRA_DEFINES[@]}"
+  )
+
+  case "${arch}" in
+  x86_64)
+    commandline+=(
+      --build_dir "${ORT_X86_64_BUILD_DIR}"
+      --targets "${ORT_COMPONENTS[@]}"
+    )
+    ;;
+  *)
+    echo "ERROR: Invalid arch ${arch}." >&2
+    exit 1
+    ;;
+  esac
+
+  case "${command}" in
+  update)
+    commandline+=(--update)
+    ;;
+  build)
+    commandline+=(--build)
+    ;;
+  *)
+    echo "ERROR: Invalid command ${command}." >&2
+    exit 1
+    ;;
+  esac
+
+  if [[ -n "${CCACHE_DIR:-}" ]]; then
+    commandline+=(--use_cache)
+  fi
+
+  "${commandline[@]}"
+}
+
+install_ort() {
+  rm -rf "${ORT_X86_64_PREFIX}"
+  cmake --install "${ORT_X86_64_BUILD_DIR}/Release" --config Release --prefix "${ORT_X86_64_PREFIX}"
+}
+
+if [[ "$#" -eq 0 ]]; then
+  run_build_py x86_64 update
+  run_build_py x86_64 build
+  install_ort
+else
+  "$@"
+fi

@@ -1,11 +1,15 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# file: plugin-release.yml
+name: Release Plugin
+
+# file: .github/workflows/plugin-release.yml
 # author: Kaito Udagawa <umireon@kaito.tokyo>
-# version: 1.0.0
-# date: 2026-03-30
+# version: 1.0.1
+# date: 2026-03-31
 
 on:
   workflow_call:
@@ -15,6 +19,8 @@ on:
         required: false
         type: string
         default: ''
+
+permissions: {}
 
 jobs:
   create-draft-release:
@@ -65,6 +71,7 @@ jobs:
         env:
           ARTIFACTS_DIR: '${{ steps.secure-dir.outputs.ARTIFACTS_DIR }}'
           BUNDLE_PATH: '${{ steps.attest.outputs.bundle-path }}'
+          GH_REPO: '${{ github.repository }}'
           GH_TOKEN: '${{ github.token }}'
         working-directory: ${{ steps.secure-dir.outputs.ARTIFACTS_DIR }}
         run: |

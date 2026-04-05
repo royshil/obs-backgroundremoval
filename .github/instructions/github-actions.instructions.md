@@ -17,8 +17,9 @@ applyTo: "**/*.{yml,yaml}"
 
 ## Preinstalled Softwares on GitHub Actions Runner Images
 
-- **The command `xcbeautify`** is preinstalled on the runner `macos-15`.
 - **The command `jq`** is preinstalled on all the runner including `windows-2022`, `macos-15`, `ubuntu-slim`, and `ubuntu-24.04`.
+- **The command `vswhere`** is preinstalled under `C:\ProgramData\chocolatey\bin` on the runner `windows-2022`.
+- **The command `xcbeautify`** is preinstalled on the runner `macos-15`.
 
 ## About the package `obs-studio` on Ubuntu
 - **PPA**: We use the PPA provided by the OBS project (`ppa:obsproject/obs-studio`) to install OBS Studio and its development headers on Ubuntu.

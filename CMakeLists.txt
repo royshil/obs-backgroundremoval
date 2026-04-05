@@ -89,6 +89,7 @@ if(MSVC)
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-qt6-${QT6_VERSION}-x64"
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-${PREBUILT_VERSION}-x64"
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x64/Release/vcpkg_installed/x64-windows-static-md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x64-prefix"
   )
 elseif(APPLE)
   list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos")
@@ -99,7 +100,9 @@ elseif(APPLE)
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps"
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-qt6-${QT6_VERSION}-universal"
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-${PREBUILT_VERSION}-universal"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_vcpkg_installed/universal-osx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_universal_vcpkg_installed/universal-osx"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_universal-prefix"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/vcpkg_installed_universal/universal-osx-obs"
   )
 else()
   list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/linux")
@@ -107,6 +110,7 @@ else()
     PREPEND
     CMAKE_PREFIX_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x86_64/Release/vcpkg_installed/x64-linux"
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x86_64-prefix"
   )
 endif()
 
@@ -171,7 +175,23 @@ if(NOT TARGET OpenCV::opencv_imgproc)
 endif()
 
 ## ONNX Runtime
-include(onnxruntime)
+find_package(onnxruntime CONFIG)
+
+if(NOT onnxruntime_FOUND AND PkgConfig_FOUND)
+  pkg_check_modules(PC_onnxruntime onnxruntime IMPORTED_TARGET)
+  if(PC_onnxruntime_FOUND)
+    add_library(onnxruntime::onnxruntime ALIAS PkgConfig::PC_onnxruntime)
+    set(onnxruntime_FOUND TRUE)
+  endif()
+endif()
+
+if(NOT onnxruntime_FOUND)
+  message(FATAL_ERROR "ONNX Runtime not found via CMake or pkg-config.")
+endif()
+
+if(NOT TARGET onnxruntime::onnxruntime)
+  add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
+endif()
 
 # Plugin build definitions
 add_library(${CMAKE_PROJECT_NAME} MODULE)

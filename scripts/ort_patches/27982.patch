@@ -1,0 +1,22 @@
+From ec4792ab46173266ea9b2c19da0ff9c1ce0d7a97 Mon Sep 17 00:00:00 2001
+From: Kaito Udagawa <umireon@kaito.tokyo>
+Date: Sun, 5 Apr 2026 08:19:58 +0900
+Subject: [PATCH] Add include paths for static build
+
+Signed-off-by: Kaito Udagawa <umireon@kaito.tokyo>
+---
+ cmake/onnxruntime.cmake | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/cmake/onnxruntime.cmake b/cmake/onnxruntime.cmake
+index ff06ae91bead9..9b7e12b039b65 100644
+--- a/cmake/onnxruntime.cmake
++++ b/cmake/onnxruntime.cmake
+@@ -214,6 +214,7 @@ endif()
+ 
+ if (NOT onnxruntime_BUILD_SHARED_LIB)
+   add_library(onnxruntime INTERFACE)
++  target_include_directories(onnxruntime INTERFACE "$<BUILD_INTERFACE:${ONNXRUNTIME_ROOT}>" "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/onnxruntime>")
+ endif()
+ 
+ set(onnxruntime_INTERNAL_PROVIDER_LIBRARIES

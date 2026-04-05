@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -11,6 +13,8 @@ on:
     branches: [main]
     tags: ['*']
 
+permissions: {}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -22,14 +26,18 @@ jobs:
     uses: ./.github/workflows/plugin-build-windows.yml
     with:
       VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
+      vcpkg-version: '2025.08.27'
+      ort-version: v1.24.4
 
   build-macos:
     permissions:
       contents: read
     uses: ./.github/workflows/plugin-build-macos.yml
     with:
-      codesign-enabled: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
       VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
+      vcpkg-version: '2025.08.27'
+      ort-version: v1.24.4
+      codesign-enabled: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
     secrets: inherit
 
   build-ubuntu:
@@ -38,18 +46,25 @@ jobs:
     uses: ./.github/workflows/plugin-build-ubuntu.yml
     with:
       VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
+      vcpkg-version: '2025.08.27'
+      ort-version: v1.24.4
+
+  accept-plugin:
+    name: Accept Plugin CI
+    needs: [build-windows, build-macos, build-ubuntu]
+    runs-on: ubuntu-slim
+    permissions: {}
+    steps:
+      - name: Accept plugin
+        run: |
+          echo 'The workflow plugin has completed successfully.'
 
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    needs:
-      - build-windows
-      - build-macos
-      - build-ubuntu
+    needs: accept-plugin
     permissions:
       artifact-metadata: write
       attestations: write
       contents: write
       id-token: write
     uses: ./.github/workflows/plugin-release.yml
-    with:
-      environment: production-release

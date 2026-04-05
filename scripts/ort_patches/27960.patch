@@ -1,0 +1,33 @@
+From f243ded0263723e5eab72ad653e819ba1fc0a109 Mon Sep 17 00:00:00 2001
+From: Kaito Udagawa <umireon@kaito.tokyo>
+Date: Fri, 3 Apr 2026 12:51:14 +0900
+Subject: [PATCH] Fix CoreML-enabled static build on macOS
+
+The `coreml_proto` target must be properly exported to `onnxruntimeTargets`. Its include directories must not contain any paths from the build tree during the install phase.
+
+Signed-off-by: Kaito Udagawa <umireon@kaito.tokyo>
+---
+ cmake/onnxruntime_providers_coreml.cmake | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/cmake/onnxruntime_providers_coreml.cmake b/cmake/onnxruntime_providers_coreml.cmake
+index 757198ffb651d..bf46a73e43839 100644
+--- a/cmake/onnxruntime_providers_coreml.cmake
++++ b/cmake/onnxruntime_providers_coreml.cmake
+@@ -26,7 +26,7 @@ file(GLOB coreml_proto_srcs "${COREML_PROTO_ROOT}/*.proto")
+ onnxruntime_add_static_library(coreml_proto ${coreml_proto_srcs})
+ target_include_directories(coreml_proto
+                            PUBLIC $<TARGET_PROPERTY:${PROTOBUF_LIB},INTERFACE_INCLUDE_DIRECTORIES>
+-                           "${CMAKE_CURRENT_BINARY_DIR}")
++                           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+ target_compile_definitions(coreml_proto
+                            PUBLIC $<TARGET_PROPERTY:${PROTOBUF_LIB},INTERFACE_COMPILE_DEFINITIONS>)
+ set_target_properties(coreml_proto PROPERTIES COMPILE_FLAGS "-fvisibility=hidden")
+@@ -42,6 +42,7 @@ onnxruntime_protobuf_generate(
+ 
+ if (NOT onnxruntime_BUILD_SHARED_LIB)
+   install(TARGETS coreml_proto
++          EXPORT ${PROJECT_NAME}Targets
+           ARCHIVE   DESTINATION ${CMAKE_INSTALL_LIBDIR}
+           LIBRARY   DESTINATION ${CMAKE_INSTALL_LIBDIR}
+           RUNTIME   DESTINATION ${CMAKE_INSTALL_BINDIR}

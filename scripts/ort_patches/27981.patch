@@ -1,0 +1,24 @@
+From 0b47b496e0e7c5de0e002f6efe69640e6b993af6 Mon Sep 17 00:00:00 2001
+From: Kaito Udagawa <umireon@kaito.tokyo>
+Date: Sat, 4 Apr 2026 19:37:56 +0900
+Subject: [PATCH] Install without providers_shared for static build
+
+`onnxruntime_providers_shared` should not be installed when building static library.
+
+Signed-off-by: Kaito Udagawa <umireon@kaito.tokyo>
+---
+ cmake/onnxruntime_providers_cpu.cmake | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/cmake/onnxruntime_providers_cpu.cmake b/cmake/onnxruntime_providers_cpu.cmake
+index f6efcb3fad6a9..dcd279dca6489 100644
+--- a/cmake/onnxruntime_providers_cpu.cmake
++++ b/cmake/onnxruntime_providers_cpu.cmake
+@@ -216,6 +216,7 @@ set_target_properties(onnxruntime_providers PROPERTIES LINKER_LANGUAGE CXX)
+ set_target_properties(onnxruntime_providers PROPERTIES FOLDER "ONNXRuntime")
+ 
+ if (NOT onnxruntime_MINIMAL_BUILD AND NOT onnxruntime_EXTENDED_MINIMAL_BUILD
++                                  AND onnxruntime_BUILD_SHARED_LIB
+                                   AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin|iOS|visionOS|tvOS"
+                                   AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android"
+                                   AND NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")

@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# file: .github/workflows/plugin-build-ubuntu.yml
+# file: .github/workflows/ort-build-ubuntu.yml
 # author: Kaito Udagawa <umireon@kaito.tokyo>
 # version: 1.1.0
 # date: 2026-04-04
@@ -12,17 +12,8 @@
 on:
   workflow_call:
     inputs:
-      environment:
-        description: The environment name for the build jobs, or empty string for no environment
-        required: false
-        type: string
-        default: ''
       VCPKG_BINARY_SOURCES:
-        description: VCPKG_BINARY_SOURCES environment variable for the build jobs
-        required: true
-        type: string
-      vcpkg-version:
-        description: The version of vcpkg to clone.
+        description: VCPKG_BINARY_SOURCES environment variable for the build jobs.
         required: true
         type: string
       ort-version:
@@ -34,7 +25,6 @@ permissions: {}
 
 jobs:
   build-ubuntu-x86_64:
-    environment: ${{ inputs.environment }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
 
@@ -45,13 +35,12 @@ jobs:
       CLEAN_BASH_ENV: '${{ github.workspace }}/.github/scripts/clean-env-ubuntu.bash'
       FILTERED_PATH: '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
       ORT_CCACHE_DIR: '${{ github.workspace }}/.ort_ccache'
-      ROOT_VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
-      VCPKG_BINARY_SOURCES: '${{ inputs.VCPKG_BINARY_SOURCES }}'
+      ORT_CCACHE_LOGFILE: '${{ github.workspace }}/ort_ccache.log'
 
     steps:
       - name: Output Image Metadata
         id: image-metadata
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        shell: bash
         run: |
           echo "ImageVersion=$ImageVersion" >> "$GITHUB_OUTPUT"
 
@@ -59,10 +48,6 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-
-      - name: Extract plugin buildspec
-        id: buildspec
-        uses: ./.github/actions/extract-buildspec
 
       - name: Set up Python for build requirements
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -77,49 +62,6 @@ jobs:
         uses: ./.github/actions/setup-ccache
 
       # ASSERT: The directory of ccache executable is prepended to the PATH even if PATH is overridden in the env section.
-
-      - name: Checkout vcpkg
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: microsoft/vcpkg
-          ref: ${{ inputs.vcpkg-version }}
-          persist-credentials: false
-          path: ${{ env.ROOT_VCPKG_ROOT }}
-
-      - name: Run bootstrap-vcpkg.sh
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
-          VCPKG_ROOT: '${{ env.ROOT_VCPKG_ROOT }}'
-        run: |
-          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
-
-      - name: Install dependencies from apt (Ubuntu x86_64)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          APT_PACKAGES=(
-            libgles2-mesa-dev
-            libqt6svg6-dev
-            libsimde-dev
-            obs-studio
-            qt6-base-dev
-            qt6-base-private-dev
-          )
-          echo "man-db man-db/auto-update boolean false" | sudo debconf-set-selections
-          sudo apt-get remove --purge -y man-db
-          sudo add-apt-repository -y ppa:obsproject/obs-studio
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends "${APT_PACKAGES[@]}"
-
-      - name: Install dependencies from vcpkg (Ubuntu x86_64)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
-          VCPKG_ROOT: '${{ env.ROOT_VCPKG_ROOT }}'
-        run: |
-          "$VCPKG_ROOT/vcpkg" install --x-install-root=./.deps_vendor/vcpkg_installed --triplet=x64-linux-obs
 
       - name: Compute Toolchain Hash of ONNX Runtime (Ubuntu x86_64)
         id: ort-toolchain
@@ -187,37 +129,17 @@ jobs:
         run: |
           printf '## Ccache stats for ONNX Runtime\n\n```\n%s```\n' "$(ccache -s)" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Configure (Ubuntu x86_64)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
-        run: |
-          cmake --preset ubuntu-ci-x86_64
-
-      - name: Build (Ubuntu x86_64)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
-        run: |
-          cmake --build --preset ubuntu-ci-x86_64
-
-      - name: Package (Ubuntu x86_64)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
-        working-directory: build_x86_64
-        run: |
-          cpack -G DEB
-
-      - name: Upload Plugin Binary
+      - name: Upload ORT ccache log (Ubuntu x86_64)
+        if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: ${{ steps.buildspec.outputs.NAME }}-pluginbinary-${{ runner.os }}-x86_64-${{ github.run_id }}
-          path: |
-            release/*-x86_64-linux-gnu.deb
-            release/*-x86_64-linux-gnu-dbgsym.ddeb
-          if-no-files-found: error
+          name: ort-ccache-log-${{ runner.os }}-x86_64
+          path: ${{ env.ORT_CCACHE_LOGFILE }}
+          if-no-files-found: warn
           retention-days: 7
+
+      - name: Save ORT ccache
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ env.ORT_CCACHE_DIR }}
+          key: ${{ steps.restore-ort-ccache.outputs.cache-primary-key }}
