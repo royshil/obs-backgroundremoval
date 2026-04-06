@@ -41,6 +41,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Extract plugin buildspec
@@ -73,11 +74,10 @@ jobs:
           BUNDLE_PATH: '${{ steps.attest.outputs.bundle-path }}'
           GH_REPO: '${{ github.repository }}'
           GH_TOKEN: '${{ github.token }}'
-        working-directory: ${{ steps.secure-dir.outputs.ARTIFACTS_DIR }}
         run: |
           # Output the existing release info, or create a new draft release if not exists.
           if ! gh release view "$GITHUB_REF_NAME"; then
-            gh release create "$GITHUB_REF_NAME" --draft --notes-from-tag --title "$GITHUB_REF_NAME" --verify-tag
+            gh release create "$GITHUB_REF_NAME" --draft --notes "" --title "$GITHUB_REF_NAME" --verify-tag
           fi
 
           ASSETS=("$BUNDLE_PATH")
