@@ -6,8 +6,7 @@
 
 # file: .github/workflows/plugin-build-macos.yml
 # author: Kaito Udagawa <umireon@kaito.tokyo>
-# version: 1.1.0
-# date: 2026-04-04
+# date: 2026-05-21
 
 on:
   workflow_call:
@@ -33,6 +32,10 @@ on:
         description: Whether to enable code signing and notarization steps.
         required: true
         type: boolean
+      DEVELOPER_DIR:
+        description: The value of DEVELOPER_DIR environment variable.
+        required: true
+        type: string
 
     secrets:
       MACOS_NOTARIZATION_PASSWORD:
@@ -60,11 +63,13 @@ jobs:
       contents: read
 
     env:
+
       CLEAN_BASH_ENV: '${{ github.workspace }}/.github/scripts/clean-env-macos.bash'
-      DEVELOPER_DIR: '/Applications/Xcode_16.4.app'
+      DEVELOPER_DIR: '${{ inputs.DEVELOPER_DIR }}'
       FILTERED_PATH: '/opt/homebrew/opt/xcbeautify/bin:/opt/homebrew/opt/ninja/bin:/opt/homebrew/opt/cmake/bin:/opt/homebrew/opt/curl/bin:/opt/homebrew/opt/wget/bin:/usr/bin:/bin:/usr/sbin:/sbin'
       ORT_CCACHE_DIR: '${{ github.workspace }}/.ort_ccache'
-      ROOT_VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+      VCPKG_BINARY_SOURCES: '${{ inputs.VCPKG_BINARY_SOURCES }}'
+      VCPKG_VERSION: '${{ inputs.vcpkg-version }}'
 
     steps:
       - name: Output Image Metadata
@@ -82,6 +87,14 @@ jobs:
         id: buildspec
         uses: ./.github/actions/extract-buildspec
 
+      - name: Checkout vcpkg
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ env.VCPKG_VERSION }}
+          persist-credentials: false
+          path: vcpkg
+
       - name: Set up Python for build requirements
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
@@ -96,48 +109,57 @@ jobs:
 
       # ASSERT: The directory of ccache executable is prepended to the PATH even if PATH is overridden in the env section.
 
-      - name: Checkout vcpkg
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: microsoft/vcpkg
-          ref: ${{ inputs.vcpkg-version }}
-          persist-credentials: false
-          path: ${{ env.ROOT_VCPKG_ROOT }}
+      - name: Print CMake version
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          cmake --version
+
+      - name: Print Ninja version
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          ninja --version
+
+      - name: Print Xcode version
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          xcodebuild -version
+
+      - name: Print xcbeautify version
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          xcbeautify --version
 
       - name: Run bootstrap-vcpkg.sh
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
-          VCPKG_ROOT: '${{ env.ROOT_VCPKG_ROOT }}'
         run: |
-          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
       - name: Install dependencies from vcpkg (macOS arm64)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
-          VCPKG_BINARY_SOURCES: '${{ inputs.VCPKG_BINARY_SOURCES }}'
-          VCPKG_ROOT: '${{ env.ROOT_VCPKG_ROOT }}'
         run: |
-          "$VCPKG_ROOT/vcpkg" install --x-install-root=.deps_vendor/vcpkg_installed_arm64 --triplet=arm64-osx-obs
+          vars=(
+            DEVELOPER_DIR="$DEVELOPER_DIR"
+            HOME="$HOME"
+            PATH=/usr/bin:/bin:/usr/sbin:/sbin
+            VCPKG_BINARY_SOURCES="$VCPKG_BINARY_SOURCES"
+            VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
+          )
+          env -i "${vars[@]}" ./vcpkg/vcpkg install --triplet=arm64-osx-obs --x-install-root=./.deps_vendor/vcpkg_installed_arm64
 
       - name: Install dependencies from vcpkg (macOS x86_64)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
-          VCPKG_BINARY_SOURCES: '${{ inputs.VCPKG_BINARY_SOURCES }}'
-          VCPKG_ROOT: '${{ env.ROOT_VCPKG_ROOT }}'
         run: |
-          "$VCPKG_ROOT/vcpkg" install --x-install-root=.deps_vendor/vcpkg_installed_x64 --triplet=x64-osx-obs
+          vars=(
+            DEVELOPER_DIR="$DEVELOPER_DIR"
+            HOME="$HOME"
+            PATH=/usr/bin:/bin:/usr/sbin:/sbin
+            VCPKG_BINARY_SOURCES="$VCPKG_BINARY_SOURCES"
+            VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
+          )
+          env -i "${vars[@]}" ./vcpkg/vcpkg install --triplet=x64-osx-obs --x-install-root=./.deps_vendor/vcpkg_installed_x64
 
       - name: Lipo vcpkg (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
         run: |
           ./scripts/lipo_vcpkg_macos.sh \
             ./.deps_vendor/vcpkg_installed_universal/universal-osx-obs \
@@ -146,9 +168,6 @@ jobs:
 
       - name: Download dependencies (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          BASH_ENV: '${{ env.CLEAN_BASH_ENV }}'
-          PATH: '${{ env.FILTERED_PATH }}'
         run: |
           cmake -P ./scripts/download_deps.cmake
 
