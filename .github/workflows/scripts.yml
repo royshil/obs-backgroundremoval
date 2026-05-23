@@ -1,0 +1,94 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# file: .github/workflows/scripts.yml
+# author: Kaito Udagawa <umireon@kaito.tokyo>
+# date: 2026-05-23
+
+name: Scripts CI
+
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+  push:
+    branches: [main]
+    tags: ['*']
+
+permissions: {}
+
+jobs:
+  debian-forky-x64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+
+    container:
+      image: debian:forky-slim
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Bootstrap
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          bin/bootstrap
+
+      - name: Setup
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          bin/setup
+
+      - name: Build
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          bin/build
+
+      - name: Install
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          dpkg -i release/obs-backgroundremoval-*-linux-gnu.deb
+
+  debian-forky-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+
+    container:
+      image: debian:forky-slim
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Bootstrap
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          bin/bootstrap
+
+      - name: Setup
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          bin/setup
+
+      - name: Build
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          bin/build
+
+      - name: Install
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          dpkg -i release/obs-backgroundremoval-*-linux-gnu.deb

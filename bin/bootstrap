@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+debian_forky() {
+  set -euo pipefail
+  shopt -s nullglob
+
+  if [ "$UID" = 0 ] && ! command -v sudo >/dev/null 2>&1; then
+    sudo() {
+      "$@"
+    }
+  fi
+
+  sudo apt-get update
+  sudo apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    curl \
+    file \
+    git \
+    libcurl4-openssl-dev \
+    libobs-dev \
+    libonnxruntime-dev \
+    libopencv-dev \
+    ninja-build \
+    tar \
+    unzip \
+    zip
+}
+
+if [ -f /etc/os-release ]; then
+  # shellcheck disable=SC1091
+  . /etc/os-release
+
+  case "$NAME" in
+  'Debian GNU/Linux')
+    case "$VERSION_CODENAME" in
+    forky)
+      debian_forky
+      exit 0
+      ;;
+    *)
+      printf 'ERROR: Debian %s is not supported.\n' "$VERSION_CODENAME" >&2
+      exit 1
+      ;;
+    esac
+    ;;
+  esac
+fi
+
+printf 'ERROR: Your platform is not supported. Exiting...' >&2
+exit 1

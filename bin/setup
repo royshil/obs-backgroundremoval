@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+ORT_VERSION='v1.24.4'
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+debian_forky() {
+  set -euo pipefail
+  shopt -s nullglob
+
+  bin/bootstrap
+
+  mkdir -p .deps_vendor
+  if ! [ -d .deps_vendor/onnxruntime ]; then
+    git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime.git .deps_vendor/onnxruntime
+    patches=(scripts/ort_patches/*.patch)
+    for patch in "${patches[@]}"; do
+      git -C .deps_vendor/onnxruntime apply "../../$patch"
+    done
+  fi
+}
+
+if [ -f /etc/os-release ]; then
+  # shellcheck disable=SC1091
+  . /etc/os-release
+
+  case "$NAME" in
+  'Debian GNU/Linux')
+    case "$VERSION_CODENAME" in
+    forky)
+      debian_forky
+      exit 0
+      ;;
+    *)
+      printf 'ERROR: Debian %s is not supported.\n' "$VERSION_CODENAME" >&2
+      exit 1
+      ;;
+    esac
+    ;;
+  esac
+fi
+
+printf 'ERROR: Your platform is not supported. Exiting...' >&2
+exit 1

@@ -37,6 +37,25 @@ Additional tutorial videos:
 - Low-light enhancement: https://youtu.be/WSBLYWFrn2Q
 - Remove background from ANY object (not just human): https://youtu.be/N74VCDCToX8
 
+## How to build on your system
+
+**Platforms we support building from source officially:**
+
+```
+git clone https://github.com/royshil/obs-backgroundremoval.git
+cd obs-backgroundremoval
+sudo ./bin/bootstrap
+./bin/setup
+./bin/build
+sudo dpkg -i release/obs-backgroundremoval-*-linux-gnu.deb
+```
+
+The supported platforms are:
+
+- Debian Forky (x86_64 and arm64)
+
+We plan to add building scripts for popular platforms such as Windows, Mac, and various distributions of Linux.
+
 ## Introduction
 
 This plugin is meant to make it easy to replace the background in portrait images and video.
