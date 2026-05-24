@@ -21,15 +21,25 @@ on:
 permissions: {}
 
 jobs:
-  debian-forky-x64:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
+  build-deb:
+    strategy:
+      matrix:
+        runs-on:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+        image:
+          - debian:forky-slim
+          - ubuntu:resolute
+
+    name: ${{ matrix.image }} (${{ contains(matrix.runs-on, 'arm') && 'arm64' || 'x64' }})
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 180
 
     permissions:
       contents: read
 
     container:
-      image: debian:forky-slim
+      image: ${{ matrix.image }}
 
     steps:
       - name: Checkout
@@ -37,58 +47,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Bootstrap
+      - name: Bootstrap, Setup, and Build
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
           bin/bootstrap
-
-      - name: Setup
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
           bin/setup
-
-      - name: Build
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
           bin/build
 
       - name: Install
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
           dpkg -i release/obs-backgroundremoval-*-linux-gnu.deb
-
-  debian-forky-arm64:
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 60
-
-    permissions:
-      contents: read
-
-    container:
-      image: debian:forky-slim
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Bootstrap
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          bin/bootstrap
-
-      - name: Setup
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          bin/setup
-
-      - name: Build
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          bin/build
-
-      - name: Install
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          dpkg -i release/obs-backgroundremoval-*-linux-gnu.deb
+          dpkg -l obs-backgroundremoval
