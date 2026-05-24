@@ -4,18 +4,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+set -euo pipefail
+shopt -s nullglob
+
 debian_forky() {
-  set -euo pipefail
-  shopt -s nullglob
+  apt-get update
+  apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    curl \
+    file \
+    git \
+    libcurl4-openssl-dev \
+    libobs-dev \
+    libonnxruntime-dev \
+    libopencv-dev \
+    ninja-build \
+    tar \
+    unzip \
+    zip
+}
 
-  if [ "$UID" = 0 ] && ! command -v sudo >/dev/null 2>&1; then
-    sudo() {
-      "$@"
-    }
-  fi
-
-  sudo apt-get update
-  sudo apt-get install -y --no-install-recommends \
+ubuntu_resolute() {
+  apt-get update
+  apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
     cmake \
@@ -49,6 +62,18 @@ if [ -f /etc/os-release ]; then
       ;;
     esac
     ;;
+  Ubuntu)
+    case "$VERSION_CODENAME" in
+    resolute)
+      ubuntu_resolute
+      exit 0
+      ;;
+    *)
+      printf 'ERROR: Ubuntu %s is not supported.\n' "$VERSION_CODENAME" >&2
+      exit 1
+      ;;
+    esac
+    ::
   esac
 fi
 

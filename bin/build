@@ -4,12 +4,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+set -euo pipefail
+shopt -s nullglob
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 debian_forky() {
-  set -euo pipefail
-  shopt -s nullglob
-
   if [ -z "${VCPKG_ROOT:-}" ]; then
     export VCPKG_ROOT="$PWD/vcpkg"
   fi
@@ -22,6 +22,24 @@ debian_forky() {
   cmake --build build_debian_forky
 
   (cd build_debian_forky && cpack -G DEB)
+
+  printf 'Run the following command to install the plugin:\n'
+  printf '  sudo dpkg -i %s\n' "$(pwd)/release/obs-backgroundremoval-*-linux-gnu.deb"
+}
+
+ubuntu_resolute() {
+  if [ -z "${VCPKG_ROOT:-}" ]; then
+    export VCPKG_ROOT="$PWD/vcpkg"
+  fi
+
+  cmake -G Ninja \
+    -DCMAKE_INSTALL_LIBDIR=lib/CMAKE_SYSTEM_PROCESSOR-linux-gnu \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -S . -B build_ubuntu_resolute
+
+  cmake --build build_ubuntu_resolute
+
+  (cd build_ubuntu_resolute && cpack -G DEB)
 
   printf 'Run the following command to install the plugin:\n'
   printf '  sudo dpkg -i %s\n' "$(pwd)/release/obs-backgroundremoval-*-linux-gnu.deb"
@@ -44,6 +62,18 @@ if [ -f /etc/os-release ]; then
       ;;
     esac
     ;;
+  Ubuntu)
+    case "$VERSION_CODENAME" in
+    resolute)
+      ubuntu_resolute
+      exit 0
+      ;;
+    *)
+      printf 'ERROR: Ubuntu %s is not supported.\n' "$VERSION_CODENAME" >&2
+      exit 1
+      ;;
+    esac
+    ::
   esac
 fi
 

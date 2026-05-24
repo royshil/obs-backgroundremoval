@@ -4,23 +4,32 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+set -euo pipefail
+shopt -s nullglob
+
 ORT_VERSION='v1.24.4'
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+clone_onnxruntime() {
+  git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime.git .deps_vendor/onnxruntime
+  patches=(scripts/ort_patches/*.patch)
+  for patch in "${patches[@]}"; do
+    git -C .deps_vendor/onnxruntime apply "../../$patch"
+  done
+}
+
 debian_forky() {
-  set -euo pipefail
-  shopt -s nullglob
-
-  bin/bootstrap
-
   mkdir -p .deps_vendor
   if ! [ -d .deps_vendor/onnxruntime ]; then
-    git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime.git .deps_vendor/onnxruntime
-    patches=(scripts/ort_patches/*.patch)
-    for patch in "${patches[@]}"; do
-      git -C .deps_vendor/onnxruntime apply "../../$patch"
-    done
+    clone_onnxruntime
+  fi
+}
+
+ubuntu_resolute() {
+  mkdir -p .deps_vendor
+  if ! [ -d .deps_vendor/onnxruntime ]; then
+    clone_onnxruntime
   fi
 }
 
@@ -41,6 +50,18 @@ if [ -f /etc/os-release ]; then
       ;;
     esac
     ;;
+  Ubuntu)
+    case "$VERSION_CODENAME" in
+    resolute)
+      ubuntu_resolute
+      exit 0
+      ;;
+    *)
+      printf 'ERROR: Ubuntu %s is not supported.\n' "$VERSION_CODENAME" >&2
+      exit 1
+      ;;
+    esac
+    ::
   esac
 fi
 
