@@ -7,7 +7,7 @@
 #define MODEL_H
 
 #include <onnxruntime_cxx_api.h>
-#include "plugin-support.h"
+#include "../plugin-support.h"
 
 #ifdef _WIN32
 #include <wchar.h>

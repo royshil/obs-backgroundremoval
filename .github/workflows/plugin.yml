@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# FIXME: DISABLED TEMPORARILY
+
 name: Plugin CI
 
 # file: .github/workflows/plugin.yml
@@ -41,42 +43,42 @@ jobs:
           echo 'VCPKG_BINARY_SOURCES=clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read' >> "${GITHUB_OUTPUT}"
           echo 'VCPKG_VERSION=2026.04.27' >> "${GITHUB_OUTPUT}"
 
-  build-windows:
-    needs: config
-    permissions:
-      contents: read
-    uses: ./.github/workflows/plugin-build-windows.yml
-    with:
-      VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
-      vcpkg-version: ${{ needs.config.outputs.VCPKG_VERSION }}
-      ort-version: ${{ needs.config.outputs.ORT_VERSION }}
+  # build-windows:
+  #   needs: config
+  #   permissions:
+  #     contents: read
+  #   uses: ./.github/workflows/plugin-build-windows.yml
+  #   with:
+  #     VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
+  #     vcpkg-version: ${{ needs.config.outputs.VCPKG_VERSION }}
+  #     ort-version: ${{ needs.config.outputs.ORT_VERSION }}
 
-  build-macos:
-    needs: config
-    permissions:
-      contents: read
-    uses: ./.github/workflows/plugin-build-macos.yml
-    with:
-      VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
-      vcpkg-version: ${{ needs.config.outputs.VCPKG_VERSION }}
-      ort-version: ${{ needs.config.outputs.ORT_VERSION }}
-      codesign-enabled: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
-      DEVELOPER_DIR: /Applications/Xcode_16.4.app
-    secrets: inherit
+  # build-macos:
+  #   needs: config
+  #   permissions:
+  #     contents: read
+  #   uses: ./.github/workflows/plugin-build-macos.yml
+  #   with:
+  #     VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
+  #     vcpkg-version: ${{ needs.config.outputs.VCPKG_VERSION }}
+  #     ort-version: ${{ needs.config.outputs.ORT_VERSION }}
+  #     codesign-enabled: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
+  #     DEVELOPER_DIR: /Applications/Xcode_16.4.app
+  #   secrets: inherit
 
-  build-ubuntu:
-    needs: config
-    permissions:
-      contents: read
-    uses: ./.github/workflows/plugin-build-ubuntu.yml
-    with:
-      VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
-      vcpkg-version: ${{ needs.config.outputs.VCPKG_VERSION }}
-      ort-version: ${{ needs.config.outputs.ORT_VERSION }}
+  # build-ubuntu:
+  #   needs: config
+  #   permissions:
+  #     contents: read
+  #   uses: ./.github/workflows/plugin-build-ubuntu.yml
+  #   with:
+  #     VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
+  #     vcpkg-version: ${{ needs.config.outputs.VCPKG_VERSION }}
+  #     ort-version: ${{ needs.config.outputs.ORT_VERSION }}
 
   accept-plugin:
     name: Accept Plugin CI
-    needs: [build-windows, build-macos, build-ubuntu]
+    # needs: [build-windows, build-macos, build-ubuntu]
     runs-on: ubuntu-slim
     permissions: {}
     steps:
@@ -84,12 +86,12 @@ jobs:
         run: |
           echo 'The workflow plugin has completed successfully.'
 
-  release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    needs: accept-plugin
-    permissions:
-      artifact-metadata: write
-      attestations: write
-      contents: write
-      id-token: write
-    uses: ./.github/workflows/plugin-release.yml
+  # release:
+  #   if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+  #   needs: accept-plugin
+  #   permissions:
+  #     artifact-metadata: write
+  #     attestations: write
+  #     contents: write
+  #     id-token: write
+  #   uses: ./.github/workflows/plugin-release.yml

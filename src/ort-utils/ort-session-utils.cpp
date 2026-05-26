@@ -19,8 +19,8 @@
 #include <obs-module.h>
 
 #include "ort-session-utils.hpp"
-#include "consts.h"
-#include "plugin-support.h"
+#include "../consts.h"
+#include "../plugin-support.h"
 
 int createOrtSession(filter_data *tf)
 {

@@ -73,7 +73,7 @@ if [ -f /etc/os-release ]; then
       exit 1
       ;;
     esac
-    ::
+    ;;
   esac
 fi
 

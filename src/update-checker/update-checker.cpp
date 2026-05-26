@@ -5,12 +5,12 @@
 
 #include "update-checker.h"
 #include "github-utils.hpp"
-#include "obs-utils/obs-config-utils.hpp"
+#include "../obs-utils/obs-config-utils.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 
-#include <plugin-support.h>
+#include "../plugin-support.h"
 
 #include <mutex>
 

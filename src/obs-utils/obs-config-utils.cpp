@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "obs-config-utils.hpp"
-#include "plugin-support.h"
+#include "../plugin-support.h"
 
 #include <obs-module.h>
 #include <util/config-file.h>

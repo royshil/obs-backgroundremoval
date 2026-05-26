@@ -2,6 +2,14 @@ version = 1
 
 # Configuration files
 [[annotations]]
+path = "VERSION"
+SPDX-FileCopyrightText = [
+    "2021-2026 Roy Shilkrot <roy.shil@gmail.com>",
+    "2023-2026 Kaito Udagawa <umireon@kaito.tokyo>",
+]
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
 path = [
     ".gitattributes",
     ".github/actions/setup-ccache/SHA256SUMS-*.txt",

@@ -8,7 +8,7 @@
 
 #include <opencv2/core/types.hpp>
 
-#include "FilterData.hpp"
+#include "../FilterData.hpp"
 
 #define OBS_BGREMOVAL_ORT_SESSION_ERROR_FILE_NOT_FOUND 1
 #define OBS_BGREMOVAL_ORT_SESSION_ERROR_INVALID_MODEL 2

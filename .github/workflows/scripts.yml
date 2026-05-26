@@ -57,5 +57,5 @@ jobs:
       - name: Install
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          dpkg -i release/obs-backgroundremoval-*-linux-gnu.deb
-          dpkg -l obs-backgroundremoval
+          dpkg -i release/obs-backgroundremoval_*.deb
+          dpkg -L obs-backgroundremoval

@@ -4,34 +4,51 @@
 
 cmake_minimum_required(VERSION 3.28)
 
-# Read buildspec.json for project metadata
-block(
-  PROPAGATE PLUGIN_NAME PLUGIN_VERSION PLUGIN_AUTHOR PLUGIN_EMAIL PREBUILT_VERSION QT6_VERSION MACOS_BUNDLEID
-)
-  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.json" BUILDSPEC_CONTENT)
-  string(JSON PLUGIN_NAME GET "${BUILDSPEC_CONTENT}" name)
-  string(JSON PLUGIN_VERSION GET "${BUILDSPEC_CONTENT}" version)
-  string(JSON PLUGIN_AUTHOR GET "${BUILDSPEC_CONTENT}" author)
-  string(JSON PLUGIN_EMAIL GET "${BUILDSPEC_CONTENT}" email)
-  string(JSON PREBUILT_VERSION GET "${BUILDSPEC_CONTENT}" dependencies prebuilt version)
-  string(JSON QT6_VERSION GET "${BUILDSPEC_CONTENT}" dependencies qt6 version)
-  string(JSON MACOS_BUNDLEID GET "${BUILDSPEC_CONTENT}" platformConfig macos bundleId)
+### Options
+set(PLUGIN_AUTHOR "Roy Shilkrot" CACHE STRING "Author of plugin metadata")
+set(PLUGIN_EMAIL "roy.shil@gmail.com" CACHE STRING "Email of plugin metadata")
+set(PLUGIN_BUILD_NUMBER "1" CACHE STRING "Build number of plugin metadata")
+set(PACKAGE_VERSION_SUFFIX "" CACHE STRING "Version suffix for plugin package")
+
+### Project
+block(PROPAGATE PLUGIN_VERSION)
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_CONTENT)
+  string(STRIP "${VERSION_CONTENT}" PLUGIN_VERSION)
 endblock()
 
-if(DEFINED ENV{GITHUB_RUN_ID})
-  set(PLUGIN_BUILD_NUMBER "$ENV{GITHUB_RUN_ID}")
-else()
-  set(PLUGIN_BUILD_NUMBER "1")
+project(obs-backgroundremoval VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
+
+block(PROPAGATE OS_LINUX_DETECTED)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if(EXISTS "/etc/os-release")
+      file(STRINGS "/etc/os-release" OS_RELEASE_ID_LINE REGEX "^ID=")
+      string(TOLOWER "${OS_RELEASE_ID_LINE}" OS_RELEASE_ID_LINE_LOWER)
+
+      if(OS_RELEASE_ID_LINE_LOWER MATCHES [[^id=['"]?debian['"]?$]])
+        set(OS_LINUX_DETECTED Debian)
+      elseif(OS_RELEASE_ID_LINE_LOWER MATCHES [[^id=['"]?ubuntu['"]?$]])
+        set(OS_LINUX_DETECTED Ubuntu)
+      else()
+        set(OS_LINUX_DETECTED Linux)
+      endif()
+    else()
+      set(OS_LINUX_DETECTED Linux)
+    endif()
+  else()
+    set(OS_LINUX_DETECTED FALSE)
+  endif()
+endblock()
+
+set(OS_LINUX ${OS_LINUX_DETECTED} CACHE STRING "Linux variant: Linux Debian Ubuntu FALSE")
+
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND OS_LINUX MATCHES "(Debian|Ubuntu)")
+  set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install prefix" FORCE)
 endif()
 
-project("${PLUGIN_NAME}" VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
+### CMake modules
+include(GNUInstallDirs)
 
-set(PLUGIN_VERSION_MAJOR "${CMAKE_PROJECT_VERSION_MAJOR}")
-
-# Build options
-set(VCPKG_TARGET_TRIPLET "" CACHE STRING "Vcpkg target triplet to use")
-
-# Basic configuration
+### Global configurations
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
 set(CMAKE_C_EXTENSIONS FALSE)
@@ -42,169 +59,102 @@ set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 if(MSVC)
   add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
-elseif(APPLE)
-  add_compile_options(-fno-omit-frame-pointer -fstack-protector-strong)
-  add_link_options("-Wl,-no_warn_duplicate_libraries")
-else()
+elseif(APPLE OR OS_LINUX)
   add_compile_options(-fno-omit-frame-pointer -fstack-protector-strong)
 endif()
 
-# CPack configuration
-set(CPACK_ARCHIVE_THREADS 0)
-set(CPACK_DEBIAN_COMPRESSION_LEVEL 19)
-set(CPACK_DEBIAN_COMPRESSION_TYPE zstd)
-set(CPACK_DEBIAN_DEBUGINFO_PACKAGE TRUE)
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS TRUE)
-set(CPACK_GENERATOR "DEB")
-set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/release")
-set(CPACK_PACKAGE_CONTACT "${PLUGIN_AUTHOR} <${PLUGIN_EMAIL}>")
-set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${CMAKE_PROJECT_VERSION}-${CMAKE_C_LIBRARY_ARCHITECTURE}")
-set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
-set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}")
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSES/GPL-3.0-or-later.txt")
-set(CPACK_SET_DESTDIR TRUE)
-set(CPACK_VERBATIM_VARIABLES TRUE)
-set(
-  CPACK_SOURCE_IGNORE_FILES
-  ".deps_vendor/"
-  ".git/"
-  "build_x86_64/"
-  "build_x64/"
-  "build_macos/"
-  "release/"
-  "vcpkg_installed/"
-)
-
-# Include CPack after setting variables
-include(CPack)
-
-# Include paths
-list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/common")
-if(MSVC)
-  list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/windows")
-  list(
-    PREPEND
-    CMAKE_PREFIX_PATH
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-qt6-${QT6_VERSION}-x64"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-${PREBUILT_VERSION}-x64"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x64/Release/vcpkg_installed/x64-windows-static-md"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x64-prefix"
-  )
-elseif(APPLE)
-  list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos")
-  list(
-    PREPEND
-    CMAKE_PREFIX_PATH
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/Frameworks"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-qt6-${QT6_VERSION}-universal"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-deps-${PREBUILT_VERSION}-universal"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_universal_vcpkg_installed/universal-osx"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_universal-prefix"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/vcpkg_installed_universal/universal-osx-obs"
-  )
-else()
-  list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/linux")
-  list(
-    PREPEND
-    CMAKE_PREFIX_PATH
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x86_64/Release/vcpkg_installed/x64-linux"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/ort_x86_64-prefix"
-  )
-endif()
-
-if(VCPKG_TARGET_TRIPLET STREQUAL "")
-  message(STATUS "Build without vcpkg")
-else()
-  message(STATUS "Build with vcpkg with target triplet: ${VCPKG_TARGET_TRIPLET}")
-  list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.deps_vendor/vcpkg_installed/${VCPKG_TARGET_TRIPLET}")
-endif()
-
-# Common initialization
-include(bootstrap)
-include(compilerconfig)
-include(defaults)
-include(helpers)
-
-# Dependent packages
-
-## PkgConfig
+### Package dependencies
 find_package(PkgConfig QUIET)
-
-## OBS and Qt
 find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
 
-## CURL
-find_package(CURL CONFIG QUIET)
+block(PROPAGATE CURL_FOUND)
+  find_package(CURL CONFIG QUIET)
 
-if(NOT CURL_FOUND AND PkgConfig_FOUND)
-  pkg_check_modules(PC_CURL libcurl IMPORTED_TARGET)
-  if(PC_CURL_FOUND)
-    add_library(CURL::libcurl ALIAS PkgConfig::PC_CURL)
-    set(CURL_FOUND TRUE)
+  if(NOT CURL_FOUND AND PkgConfig_FOUND)
+    pkg_check_modules(PC_CURL libcurl IMPORTED_TARGET)
+    if(PC_CURL_FOUND)
+      add_library(CURL::libcurl ALIAS PkgConfig::PC_CURL)
+      set(CURL_FOUND TRUE)
+    endif()
   endif()
-endif()
 
-if(NOT CURL_FOUND)
-  message(FATAL_ERROR "CURL not found via CMake or pkg-config.")
-endif()
-
-## OpenCV
-find_package(OpenCV CONFIG QUIET)
-
-if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
-  pkg_check_modules(PC_OPENCV opencv4 IMPORTED_TARGET)
-  if(PC_OPENCV_FOUND)
-    add_library(OpenCV::opencv_core ALIAS PkgConfig::PC_OPENCV)
-    add_library(OpenCV::opencv_imgproc ALIAS PkgConfig::PC_OPENCV)
-    set(OpenCV_FOUND TRUE)
+  if(NOT CURL_FOUND)
+    message(FATAL_ERROR "CURL not found via CMake or pkg-config.")
   endif()
-endif()
+endblock()
 
-if(NOT OpenCV_FOUND)
-  message(FATAL_ERROR "OpenCV not found via CMake or pkg-config.")
-endif()
+block(PROPAGATE OpenCV_FOUND)
+  find_package(OpenCV CONFIG QUIET)
 
-if(NOT TARGET OpenCV::opencv_core)
-  add_library(OpenCV::opencv_core ALIAS opencv_core)
-endif()
-if(NOT TARGET OpenCV::opencv_imgproc)
-  add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
-endif()
-
-## ONNX Runtime
-find_package(onnxruntime CONFIG)
-
-if(NOT onnxruntime_FOUND AND PkgConfig_FOUND)
-  pkg_check_modules(PC_onnxruntime onnxruntime IMPORTED_TARGET)
-  if(PC_onnxruntime_FOUND)
-    add_library(onnxruntime::onnxruntime ALIAS PkgConfig::PC_onnxruntime)
-    set(onnxruntime_FOUND TRUE)
+  if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
+    pkg_check_modules(PC_OPENCV opencv4 IMPORTED_TARGET)
+    if(PC_OPENCV_FOUND)
+      add_library(OpenCV::opencv_core ALIAS PkgConfig::PC_OPENCV)
+      add_library(OpenCV::opencv_imgproc ALIAS PkgConfig::PC_OPENCV)
+      set(OpenCV_FOUND TRUE)
+    endif()
   endif()
-endif()
 
-if(NOT onnxruntime_FOUND)
-  message(FATAL_ERROR "ONNX Runtime not found via CMake or pkg-config.")
-endif()
+  if(NOT OpenCV_FOUND)
+    message(FATAL_ERROR "OpenCV not found via CMake or pkg-config.")
+  endif()
 
-if(NOT TARGET onnxruntime::onnxruntime)
-  add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
-endif()
+  if(NOT TARGET OpenCV::opencv_core)
+    add_library(OpenCV::opencv_core ALIAS opencv_core)
+  endif()
 
-# Plugin build definitions
+  if(NOT TARGET OpenCV::opencv_imgproc)
+    add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
+  endif()
+endblock()
+
+block(PROPAGATE onnxruntime_FOUND)
+  find_package(onnxruntime CONFIG)
+
+  if(NOT onnxruntime_FOUND AND PkgConfig_FOUND)
+    pkg_check_modules(PC_onnxruntime onnxruntime IMPORTED_TARGET)
+    if(PC_onnxruntime_FOUND)
+      add_library(onnxruntime::onnxruntime ALIAS PkgConfig::PC_onnxruntime)
+      set(onnxruntime_FOUND TRUE)
+    endif()
+  endif()
+
+  if(NOT onnxruntime_FOUND)
+    message(FATAL_ERROR "ONNX Runtime not found via CMake or pkg-config.")
+  endif()
+
+  if(NOT TARGET onnxruntime::onnxruntime)
+    add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
+  endif()
+endblock()
+
+### Plugin main
 add_library(${CMAKE_PROJECT_NAME} MODULE)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE onnxruntime::onnxruntime)
+
+if(MSVC)
+  target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /W4 /WX /MP)
+elseif(APPLE OR OS_LINUX)
+  target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Wall -Wextra -Werror)
+endif()
+
 add_subdirectory(src/update-checker/CurlClient)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CurlClient OpenCV::opencv_core OpenCV::opencv_imgproc)
+target_link_libraries(
+  ${CMAKE_PROJECT_NAME}
+  PRIVATE
+    OBS::libobs
+    OBS::obs-frontend-api
+    onnxruntime::onnxruntime
+    CurlClient
+    OpenCV::opencv_core
+    OpenCV::opencv_imgproc
+)
 
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
     src/plugin-main.c
+    src/plugin-support.c
     src/ort-utils/ort-session-utils.cpp
     src/obs-utils/obs-utils.cpp
     src/obs-utils/obs-config-utils.cpp
@@ -215,11 +165,8 @@ target_sources(
     src/enhance-filter.cpp
     src/enhance-filter-info.c
 )
-target_compile_options(
-  ${CMAKE_PROJECT_NAME}
-  PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-error=unused-command-line-argument>
-)
 
+### Hide symbols
 if(APPLE)
   target_link_options(
     ${CMAKE_PROJECT_NAME}
@@ -227,11 +174,96 @@ if(APPLE)
   )
 elseif(MSVC)
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/exported_symbols_windows.def")
-else()
+elseif(OS_LINUX)
   target_link_options(
     ${CMAKE_PROJECT_NAME}
     PRIVATE "-Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/src/exported_symbols_linux.map" "-Wl,-Bsymbolic"
   )
 endif()
 
-set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PLUGIN_NAME})
+### Install configurations
+set(
+  EFFECTS_FILES
+  data/effects/blend_images.effect
+  data/effects/kawase_blur.effect
+  data/effects/mask_alpha_filter.effect
+)
+
+set(
+  LOCALE_FILES
+  data/locale/ar-EG.ini
+  data/locale/bn-IN.ini
+  data/locale/en-US.ini
+  data/locale/es-SP.ini
+  data/locale/fr-FR.ini
+  data/locale/hi-IN.ini
+  data/locale/it-IT.ini
+  data/locale/ja-JP.ini
+  data/locale/ko-KR.ini
+  data/locale/pt-BR.ini
+  data/locale/ru-RU.ini
+  data/locale/ta-IN.ini
+  data/locale/tr-TR.ini
+  data/locale/zh-CN.ini
+)
+
+set(
+  MODELS_FILES
+  data/models/mediapipe.with_runtime_opt.ort
+  data/models/mediapipe.with_runtime_opt.ort.license
+  data/models/pphumanseg_fp32.with_runtime_opt.ort
+  data/models/pphumanseg_fp32.with_runtime_opt.ort.license
+  data/models/rvm_mobilenetv3_fp32.with_runtime_opt.ort
+  data/models/rvm_mobilenetv3_fp32.with_runtime_opt.ort.license
+  data/models/selfie_multiclass_256x256.with_runtime_opt.ort
+  data/models/selfie_multiclass_256x256.with_runtime_opt.ort.license
+  data/models/selfie_segmentation.with_runtime_opt.ort
+  data/models/selfie_segmentation.with_runtime_opt.ort.license
+  data/models/semantic_guided_llie_180x324.with_runtime_opt.ort
+  data/models/semantic_guided_llie_180x324.with_runtime_opt.ort.license
+  data/models/SINet_Softmax_simple.with_runtime_opt.ort
+  data/models/SINet_Softmax_simple.with_runtime_opt.ort.license
+  data/models/tbefn_fp32.with_runtime_opt.ort
+  data/models/tbefn_fp32.with_runtime_opt.ort.license
+  data/models/tcmonodepth_tcsmallnet_192x320.with_runtime_opt.ort
+  data/models/tcmonodepth_tcsmallnet_192x320.with_runtime_opt.ort.license
+  data/models/uretinex_net_180x320.with_runtime_opt.ort
+  data/models/uretinex_net_180x320.with_runtime_opt.ort.license
+)
+
+if(APPLE)
+elseif(MSVC)
+elseif(OS_LINUX MATCHES "(Debian|Ubuntu)")
+  set(OBS_PLUGIN_DATA_DIR "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}")
+  set(OBS_PLUGIN_DOC_DIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${CMAKE_PROJECT_NAME}")
+  set(OBS_PLUGIN_LIB_DIR "${CMAKE_INSTALL_LIBDIR}/obs-plugins")
+
+  set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES PREFIX "")
+
+  install(TARGETS "${CMAKE_PROJECT_NAME}" LIBRARY DESTINATION "${OBS_PLUGIN_LIB_DIR}")
+  install(FILES ${EFFECTS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/effects")
+  install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
+  install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
+  install(FILES LICENSE DESTINATION "${OBS_PLUGIN_DOC_DIR}" RENAME copyright)
+else()
+  message("Installing on this platform is not supported officially.")
+endif()
+
+### CPack configurations
+set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
+set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}${PACKAGE_VERSION_SUFFIX}")
+set(CPACK_PACKAGE_CONTACT "${PLUGIN_AUTHOR} <${PLUGIN_EMAIL}>")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+
+set(CPACK_ARCHIVE_THREADS 0)
+set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/release")
+set(CPACK_SET_DESTDIR TRUE)
+set(CPACK_VERBATIM_VARIABLES TRUE)
+
+set(CPACK_DEBIAN_COMPRESSION_LEVEL 19)
+set(CPACK_DEBIAN_COMPRESSION_TYPE zstd)
+set(CPACK_DEBIAN_DEBUGINFO_PACKAGE TRUE)
+set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS TRUE)
+
+include(CPack) # This line must be placed after all the package configurations

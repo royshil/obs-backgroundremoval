@@ -22,7 +22,7 @@
 #include <regex>
 #include <thread>
 
-#include <plugin-support.h>
+#include "plugin-support.h"
 #include "models/ModelSINET.hpp"
 #include "models/ModelMediapipe.hpp"
 #include "models/ModelSelfie.hpp"

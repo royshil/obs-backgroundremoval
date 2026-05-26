@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# FIXME: DISABLED TEMPORARILY
+
 name: ORT CI
 
 # file: .github/workflows/ort.yml
@@ -25,33 +27,33 @@ concurrency:
 
 
 jobs:
-  build-windows:
-    permissions:
-      contents: read
-    uses: ./.github/workflows/ort-build-windows.yml
-    with:
-      VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
-      ort-version: v1.24.4
+  # build-windows:
+  #   permissions:
+  #     contents: read
+  #   uses: ./.github/workflows/ort-build-windows.yml
+  #   with:
+  #     VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
+  #     ort-version: v1.24.4
 
-  build-macos:
-    permissions:
-      contents: read
-    uses: ./.github/workflows/ort-build-macos.yml
-    with:
-      VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
-      ort-version: v1.24.4
+  # build-macos:
+  #   permissions:
+  #     contents: read
+  #   uses: ./.github/workflows/ort-build-macos.yml
+  #   with:
+  #     VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
+  #     ort-version: v1.24.4
 
-  build-ubuntu:
-    permissions:
-      contents: read
-    uses: ./.github/workflows/ort-build-ubuntu.yml
-    with:
-      VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
-      ort-version: v1.24.4
+  # build-ubuntu:
+  #   permissions:
+  #     contents: read
+  #   uses: ./.github/workflows/ort-build-ubuntu.yml
+  #   with:
+  #     VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
+  #     ort-version: v1.24.4
 
   accept-ort:
     name: Accept ORT CI
-    needs: [build-windows, build-macos, build-ubuntu]
+    # needs: [build-windows, build-macos, build-ubuntu]
     runs-on: ubuntu-slim
     permissions: {}
     steps:

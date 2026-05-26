@@ -1,7 +1,9 @@
-.deps_vendor/
-.deps/
 .DS_Store
 .venv/
 .vscode/
-build_*/
-release/
+/.deps_vendor/
+/.deps/
+/build_*/
+/build/
+/onnxruntime/
+/release/

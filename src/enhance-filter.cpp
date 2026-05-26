@@ -21,7 +21,7 @@
 #include <mutex>
 #include <regex>
 
-#include <plugin-support.h>
+#include "plugin-support.h"
 #include "consts.h"
 #include "obs-utils/obs-utils.hpp"
 #include "ort-utils/ort-session-utils.hpp"

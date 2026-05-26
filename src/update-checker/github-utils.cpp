@@ -10,7 +10,7 @@
 
 #include "Client.hpp"
 #include "github-utils.hpp"
-#include "plugin-support.h"
+#include "../plugin-support.h"
 
 static const std::string GITHUB_LATEST_RELEASE_URL =
 	"https://api.github.com/repos/royshil/obs-backgroundremoval/releases/latest";
