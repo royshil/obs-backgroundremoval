@@ -1,18 +1,16 @@
-version: 2
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
 
-multi-ecosystem-groups:
-  plugin:
-    schedule:
-      interval: weekly
-    assignees: [umireon]
+version: 2
 
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    multi-ecosystem-group: plugin
-    patterns: ["*"]
+    exclude-paths:
+      - ".github/workflows/*.lock.yml"
 
   - package-ecosystem: npm
     directory: /pages
@@ -21,5 +19,3 @@ updates:
     ignore:
       - dependency-name: "@types/node"
         versions: ["*"]
-    multi-ecosystem-group: plugin
-    patterns: ["*"]
