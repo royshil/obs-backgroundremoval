@@ -40,6 +40,7 @@ background_removal::MaskPostProcessingSettings baseSettings()
 	settings.enableThreshold = true;
 	settings.threshold = 0.5f;
 	settings.edgeSoftness = 0.0f;
+	settings.foregroundCleanup = 0.0f;
 	settings.contourFilter = 0.0f;
 	settings.smoothContour = 0.0f;
 	settings.feather = 0.0f;
@@ -97,6 +98,27 @@ int main()
 										  foregroundWithSpeck.size(), settings);
 	success &= expectPixel(filteredSpeckMask, 0, 0, 255, "large background component");
 	success &= expectPixel(filteredSpeckMask, 2, 2, 0, "small background component");
+
+	cv::Mat foregroundWithHole = cv::Mat(7, 7, CV_8UC1, cv::Scalar(255));
+	foregroundWithHole.at<uint8_t>(3, 3) = 0;
+	settings = baseSettings();
+	settings.foregroundCleanup = 0.15f;
+	cv::Mat cleanedHoleMask =
+		background_removal::postProcessForegroundMask(foregroundWithHole, foregroundWithHole.size(), settings);
+	success &= expectPixel(cleanedHoleMask, 3, 3, 0, "foreground cleanup removes background pinhole");
+
+	cv::Mat previousBackground(1, 2, CV_8UC1);
+	previousBackground.at<uint8_t>(0, 0) = 64;
+	previousBackground.at<uint8_t>(0, 1) = 192;
+	cv::Mat currentBackground(1, 2, CV_8UC1);
+	currentBackground.at<uint8_t>(0, 0) = 192;
+	currentBackground.at<uint8_t>(0, 1) = 64;
+	background_removal::TemporalMaskSmoothingSettings temporalSettings;
+	temporalSettings.temporalSmoothFactor = 0.8f;
+	cv::Mat temporalMask = background_removal::smoothTemporalBackgroundMask(currentBackground, previousBackground,
+										temporalSettings);
+	success &= expectRange(temporalMask, 0, 0, 95, 105, "temporal smoothing protects foreground from loss");
+	success &= expectRange(temporalMask, 0, 1, 68, 78, "temporal smoothing recovers foreground quickly");
 
 	return success ? 0 : 1;
 }

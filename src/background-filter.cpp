@@ -43,6 +43,7 @@ struct background_removal_filter : public filter_data, public std::enable_shared
 	float threshold = 0.5f;
 	cv::Scalar backgroundColor{0, 0, 0, 0};
 	float edgeSoftness = 0.05f;
+	float foregroundCleanup = 0.15f;
 	float contourFilter = 0.05f;
 	float smoothContour = 0.5f;
 	float feather = 0.0f;
@@ -153,6 +154,9 @@ obs_properties_t *background_filter_properties(void *data)
 	obs_properties_add_float_slider(threshold_props, "edge_softness", obs_module_text("EdgeSoftness"), 0.0, 1.0,
 					0.01);
 
+	obs_properties_add_float_slider(threshold_props, "foreground_cleanup", obs_module_text("ForegroundCleanup"),
+					0.0, 1.0, 0.05);
+
 	obs_properties_add_float_slider(threshold_props, "contour_filter",
 					obs_module_text("ContourFilterPercentOfImage"), 0.0, 1.0, 0.025);
 
@@ -255,6 +259,7 @@ void background_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "enable_threshold", true);
 	obs_data_set_default_double(settings, "threshold", 0.5);
 	obs_data_set_default_double(settings, "edge_softness", 0.05);
+	obs_data_set_default_double(settings, "foreground_cleanup", 0.15);
 	obs_data_set_default_double(settings, "contour_filter", 0.05);
 	obs_data_set_default_double(settings, "smooth_contour", 0.5);
 	obs_data_set_default_double(settings, "mask_expansion", 0);
@@ -298,6 +303,7 @@ void background_filter_update(void *data, obs_data_t *settings)
 	tf->enableThreshold = (float)obs_data_get_bool(settings, "enable_threshold");
 	tf->threshold = (float)obs_data_get_double(settings, "threshold");
 	tf->edgeSoftness = (float)obs_data_get_double(settings, "edge_softness");
+	tf->foregroundCleanup = (float)obs_data_get_double(settings, "foreground_cleanup");
 
 	tf->contourFilter = (float)obs_data_get_double(settings, "contour_filter");
 	tf->smoothContour = (float)obs_data_get_double(settings, "smooth_contour");
@@ -383,6 +389,7 @@ void background_filter_update(void *data, obs_data_t *settings)
 	obs_log(LOG_INFO, "  Enable Threshold: %s", tf->enableThreshold ? "true" : "false");
 	obs_log(LOG_INFO, "  Threshold: %f", tf->threshold);
 	obs_log(LOG_INFO, "  Edge Softness: %f", tf->edgeSoftness);
+	obs_log(LOG_INFO, "  Foreground Cleanup: %f", tf->foregroundCleanup);
 	obs_log(LOG_INFO, "  Contour Filter: %f", tf->contourFilter);
 	obs_log(LOG_INFO, "  Smooth Contour: %f", tf->smoothContour);
 	obs_log(LOG_INFO, "  Mask Expansion: %d", tf->maskExpansion);
@@ -497,6 +504,7 @@ static void postProcessImageForBackground(struct background_removal_filter *tf, 
 	settings.enableThreshold = tf->enableThreshold;
 	settings.threshold = tf->threshold;
 	settings.edgeSoftness = tf->edgeSoftness;
+	settings.foregroundCleanup = tf->foregroundCleanup;
 	settings.contourFilter = tf->contourFilter;
 	settings.smoothContour = tf->smoothContour;
 	settings.feather = tf->feather;
@@ -593,19 +601,10 @@ void background_filter_video_tick(void *data, float seconds)
 				return;
 			}
 
-			// Temporal smoothing
-			if (tf->temporalSmoothFactor > 0.0 && tf->temporalSmoothFactor < 1.0 &&
-			    !tf->lastBackgroundMask.empty() && tf->lastBackgroundMask.size() == backgroundMask.size()) {
-
-				float temporalSmoothFactor = tf->temporalSmoothFactor;
-				if (tf->enableThreshold) {
-					// The temporal smooth factor can't be smaller than the threshold
-					temporalSmoothFactor = std::max(temporalSmoothFactor, tf->threshold);
-				}
-
-				cv::addWeighted(backgroundMask, temporalSmoothFactor, tf->lastBackgroundMask,
-						1.0 - temporalSmoothFactor, 0.0, backgroundMask);
-			}
+			background_removal::TemporalMaskSmoothingSettings temporalSettings;
+			temporalSettings.temporalSmoothFactor = tf->temporalSmoothFactor;
+			backgroundMask = background_removal::smoothTemporalBackgroundMask(
+				backgroundMask, tf->lastBackgroundMask, temporalSettings);
 
 			tf->lastBackgroundMask = backgroundMask.clone();
 

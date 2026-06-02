@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
 #include <vector>
 
 namespace background_removal {
@@ -40,6 +41,18 @@ void smoothMaskContour(cv::Mat &backgroundMask, int kernelSize)
 #else
 	cv::blur(backgroundMask, backgroundMask, cv::Size(kernelSize, kernelSize));
 #endif
+}
+
+void cleanForegroundHoles(cv::Mat &backgroundMask, float foregroundCleanup)
+{
+	const float clampedCleanup = std::clamp(foregroundCleanup, 0.0f, 1.0f);
+	if (clampedCleanup <= 0.0f) {
+		return;
+	}
+
+	const int kernelSize = makeOddKernelSize(1.0f + 8.0f * clampedCleanup);
+	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(kernelSize, kernelSize));
+	cv::morphologyEx(backgroundMask, backgroundMask, cv::MORPH_OPEN, kernel);
 }
 
 cv::Mat makeHardBackgroundMask(const cv::Mat &foregroundMask, float threshold)
@@ -113,6 +126,7 @@ cv::Mat postProcessForegroundMask(const cv::Mat &foregroundMask, const cv::Size 
 	if (settings.enableThreshold) {
 		backgroundMask =
 			makeSoftBackgroundMask(resizedForegroundMask, settings.threshold, settings.edgeSoftness);
+		cleanForegroundHoles(backgroundMask, settings.foregroundCleanup);
 		filterSmallBackgroundComponents(backgroundMask, settings.contourFilter);
 
 		if (settings.smoothContour > 0.0f) {
@@ -142,6 +156,42 @@ cv::Mat postProcessForegroundMask(const cv::Mat &foregroundMask, const cv::Size 
 	}
 
 	return backgroundMask;
+}
+
+cv::Mat smoothTemporalBackgroundMask(const cv::Mat &currentBackgroundMask, const cv::Mat &previousBackgroundMask,
+				     const TemporalMaskSmoothingSettings &settings)
+{
+	if (currentBackgroundMask.empty() || previousBackgroundMask.empty() ||
+	    currentBackgroundMask.size() != previousBackgroundMask.size() || currentBackgroundMask.type() != CV_8UC1 ||
+	    previousBackgroundMask.type() != CV_8UC1) {
+		return currentBackgroundMask.clone();
+	}
+
+	const float factor = std::clamp(settings.temporalSmoothFactor, 0.0f, 1.0f);
+	if (factor <= 0.0f || factor >= 1.0f) {
+		return currentBackgroundMask.clone();
+	}
+
+	const float recoverForegroundFactor =
+		settings.protectForeground ? std::clamp(0.65f + 0.35f * factor, factor, 0.98f) : factor;
+	const float loseForegroundFactor = settings.protectForeground ? std::clamp(0.35f * factor, 0.05f, factor)
+								      : factor;
+
+	cv::Mat smoothedMask(currentBackgroundMask.size(), currentBackgroundMask.type());
+	for (int row = 0; row < currentBackgroundMask.rows; row++) {
+		const uint8_t *current = currentBackgroundMask.ptr<uint8_t>(row);
+		const uint8_t *previous = previousBackgroundMask.ptr<uint8_t>(row);
+		uint8_t *smoothed = smoothedMask.ptr<uint8_t>(row);
+		for (int col = 0; col < currentBackgroundMask.cols; col++) {
+			const float updateFactor = current[col] > previous[col] ? loseForegroundFactor
+										: recoverForegroundFactor;
+			const float blended =
+				(float)current[col] * updateFactor + (float)previous[col] * (1.0f - updateFactor);
+			smoothed[col] = (uint8_t)std::clamp((int)std::lround(blended), 0, 255);
+		}
+	}
+
+	return smoothedMask;
 }
 
 } // namespace background_removal
