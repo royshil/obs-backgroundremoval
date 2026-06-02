@@ -34,6 +34,7 @@
 #include "ort-utils/ort-session-utils.hpp"
 #include "obs-utils/obs-utils.hpp"
 #include "consts.h"
+#include "mask-post-processing.hpp"
 #include "update-checker/update-checker.h"
 
 struct background_removal_filter : public filter_data, public std::enable_shared_from_this<background_removal_filter> {
@@ -41,6 +42,7 @@ struct background_removal_filter : public filter_data, public std::enable_shared
 	bool stopWhenSourceIsInactive = true;
 	float threshold = 0.5f;
 	cv::Scalar backgroundColor{0, 0, 0, 0};
+	float edgeSoftness = 0.05f;
 	float contourFilter = 0.05f;
 	float smoothContour = 0.5f;
 	float feather = 0.0f;
@@ -148,6 +150,9 @@ obs_properties_t *background_filter_properties(void *data)
 
 	obs_properties_add_float_slider(threshold_props, "threshold", obs_module_text("Threshold"), 0.0, 1.0, 0.025);
 
+	obs_properties_add_float_slider(threshold_props, "edge_softness", obs_module_text("EdgeSoftness"), 0.0, 1.0,
+					0.01);
+
 	obs_properties_add_float_slider(threshold_props, "contour_filter",
 					obs_module_text("ContourFilterPercentOfImage"), 0.0, 1.0, 0.025);
 
@@ -249,6 +254,7 @@ void background_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "stop_when_source_is_inactive", true);
 	obs_data_set_default_bool(settings, "enable_threshold", true);
 	obs_data_set_default_double(settings, "threshold", 0.5);
+	obs_data_set_default_double(settings, "edge_softness", 0.05);
 	obs_data_set_default_double(settings, "contour_filter", 0.05);
 	obs_data_set_default_double(settings, "smooth_contour", 0.5);
 	obs_data_set_default_double(settings, "mask_expansion", 0);
@@ -291,6 +297,7 @@ void background_filter_update(void *data, obs_data_t *settings)
 	tf->stopWhenSourceIsInactive = obs_data_get_bool(settings, "stop_when_source_is_inactive");
 	tf->enableThreshold = (float)obs_data_get_bool(settings, "enable_threshold");
 	tf->threshold = (float)obs_data_get_double(settings, "threshold");
+	tf->edgeSoftness = (float)obs_data_get_double(settings, "edge_softness");
 
 	tf->contourFilter = (float)obs_data_get_double(settings, "contour_filter");
 	tf->smoothContour = (float)obs_data_get_double(settings, "smooth_contour");
@@ -375,9 +382,10 @@ void background_filter_update(void *data, obs_data_t *settings)
 	obs_log(LOG_INFO, "  Num Threads: %d", tf->numThreads);
 	obs_log(LOG_INFO, "  Enable Threshold: %s", tf->enableThreshold ? "true" : "false");
 	obs_log(LOG_INFO, "  Threshold: %f", tf->threshold);
+	obs_log(LOG_INFO, "  Edge Softness: %f", tf->edgeSoftness);
 	obs_log(LOG_INFO, "  Contour Filter: %f", tf->contourFilter);
 	obs_log(LOG_INFO, "  Smooth Contour: %f", tf->smoothContour);
-	obs_log(LOG_INFO, "  Mask Expansion: %f", tf->maskExpansion);
+	obs_log(LOG_INFO, "  Mask Expansion: %d", tf->maskExpansion);
 	obs_log(LOG_INFO, "  Feather: %f", tf->feather);
 	obs_log(LOG_INFO, "  Mask Every X Frames: %d", tf->maskEveryXFrames);
 	obs_log(LOG_INFO, "  Enable Image Similarity: %s", tf->enableImageSimilarity ? "true" : "false");
@@ -482,23 +490,19 @@ void background_filter_destroy(void *data)
 	}
 }
 
-static void processImageForBackground(struct background_removal_filter *tf, const cv::Mat &imageBGRA,
-				      cv::Mat &backgroundMask)
+static void postProcessImageForBackground(struct background_removal_filter *tf, const cv::Mat &outputImage,
+					  const cv::Size &targetSize, cv::Mat &backgroundMask)
 {
-	cv::Mat outputImage;
-	if (!runFilterModelInference(tf, imageBGRA, outputImage)) {
-		return;
-	}
-	// Assume outputImage is now a single channel, uint8 image with values between 0 and 255
+	background_removal::MaskPostProcessingSettings settings;
+	settings.enableThreshold = tf->enableThreshold;
+	settings.threshold = tf->threshold;
+	settings.edgeSoftness = tf->edgeSoftness;
+	settings.contourFilter = tf->contourFilter;
+	settings.smoothContour = tf->smoothContour;
+	settings.feather = tf->feather;
+	settings.maskExpansion = tf->maskExpansion;
 
-	// If we have a threshold, apply it. Otherwise, just use the output image as the mask
-	if (tf->enableThreshold) {
-		// We need to make tf->threshold (float [0,1]) be in that range
-		const uint8_t threshold_value = (uint8_t)(tf->threshold * 255.0f);
-		backgroundMask = outputImage < threshold_value;
-	} else {
-		backgroundMask = 255 - outputImage;
-	}
+	backgroundMask = background_removal::postProcessForegroundMask(outputImage, targetSize, settings);
 }
 
 void background_filter_video_tick(void *data, float seconds)
@@ -570,13 +574,17 @@ void background_filter_video_tick(void *data, float seconds)
 			// Get the background mask previously generated.
 			; // Do nothing
 		} else {
-			cv::Mat backgroundMask;
+			cv::Mat outputImage;
 
 			{
 				std::unique_lock<std::mutex> lock(tf->modelMutex);
-				// Process the image to find the mask.
-				processImageForBackground(tf.get(), imageBGRA, backgroundMask);
+				if (!runFilterModelInference(tf.get(), imageBGRA, outputImage)) {
+					return;
+				}
 			}
+
+			cv::Mat backgroundMask;
+			postProcessImageForBackground(tf.get(), outputImage, imageBGRA.size(), backgroundMask);
 
 			if (backgroundMask.empty()) {
 				// Something went wrong. Just use the previous mask.
@@ -600,60 +608,6 @@ void background_filter_video_tick(void *data, float seconds)
 			}
 
 			tf->lastBackgroundMask = backgroundMask.clone();
-
-			// Contour processing
-			// Only applicable if we are thresholding (and get a binary image)
-			if (tf->enableThreshold) {
-				if (tf->contourFilter > 0.0 && tf->contourFilter < 1.0) {
-					std::vector<std::vector<cv::Point>> contours;
-					findContours(backgroundMask, contours, cv::RETR_EXTERNAL,
-						     cv::CHAIN_APPROX_SIMPLE);
-					std::vector<std::vector<cv::Point>> filteredContours;
-					const double contourSizeThreshold =
-						(double)(backgroundMask.total()) * tf->contourFilter;
-					for (auto &contour : contours) {
-						if (cv::contourArea(contour) > (double)contourSizeThreshold) {
-							filteredContours.push_back(contour);
-						}
-					}
-					backgroundMask.setTo(0);
-					drawContours(backgroundMask, filteredContours, -1, cv::Scalar(255), -1);
-				}
-
-				if (tf->smoothContour > 0.0) {
-					int k_size = (int)(3 + 11 * tf->smoothContour);
-					k_size += k_size % 2 == 0 ? 1 : 0;
-					cv::stackBlur(backgroundMask, backgroundMask, cv::Size(k_size, k_size));
-				}
-
-				// Resize the size of the mask back to the size of the original input.
-				cv::resize(backgroundMask, backgroundMask, imageBGRA.size());
-
-				// Additional contour processing at full resolution
-				if (tf->smoothContour > 0.0) {
-					// If the mask was smoothed, apply a threshold to get a binary mask
-					backgroundMask = backgroundMask > 128;
-				}
-
-				// Expand or shrink the mask
-				if (tf->maskExpansion > 0.0) {
-					cv::erode(backgroundMask, backgroundMask, cv::Mat(), cv::Point(-1, -1),
-						  tf->maskExpansion);
-				} else if (tf->maskExpansion < 0.0) {
-					cv::dilate(backgroundMask, backgroundMask, cv::Mat(), cv::Point(-1, -1),
-						   -tf->maskExpansion);
-				}
-
-				if (tf->feather > 0.0) {
-					// Feather (blur) the mask
-					int k_size = (int)(40 * tf->feather);
-					k_size += k_size % 2 == 0 ? 1 : 0;
-					cv::dilate(backgroundMask, backgroundMask, cv::Mat(), cv::Point(-1, -1),
-						   k_size / 3);
-					cv::boxFilter(backgroundMask, backgroundMask, tf->backgroundMask.depth(),
-						      cv::Size(k_size, k_size));
-				}
-			}
 
 			// Save the mask for the next frame
 			{

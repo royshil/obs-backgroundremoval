@@ -75,8 +75,7 @@ endif()
 
 if(APPLE)
   list(
-    PREPEND
-    CMAKE_PREFIX_PATH
+    PREPEND CMAKE_PREFIX_PATH
     "${PLUGIN_BUILD_DIR}/.deps/obs-deps"
     "${PLUGIN_BUILD_DIR}/.deps/obs-deps-qt6"
     "${PLUGIN_BUILD_DIR}/.deps/Debug"
@@ -195,9 +194,19 @@ target_sources(
     src/update-checker/update-checker.cpp
     src/background-filter-info.c
     src/background-filter.cpp
+    src/mask-post-processing.cpp
     src/enhance-filter.cpp
     src/enhance-filter-info.c
 )
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(mask-post-processing-test)
+  target_sources(mask-post-processing-test PRIVATE tests/mask-post-processing-test.cpp src/mask-post-processing.cpp)
+  target_include_directories(mask-post-processing-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(mask-post-processing-test PRIVATE OpenCV::opencv_core OpenCV::opencv_imgproc)
+  add_test(NAME mask-post-processing COMMAND mask-post-processing-test)
+endif()
 
 ### Hide symbols
 if(APPLE)
