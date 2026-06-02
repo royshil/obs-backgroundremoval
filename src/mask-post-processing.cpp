@@ -5,6 +5,7 @@
 
 #include "mask-post-processing.hpp"
 
+#include <opencv2/core/version.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
@@ -30,6 +31,15 @@ cv::Mat resizeMaskToTarget(const cv::Mat &mask, const cv::Size &targetSize, int 
 		cv::resize(mask, resizedMask, targetSize, 0.0, 0.0, interpolation);
 	}
 	return resizedMask;
+}
+
+void smoothMaskContour(cv::Mat &backgroundMask, int kernelSize)
+{
+#if CV_VERSION_MAJOR > 4 || (CV_VERSION_MAJOR == 4 && CV_VERSION_MINOR >= 7)
+	cv::stackBlur(backgroundMask, backgroundMask, cv::Size(kernelSize, kernelSize));
+#else
+	cv::blur(backgroundMask, backgroundMask, cv::Size(kernelSize, kernelSize));
+#endif
 }
 
 cv::Mat makeHardBackgroundMask(const cv::Mat &foregroundMask, float threshold)
@@ -107,7 +117,7 @@ cv::Mat postProcessForegroundMask(const cv::Mat &foregroundMask, const cv::Size 
 
 		if (settings.smoothContour > 0.0f) {
 			const int kernelSize = makeOddKernelSize(3.0f + 11.0f * settings.smoothContour);
-			cv::stackBlur(backgroundMask, backgroundMask, cv::Size(kernelSize, kernelSize));
+			smoothMaskContour(backgroundMask, kernelSize);
 
 			if (settings.edgeSoftness <= 0.0f) {
 				backgroundMask = backgroundMask > 128;
