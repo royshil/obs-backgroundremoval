@@ -11,7 +11,21 @@
       "baseline": "a0f06e896a158885fb426e5a91afe72b9b10526b",
       "repository": "https://github.com/kaito-tokyo/vcpkg-registry-kaito-tokyo",
       "packages": [
+        "kaldi",
+        "mlx",
+        "openfst",
+        "vosk",
         "wolfssl"
+      ]
+    },
+    {
+      "kind": "git",
+      "baseline": "ab4cbd85a768bcc1442aaf8c087058c9b02f850b",
+      "repository": "https://github.com/kaito-tokyo/vcpkg-tensorflow-kaito-tokyo",
+      "packages": [
+        "flatbuffers",
+        "ruy",
+        "tensorflow-lite"
       ]
     }
   ],
