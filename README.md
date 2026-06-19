@@ -37,7 +37,13 @@ Additional tutorial videos:
 - Low-light enhancement: https://youtu.be/WSBLYWFrn2Q
 - Remove background from ANY object (not just human): https://youtu.be/N74VCDCToX8
 
-## How to build on your system
+## How to build from source
+
+**Windows**:
+
+```pwsh
+git clone https://github.com/royshil/obs-backgroundremoval.git
+```
 
 **Platforms we support building from source officially:**
 

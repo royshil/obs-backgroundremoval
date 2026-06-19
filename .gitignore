@@ -4,11 +4,12 @@
 /.ccache*/
 /.deps_vendor/
 /.deps/
+/.vcpkg_archives/
+/*_installed/
 /build/
-/build_*
+/build_*/
 /obs-studio/
 /onnxruntime/
-/ort_installed*/
 /release/
-/vcpkg_installed*/
 /vcpkg/
+/*_lock.txt

@@ -1,6 +1,6 @@
 version = 1
 
 [[annotations]]
-path = ["*/*.patch"]
+path = ["*.patch"]
 SPDX-FileCopyrightText = "2026 Kaito Udagawa <umireon@kaito.tokyo>"
 SPDX-License-Identifier = "Apache-2.0"

@@ -40,14 +40,12 @@ jobs:
         run: |
           printf 'VCPKG_BINARY_SOURCES=%s\n' 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read' >> "${GITHUB_OUTPUT}"
 
-
-  # build-windows:
-  #   permissions:
-  #     contents: read
-  #   uses: ./.github/workflows/ort-build-windows.yml
-  #   with:
-  #     VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
-  #     ort-version: v1.24.4
+  build-windows:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ort-build-windows.yml
+    with:
+      VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
 
   build-macos:
     needs: config

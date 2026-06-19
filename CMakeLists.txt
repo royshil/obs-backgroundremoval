@@ -14,14 +14,14 @@ set(PLUGIN_BUNDLE_ID "com.royshilkrot.obs-backgroundremoval" CACHE STRING "Bundl
 set(PACKAGE_VERSION_SUFFIX "" CACHE STRING "Version suffix for plugin package")
 
 ### Project
-block(SCOPE_FOR POLICIES VARIABLES PROPAGATE PLUGIN_VERSION)
+block(PROPAGATE PLUGIN_VERSION)
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_CONTENT)
   string(STRIP "${VERSION_CONTENT}" PLUGIN_VERSION)
 endblock()
 
 project(obs-backgroundremoval VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
 
-block(SCOPE_FOR POLICIES VARIABLES PROPAGATE OS_LINUX_DETECTED)
+block(PROPAGATE OS_LINUX_DETECTED)
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     if(EXISTS "/etc/os-release")
       file(STRINGS "/etc/os-release" OS_RELEASE_ID_LINE REGEX "^ID=")
@@ -44,10 +44,6 @@ endblock()
 
 set(OS_LINUX ${OS_LINUX_DETECTED} CACHE STRING "Linux variant: Linux Debian Ubuntu FALSE")
 
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND OS_LINUX MATCHES "(Debian|Ubuntu)")
-  set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install prefix" FORCE)
-endif()
-
 include(GNUInstallDirs)
 
 ### Global configurations
@@ -60,11 +56,18 @@ set(CMAKE_CXX_EXTENSIONS FALSE)
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 if(MSVC)
-  add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+  add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+  add_compile_options(
+    /utf-8
+    /Zc:preprocessor
+    $<$<COMPILE_LANGUAGE:CXX>:/permissive->
+    $<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>
+  )
 elseif(APPLE OR OS_LINUX)
-  add_compile_definitions(SIMDE_ENABLE_OPENMP)
-  add_compile_options(-fopenmp-simd -fno-omit-frame-pointer -fstack-protector-strong)
+  add_compile_options(-fno-omit-frame-pointer -fstack-protector-strong)
 endif()
+
+set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO RelWithDebInfo Release)
 
 ### Configure paths
 if(DEFINED ENV{PLUGIN_BUILD_DIR})
@@ -73,19 +76,28 @@ else()
   set(PLUGIN_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
-if(APPLE)
+if(MSVC)
   list(
     PREPEND
     CMAKE_PREFIX_PATH
-    "${PLUGIN_BUILD_DIR}/.deps/obs-deps"
+    "${PLUGIN_BUILD_DIR}/.deps/obs-deps-prebuilt"
     "${PLUGIN_BUILD_DIR}/.deps/obs-deps-qt6"
-    "${PLUGIN_BUILD_DIR}/.deps/Debug"
-    "${PLUGIN_BUILD_DIR}/.deps/Debug/Frameworks"
-    "${PLUGIN_BUILD_DIR}/.deps/Release"
-    "${PLUGIN_BUILD_DIR}/.deps/Release/Frameworks"
-    "${PLUGIN_BUILD_DIR}/vcpkg_installed/universal-osx-obs"
-    "${PLUGIN_BUILD_DIR}/vcpkg_installed_ort/universal-osx"
+    "${PLUGIN_BUILD_DIR}/obs_installed"
+    "${PLUGIN_BUILD_DIR}/build_ort/Release/vcpkg_installed/x64-windows-static-md"
     "${PLUGIN_BUILD_DIR}/ort_installed"
+    "${PLUGIN_BUILD_DIR}/vcpkg_installed/x64-windows-static-md-obs"
+  )
+elseif(APPLE)
+  list(
+    PREPEND
+    CMAKE_PREFIX_PATH
+    "${PLUGIN_BUILD_DIR}/.deps/obs-deps-prebuilt"
+    "${PLUGIN_BUILD_DIR}/.deps/obs-deps-qt6"
+    "${PLUGIN_BUILD_DIR}/obs_installed"
+    "${PLUGIN_BUILD_DIR}/obs_installed/Frameworks"
+    "${PLUGIN_BUILD_DIR}/vcpkg_ort_installed/universal-osx"
+    "${PLUGIN_BUILD_DIR}/ort_installed"
+    "${PLUGIN_BUILD_DIR}/vcpkg_installed/universal-osx-obs"
   )
 endif()
 
@@ -95,7 +107,7 @@ find_package(PkgConfig QUIET)
 find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
 
-block(SCOPE_FOR POLICIES VARIABLES PROPAGATE CURL_FOUND)
+block(PROPAGATE CURL_FOUND)
   find_package(CURL QUIET)
 
   if(NOT CURL_FOUND AND PkgConfig_FOUND)
@@ -111,7 +123,7 @@ block(SCOPE_FOR POLICIES VARIABLES PROPAGATE CURL_FOUND)
   endif()
 endblock()
 
-block(SCOPE_FOR POLICIES VARIABLES PROPAGATE OpenCV_FOUND)
+block(PROPAGATE OpenCV_FOUND)
   find_package(OpenCV CONFIG QUIET)
 
   if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
@@ -136,7 +148,7 @@ block(SCOPE_FOR POLICIES VARIABLES PROPAGATE OpenCV_FOUND)
   endif()
 endblock()
 
-block(SCOPE_FOR POLICIES VARIABLES PROPAGATE onnxruntime_FOUND)
+block(PROPAGATE onnxruntime_FOUND)
   set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON)
 
   if(POLICY CMP0167)
@@ -163,18 +175,22 @@ block(SCOPE_FOR POLICIES VARIABLES PROPAGATE onnxruntime_FOUND)
 endblock()
 
 ### Plugin main
-add_library(${CMAKE_PROJECT_NAME} MODULE)
+add_library(obs-backgroundremoval_options INTERFACE)
 
 if(MSVC)
-  target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /W4 /WX /MP)
+  target_compile_options(obs-backgroundremoval_options INTERFACE /W4 /WX)
 elseif(APPLE OR OS_LINUX)
-  target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Wall -Wextra -Werror)
+  target_compile_definitions(obs-backgroundremoval_options INTERFACE SIMDE_ENABLE_OPENMP)
+  target_compile_options(obs-backgroundremoval_options INTERFACE -fopenmp-simd -Wall -Wextra -Werror)
 endif()
+
+add_library(${CMAKE_PROJECT_NAME} MODULE)
 
 add_subdirectory(src/update-checker/CurlClient)
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
+    obs-backgroundremoval_options
     OBS::libobs
     OBS::obs-frontend-api
     onnxruntime::onnxruntime
@@ -264,6 +280,44 @@ set(
   data/models/uretinex_net_180x320.with_runtime_opt.ort.license
 )
 
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/packaging/pkg/Distribution.xml.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/Distribution"
+  @ONLY
+)
+
+file(
+  CONFIGURE
+  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/codesign_after_install.cmake"
+  CONTENT
+    [[
+set(INSTALL_DIR "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
+set(PLUGIN_DIR "${INSTALL_DIR}/Library/Application Support/obs-studio/plugins")
+
+set(BUNDLE_PATH "${PLUGIN_DIR}/@CMAKE_PROJECT_NAME@.plugin")
+
+if(EXISTS "${BUNDLE_PATH}")
+  message(STATUS "Re-signing: ${BUNDLE_PATH}...")
+
+  execute_process(
+    COMMAND xattr -cr "${BUNDLE_PATH}"
+    COMMAND_ERROR_IS_FATAL NONE
+  )
+
+  execute_process(
+    COMMAND dot_clean -m "${BUNDLE_PATH}"
+    COMMAND_ERROR_IS_FATAL NONE
+  )
+
+  execute_process(
+    COMMAND codesign -s - -f -o runtime --deep "${BUNDLE_PATH}"
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+endif()
+]]
+)
+install(CODE "")
+
 if(APPLE)
   set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES BUNDLE TRUE BUNDLE_EXTENSION "plugin")
   set_source_files_properties(${EFFECTS_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/effects")
@@ -277,39 +331,19 @@ if(APPLE)
     LIBRARY DESTINATION "Library/Application Support/obs-studio/plugins"
   )
 
-  configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/packaging/pkg/Distribution.xml.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/Distribution"
-    @ONLY
-  )
+  install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/codesign_after_install.cmake")
+elseif(MSVC)
+  set(OBS_PLUGIN_BIN_DIR "${CMAKE_PROJECT_NAME}/bin/64bit")
+  set(OBS_PLUGIN_DATA_DIR "${CMAKE_PROJECT_NAME}/data")
 
   install(
-    CODE
-      "set(INSTALL_DIR \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}\")
-set(PLUGIN_DIR \"\${INSTALL_DIR}/Library/Application Support/obs-studio/plugins\")
-
-set(BUNDLE_PATH \"\${PLUGIN_DIR}/${CMAKE_PROJECT_NAME}.plugin\")
-
-if(EXISTS \"\${BUNDLE_PATH}\")
-  message(STATUS \"Re-signing: \${BUNDLE_PATH}...\")
-
-  execute_process(
-    COMMAND xattr -cr \"\${BUNDLE_PATH}\"
-    COMMAND_ERROR_IS_FATAL NONE
+    TARGETS "${CMAKE_PROJECT_NAME}"
+    RUNTIME DESTINATION "${OBS_PLUGIN_BIN_DIR}"
+    LIBRARY DESTINATION "${OBS_PLUGIN_BIN_DIR}"
   )
-
-  execute_process(
-    COMMAND dot_clean -m \"\${BUNDLE_PATH}\"
-    COMMAND_ERROR_IS_FATAL NONE
-  )
-
-  execute_process(
-    COMMAND codesign -s - -f -o runtime --deep \"\${BUNDLE_PATH}\"
-    COMMAND_ERROR_IS_FATAL ANY
-  )
-endif()"
-  )
-elseif(MSVC)
+  install(FILES ${EFFECTS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/effects")
+  install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
+  install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
 elseif(OS_LINUX MATCHES "(Debian|Ubuntu)")
   set(OBS_PLUGIN_DATA_DIR "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}")
   set(OBS_PLUGIN_DOC_DIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${CMAKE_PROJECT_NAME}")
@@ -336,7 +370,7 @@ set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}${PACKAGE_VERSION_SUFFIX}")
 set(CPACK_PACKAGE_CONTACT "${PLUGIN_AUTHOR} <${PLUGIN_EMAIL}>")
 
 set(CPACK_ARCHIVE_THREADS 0)
-set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/release")
+set(CPACK_OUTPUT_FILE_PREFIX "release")
 set(CPACK_SET_DESTDIR TRUE)
 set(CPACK_VERBATIM_VARIABLES TRUE)
 
@@ -349,7 +383,7 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS TRUE)
 include(CPack) # This line must be placed after all the package configurations
 
 ### Export variables
-block(SCOPE_FOR POLICIES VARIABLES)
+block()
   set(SH_CONTENT "")
   set(PS1_CONTENT "")
 
