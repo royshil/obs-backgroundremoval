@@ -4,9 +4,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set -euo pipefail
-shopt -s nullglob
-
 debian_forky() {
   apt-get update
   apt-get install -y --no-install-recommends \
@@ -46,48 +43,20 @@ ubuntu_resolute() {
 }
 
 macos() {
-  brew install ccache python@3.13 xcbeautify
+  brew install ccache pkg-config python xcbeautify
 }
 
-case "$(uname -s)" in
-Darwin)
-  macos
-  exit 0
-  ;;
-*)
-  if [ -f /etc/os-release ]; then
-    # shellcheck disable=SC1091
-    . /etc/os-release
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  set -euo pipefail
+  shopt -s nullglob
 
-    case "$ID" in
-    debian)
-      case "$VERSION_CODENAME" in
-      forky)
-        debian_forky
-        exit 0
-        ;;
-      *)
-        printf 'ERROR: Debian %s is not supported.\n' "$VERSION_CODENAME" >&2
-        exit 1
-        ;;
-      esac
-      ;;
-    ubuntu)
-      case "$VERSION_CODENAME" in
-      resolute)
-        ubuntu_resolute
-        exit 0
-        ;;
-      *)
-        printf 'ERROR: Ubuntu %s is not supported.\n' "$VERSION_CODENAME" >&2
-        exit 1
-        ;;
-      esac
-      ;;
-    esac
+  [[ -f /etc/os-release ]] && . /etc/os-release
+  if [[ "$(uname -s)" == Darwin ]]; then
+    macos
+  elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID}_$VERSION_CODENAME"; then
+    "${ID}_$VERSION_CODENAME"
+  else
+    printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
+    exit 1
   fi
-  ;;
-esac
-
-printf 'ERROR: Your platform is not supported. Exiting...' >&2
-exit 1
+fi

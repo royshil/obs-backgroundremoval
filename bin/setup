@@ -4,16 +4,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set -euo pipefail
-shopt -s nullglob
-
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-: "${PLUGIN_BUILD_DIR:="$ROOT_DIR"}"
-
-export PLUGIN_BUILD_DIR
-
-. "$ROOT_DIR/buildspec.props"
-
 debian_forky() {
   printf 'INFO: No operation required for setup on Debian Forky.\n'
 }
@@ -23,25 +13,26 @@ ubuntu_resolute() {
 }
 
 macos() {
-  local PYTHON MINIMAL_PATH
+  : "${PLUGIN_BUILD_DIR:=$PWD}"
+  : "${PYTHON:=$(brew --prefix python)/bin/python3}"
+  export PLUGIN_BUILD_DIR PYTHON
 
-  : "${PYTHON:=python3.13}"
-  MINIMAL_PATH=/usr/bin:/bin:/usr/sbin:/sbin
+  printf '#==> Load buildspec.props\n'
 
-  "$ROOT_DIR/scripts/build_onnxruntime_macos.sh" clone_onnxruntime
+  local vcpkg_default_git_tag vcpkg_default_git_commit obs_studio_git_tag obs_studio_git_commit onnxruntime_git_tag onnxruntime_git_commit
+  eval "$(awk '/^(vcpkg_default|obs_studio|onnxruntime)_git_(tag|commit)=/{print}' buildspec.props)"
 
-  "$ROOT_DIR/scripts/build_obs_macos.sh" download_prebuilt
-  "$ROOT_DIR/scripts/build_obs_macos.sh" download_qt6
-  "$ROOT_DIR/scripts/build_obs_macos.sh" clone_obs
+  printf '#==> Ensure vcpkg and its toolchains\n'
 
-  if [[ -n "${VCPKG_ROOT:-}" ]]; then
-    printf 'Using VCPKG_ROOT=%s.\n' "$VCPKG_ROOT" >&2
-  else
-    VCPKG_ROOT="$PLUGIN_BUILD_DIR/vcpkg"
+  if [[ -z "${VCPKG_ROOT:-}" ]]; then
+    export VCPKG_ROOT="${PLUGIN_BUILD_DIR:-.}/vcpkg"
 
     if ! [[ -d "$VCPKG_ROOT" ]]; then
-      printf 'VCPKG_ROOT missing. Cloning vcpkg on %s...\n' "$VCPKG_ROOT" >&2
-      git clone --filter blob:none --branch "$vcpkg_git_tag" https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+      git clone --filter blob:none --branch "$vcpkg_default_git_tag" https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+    fi
+
+    if ! git -C "$VCPKG_ROOT" rev-parse HEAD | grep -q "$vcpkg_default_git_commit"; then
+      printf 'ERROR: vcpkg commit hash mismatch.\n'; exit 1
     fi
 
     if ! [[ -e "$VCPKG_ROOT/vcpkg" ]]; then
@@ -49,57 +40,81 @@ macos() {
     fi
   fi
 
-  PATH="$MINIMAL_PATH" "$VCPKG_ROOT/vcpkg" fetch cmake
-  PATH="$MINIMAL_PATH" "$VCPKG_ROOT/vcpkg" fetch ninja
+  local pwshExe
+  pwshExe=$("$VCPKG_ROOT/vcpkg" fetch powershell-core | tail -n1)
 
-  local venv_dir="$PLUGIN_BUILD_DIR/.venv"
-
-  if ! [[ -d "$venv_dir" ]]; then
-    "$PYTHON" -m venv "$venv_dir"
+  if ! [[ -e "$pwshExe" ]]; then
+    printf 'ERROR: pwsh not found.\n'; exit 1
   fi
 
-  "$venv_dir/bin/pip" install -r "$ROOT_DIR/requirements-build.txt"
+  PATH="${pwshExe%/*}:$PATH"
+  export PATH
+
+  printf '#==> Set up OBS sources and dependencies\n'
+
+  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/obs-studio" ]]; then
+    git clone --filter blob:none --branch "$obs_studio_git_tag" https://github.com/obsproject/obs-studio.git "${PLUGIN_BUILD_DIR:-.}/obs-studio"
+  fi
+
+  git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" fetch origin "$obs_studio_git_tag"
+  git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" checkout --force FETCH_HEAD
+  git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" clean -fdx
+  git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" submodule update --init --recursive --filter=blob:none
+
+  if ! git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" rev-parse HEAD | grep -q "$obs_studio_git_commit"; then
+    printf 'ERROR: obs-studio commit hash mismatch.\n'; exit 1
+  fi
+
+  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/.deps/obs-deps" ]]; then
+    pwsh -NoProfile -Command 'Import-Module ./scripts/BuildOBS.psm1; Initialize-ObsDeps -Component prebuilt'
+  fi
+
+  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/.deps/obs-deps-qt6" ]]; then
+    pwsh -NoProfile -Command 'Import-Module ./scripts/BuildOBS.psm1; Initialize-ObsDeps -Component qt6'
+  fi
+
+  printf '#==> Set up ONNX Runtime source\n'
+
+  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/onnxruntime" ]]; then
+    git clone --filter blob:none --branch "$onnxruntime_git_tag" https://github.com/microsoft/onnxruntime.git "${PLUGIN_BUILD_DIR:-.}/onnxruntime"
+  fi
+
+  git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" fetch origin "$onnxruntime_git_tag"
+  git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" checkout --force FETCH_HEAD
+  git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" clean -fdx
+  git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" submodule update --init --recursive --filter=blob:none
+
+  if ! git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" rev-parse HEAD | grep -q "$onnxruntime_git_commit"; then
+    printf 'ERROR: onnxruntime commit hash mismatch.\n'; exit 1
+  fi
+
+  pwsh -NoProfile -Command 'Import-Module ./scripts/BuildOnnxRuntime.psm1; Update-OrtSourceWithPatches'
+
+  printf '#==> Set up python\n'
+
+  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/.venv" ]]; then
+    "$PYTHON" -m venv "${PLUGIN_BUILD_DIR:-.}/.venv"
+  fi
+
+  "${PLUGIN_BUILD_DIR:-.}/.venv/bin/pip3" install -r requirements-build.txt
 }
 
-case "$(uname -s)" in
-Darwin)
-  macos
-  exit 0
-  ;;
-*)
-  if [ -f /etc/os-release ]; then
-    # shellcheck disable=SC1091
-    . /etc/os-release
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  set -euo pipefail
+  shopt -s nullglob
 
-    case "$ID" in
-    debian)
-      case "$VERSION_CODENAME" in
-      forky)
-        debian_forky
-        exit 0
-        ;;
-      *)
-        printf 'ERROR: Debian %s is not supported.\n' "$VERSION_CODENAME" >&2
-        exit 1
-        ;;
-      esac
-      ;;
-    ubuntu)
-      case "$VERSION_CODENAME" in
-      resolute)
-        ubuntu_resolute
-        exit 0
-        ;;
-      *)
-        printf 'ERROR: Ubuntu %s is not supported.\n' "$VERSION_CODENAME" >&2
-        exit 1
-        ;;
-      esac
-      ;;
-    esac
+  if ! [[ -f buildspec.props ]]; then
+    printf 'ERROR: buildspec.props not found. The working directory MUST be the root of the project.\n' >&2
+    exit 1
   fi
-  ;;
-esac
 
-printf 'ERROR: Your platform is not supported. Exiting...' >&2
-exit 1
+  [[ -f /etc/os-release ]] && . /etc/os-release
+  if [[ "$(uname -s)" == Darwin ]]; then
+    macos
+  elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID}_$VERSION_CODENAME"; then
+    "${ID}_$VERSION_CODENAME"
+  else
+    printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
+    exit 1
+  fi
+fi

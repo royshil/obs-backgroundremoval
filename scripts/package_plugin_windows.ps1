@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 param (
-    [string]$Target = "x64",
     [string]$Configuration = "RelWithDebInfo",
     [string]$OutputDir = "release"
 )
@@ -12,7 +11,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # 1. Locate and read buildspec.json
-$BuildDir = "build_$Target"
+$BuildDir = "build"
 $ScriptDir = $PSScriptRoot
 $RootDir = Split-Path -Parent $ScriptDir
 $BuildSpecFile = Join-Path $RootDir "buildspec.json"

@@ -6,7 +6,7 @@
 
 # file: .github/workflows/ort-build-macos.yml
 # author: Kaito Udagawa <umireon@kaito.tokyo>
-# date: 2026-05-28
+# date: 2026-06-15
 
 name: ORT build macOS
 
@@ -47,8 +47,13 @@ jobs:
         run: |
           echo "ImageVersion=$ImageVersion" >> "$GITHUB_OUTPUT"
 
+      - name: Print Xcode version
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          xcodebuild -version
+
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -59,22 +64,18 @@ jobs:
           awk '!/(^#|^[[:space:]]*$)/' buildspec.props >> "$GITHUB_OUTPUT"
 
       - name: Checkout vcpkg
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: microsoft/vcpkg
-          ref: ${{ steps.buildspec.outputs.vcpkg_git_tag }}
+          ref: ${{ steps.buildspec.outputs.vcpkg_default_git_tag }}
           persist-credentials: false
           path: vcpkg
           filter: blob:none
 
-      - name: Checkout ONNX Runtime
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          repository: microsoft/onnxruntime
-          ref: ${{ steps.buildspec.outputs.onnxruntime_git_tag }}
-          persist-credentials: false
-          path: onnxruntime
-          submodules: recursive
+      - name: Run bootstrap-vcpkg.sh
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
       - name: Set up Python for build requirements
         id: setup-python
@@ -87,45 +88,37 @@ jobs:
         id: setup-ccache
         uses: ./.github/actions/setup-ccache
 
-      - name: Print Xcode version
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          xcodebuild -version
+      - name: Checkout ONNX Runtime
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: microsoft/onnxruntime
+          ref: ${{ steps.buildspec.outputs.onnxruntime_git_tag }}
+          persist-credentials: false
+          path: onnxruntime
+          submodules: recursive
 
-      - name: Run bootstrap-vcpkg.sh
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
-
-      - name: Fetch CMake and Ninja from vcpkg toolchains
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          export PATH=/usr/bin:/bin:/usr/sbin:/sbin VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
-          ./vcpkg/vcpkg fetch cmake
-          ./vcpkg/vcpkg fetch ninja
-
-      - name: Generate toolchain report for building ONNX Runtime (macOS)
+      - name: Generate toolchain hash for building ONNX Runtime
+        id: toolchain-hash
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          PYTHON_EXE: '${{ steps.setup-python.outputs.python-path }}'
+          HASH: >-
+            ${{ hashFiles(
+              'buildspec.props',
+              'scripts/BuildOnnxRuntime.psm1',
+              'src/required_operators_and_types.with_runtime_opt.config',
+              'scripts/ort_patches/*.patch'
+            ) }}
         run: |
-          "$PYTHON_EXE" --version
-
-          env -i \
-            DEVELOPER_DIR="$DEVELOPER_DIR" \
-            HOME="$HOME" \
-            PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
-            PYTHON="$PYTHON_EXE" \
-            ./scripts/build_onnxruntime_macos.sh toolchain_report | tee build_onnxruntime_toolchain.txt
+          printf 'HASH=%s\n' "$HASH" >> "$GITHUB_OUTPUT"
 
       - name: Restore ONNX Runtime ccache (macOS)
         id: restore-ccache-ort
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: .ccache_ort
-          key: ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ hashFiles('build_onnxruntime_toolchain.txt') }}-${{ steps.setup-ccache.outputs.VERSION }}
+          key: ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.toolchain-hash.outputs.HASH }}-${{ steps.setup-ccache.outputs.VERSION }}
           restore-keys: |
-            ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ hashFiles('build_onnxruntime_toolchain.txt') }}-
+            ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.toolchain-hash.outputs.HASH }}-
             ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-
             ccache-ort-${{ runner.os }}-universal-
 
@@ -141,20 +134,15 @@ jobs:
         id: build-onnxruntime
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          PYTHON_EXE: '${{ steps.setup-python.outputs.python-path }}'
+          PYTHON: '${{ steps.setup-python.outputs.python-path }}'
+          VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
         run: |
+          PWSH_EXE="$("$VCPKG_ROOT/vcpkg" fetch powershell-core | tail -n1)"
+          CMAKE_EXE="$("$VCPKG_ROOT/vcpkg" fetch cmake | tail -n1)"
+          NINJA_EXE="$("$VCPKG_ROOT/vcpkg" fetch ninja | tail -n1)"
           CCACHE_EXE="$(command -v ccache)"
-          CMAKE_EXE="$(VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg" ./vcpkg/vcpkg fetch cmake | tail -n1)"
-          NINJA_EXE="$(VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg" ./vcpkg/vcpkg fetch ninja | tail -n1)"
 
-          # shellcheck disable=SC2120
-          xcbeautify() { if command -v xcbeautify >/dev/null 2>&1; then command xcbeautify "$@"; else cat; fi; }
-
-          "$CCACHE_EXE" -V
-          "$CMAKE_EXE" --version
-          "$NINJA_EXE" --version
-
-          build_onnxruntime_macos() {
+          pwsh() {
             env -i \
               CCACHE_DIR="$GITHUB_WORKSPACE/.ccache_ort" \
               CCACHE_BASEDIR="$GITHUB_WORKSPACE" \
@@ -162,17 +150,18 @@ jobs:
               DEVELOPER_DIR="$DEVELOPER_DIR" \
               HOME="$HOME" \
               PATH="${CMAKE_EXE%/*}:${NINJA_EXE%/*}:${CCACHE_EXE%/*}:/usr/bin:/bin:/usr/sbin:/sbin" \
-              PYTHON="$PYTHON_EXE" \
+              PLUGIN_BUILD_DIR="$GITHUB_WORKSPACE" \
+              PYTHON="$PYTHON" \
               VCPKG_BINARY_SOURCES="$VCPKG_BINARY_SOURCES" \
-              ./scripts/build_onnxruntime_macos.sh "$@"
+              "$PWSH_EXE" "$@"
           }
 
-          build_onnxruntime_macos patch_onnxruntime
-          build_onnxruntime_macos build_py arm64 --update
-          build_onnxruntime_macos build_py x86_64 --update
-          build_onnxruntime_macos build_py arm64 --build | tee build_onnxruntime_build_arm64.log | xcbeautify
-          build_onnxruntime_macos build_py x86_64 --build | tee build_onnxruntime_build_x86_64.log | xcbeautify
-          build_onnxruntime_macos install_onnxruntime
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Update-OrtSourceWithPatches"
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -Arch arm64"
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -Arch arm64" | tee build_onnxruntime_arm64.log | xcbeautify
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -Arch x86_64"
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -Arch x86_64" | tee build_onnxruntime_x86_64.log | xcbeautify
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Install-Ort"
 
       - name: Upload ONNX Runtime build logs
         if: always()

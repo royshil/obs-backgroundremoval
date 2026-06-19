@@ -17,159 +17,123 @@ export PLUGIN_BUILD_DIR
 xcbeautify() { if command -v xcbeautify >/dev/null 2>&1; then command xcbeautify "$@"; else cat; fi; }
 
 debian_forky() {
-  cmake -G Ninja -S "$ROOT_DIR" -B "$PLUGIN_BUILD_DIR/build_plugin"
+  cmake -G Ninja -S "$ROOT_DIR" -B "${PLUGIN_BUILD_DIR:-.}/build_plugin"
 
-  cmake --build "$PLUGIN_BUILD_DIR/build_plugin"
+  cmake --build "${PLUGIN_BUILD_DIR:-.}/build_plugin"
 
-  (cd "$PLUGIN_BUILD_DIR/build_plugin" && cpack -G DEB)
+  (cd "${PLUGIN_BUILD_DIR:-.}/build_plugin" && cpack -G DEB)
 
-  . "$PLUGIN_BUILD_DIR/build_plugin/cmake_export.sh"
+  . "${PLUGIN_BUILD_DIR:-.}/build_plugin/cmake_export.sh"
 
   printf 'Run the following command to install the plugin:\n'
   printf '  sudo dpkg -i %s\n' "$ROOT_DIR/release/${PLUGIN_NAME}_*.deb"
 }
 
 ubuntu_resolute() {
-  cmake -G Ninja -S "$ROOT_DIR" -B "$PLUGIN_BUILD_DIR/build_plugin"
+  cmake -G Ninja -S "$ROOT_DIR" -B "${PLUGIN_BUILD_DIR:-.}/build_plugin"
 
-  cmake --build "$PLUGIN_BUILD_DIR/build_plugin"
+  cmake --build "${PLUGIN_BUILD_DIR:-.}/build_plugin"
 
-  (cd "$PLUGIN_BUILD_DIR/build_plugin" && cpack -G DEB)
+  (cd "${PLUGIN_BUILD_DIR:-.}/build_plugin" && cpack -G DEB)
 
-  . "$PLUGIN_BUILD_DIR/build_plugin/cmake_export.sh"
+  . "${PLUGIN_BUILD_DIR:-.}/build_plugin/cmake_export.sh"
 
   printf 'Run the following command to install the plugin:\n'
   printf '  sudo dpkg -i %s\n' "$ROOT_DIR/release/${PLUGIN_NAME}_*.deb"
 }
 
 macos() {
-  : "${VCPKG_ROOT:=$PLUGIN_BUILD_DIR/vcpkg}"
+  : "${PLUGIN_BUILD_DIR:=$PWD}"
+  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:-.}/vcpkg}"
 
   if [[ -z "${VCPKG_BINARY_SOURCES:-}" ]]; then
-    VCPKG_BINARY_SOURCES="clear;files,$PLUGIN_BUILD_DIR/.vcpkg_archives,readwrite;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read"
+    VCPKG_BINARY_SOURCES="clear;files,${PLUGIN_BUILD_DIR:-.}/.vcpkg_archives,readwrite;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read"
   fi
 
-  CMAKE_EXE="$(PATH="/usr/bin:/bin:/usr/sbin:/sbin" "$VCPKG_ROOT/vcpkg" fetch cmake | tail -n1)"
-  NINJA_EXE="$(PATH="/usr/bin:/bin:/usr/sbin:/sbin" "$VCPKG_ROOT/vcpkg" fetch ninja | tail -n1)"
+  export PLUGIN_BUILD_DIR VCPKG_ROOT VCPKG_BINARY_SOURCES
 
-  CCACHE_EXE="$(command -v ccache)"
+  local pwshExe cmakeExe ninjaExe
+  pwshExe=$("${VCPKG_ROOT:?}/vcpkg" fetch powershell-core | tail -n1)
+  cmakeExe=$("${VCPKG_ROOT:?}/vcpkg" fetch cmake | tail -n1)
+  ninjaExe=$("${VCPKG_ROOT:?}/vcpkg" fetch cmake | tail -n1)
 
-  build_obs_macos() {
-    env -i \
-      DEVELOPER_DIR="$(xcode-select --print-path)" \
-      HOME="$HOME" \
-      PATH="${CMAKE_EXE%/*}:/usr/bin:/bin:/usr/sbin:/sbin" \
-      PLUGIN_BUILD_DIR="$PLUGIN_BUILD_DIR" \
-      "$ROOT_DIR/scripts/build_obs_macos.sh" "$@"
-  }
+  if ! [[ -e "$cmakeExe" ]]; then
+    printf 'ERROR: cmake not found.\n'; exit 1
+  fi
 
-  build_obs_macos configure_obs
-  build_obs_macos build_obs Debug | xcbeautify
-  build_obs_macos build_obs Release | xcbeautify
-  build_obs_macos install_obs Debug
-  build_obs_macos install_obs Release
+  if ! [[ -e "$pwshExe" ]]; then
+    printf 'ERROR: pwsh not found.\n'; exit 1
+  fi
 
-  vcpkg_install() {
-    env -i \
-      DEVELOPER_DIR="$(xcode-select --print-path)" \
-      HOME="$HOME" \
-      PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
-      PLUGIN_BUILD_DIR="$PLUGIN_BUILD_DIR" \
-      VCPKG_BINARY_SOURCES="$VCPKG_BINARY_SOURCES" \
-      "$VCPKG_ROOT/vcpkg" install "$@"
-  }
+  PATH="${pwshExe%/*}:${cmakeExe%/*}:${ninjaExe%/*}:$PATH"
+  export PATH
 
-  vcpkg_install --triplet=arm64-osx-obs --x-install-root="$PLUGIN_BUILD_DIR/vcpkg_installed_arm64"
-  vcpkg_install --triplet=x64-osx-obs --x-install-root="$PLUGIN_BUILD_DIR/vcpkg_installed_x64"
+  printf '#==> Install vcpkg dependencies\n'
 
-  "$ROOT_DIR/scripts/lipo_vcpkg_macos.sh" \
-    "$PLUGIN_BUILD_DIR/vcpkg_installed/universal-osx-obs" \
-    "$PLUGIN_BUILD_DIR/vcpkg_installed_arm64/arm64-osx-obs" \
-    "$PLUGIN_BUILD_DIR/vcpkg_installed_x64/x64-osx-obs"
+  "${VCPKG_ROOT:?}/vcpkg" install --triplet=arm64-osx-obs --x-install-root="${PLUGIN_BUILD_DIR:-.}/vcpkg_arm64_installed"
+  "${VCPKG_ROOT:?}/vcpkg" install --triplet=x64-osx-obs --x-install-root="${PLUGIN_BUILD_DIR:-.}/vcpkg_x64_installed"
 
-  build_onnxruntime_macos() {
-    env -i \
-      CCACHE_DIR="$PLUGIN_BUILD_DIR/.ccache_ort" \
-      CCACHE_SLOPPINESS='include_file_mtime,time_macros' \
-      DEVELOPER_DIR="$(xcode-select --print-path)" \
-      HOME="$HOME" \
-      PATH="${CMAKE_EXE%/*}:${NINJA_EXE%/*}:${CCACHE_EXE%/*}:/usr/bin:/bin:/usr/sbin:/sbin" \
-      PLUGIN_BUILD_DIR="$PLUGIN_BUILD_DIR" \
-      PYTHON="$PLUGIN_BUILD_DIR/.venv/bin/python" \
-      VCPKG_BINARY_SOURCES="$VCPKG_BINARY_SOURCES" \
-      "$ROOT_DIR/scripts/build_onnxruntime_macos.sh" "$@"
-  }
+  ./scripts/lipo_vcpkg_macos.sh \
+    "${PLUGIN_BUILD_DIR:-.}/vcpkg_installed/universal-osx-obs" \
+    "${PLUGIN_BUILD_DIR:-.}/vcpkg_arm64_installed/arm64-osx-obs" \
+    "${PLUGIN_BUILD_DIR:-.}/vcpkg_x64_installed/x64-osx-obs"
 
-  CCACHE_DIR="$PLUGIN_BUILD_DIR/.ccache_ort" "$CCACHE_EXE" --zero-stats
+  printf '#==> Build OBS sources\n'
 
-  build_onnxruntime_macos build_py arm64 --update
-  build_onnxruntime_macos build_py x86_64 --update
-  build_onnxruntime_macos build_py arm64 --build | xcbeautify
-  build_onnxruntime_macos build_py x86_64 --build | xcbeautify
-  build_onnxruntime_macos install_onnxruntime
+  pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1 && Invoke-ObsConfigure"
+  pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1 && Invoke-ObsBuild"
+  pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1 && Install-Obs"
 
-  CCACHE_DIR="$PLUGIN_BUILD_DIR/.ccache_ort" "$CCACHE_EXE" --show-stats
+  printf '#==> Build ONNX Runtime\n'
 
-  plugin_cmake() {
-    env -i \
-      DEVELOPER_DIR="$(xcode-select --print-path)" \
-      HOME="$HOME" \
-      PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
-      PLUGIN_BUILD_DIR="$PLUGIN_BUILD_DIR" \
-      PYTHON="$PLUGIN_BUILD_DIR/.venv/bin/python" \
-      VCPKG_BINARY_SOURCES="$VCPKG_BINARY_SOURCES" \
-      "$CMAKE_EXE" "$@"
-  }
+  export CCACHE_DIR="${PLUGIN_BUILD_DIR:-.}/.ccache_ort"
+  export CCACHE_SLOPPINESS='include_file_mtime,time_macros'
 
-  plugin_cmake -G Xcode -S "$ROOT_DIR" -B "$PLUGIN_BUILD_DIR/build_plugin"
+  if [[ "${PLUGIN_BUILD_DIR:-.}" == "$PWD" ]]; then
+    export CCACHE_BASEDIR="${PLUGIN_BUILD_DIR:-.}"
+  fi
 
-  plugin_cmake --build "$PLUGIN_BUILD_DIR/build_plugin" --config "$PLUGIN_CONFIG" | xcbeautify
+  pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -Arch arm64"
+  pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -Arch arm64"
+  pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -Arch x86_64"
+  pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -Arch x86_64"
 
-  . "$PLUGIN_BUILD_DIR/build_plugin/cmake_export.sh"
+  unset CCACHE_DIR CCACHE_SLOPPINESS CCACHE_BASEDIR
+
+  pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Install-Ort"
+
+  ./scripts/lipo_vcpkg_macos.sh \
+    "${PLUGIN_BUILD_DIR:-.}/vcpkg_ort_installed/universal-osx" \
+    "${PLUGIN_BUILD_DIR:-.}/build_ort_arm64/Release/vcpkg_installed/arm64-osx" \
+    "${PLUGIN_BUILD_DIR:-.}/build_ort_x86_64/Release/vcpkg_installed/x64-osx"
+
+  printf '#==> Build Plugin\n'
+
+  cmake --preset macos --config "$PLUGIN_CONFIG"
+  cmake --build --preset macos --config "$PLUGIN_CONFIG" | xcbeautify
+
+  . "${PLUGIN_BUILD_DIR:-.}/build/cmake_export.sh"
 
   printf 'Run the following command to install the plugin:\n'
-  printf '  cmake --install "%s" --config "%s" --prefix ~\n' "$PLUGIN_BUILD_DIR/build_plugin" "$PLUGIN_CONFIG"
+  printf '  cmake --install "%s" --config "%s" --prefix ~\n' "${PLUGIN_BUILD_DIR:-.}/build" "$PLUGIN_CONFIG"
 }
 
-case "$(uname -s)" in
-Darwin)
-  macos
-  exit 0
-  ;;
-*)
-  if [ -f /etc/os-release ]; then
-    # shellcheck disable=SC1091
-    . /etc/os-release
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  set -euo pipefail
+  shopt -s nullglob
 
-    case "$ID" in
-    debian)
-      case "$VERSION_CODENAME" in
-      forky)
-        debian_forky
-        exit 0
-        ;;
-      *)
-        printf 'ERROR: Debian %s is not supported.\n' "$VERSION_CODENAME" >&2
-        exit 1
-        ;;
-      esac
-      ;;
-    ubuntu)
-      case "$VERSION_CODENAME" in
-      resolute)
-        ubuntu_resolute
-        exit 0
-        ;;
-      *)
-        printf 'ERROR: Ubuntu %s is not supported.\n' "$VERSION_CODENAME" >&2
-        exit 1
-        ;;
-      esac
-      ;;
-    esac
+  if ! [[ -f buildspec.props ]]; then
+    printf 'ERROR: buildspec.props not found. The working directory MUST be the root of the project.\n' >&2
+    exit 1
   fi
-  ;;
-esac
 
-printf 'ERROR: Your platform is not supported. Exiting...' >&2
-exit 1
+  [[ -f /etc/os-release ]] && . /etc/os-release
+  if [[ "$(uname -s)" == Darwin ]]; then
+    macos
+  elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID}_$VERSION_CODENAME"; then
+    "${ID}_$VERSION_CODENAME"
+  else
+    printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
+    exit 1
+  fi
+fi

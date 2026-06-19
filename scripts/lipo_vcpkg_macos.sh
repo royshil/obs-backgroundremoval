@@ -14,47 +14,47 @@ set -euo pipefail
 shopt -s nullglob
 
 lipo_vcpkg() {
-  local -r VCPKG_INSTALLED_UNIVERSAL="$1"
-  local -r VCPKG_INSTALLED_ARM64="$2"
-  local -r VCPKG_INSTALLED_X64="$3"
+  local -r VCPKG_INSTALLED="$1"
+  local -r VCPKG_ARM64_INSTALLED="$2"
+  local -r VCPKG_X64_INSTALLED="$3"
 
-  rm -rf "${VCPKG_INSTALLED_UNIVERSAL}"
-  mkdir -p "${VCPKG_INSTALLED_UNIVERSAL}"/{debug/lib/pkgconfig,include,lib/pkgconfig,share}
+  rm -rf "$VCPKG_INSTALLED"
+  mkdir -p "$VCPKG_INSTALLED"/{debug/lib/pkgconfig,include,lib/pkgconfig,share}
 
-  cp -a "${VCPKG_INSTALLED_ARM64}/include/." "${VCPKG_INSTALLED_UNIVERSAL}/include/"
-  cp -a "${VCPKG_INSTALLED_ARM64}/lib/pkgconfig/." "${VCPKG_INSTALLED_UNIVERSAL}/lib/pkgconfig/"
-  cp -a "${VCPKG_INSTALLED_ARM64}/share/." "${VCPKG_INSTALLED_UNIVERSAL}/share/"
+  cp -a "$VCPKG_ARM64_INSTALLED/include/." "$VCPKG_INSTALLED/include/"
+  cp -a "$VCPKG_ARM64_INSTALLED/lib/pkgconfig/." "$VCPKG_INSTALLED/lib/pkgconfig/"
+  cp -a "$VCPKG_ARM64_INSTALLED/share/." "$VCPKG_INSTALLED/share/"
 
-  if [[ -d "${VCPKG_INSTALLED_ARM64}/debug" ]]; then
-    cp -a "${VCPKG_INSTALLED_ARM64}/debug/lib/pkgconfig/." "${VCPKG_INSTALLED_UNIVERSAL}/debug/lib/pkgconfig/"
+  if [[ -d "$VCPKG_ARM64_INSTALLED/debug" ]]; then
+    cp -a "$VCPKG_ARM64_INSTALLED/debug/lib/pkgconfig/." "$VCPKG_INSTALLED/debug/lib/pkgconfig/"
   fi
 
-  if [[ -d "${VCPKG_INSTALLED_ARM64}/tools" ]]; then
-    mkdir -p "${VCPKG_INSTALLED_UNIVERSAL}/tools"
-    cp -a "${VCPKG_INSTALLED_ARM64}/tools/." "${VCPKG_INSTALLED_UNIVERSAL}/tools/"
+  if [[ -d "$VCPKG_ARM64_INSTALLED/tools" ]]; then
+    mkdir -p "$VCPKG_INSTALLED/tools"
+    cp -a "$VCPKG_ARM64_INSTALLED/tools/." "$VCPKG_INSTALLED/tools/"
   fi
 
   local lib_full_path lib_rel_path arm64_path x64_path universal_path
-  for lib_full_path in "${VCPKG_INSTALLED_ARM64}"/lib/*.a "${VCPKG_INSTALLED_ARM64}"/debug/lib/*.a; do
-    lib_rel_path="${lib_full_path#${VCPKG_INSTALLED_ARM64}/}"
+  for lib_full_path in "$VCPKG_ARM64_INSTALLED"/lib/*.a "$VCPKG_ARM64_INSTALLED"/debug/lib/*.a; do
+    lib_rel_path="${lib_full_path#$VCPKG_ARM64_INSTALLED/}"
 
     echo "Processing ${lib_rel_path}..."
 
-    arm64_path="${VCPKG_INSTALLED_ARM64}/${lib_rel_path}"
-    x64_path="${VCPKG_INSTALLED_X64}/${lib_rel_path}"
-    universal_path="${VCPKG_INSTALLED_UNIVERSAL}/${lib_rel_path}"
+    arm64_path="$VCPKG_ARM64_INSTALLED/$lib_rel_path"
+    x64_path="$VCPKG_X64_INSTALLED/$lib_rel_path"
+    universal_path="$VCPKG_INSTALLED/$lib_rel_path"
 
-    if ! [[ -f "${x64_path}" ]]; then
-      echo "ERROR: ${x64_path} does not exist." >&2
+    if ! [[ -f "$x64_path" ]]; then
+      echo "ERROR: $x64_path does not exist." >&2
       exit 1
     fi
 
-    lipo "${arm64_path}" "${x64_path}" -create -output "${universal_path}"
+    lipo "$arm64_path" "$x64_path" -create -output "$universal_path"
   done
 }
 
 if [[ "$#" -ne 3 ]]; then
-  echo "Usage: $0 <vcpkg_installed_universal> <vcpkg_installed_arm64> <vcpkg_installed_x86_64>"
+  echo "Usage: $0 <vcpkg_installed> <vcpkg_arm64_installed> <vcpkg_x64_installed>"
   exit 1
 fi
 

@@ -40,15 +40,13 @@ jobs:
         run: |
           printf 'VCPKG_BINARY_SOURCES=%s\n' 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read' >> "${GITHUB_OUTPUT}"
 
-  # build-windows:
-  #   needs: config
-  #   permissions:
-  #     contents: read
-  #   uses: ./.github/workflows/plugin-build-windows.yml
-  #   with:
-  #     VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
-  #     vcpkg-version: ${{ needs.config.outputs.VCPKG_VERSION }}
-  #     ort-version: ${{ needs.config.outputs.ORT_VERSION }}
+  build-windows:
+    needs: config
+    permissions:
+      contents: read
+    uses: ./.github/workflows/plugin-build-windows.yml
+    with:
+      VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
 
   build-macos:
     needs: config

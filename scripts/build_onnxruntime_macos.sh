@@ -23,7 +23,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$ROOT_DIR/buildspec.props"
 
 : "${onnxruntime_git_tag:=master}"
-: "${vcpkg_git_tag:=master}"
+: "${vcpkg_default_git_tag:=master}"
 
 REDUCED_OPS_CONFIG_NAME='src/required_operators_and_types.with_runtime_opt.config'
 
@@ -168,7 +168,7 @@ toolchain_report() {
   printf 'CMAKE_OSX_DEPLOYMENT_TARGET=%q\n' "$CMAKE_OSX_DEPLOYMENT_TARGET"
   printf 'onnxruntime_git_tag=%q\n' "$onnxruntime_git_tag"
   printf 'REDUCED_OPS_CONFIG_NAME=%q\n' "$REDUCED_OPS_CONFIG_NAME"
-  printf 'vcpkg_git_tag=%q\n' "$vcpkg_git_tag"
+  printf 'vcpkg_default_git_tag=%q\n' "$vcpkg_default_git_tag"
 
   printf 'xcodebuild -version #=> %s\n' "$(xcodebuild -version | /usr/bin/ruby -rjson -e 'print $<.read.to_json')"
   # shellcheck disable=SC2016
