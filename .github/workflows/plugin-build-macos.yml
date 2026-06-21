@@ -15,11 +15,10 @@ on:
     inputs:
       job-index:
         description: The job index for logging.
-        required: false
+        required: true
         type: number
-        default: 0
       environment:
-        description: The environment name for the build jobs, or empty string for no environment.
+        description: The environment name for this workflow, or empty string for no environment
         required: false
         type: string
         default: ''
@@ -29,6 +28,22 @@ on:
         type: string
       DEVELOPER_DIR:
         description: The value of DEVELOPER_DIR environment variable.
+        required: true
+        type: string
+      OSX_DEPLOYMENT_TARGET:
+        description: The deployment target of macOS.
+        required: true
+        type: string
+      VCPKG_VERSION:
+        description: Default VCPKG_BINARY_SOURCES.
+        required: true
+        type: string
+      OBS_VERSION:
+        description: The version of OBS Studio to build.
+        required: true
+        type: string
+      ORT_VERSION:
+        description: The version of ONNX Runtime to build.
         required: true
         type: string
       VCPKG_BINARY_SOURCES:
@@ -54,8 +69,7 @@ permissions: {}
 
 jobs:
   build-macos:
-    # FIXME: Environments will be created later.
-    # environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment }}
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 180
 
@@ -65,7 +79,10 @@ jobs:
     env:
       DEVELOPER_DIR: '${{ inputs.DEVELOPER_DIR }}'
       OSX_ARCHITECTURES: 'arm64;x86_64'
-      OSX_DEPLOYMENT_TARGET: '12.0'
+      OSX_DEPLOYMENT_TARGET: ${{ inputs.OSX_DEPLOYMENT_TARGET }}
+      VCPKG_VERSION: ${{ inputs.VCPKG_VERSION }}
+      OBS_VERSION: ${{ inputs.OBS_VERSION }}
+      ORT_VERSION: ${{ inputs.ORT_VERSION }}
       VCPKG_BINARY_SOURCES: '${{ inputs.VCPKG_BINARY_SOURCES }}'
 
     steps:
@@ -269,11 +286,11 @@ jobs:
               "$PWSH_EXE" "$@"
           }
 
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Update-OrtSourceWithPatches"
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -Arch arm64"
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -Arch arm64" | tee build_onnxruntime_arm64.log | xcbeautify
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -Arch x86_64"
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -Arch x86_64" | tee build_onnxruntime_x86_64.log | xcbeautify
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Update-OrtSourceWithPatches -OrtVersion '$ORT_VERSION'"
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -OsxArchitectures arm64 -OsxDeploymentTarget '$OSX_DEPLOYMENT_TARGET'"
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -OsxArchitectures x86_64 -OsxDeploymentTarget '$OSX_DEPLOYMENT_TARGET'"
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -OsxArchitectures arm64 -OsxDeploymentTarget '$OSX_DEPLOYMENT_TARGET'" | tee build_onnxruntime_arm64.log | xcbeautify
+          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -OsxArchitectures x86_64 -OsxDeploymentTarget '$OSX_DEPLOYMENT_TARGET'" | tee build_onnxruntime_x86_64.log | xcbeautify
           pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Install-Ort"
 
           ./scripts/lipo_vcpkg_macos.sh \

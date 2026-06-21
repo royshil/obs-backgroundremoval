@@ -6,7 +6,7 @@ name: ORT CI
 
 # file: .github/workflows/ort.yml
 # author: Kaito Udagawa <umireon@kaito.tokyo>
-# date: 2026-05-28
+# date: 2026-06-22
 
 on:
   pull_request:
@@ -22,40 +22,39 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions: {}
 
 jobs:
-  config:
-    runs-on: ubuntu-slim
-    timeout-minutes: 10
-
-    permissions: {}
-
-    outputs:
-      VCPKG_BINARY_SOURCES: ${{ steps.config.outputs.VCPKG_BINARY_SOURCES }}
-
-    steps:
-      - name: Config
-        id: config
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          printf 'VCPKG_BINARY_SOURCES=%s\n' 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read' >> "${GITHUB_OUTPUT}"
+  ci-config:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-config.yml
 
   build-windows:
+    needs: [ci-config]
     permissions:
       contents: read
     uses: ./.github/workflows/ort-build-windows.yml
     with:
-      VCPKG_BINARY_SOURCES: 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha}'
+      job-index: 0
+      WINDOWS_SDK_VERSION: ${{ needs.ci-config.outputs.WINDOWS_SDK_VERSION }}
+      VCPKG_VERSION: ${{ needs.ci-config.outputs.VCPKG_VERSION }}
+      ORT_VERSION: ${{ needs.ci-config.outputs.ORT_VERSION }}
+      VCPKG_BINARY_SOURCES: ${{ needs.ci-config.outputs.VCPKG_BINARY_SOURCES }}
 
   build-macos:
-    needs: config
+    needs: [ci-config]
     permissions:
       contents: read
     uses: ./.github/workflows/ort-build-macos.yml
     with:
+      job-index: 0
       runs-on: macos-15
       DEVELOPER_DIR: /Applications/Xcode_16.4.app
-      VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
+      OSX_DEPLOYMENT_TARGET: ${{ needs.ci-config.outputs.OSX_DEPLOYMENT_TARGET }}
+      VCPKG_VERSION: ${{ needs.ci-config.outputs.VCPKG_VERSION }}
+      ORT_VERSION: ${{ needs.ci-config.outputs.ORT_VERSION }}
+      VCPKG_BINARY_SOURCES: ${{ needs.ci-config.outputs.VCPKG_BINARY_SOURCES }}
 
   # build-ubuntu:
   #   permissions:
@@ -67,8 +66,9 @@ jobs:
 
   accept-ort:
     name: Accept ORT CI
-    # needs: [build-windows, build-macos, build-ubuntu]
-    needs: [build-macos]
+    needs:
+      - build-windows
+      - build-macos
     runs-on: ubuntu-slim
     permissions: {}
     steps:
