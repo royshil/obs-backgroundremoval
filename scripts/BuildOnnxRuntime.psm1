@@ -5,8 +5,7 @@
 # file: scripts/BuildOnnxRuntime.psm1
 # description: Helper module to build the ONNX Runtime.
 # author: Kaito Udagawa <umireon@kaito.tokyo>
-# version: 1.2.0
-# date: 2026-06-17
+# date: 2026-06-21
 
 function Update-OrtSourceWithPatches {
     [CmdletBinding()]
@@ -15,13 +14,15 @@ function Update-OrtSourceWithPatches {
         [string]$PluginBuildDir = $env:PLUGIN_BUILD_DIR ?? $RootDir,
         [string]$OrtSourceDir = (Join-Path $PluginBuildDir 'onnxruntime'),
         [string]$OrtPatchesDir = (Join-Path $RootDir 'scripts' 'ort_patches'),
-        [string]$OrtVersion = $env:PLUGIN_ORT_VERSION
+        [string]$OrtVersion = $null
     )
     process {
         Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; $ProgressPreference = 'SilentlyContinue'
 
-        if (-not $OrtVersion) {
-            $buildspec = Get-Content -LiteralPath (Join-Path $RootDir 'buildspec.props') -Raw | ConvertFrom-StringData
+        $buildspecPropsPath = Join-Path $RootDir 'buildspec.props'
+
+        if (-not $OrtVersion -and (Test-Path $buildspecPropsPath)) {
+            $buildspec = Get-Content -LiteralPath $buildspecPropsPath -Raw | ConvertFrom-StringData
             $OrtVersion = $buildspec.onnxruntime_git_tag
         }
 
@@ -66,7 +67,7 @@ function Get-OrtToolchain {
                 $outfile = Join-Path $OrtToolchainDir (Split-Path $Tool.url -Leaf)
                 $outdir = Join-Path $OrtToolchainDir $Tool.name
 
-                if (!(Test-Path $outfile)) {
+                if (-not (Test-Path $outfile)) {
                     Invoke-WebRequest -Uri $Tool.url -OutFile $outfile
                 }
 
@@ -75,7 +76,7 @@ function Get-OrtToolchain {
                     throw "Checksum verification failed: $Name expected=$($Tool.sha512) actual=$($fileHash.Hash)"
                 }
 
-                if (!(Test-Path -LiteralPath $outdir)) {
+                if (-not (Test-Path -LiteralPath $outdir)) {
                     if ((Split-Path $Tool.url -Extension) -imatch '^\.(zip|tar\.gz)$') {
                         Expand-Archive -LiteralPath $outfile -Destination $outdir -Force
                     }
@@ -124,20 +125,37 @@ function Invoke-OrtBuildPy {
     [CmdletBinding()]
     param(
         [string]$RootDir = $PWD,
-        [string]$PluginBuildDir = $env:PLUGIN_BUILD_DIR ?? $PWD,
-        [string]$VcpkgRoot = $env:VCPKG_ROOT ? $env:VCPKG_ROOT : (Join-Path $PluginBuildDir 'vcpkg'),
+        [string]$PluginBuildDir = $env:PLUGIN_BUILD_DIR ?? $RootDir,
         [Parameter(Mandatory = $true)]
         [string]$Command = $null,
-        [string]$Arch = $null,
-        [string]$Config = 'Release',
-        [string]$ReducedOpsConfigPath = (Join-Path $RootDir 'src' 'required_operators_and_types.with_runtime_opt.config'),
+        [string]$Config = $env:CMAKE_BUILD_TYPE ?? 'Release',
+        [string]$ReducedOpsConfigPath = $null,
         [string]$PythonExe = $env:PYTHON,
         [string]$VsVersionRange = '[17,]',
-        [string]$OsxDeploymentTarget = $null,
-        [string]$WindowsSdkVersion = $env:PLUGIN_WINDOWS_SDK_VERSION
+        [string]$OsxArchitectures = $env:CMAKE_OSX_ARCHITECTURES,
+        [string]$OsxDeploymentTarget = $env:CMAKE_OSX_DEPLOYMENT_TARGET,
+        [string]$WindowsSdkVersion = $env:CMAKE_SYSTEM_VERSION
     )
     process {
         Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; $ProgressPreference = 'SilentlyContinue'
+
+        $buildspecPropsPath = Join-Path $RootDir 'buildspec.props'
+
+        if (Test-Path $buildspecPropsPath) {
+            $buildspec = Get-Content -LiteralPath $buildspecPropsPath -Raw | ConvertFrom-StringData
+        }
+        else {
+            $buildspec = $null
+        }
+
+        $cmakePresetsPath = Join-Path $RootDir 'CMakePresets.json'
+
+        if (Test-Path $cmakePresetsPath) {
+            $cmakePresets = Get-Content -LiteralPath $cmakePresetsPath -Raw | ConvertFrom-Json
+        }
+        else {
+            $cmakePresets = $null
+        }
 
         $buildPyPath = Join-Path $RootDir 'onnxruntime' 'tools' 'ci_build' 'build.py'
 
@@ -156,11 +174,20 @@ function Invoke-OrtBuildPy {
             'onnxruntime_BUILD_UNIT_TESTS=OFF'
         )
 
-        if (Test-Path $ReducedOpsConfigPath -PathType Leaf) {
-            $buildPyArgs += @(
-                '--include_ops_by_config', $ReducedOpsConfigPath,
-                '--enable_reduced_operator_type_support'
-            )
+        if (-not $ReducedOpsConfigPath -and $buildspec -and $buildspec['onnxruntime_reduced_ops_config']) {
+            $ReducedOpsConfigPath = Join-Path $RootDir $buildspec['onnxruntime_reduced_ops_config']
+        }
+
+        if ($ReducedOpsConfigPath) {
+            if (Test-Path $ReducedOpsConfigPath -PathType Leaf) {
+                $buildPyArgs += @(
+                    '--include_ops_by_config', $ReducedOpsConfigPath,
+                    '--enable_reduced_operator_type_support'
+                )
+            }
+            else {
+                throw "Reduces ops config not found: $ReducedOpsConfigPath"
+            }
         }
 
         if ($env:ORT_CCACHE_DIR) {
@@ -172,8 +199,7 @@ function Invoke-OrtBuildPy {
         }
 
         if ($IsWindows) {
-            if (-not $WindowsSdkVersion) {
-                $cmakePresets = Get-Content -LiteralPath (Join-Path $RootDir 'CMakePresets.json') -Raw | ConvertFrom-Json
+            if (-not $WindowsSdkVersion -and $cmakePresets) {
                 $windowsPreset = $cmakePresets.configurePresets | Where-Object { $_.name -eq 'windows' }
                 $WindowsSdkVersion = $windowsPreset.cacheVariables.CMAKE_SYSTEM_VERSION
             }
@@ -186,32 +212,32 @@ function Invoke-OrtBuildPy {
                 '--windows_sdk_version', $WindowsSdkVersion
             )
 
-            if ($env:CCACHE_DIR) {
-                $buildPyArgs += '--use_cache'
-            }
-
             if (-not $PythonExe) {
                 $PythonExe = Join-Path $PluginBuildDir '.venv' 'Scripts' 'python.exe'
             }
         }
         elseif ($IsMacOS) {
-            if (-not $Arch) {
-                throw 'Arch not provided'
+            if (-not $OsxArchitectures) {
+                throw 'CMAKE_OSX_ARCHITECTURES not provided'
             }
 
-            if (-not $OsxDeploymentTarget) {
+            if (-not $OsxDeploymentTarget -and $cmakePresets) {
                 $cmakePresets = Get-Content -LiteralPath (Join-Path $RootDir 'CMakePresets.json') -Raw | ConvertFrom-Json
                 $macOSPreset = $cmakePresets.configurePresets | Where-Object { $_.name -eq 'macos' }
                 $OsxDeploymentTarget = $macOSPreset.cacheVariables.CMAKE_OSX_DEPLOYMENT_TARGET
             }
 
-            $ortBuildDir = Join-Path $PluginBuildDir "build_ort_$Arch"
+            if (-not $OsxDeploymentTarget) {
+                throw 'CMAKE_OSX_DEPLOYMENT_TARGET not provided'
+            }
+
+            $ortBuildDir = Join-Path $PluginBuildDir "build_ort_$OsxArchitectures"
 
             $buildPyArgs += @(
                 '--build_dir', $ortBuildDir,
                 '--cmake_generator', 'Ninja',
                 '--apple_deploy_target', $OsxDeploymentTarget,
-                '--osx_arch', $Arch,
+                '--osx_arch', $OsxArchitectures,
                 '--use_coreml'
             )
 
@@ -265,7 +291,6 @@ function Install-Ort {
     param(
         [string]$RootDir = $PWD,
         [string]$PluginBuildDir = $PWD,
-        [string]$VcpkgRoot = $env:VCPKG_ROOT ? $env:VCPKG_ROOT : (Join-Path $PluginBuildDir 'vcpkg'),
         [string]$Config = 'Release',
         [string]$OsxDeploymentTarget = $null
     )

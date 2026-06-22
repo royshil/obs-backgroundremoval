@@ -24,40 +24,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  config:
-    runs-on: ubuntu-slim
-    timeout-minutes: 10
-
-    permissions: {}
-
-    outputs:
-      VCPKG_BINARY_SOURCES: ${{ steps.config.outputs.VCPKG_BINARY_SOURCES }}
-
-    steps:
-      - name: Config
-        id: config
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          printf 'VCPKG_BINARY_SOURCES=%s\n' 'clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read' >> "${GITHUB_OUTPUT}"
+  ci-config:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-config.yml
 
   build-windows:
-    needs: config
+    needs: ci-config
     permissions:
       contents: read
     uses: ./.github/workflows/plugin-build-windows.yml
     with:
-      VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
+      job-index: 0
+      WINDOWS_SDK_VERSION: ${{ needs.ci-config.outputs.WINDOWS_SDK_VERSION }}
+      VCPKG_VERSION: ${{ needs.ci-config.outputs.VCPKG_VERSION }}
+      OBS_VERSION: ${{ needs.ci-config.outputs.OBS_VERSION }}
+      ORT_VERSION: ${{ needs.ci-config.outputs.ORT_VERSION }}
+      VCPKG_BINARY_SOURCES: ${{ needs.ci-config.outputs.VCPKG_BINARY_SOURCES }}
 
   build-macos:
-    needs: config
+    needs: ci-config
     permissions:
       contents: read
     uses: ./.github/workflows/plugin-build-macos.yml
     with:
-      environment: ${{ github.ref == 'refs/heads/main' && 'production-macos' || '' }}
+      job-index: 0
       runs-on: macos-15
       DEVELOPER_DIR: /Applications/Xcode_16.4.app
-      VCPKG_BINARY_SOURCES: ${{ needs.config.outputs.VCPKG_BINARY_SOURCES }}
+      OSX_DEPLOYMENT_TARGET: ${{ needs.ci-config.outputs.OSX_DEPLOYMENT_TARGET }}
+      VCPKG_VERSION: ${{ needs.ci-config.outputs.VCPKG_VERSION }}
+      OBS_VERSION: ${{ needs.ci-config.outputs.OBS_VERSION }}
+      ORT_VERSION: ${{ needs.ci-config.outputs.ORT_VERSION }}
+      VCPKG_BINARY_SOURCES: ${{ needs.ci-config.outputs.VCPKG_BINARY_SOURCES }}
     secrets: inherit
 
   # build-ubuntu:

@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-platform_windows_sdk_version=10.0.22621
-
 vcpkg_default_git_tag=2026.04.27
 vcpkg_default_git_commit=56bb2411609227288b70117ead2c47585ba07713
 
@@ -25,6 +23,7 @@ qt6_macos_sha256=d3f5f04b6ea486e032530bdf0187cbda9a54e0a49621a4c8ba984c502399886
 onnxruntime_git_tag=v1.23.2
 onnxruntime_git_commit=a83fc4d58cb48eb68890dd689f94f28288cf2278
 
+onnxruntime_reduced_ops_config=src/required_operators_and_types.with_runtime_opt.config
+
 onnxruntime_pwsh_windows_x64_url=https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/PowerShell-7.5.4-win-x64.zip
 onnxruntime_pwsh_windows_x64_sha384=8f3f9439d4265c315c13f04cf95739d00637b13cf7b43c94cc5b63cbfd6f2144d146bbedf9171742c207f2c04be46c8c
-
