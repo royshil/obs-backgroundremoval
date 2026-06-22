@@ -174,7 +174,7 @@ function Invoke-OrtBuildPy {
             'onnxruntime_BUILD_UNIT_TESTS=OFF'
         )
 
-        if (-not $ReducedOpsConfigPath -and $buildspec) {
+        if (-not $ReducedOpsConfigPath -and $buildspec -and $buildspec['onnxruntime_reduced_ops_config']) {
             $ReducedOpsConfigPath = Join-Path $RootDir $buildspec['onnxruntime_reduced_ops_config']
         }
 

@@ -186,9 +186,9 @@ jobs:
         run: |
           Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; $ProgressPreference = 'SilentlyContinue'
 
-          $vcpkgExe = Join-Path $env:GITHUB_WORKSPACE 'vcpkg' 'vcpkg'
-
           Import-Module ./scripts/BuildOnnxRuntime.psm1
+
+          $vcpkgExe = Join-Path $env:GITHUB_WORKSPACE 'vcpkg' 'vcpkg'
 
           # Configure ccache
           $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE '.ccache_ort'
