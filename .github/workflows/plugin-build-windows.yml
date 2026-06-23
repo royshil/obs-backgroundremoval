@@ -22,42 +22,46 @@ on:
         required: false
         type: string
         default: ''
+      runs-on:
+        description: The runner label to run this workflow on.
+        required: true
+        type: string
       WINDOWS_SDK_VERSION:
         description: The version of Windows SDK to build with.
-        required: true
-        type: string
-      VCPKG_VERSION:
-        description: Default VCPKG_BINARY_SOURCES.
-        required: true
-        type: string
-      OBS_VERSION:
-        description: The version of OBS Studio to build.
-        required: true
-        type: string
-      ORT_VERSION:
-        description: The version of ONNX Runtime to build.
         required: true
         type: string
       VCPKG_BINARY_SOURCES:
         description: VCPKG_BINARY_SOURCES environment variable for the build jobs.
         required: true
         type: string
+      build-obs:
+        description: Flag to build OBS Studio.
+        required: false
+        type: boolean
+        default: true
+      install-vcpkg:
+        description: Flag to install vcpkg dependencies.
+        required: false
+        type: boolean
+        default: true
+      build-onnxruntime:
+        description: Flag to build ONNX Runtime.
+        required: false
+        type: boolean
+        default: true
 
 permissions: {}
 
 jobs:
-  build-windows-x64:
+  plugin-build-windows-x64:
     environment: ${{ inputs.environment }}
-    runs-on: windows-2022
+    runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 180
 
     permissions:
       contents: read
 
     env:
-      ORT_VERSION: ${{ inputs.ORT_VERSION }}
-      OBS_VERSION: ${{ inputs.OBS_VERSION }}
-      VCPKG_VERSION: ${{ inputs.VCPKG_VERSION }}
       WINDOWS_SDK_VERSION: ${{ inputs.WINDOWS_SDK_VERSION }}
       VCPKG_BINARY_SOURCES: ${{ inputs.VCPKG_BINARY_SOURCES }}
 
@@ -99,7 +103,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: microsoft/vcpkg
-          ref: ${{ env.VCPKG_VERSION }}
+          ref: ${{ steps.buildspec.outputs.vcpkg_default_git_tag }}
           persist-credentials: false
           path: vcpkg
           filter: blob:none
@@ -113,42 +117,18 @@ jobs:
           $actualGitCommit = git rev-parse HEAD
           if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
 
-      - name: Run bootstrap-vcpkg.bat
-        shell: pwsh
-        env:
-          VCPKG_ROOT: '${{ github.workspace }}\vcpkg'
-        run: |
-          & (Join-Path $env:VCPKG_ROOT 'bootstrap-vcpkg.bat') -disableMetrics
-
-      - name: Install dependencies listed on vcpkg.json (x64-windows-static-md-obs)
-        shell: pwsh
-        env:
-          VCPKG_ROOT: '${{ github.workspace }}\vcpkg'
-        run: |
-          Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true
-
-          $vcpkgExe = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-
-          # Set PATH
-          $env:PATH = @(
-              'C:\Program Files\Git\cmd',
-              'C:\Windows\System32\WindowsPowerShell\v1.0',
-              'C:\Windows\System32',
-              'C:\Windows'
-          ) -join [System.IO.Path]::PathSeparator
-
-          & $vcpkgExe install --triplet=x64-windows-static-md-obs --x-install-root=vcpkg_installed
-
       - name: Checkout obs-studio
+        if: inputs.build-obs
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: obsproject/obs-studio
-          ref: ${{ env.OBS_VERSION }}
+          ref: ${{ steps.buildspec.outputs.obs_studio_git_tag }}
           persist-credentials: false
           path: obs-studio
           filter: blob:none
 
       - name: Assert obs-studio git commit
+        if: inputs.build-obs
         shell: pwsh
         working-directory: obs-studio
         env:
@@ -157,8 +137,38 @@ jobs:
           $actualGitCommit = git rev-parse HEAD
           if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
 
-      - name: Build OBS (Windows)
+      - name: Checkout ONNX Runtime
+        if: inputs.build-onnxruntime
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: microsoft/onnxruntime
+          ref: ${{ steps.buildspec.outputs.onnxruntime_git_tag }}
+          persist-credentials: false
+          path: onnxruntime
+          submodules: recursive
+
+      - name: Assert onnxruntime git commit
+        if: inputs.build-onnxruntime
         shell: pwsh
+        working-directory: onnxruntime
+        env:
+          GIT_COMMIT: ${{ steps.buildspec.outputs.onnxruntime_git_commit }}
+        run: |
+          $actualGitCommit = git rev-parse HEAD
+          if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
+
+      - name: Run bootstrap-vcpkg.bat
+        shell: pwsh
+        env:
+          VCPKG_ROOT: '${{ github.workspace }}\vcpkg'
+        run: |
+          & (Join-Path $env:VCPKG_ROOT 'bootstrap-vcpkg.bat') -disableMetrics
+
+      - name: Build OBS (Windows)
+        if: inputs.build-obs
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true
 
@@ -168,13 +178,14 @@ jobs:
 
           # Set PATH
           $env:PATH = @(
+              Split-Path (Get-Command git).Source -Parent
+              'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          ) -join [System.IO.Path]::PathSeparator
+
+          $env:PATH = @(
               Split-Path (& $vcpkgExe fetch cmake | Select-Object -Last 1) -Parent
               Split-Path (& $vcpkgExe fetch ninja | Select-Object -Last 1) -Parent
-              Split-Path (& $vcpkgExe fetch vswhere | Select-Object -Last 1) -Parent
-              'C:\Program Files\Git\cmd',
-              'C:\Windows\System32\WindowsPowerShell\v1.0',
-              'C:\Windows\System32',
-              'C:\Windows'
+              $env:PATH
           ) -join [System.IO.Path]::PathSeparator
 
           # Remove vcpkg variables
@@ -192,7 +203,8 @@ jobs:
           $env:GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraHeader'
           $env:GIT_CONFIG_VALUE_0 = "Authorization: basic $basicToken"
 
-          $env:X_VCPKG_ASSET_SOURCES = 'clear;x-script,pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/vcpkg_asset_sources.ps1 {url} {sha512} {dst}'
+          $assetSourceScript = Join-Path $env:GITHUB_WORKSPACE 'scripts' 'vcpkg_asset_sources.ps1'
+          $env:X_VCPKG_ASSET_SOURCES = "clear;x-script,pwsh -NoProfile -ExecutionPolicy Bypass -File `"$assetSourceScript`" {url} {sha512} {dst}"
 
           # Build OBS
           Initialize-ObsDeps -Component prebuilt
@@ -201,26 +213,27 @@ jobs:
           Invoke-ObsBuild
           Install-Obs
 
-      - name: Checkout ONNX Runtime
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          repository: microsoft/onnxruntime
-          ref: ${{ env.ORT_VERSION }}
-          persist-credentials: false
-          path: onnxruntime
-          submodules: recursive
-
-      - name: Assert onnxruntime git commit
+      - name: Install dependencies from vcpkg.json (x64-windows-static-md-obs)
+        if: inputs.install-vcpkg
         shell: pwsh
-        working-directory: onnxruntime
         env:
-          GIT_COMMIT: ${{ steps.buildspec.outputs.onnxruntime_git_commit }}
+          VCPKG_ROOT: '${{ github.workspace }}\vcpkg'
         run: |
-          $actualGitCommit = git rev-parse HEAD
-          if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
+          Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true
+
+          $vcpkgExe = Join-Path $env:VCPKG_ROOT 'vcpkg'
+
+          # Set PATH
+          $env:PATH = @(
+              Split-Path (Get-Command git).Source -Parent
+              'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          ) -join [System.IO.Path]::PathSeparator
+
+          & $vcpkgExe install --triplet=x64-windows-static-md-obs --x-install-root=vcpkg_installed
 
       - name: Generate toolchain hash for building ONNX Runtime
-        id: toolchain-hash
+        if: inputs.build-onnxruntime
+        id: ort-toolchain-hash
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           HASH: >-
@@ -233,17 +246,19 @@ jobs:
         run: |
           printf 'HASH=%s\n' "$HASH" >> "$GITHUB_OUTPUT"
 
-      - name: Restore ONNX Runtime ccache generated by ORT CI (Windows x64)
+      - name: Restore ONNX Runtime ccache (Windows)
+        if: inputs.build-onnxruntime
         id: restore-ccache-ort
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: .ccache_ort
-          key: ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.toolchain-hash.outputs.HASH }}-${{ steps.setup-ccache.outputs.VERSION }}
+          key: ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain-hash.outputs.HASH }}-${{ steps.setup-ccache.outputs.VERSION }}
           restore-keys: |
-            ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.toolchain-hash.outputs.HASH }}-
+            ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain-hash.outputs.HASH }}-
             ort-ccache-${{ runner.os }}-x64-${{ steps.image-metadata.outputs.ImageVersion }}-
 
       - name: Reset .ccache_ort stats
+        if: inputs.build-onnxruntime
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CCACHE_DIR: '${{ github.workspace }}/.ccache_ort'
@@ -252,10 +267,12 @@ jobs:
           ccache -z
 
       - name: Build ONNX Runtime (Windows)
+        if: inputs.build-onnxruntime
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PYTHON: ${{ steps.setup-python.outputs.python-path }}
+          ORT_VERSION: ${{ steps.buildspec.outputs.onnxruntime_git_tag }}
         run: |
           Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true
 
@@ -270,15 +287,16 @@ jobs:
 
           # Set PATH
           $env:PATH = @(
-              Split-Path (& $vcpkgExe fetch powershell-core | Select-Object -Last 1) -Parent
+              Split-Path (Get-Command ccache).Source -Parent
+              Split-Path (Get-Command git).Source -Parent
+              'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          ) -join [System.IO.Path]::PathSeparator
+
+          $env:PATH = @(
               Split-Path (Get-OrtToolchain -Name cmake) -Parent
               Split-Path (Get-OrtToolchain -Name ninja) -Parent
               Split-Path (Get-OrtToolchain -Name vswhere) -Parent
-              Split-Path (Get-Command ccache).Source -Parent
-              'C:\Program Files\Git\cmd',
-              'C:\Windows\System32\WindowsPowerShell\v1.0',
-              'C:\Windows\System32',
-              'C:\Windows'
+              $env:PATH
           ) -join [System.IO.Path]::PathSeparator
 
           # Remove vcpkg variables
@@ -296,7 +314,8 @@ jobs:
           $env:GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraHeader'
           $env:GIT_CONFIG_VALUE_0 = "Authorization: basic $basicToken"
 
-          $env:X_VCPKG_ASSET_SOURCES = 'clear;x-script,pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/vcpkg_asset_sources.ps1 {url} {sha512} {dst}'
+          $assetSourceScript = Join-Path $env:GITHUB_WORKSPACE 'scripts' 'vcpkg_asset_sources.ps1'
+          $env:X_VCPKG_ASSET_SOURCES = "clear;x-script,pwsh -NoProfile -ExecutionPolicy Bypass -File `"$assetSourceScript`" {url} {sha512} {dst}"
 
           # Build ONNX Runtime
           Update-OrtSourceWithPatches -OrtVersion $env:ORT_VERSION
@@ -305,7 +324,7 @@ jobs:
           Install-Ort
 
       - name: Show .ccache_ort stats
-        if: always()
+        if: inputs.build-onnxruntime && always()
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CCACHE_DIR: '${{ github.workspace }}/.ccache_ort'
@@ -313,7 +332,8 @@ jobs:
         run: |
           ccache -s
 
-      - name: Configure (Windows x64)
+      - name: Build Plugin (Windows x64)
+        if: inputs.build-obs && inputs.build-onnxruntime
         shell: pwsh
         run: |
           Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; $ProgressPreference = 'SilentlyContinue'
@@ -322,43 +342,35 @@ jobs:
 
           # Set PATH
           $env:PATH = @(
-              Split-Path (& $vcpkgExe fetch cmake | Select-Object -Last 1) -Parent
-              Split-Path (& $vcpkgExe fetch ninja | Select-Object -Last 1) -Parent
-              Split-Path (& $vcpkgExe fetch vswhere | Select-Object -Last 1) -Parent
-              'C:\Program Files\Git\cmd',
-              'C:\Windows\System32\WindowsPowerShell\v1.0',
-              'C:\Windows\System32',
-              'C:\Windows'
+              Split-Path (Get-Command git).Source -Parent
+              'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           ) -join [System.IO.Path]::PathSeparator
 
-          cmake --preset windows -DCMAKE_BUILD_TYPE=RelWithDebInfo
-
-      - name: Build (Windows x64)
-        shell: pwsh
-        run: |
-          Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true
-
-          $vcpkgExe = Join-Path $env:GITHUB_WORKSPACE 'vcpkg' 'vcpkg'
-
-          # Set PATH
           $env:PATH = @(
               Split-Path (& $vcpkgExe fetch cmake | Select-Object -Last 1) -Parent
               Split-Path (& $vcpkgExe fetch ninja | Select-Object -Last 1) -Parent
               Split-Path (& $vcpkgExe fetch vswhere | Select-Object -Last 1) -Parent
-              'C:\Program Files\Git\cmd',
-              'C:\Windows\System32\WindowsPowerShell\v1.0',
-              'C:\Windows\System32',
-              'C:\Windows'
+              $env:PATH
           ) -join [System.IO.Path]::PathSeparator
 
+          cmake --preset windows -DCMAKE_BUILD_TYPE=RelWithDebInfo
           cmake --build --preset windows --config RelWithDebInfo
 
+      - name: Save ORT ccache
+        if: inputs.build-obs && inputs.build-onnxruntime
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: .ccache_ort
+          key: ${{ steps.restore-ccache-ort.outputs.cache-primary-key }}
+
       - name: Package (Windows x64)
+        if: inputs.build-obs && inputs.build-onnxruntime
         shell: pwsh
         run: |
           ./scripts/package_plugin_windows.ps1
 
       - name: Upload Plugin Binary
+        if: inputs.build-obs && inputs.build-onnxruntime
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pluginbinary-windows-x64-${{ github.run_id }}

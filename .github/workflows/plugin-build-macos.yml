@@ -4,11 +4,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+name: Plugin Build macOS
+
 # file: .github/workflows/plugin-build-macos.yml
 # author: Kaito Udagawa <umireon@kaito.tokyo>
-# date: 2026-05-28
-
-name: Plugin build macOS
+# date: 2026-06-23
 
 on:
   workflow_call:
@@ -34,22 +34,25 @@ on:
         description: The deployment target of macOS.
         required: true
         type: string
-      VCPKG_VERSION:
-        description: Default VCPKG_BINARY_SOURCES.
-        required: true
-        type: string
-      OBS_VERSION:
-        description: The version of OBS Studio to build.
-        required: true
-        type: string
-      ORT_VERSION:
-        description: The version of ONNX Runtime to build.
-        required: true
-        type: string
       VCPKG_BINARY_SOURCES:
         description: VCPKG_BINARY_SOURCES environment variable for the build jobs.
         required: true
         type: string
+      build-obs:
+        description: Flag to build OBS Studio.
+        required: false
+        type: boolean
+        default: true
+      install-vcpkg:
+        description: Flag to install vcpkg dependencies.
+        required: false
+        type: boolean
+        default: true
+      build-onnxruntime:
+        description: Flag to build ONNX Runtime.
+        required: false
+        type: boolean
+        default: true
 
     secrets:
       MACOS_NOTARIZATION_PASSWORD:
@@ -68,7 +71,7 @@ on:
 permissions: {}
 
 jobs:
-  build-macos:
+  plugin-build-macos:
     environment: ${{ inputs.environment }}
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 180
@@ -77,12 +80,9 @@ jobs:
       contents: read
 
     env:
-      DEVELOPER_DIR: '${{ inputs.DEVELOPER_DIR }}'
-      OSX_ARCHITECTURES: 'arm64;x86_64'
+      DEVELOPER_DIR: ${{ inputs.DEVELOPER_DIR }}
+      OSX_ARCHITECTURES: arm64;x86_64
       OSX_DEPLOYMENT_TARGET: ${{ inputs.OSX_DEPLOYMENT_TARGET }}
-      VCPKG_VERSION: ${{ inputs.VCPKG_VERSION }}
-      OBS_VERSION: ${{ inputs.OBS_VERSION }}
-      ORT_VERSION: ${{ inputs.ORT_VERSION }}
       VCPKG_BINARY_SOURCES: '${{ inputs.VCPKG_BINARY_SOURCES }}'
 
     steps:
@@ -108,20 +108,6 @@ jobs:
         run: |
           awk '!/(^#|^[[:space:]]*$)/' buildspec.props >> "$GITHUB_OUTPUT"
 
-      - name: Checkout vcpkg
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          repository: microsoft/vcpkg
-          ref: ${{ steps.buildspec.outputs.vcpkg_default_git_tag }}
-          persist-credentials: false
-          path: vcpkg
-          filter: blob:none
-
-      - name: Run bootstrap-vcpkg.sh
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
-
       - name: Set up Python for build requirements
         id: setup-python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -133,7 +119,26 @@ jobs:
         id: setup-ccache
         uses: ./.github/actions/setup-ccache
 
+      - name: Checkout vcpkg
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ steps.buildspec.outputs.vcpkg_default_git_tag }}
+          persist-credentials: false
+          path: vcpkg
+          filter: blob:none
+
+      - name: Assert vcpkg git commit
+        shell: pwsh
+        working-directory: vcpkg
+        env:
+          GIT_COMMIT: ${{ steps.buildspec.outputs.vcpkg_default_git_commit }}
+        run: |
+          $actualGitCommit = git rev-parse HEAD
+          if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
+
       - name: Checkout obs-studio
+        if: inputs.build-obs
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: obsproject/obs-studio
@@ -142,7 +147,18 @@ jobs:
           path: obs-studio
           filter: blob:none
 
+      - name: Assert obs-studio git commit
+        if: inputs.build-obs
+        shell: pwsh
+        working-directory: obs-studio
+        env:
+          GIT_COMMIT: ${{ steps.buildspec.outputs.obs_studio_git_commit }}
+        run: |
+          $actualGitCommit = git rev-parse HEAD
+          if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
+
       - name: Checkout ONNX Runtime
+        if: inputs.build-onnxruntime
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: microsoft/onnxruntime
@@ -151,32 +167,72 @@ jobs:
           path: onnxruntime
           submodules: recursive
 
-      - name: Build OBS (macOS)
-        id: build-obs
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+      - name: Assert onnxruntime git commit
+        if: inputs.build-onnxruntime
+        shell: pwsh
+        working-directory: onnxruntime
         env:
-          VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+          GIT_COMMIT: ${{ steps.buildspec.outputs.onnxruntime_git_commit }}
         run: |
-          PWSH_EXE="$("$VCPKG_ROOT/vcpkg" fetch powershell-core | tail -n1)"
-          CMAKE_EXE="$("$VCPKG_ROOT/vcpkg" fetch cmake | tail -n1)"
+          $actualGitCommit = git rev-parse HEAD
+          if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
 
-          pwsh() {
-            env -i \
-              DEVELOPER_DIR="$DEVELOPER_DIR" \
-              HOME="$HOME" \
-              PATH="${PWSH_EXE%/*}:${CMAKE_EXE%/*}:/usr/bin:/bin:/usr/sbin:/sbin" \
-              PLUGIN_BUILD_DIR="$GITHUB_WORKSPACE" \
-              "$PWSH_EXE" "$@"
-          }
+      - name: Run bootstrap-vcpkg.sh
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1; Initialize-ObsDeps -Component prebuilt"
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1; Initialize-ObsDeps -Component qt6"
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1; Invoke-ObsConfigure"
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1; Invoke-ObsBuild" | tee build_obs_release.log | xcbeautify
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1; Install-Obs"
+      - name: Build OBS (macOS)
+        if: inputs.build-obs
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true
+
+          Import-Module ./scripts/BuildOBS.psm1
+
+          $vcpkgExe = Join-Path $env:GITHUB_WORKSPACE 'vcpkg' 'vcpkg'
+
+          # Set PATH
+          $env:PATH = @(
+              Split-Path (Get-Command xcbeautify).Source -Parent
+              '/usr/bin:/bin:/usr/sbin:/sbin'
+          ) -join [System.IO.Path]::PathSeparator
+
+          $env:PATH = @(
+              Split-Path (& $vcpkgExe fetch cmake | Select-Object -Last 1) -Parent
+              Split-Path (& $vcpkgExe fetch ninja | Select-Object -Last 1) -Parent
+              $env:PATH
+          ) -join [System.IO.Path]::PathSeparator
+
+          # Remove vcpkg variables
+          $env:VCPKG_ROOT = $null
+          $env:VCPKG_INSTALLATION_ROOT = $null
+
+          # Configure GITHUB_TOKEN
+          $basicToken = [System.Convert]::ToBase64String(
+              [System.Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GITHUB_TOKEN")
+          )
+
+          Write-Output "::add-mask::$basicToken"
+
+          $env:GIT_CONFIG_COUNT = '1'
+          $env:GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraHeader'
+          $env:GIT_CONFIG_VALUE_0 = "Authorization: basic $basicToken"
+
+          $assetSourceScript = Join-Path $env:GITHUB_WORKSPACE 'scripts' 'vcpkg_asset_sources.ps1'
+          $env:X_VCPKG_ASSET_SOURCES = "clear;x-script,pwsh -NoProfile -ExecutionPolicy Bypass -File `"$assetSourceScript`" {url} {sha512} {dst}"
+
+          # Build OBS
+          Initialize-ObsDeps -Component prebuilt
+          Initialize-ObsDeps -Component qt6
+          Invoke-ObsConfigure
+          Invoke-ObsBuild | tee build_obs.log | xcbeautify
+          Install-Obs
 
       - name: Upload OBS build logs
-        if: always()
+        if: inputs.build-obs && always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Build OBS logs
@@ -185,41 +241,36 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Install dependencies listed on vcpkg.json (arm64-osx-obs)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+      - name: Install dependencies from vcpkg.json (arm64-osx-obs)
+        if: inputs.install-vcpkg
+        shell: pwsh
         env:
           VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
         run: |
-          vcpkg() {
-            env -i \
-              DEVELOPER_DIR="$DEVELOPER_DIR" \
-              HOME="$HOME" \
-              PATH=/usr/bin:/bin:/usr/sbin:/sbin \
-              VCPKG_BINARY_SOURCES="$VCPKG_BINARY_SOURCES" \
-              VCPKG_ROOT="$VCPKG_ROOT" \
-              "$VCPKG_ROOT/vcpkg" "$@"
-          }
+          Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true
 
-          vcpkg install --triplet=arm64-osx-obs --x-install-root=vcpkg_arm64_installed
+          $vcpkgExe = Join-Path $env:VCPKG_ROOT 'vcpkg'
 
-      - name: Install dependencies listed on vcpkg.json (x64-osx-obs)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+          $env:PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
+
+          & $vcpkgExe install --triplet=arm64-osx-obs --x-install-root=vcpkg_arm64_installed
+
+      - name: Install dependencies from vcpkg.json (x64-osx-obs)
+        if: inputs.install-vcpkg
+        shell: pwsh
         env:
           VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
         run: |
-          vcpkg() {
-            env -i \
-              DEVELOPER_DIR="$DEVELOPER_DIR" \
-              HOME="$HOME" \
-              PATH=/usr/bin:/bin:/usr/sbin:/sbin \
-              VCPKG_BINARY_SOURCES="$VCPKG_BINARY_SOURCES" \
-              VCPKG_ROOT="$VCPKG_ROOT" \
-              "$VCPKG_ROOT/vcpkg" "$@"
-          }
+          Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true
 
-          vcpkg install --triplet=x64-osx-obs --x-install-root=vcpkg_x64_installed
+          $vcpkgExe = Join-Path $env:VCPKG_ROOT 'vcpkg'
+
+          $env:PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
+
+          & $vcpkgExe install --triplet=x64-osx-obs --x-install-root=vcpkg_x64_installed
 
       - name: Lipo vcpkg_installed
+        if: inputs.install-vcpkg
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
           ./scripts/lipo_vcpkg_macos.sh \
@@ -228,7 +279,8 @@ jobs:
             ./vcpkg_x64_installed/x64-osx-obs
 
       - name: Generate toolchain hash for building ONNX Runtime
-        id: toolchain-hash
+        if: inputs.build-onnxruntime
+        id: ort-toolchain-hash
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           HASH: >-
@@ -242,17 +294,19 @@ jobs:
           printf 'HASH=%s\n' "$HASH" >> "$GITHUB_OUTPUT"
 
       - name: Restore ONNX Runtime ccache (macOS)
+        if: inputs.build-onnxruntime
         id: restore-ccache-ort
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: .ccache_ort
-          key: ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.toolchain-hash.outputs.HASH }}-${{ steps.setup-ccache.outputs.VERSION }}
+          key: ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain-hash.outputs.HASH }}-${{ steps.setup-ccache.outputs.VERSION }}
           restore-keys: |
-            ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.toolchain-hash.outputs.HASH }}-
+            ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain-hash.outputs.HASH }}-
             ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-
             ccache-ort-${{ runner.os }}-universal-
 
       - name: Reset .ccache_ort stats
+        if: inputs.build-onnxruntime
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CCACHE_DIR: '${{ github.workspace }}/.ccache_ort'
@@ -261,55 +315,91 @@ jobs:
           ccache -z
 
       - name: Build ONNX Runtime (macOS)
-        id: build-onnxruntime
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        if: inputs.build-onnxruntime
+        shell: pwsh
         env:
-          PYTHON: '${{ steps.setup-python.outputs.python-path }}'
-          VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+          GITHUB_TOKEN: '${{ github.token }}'
+          PYTHON: ${{ steps.setup-python.outputs.python-path }}
+          ORT_VERSION: ${{ steps.buildspec.outputs.onnxruntime_git_tag }}
         run: |
-          PWSH_EXE="$("$VCPKG_ROOT/vcpkg" fetch powershell-core | tail -n1)"
-          CMAKE_EXE="$("$VCPKG_ROOT/vcpkg" fetch cmake | tail -n1)"
-          NINJA_EXE="$("$VCPKG_ROOT/vcpkg" fetch ninja | tail -n1)"
-          CCACHE_EXE="$(command -v ccache)"
+          Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; $ProgressPreference = 'SilentlyContinue'
 
-          pwsh() {
-            env -i \
-              CCACHE_DIR="$GITHUB_WORKSPACE/.ccache_ort" \
-              CCACHE_BASEDIR="$GITHUB_WORKSPACE" \
-              CCACHE_SLOPPINESS='include_file_mtime,time_macros' \
-              DEVELOPER_DIR="$DEVELOPER_DIR" \
-              HOME="$HOME" \
-              PATH="${CMAKE_EXE%/*}:${NINJA_EXE%/*}:${CCACHE_EXE%/*}:/usr/bin:/bin:/usr/sbin:/sbin" \
-              PLUGIN_BUILD_DIR="$GITHUB_WORKSPACE" \
-              PYTHON="$PYTHON" \
-              VCPKG_BINARY_SOURCES="$VCPKG_BINARY_SOURCES" \
-              "$PWSH_EXE" "$@"
-          }
+          Import-Module ./scripts/BuildOnnxRuntime.psm1
 
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Update-OrtSourceWithPatches -OrtVersion '$ORT_VERSION'"
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -OsxArchitectures arm64 -OsxDeploymentTarget '$OSX_DEPLOYMENT_TARGET'"
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command update -OsxArchitectures x86_64 -OsxDeploymentTarget '$OSX_DEPLOYMENT_TARGET'"
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -OsxArchitectures arm64 -OsxDeploymentTarget '$OSX_DEPLOYMENT_TARGET'" | tee build_onnxruntime_arm64.log | xcbeautify
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Invoke-OrtBuildPy -Command build -OsxArchitectures x86_64 -OsxDeploymentTarget '$OSX_DEPLOYMENT_TARGET'" | tee build_onnxruntime_x86_64.log | xcbeautify
-          pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1 && Install-Ort"
+          $vcpkgExe = Join-Path $env:GITHUB_WORKSPACE 'vcpkg' 'vcpkg'
 
+          # Configure ccache
+          $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE '.ccache_ort'
+          $env:CCACHE_BASEDIR = $env:GITHUB_WORKSPACE
+          $env:CCACHE_SLOPPINESS = 'include_file_mtime,time_macros'
+
+          # Set PATH
+          $env:PATH = @(
+              Split-Path (Get-Command ccache).Source -Parent
+              Split-Path (Get-Command xcbeautify).Source -Parent
+              '/usr/bin:/bin:/usr/sbin:/sbin'
+          ) -join [System.IO.Path]::PathSeparator
+
+          $env:PATH = @(
+              Split-Path (Get-OrtToolchain -Name cmake) -Parent
+              Split-Path (Get-OrtToolchain -Name ninja) -Parent
+              $env:PATH
+          ) -join [System.IO.Path]::PathSeparator
+
+          # Remove vcpkg variables
+          $env:VCPKG_ROOT = $null
+          $env:VCPKG_INSTALLATION_ROOT = $null
+
+          # Configure GITHUB_TOKEN
+          $basicToken = [System.Convert]::ToBase64String(
+              [System.Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GITHUB_TOKEN")
+          )
+
+          Write-Output "::add-mask::$basicToken"
+
+          $env:GIT_CONFIG_COUNT = '1'
+          $env:GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraHeader'
+          $env:GIT_CONFIG_VALUE_0 = "Authorization: basic $basicToken"
+
+          $assetSourceScript = Join-Path $env:GITHUB_WORKSPACE 'scripts' 'vcpkg_asset_sources.ps1'
+          $env:X_VCPKG_ASSET_SOURCES = "clear;x-script,pwsh -NoProfile -ExecutionPolicy Bypass -File `"$assetSourceScript`" {url} {sha512} {dst}"
+
+          # Build ONNX Runtime
+          Update-OrtSourceWithPatches -OrtVersion $env:ORT_VERSION
+          Invoke-OrtBuildPy -Command update -OsxArchitectures arm64 -OsxDeploymentTarget $env:OSX_DEPLOYMENT_TARGET
+          Invoke-OrtBuildPy -Command update -OsxArchitectures x86_64 -OsxDeploymentTarget $env:OSX_DEPLOYMENT_TARGET
+          Invoke-OrtBuildPy -Command build -OsxArchitectures arm64 -OsxDeploymentTarget $env:OSX_DEPLOYMENT_TARGET | tee build_onnxruntime_arm64.log | xcbeautify
+          Invoke-OrtBuildPy -Command build -OsxArchitectures x86_64 -OsxDeploymentTarget $env:OSX_DEPLOYMENT_TARGET | tee build_onnxruntime_x86_64.log | xcbeautify
+          Install-Ort
+
+      - name: Lipo ORT vcpkg_installed
+        if: inputs.build-onnxruntime
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
           ./scripts/lipo_vcpkg_macos.sh \
-            vcpkg_ort_installed/universal-osx \
-            build_ort_arm64/Release/vcpkg_installed/arm64-osx \
-            build_ort_x86_64/Release/vcpkg_installed/x64-osx
+            ./vcpkg_ort_installed/universal-osx \
+            ./build_ort_arm64/Release/vcpkg_installed/arm64-osx \
+            ./build_ort_x86_64/Release/vcpkg_installed/x64-osx
+
+      - name: Save ORT ccache
+        if: inputs.build-obs && inputs.build-onnxruntime
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: .ccache_ort
+          key: ${{ steps.restore-ccache-ort.outputs.cache-primary-key }}
 
       - name: Upload ONNX Runtime build logs
-        if: always()
+        if: inputs.build-onnxruntime && always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Build ONNX Runtime logs
           path: |
-            build_onnxruntime_*.log
+            build_onnxruntime*.log
           if-no-files-found: ignore
           retention-days: 7
 
       - name: Show .ccache_ort stats
-        if: always()
+        if: inputs.build-onnxruntime && always()
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CCACHE_DIR: '${{ github.workspace }}/.ccache_ort'
@@ -318,39 +408,46 @@ jobs:
           ccache -s
 
       - name: Build Plugin (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+        if: inputs.build-obs && inputs.build-onnxruntime
+        shell: pwsh
         run: |
-          CMAKE_EXE="$("$VCPKG_ROOT/vcpkg" fetch cmake | tail -n1)"
+          Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true
 
-          cmake() {
-            env -i \
-              DEVELOPER_DIR="$DEVELOPER_DIR" \
-              HOME="$HOME" \
-              PATH="${CMAKE_EXE%/*}:/usr/bin:/bin:/usr/sbin:/sbin" \
-              "$CMAKE_EXE" "$@"
-          }
+          $vcpkgExe = Join-Path $env:GITHUB_WORKSPACE 'vcpkg' 'vcpkg'
+
+          # Set PATH
+          $env:PATH = @(
+              Split-Path (Get-Command xcbeautify).Source -Parent
+              '/usr/bin:/bin:/usr/sbin:/sbin'
+          ) -join [System.IO.Path]::PathSeparator
+
+          $env:PATH = @(
+              Split-Path (& $vcpkgExe fetch cmake | Select-Object -Last 1) -Parent
+              Split-Path (& $vcpkgExe fetch ninja | Select-Object -Last 1) -Parent
+              $env:PATH
+          ) -join [System.IO.Path]::PathSeparator
 
           cmake --preset macos -G Xcode -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          cmake --build --preset macos --config RelWithDebInfo | tee build_plugin_macos.log | xcbeautify
+          cmake --build --preset macos --config RelWithDebInfo | tee build_plugin.log | xcbeautify
 
       - name: Upload Plugin build logs
-        if: always()
+        if: inputs.build-obs && inputs.build-onnxruntime && always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Build Plugin logs
           path: |
-            build_plugin_*.log
+            build_plugin*.log
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Install Plugin (macOS)
+      - name: Install Plugin into stage
+        if: inputs.build-obs && inputs.build-onnxruntime
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
           cmake --install build --config RelWithDebInfo --strip --prefix build_stage
 
       - name: Extract dSYM
+        if: inputs.build-obs && inputs.build-onnxruntime
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
           mkdir -p release
@@ -360,7 +457,7 @@ jobs:
           ZSTD_CLEVEL=19 tar -acf "release/$PLUGIN_NAME.dSYM.tar.zst" --mac-metadata "build/$PLUGIN_NAME.dSYM"
 
       - name: Set up macOS Signing Certificates
-        if: inputs.environment == 'production-macos'
+        if: inputs.build-obs && inputs.build-onnxruntime && inputs.environment == 'production-macos'
         id: codesign
         uses: ./.github/actions/setup-macos-codesigning
         with:
@@ -369,6 +466,7 @@ jobs:
           MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
 
       - name: Package Plugin (macOS)
+        if: inputs.build-obs && inputs.build-onnxruntime
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CODESIGN_ENABLED: "${{ inputs.environment == 'production-macos' }}"
@@ -407,7 +505,7 @@ jobs:
           fi
 
       - name: Notarize Installer
-        if: inputs.environment == 'production-macos'
+        if: inputs.build-obs && inputs.build-onnxruntime && inputs.environment == 'production-macos'
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CODESIGN_TEAM: '${{ steps.codesign.outputs.CODESIGN_TEAM }}'
@@ -425,6 +523,7 @@ jobs:
           xcrun stapler staple "release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-universal.pkg"
 
       - name: Upload Plugin Binary
+        if: inputs.build-obs && inputs.build-onnxruntime
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pluginbinary-${{ runner.os }}-universal-${{ github.run_id }}
