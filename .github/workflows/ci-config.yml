@@ -13,12 +13,6 @@ name: CI Config
 on:
   workflow_call:
     outputs:
-      VCPKG_VERSION:
-        value: ${{ fromJson(jobs.ci-config.outputs.BUILDSPEC_PROPS).vcpkg_default_git_tag }}
-      OBS_VERSION:
-        value: ${{ fromJson(jobs.ci-config.outputs.BUILDSPEC_PROPS).obs_studio_git_tag }}
-      ORT_VERSION:
-        value: ${{ fromJson(jobs.ci-config.outputs.BUILDSPEC_PROPS).onnxruntime_git_tag }}
       WINDOWS_SDK_VERSION:
         value: ${{ fromJson(jobs.ci-config.outputs.CMAKE_PRESETS_WINDOWS).cacheVariables.CMAKE_SYSTEM_VERSION }}
       OSX_DEPLOYMENT_TARGET:
@@ -29,7 +23,6 @@ on:
 jobs:
   ci-config:
     outputs:
-      BUILDSPEC_PROPS: ${{ toJson(steps.buildspec-props.outputs) }}
       CMAKE_PRESETS_WINDOWS: ${{ steps.cmakepresets-json.outputs.windows }}
       CMAKE_PRESETS_MACOS: ${{ steps.cmakepresets-json.outputs.macos }}
       CMAKE_PRESETS_LINUX: ${{ steps.cmakepresets-json.outputs.linux }}
@@ -45,12 +38,6 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-
-      - name: Extract buildspec.props
-        id: buildspec-props
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          awk '!/(^#|^[[:space:]]*$)/' buildspec.props | tee -a "$GITHUB_OUTPUT"
 
       - name: Extract CMakePresets.json
         id: cmakepresets-json

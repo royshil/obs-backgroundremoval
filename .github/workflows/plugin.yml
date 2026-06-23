@@ -13,9 +13,29 @@ name: Plugin CI
 on:
   pull_request:
     branches: [main]
+  merge_group:
   push:
     branches: [main]
     tags: ['*']
+  schedule:
+    - cron: 14 3 * * *
+  workflow_dispatch:
+    inputs:
+      build-obs:
+        description: Flag to build OBS Studio.
+        required: false
+        type: boolean
+        default: true
+      install-vcpkg:
+        description: Flag to install vcpkg dependencies.
+        required: false
+        type: boolean
+        default: true
+      build-onnxruntime:
+        description: Flag to build ONNX Runtime.
+        required: false
+        type: boolean
+        default: true
 
 permissions: {}
 
@@ -36,11 +56,12 @@ jobs:
     uses: ./.github/workflows/plugin-build-windows.yml
     with:
       job-index: 0
+      runs-on: windows-2022
       WINDOWS_SDK_VERSION: ${{ needs.ci-config.outputs.WINDOWS_SDK_VERSION }}
-      VCPKG_VERSION: ${{ needs.ci-config.outputs.VCPKG_VERSION }}
-      OBS_VERSION: ${{ needs.ci-config.outputs.OBS_VERSION }}
-      ORT_VERSION: ${{ needs.ci-config.outputs.ORT_VERSION }}
       VCPKG_BINARY_SOURCES: ${{ needs.ci-config.outputs.VCPKG_BINARY_SOURCES }}
+      build-obs: ${{ github.event_name != 'workflow_dispatch' || inputs.build-obs }}
+      install-vcpkg: ${{ github.event_name != 'workflow_dispatch' || inputs.install-vcpkg }}
+      build-onnxruntime: ${{ github.event_name != 'workflow_dispatch' || inputs.build-onnxruntime }}
 
   build-macos:
     needs: ci-config
@@ -52,10 +73,10 @@ jobs:
       runs-on: macos-15
       DEVELOPER_DIR: /Applications/Xcode_16.4.app
       OSX_DEPLOYMENT_TARGET: ${{ needs.ci-config.outputs.OSX_DEPLOYMENT_TARGET }}
-      VCPKG_VERSION: ${{ needs.ci-config.outputs.VCPKG_VERSION }}
-      OBS_VERSION: ${{ needs.ci-config.outputs.OBS_VERSION }}
-      ORT_VERSION: ${{ needs.ci-config.outputs.ORT_VERSION }}
       VCPKG_BINARY_SOURCES: ${{ needs.ci-config.outputs.VCPKG_BINARY_SOURCES }}
+      build-obs: ${{ github.event_name != 'workflow_dispatch' || inputs.build-obs }}
+      install-vcpkg: ${{ github.event_name != 'workflow_dispatch' || inputs.install-vcpkg }}
+      build-onnxruntime: ${{ github.event_name != 'workflow_dispatch' || inputs.build-onnxruntime }}
     secrets: inherit
 
   # build-ubuntu:
@@ -70,14 +91,19 @@ jobs:
 
   accept-plugin:
     name: Accept Plugin CI
-    needs: [build-macos]
-    # needs: [build-windows, build-macos, build-ubuntu]
+    needs:
+      - build-windows
+      - build-macos
     runs-on: ubuntu-slim
     permissions: {}
     steps:
-      - name: Accept plugin
+      - name: Check workflow results
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          BUILD_WINDOWS_RESULT: ${{ needs.build-windows.result }}
+          BUILD_MACOS_RESULT: ${{ needs.build-macos.result }}
         run: |
-          echo 'The workflow plugin has completed successfully.'
+          [[ "$BUILD_WINDOWS_RESULT" == 'success' ]] && [[ "$BUILD_MACOS_RESULT" == 'success' ]]
 
   # release:
   #   if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
