@@ -86,6 +86,8 @@ jobs:
             *.dSYM.tar.zst) ASSETS+=("$f") ;;
             *-x86_64-linux-gnu.deb) ASSETS+=("$f") ;;
             *-x86_64-linux-gnu-dbgsym.ddeb) ASSETS+=("$f") ;;
+            *~forky*.deb) ASSETS+=("$f#[Debian Forky] ${f##*/}") ;;
+            *~forky*.ddeb) ASSETS+=("$f#[Debian Forky] ${f##*/}") ;;
             esac
           done
 

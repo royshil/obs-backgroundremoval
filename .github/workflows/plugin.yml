@@ -79,8 +79,20 @@ jobs:
       build-onnxruntime: ${{ github.event_name != 'workflow_dispatch' || inputs.build-onnxruntime }}
     secrets: inherit
 
+  build-debian:
+    strategy:
+      matrix:
+        runs-on: [ubuntu-24.04, ubuntu-24.04-arm]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/plugin-build-debian.yml
+    with:
+      job-index: 0
+      runs-on: ${{ matrix.runs-on }}
+      image: debian:forky
+
   # build-ubuntu:
-  #   needs: config
+  #   needs: ci-config
   #   permissions:
   #     contents: read
   #   uses: ./.github/workflows/plugin-build-ubuntu.yml
@@ -94,6 +106,7 @@ jobs:
     needs:
       - build-windows
       - build-macos
+      - build-debian
     runs-on: ubuntu-slim
     permissions: {}
     steps:
@@ -105,12 +118,12 @@ jobs:
         run: |
           [[ "$BUILD_WINDOWS_RESULT" == 'success' ]] && [[ "$BUILD_MACOS_RESULT" == 'success' ]]
 
-  # release:
-  #   if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-  #   needs: accept-plugin
-  #   permissions:
-  #     artifact-metadata: write
-  #     attestations: write
-  #     contents: write
-  #     id-token: write
-  #   uses: ./.github/workflows/plugin-release.yml
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: accept-plugin
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/plugin-release.yml
