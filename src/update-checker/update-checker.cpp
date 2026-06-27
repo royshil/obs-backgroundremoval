@@ -13,11 +13,48 @@
 #include "../plugin-support.h"
 
 #include <mutex>
+#include <sstream>
+#include <vector>
+#include <algorithm>
 
 extern "C" const char *PLUGIN_VERSION;
 
 static std::string latestVersionForUpdate;
 static std::mutex latestVersionMutex;
+
+static bool is_newer_version(const std::string& remote, const std::string& local)
+{
+	std::vector<int> remote_parts;
+	std::vector<int> local_parts;
+	std::string part;
+
+	std::stringstream ss_remote(remote);
+	while (std::getline(ss_remote, part, '.')) {
+		try {
+			remote_parts.push_back(std::stoi(part));
+		} catch (...) {
+			remote_parts.push_back(0);
+		}
+	}
+
+	std::stringstream ss_local(local);
+	while (std::getline(ss_local, part, '.')) {
+		try {
+			local_parts.push_back(std::stoi(part));
+		} catch (...) {
+			local_parts.push_back(0);
+		}
+	}
+
+	size_t max_parts = std::max(remote_parts.size(), local_parts.size());
+	for (size_t i = 0; i < max_parts; ++i) {
+		int r = i < remote_parts.size() ? remote_parts[i] : 0;
+		int l = i < local_parts.size() ? local_parts[i] : 0;
+		if (r > l) return true;
+		if (r < l) return false;
+	}
+	return false;
+}
 
 void check_update(void)
 {
@@ -41,8 +78,8 @@ void check_update(void)
 		}
 		obs_log(LOG_INFO, "Latest release is %s", info.version.c_str());
 
-		if (info.version == PLUGIN_VERSION) {
-			// No update available, latest version is the same as the current version
+		if (!is_newer_version(info.version, PLUGIN_VERSION)) {
+			// No update available, latest version is not newer than the current version
 			std::lock_guard<std::mutex> lock(latestVersionMutex);
 			latestVersionForUpdate.clear();
 			return;
