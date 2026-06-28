@@ -13,8 +13,7 @@
 #include "../plugin-support.h"
 
 #include <mutex>
-#include <sstream>
-#include <vector>
+#include <regex>
 #include <algorithm>
 
 extern "C" const char *PLUGIN_VERSION;
@@ -24,36 +23,33 @@ static std::mutex latestVersionMutex;
 
 static bool is_newer_version(const std::string& remote, const std::string& local)
 {
-	std::vector<int> remote_parts;
-	std::vector<int> local_parts;
-	std::string part;
+	std::regex version_regex(R"(^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z]+)(?:\.?(\d+))?)?$)");
+	std::smatch remote_match;
+	std::smatch local_match;
 
-	std::stringstream ss_remote(remote);
-	while (std::getline(ss_remote, part, '.')) {
-		try {
-			remote_parts.push_back(std::stoi(part));
-		} catch (...) {
-			remote_parts.push_back(0);
-		}
+	bool remote_valid = std::regex_match(remote, remote_match, version_regex);
+	bool local_valid = std::regex_match(local, local_match, version_regex);
+
+	if (!remote_valid || !local_valid) {
+		// Fallback to basic string comparison if regex fails
+		return remote > local;
 	}
 
-	std::stringstream ss_local(local);
-	while (std::getline(ss_local, part, '.')) {
-		try {
-			local_parts.push_back(std::stoi(part));
-		} catch (...) {
-			local_parts.push_back(0);
-		}
-	}
+	int remote_major = std::stoi(remote_match[1].str());
+	int remote_minor = std::stoi(remote_match[2].str());
+	int remote_patch = std::stoi(remote_match[3].str());
 
-	size_t max_parts = std::max(remote_parts.size(), local_parts.size());
-	for (size_t i = 0; i < max_parts; ++i) {
-		int r = i < remote_parts.size() ? remote_parts[i] : 0;
-		int l = i < local_parts.size() ? local_parts[i] : 0;
-		if (r > l) return true;
-		if (r < l) return false;
+	int local_major = std::stoi(local_match[1].str());
+	int local_minor = std::stoi(local_match[2].str());
+	int local_patch = std::stoi(local_match[3].str());
+
+	if (remote_major != local_major) {
+		return remote_major > local_major;
 	}
-	return false;
+	if (remote_minor != local_minor) {
+		return remote_minor > local_minor;
+	}
+	return remote_patch > local_patch;
 }
 
 void check_update(void)
