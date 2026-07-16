@@ -1,7 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
   "name": "Arch Linux",
-  "initializeCommand": "docker pull --platform=linux/amd64 archlinux:base-devel",
   "build": {
     "dockerfile": "Dockerfile",
     "options": [

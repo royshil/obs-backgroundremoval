@@ -37,7 +37,7 @@ RUN groupadd -g 1000 vscode && useradd -u 1000 -g vscode -m vscode -s /bin/bash
 
 USER vscode
 
-RUN python -m venv /home/vscode/.venv && /home/vscode/.venv/bin/pip install --no-cache-dir gersemi
+RUN python -m venv /home/vscode/.venv && /home/vscode/.venv/bin/pip install --no-cache-dir gersemi==0.21.0
 
 CMD ["/bin/bash"]
 
