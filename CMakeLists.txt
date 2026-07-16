@@ -146,6 +146,10 @@ block(PROPAGATE OpenCV_FOUND)
   if(NOT TARGET OpenCV::opencv_imgproc)
     add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
   endif()
+
+  if(TARGET opencv_geometry AND NOT TARGET OpenCV::opencv_geometry)
+    add_library(OpenCV::opencv_geometry ALIAS opencv_geometry)
+  endif()
 endblock()
 
 block(PROPAGATE onnxruntime_FOUND)
@@ -197,6 +201,7 @@ target_link_libraries(
     CurlClient
     OpenCV::opencv_core
     OpenCV::opencv_imgproc
+    $<$<TARGET_EXISTS:OpenCV::opencv_geometry>:OpenCV::opencv_geometry>
 )
 
 target_sources(
@@ -344,7 +349,7 @@ elseif(MSVC)
   install(FILES ${EFFECTS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/effects")
   install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
   install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
-elseif(OS_LINUX MATCHES "(Debian|Ubuntu)")
+elseif(OS_LINUX)
   set(OBS_PLUGIN_DATA_DIR "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}")
   set(OBS_PLUGIN_DOC_DIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${CMAKE_PROJECT_NAME}")
   set(OBS_PLUGIN_LIB_DIR "${CMAKE_INSTALL_LIBDIR}/obs-plugins")
