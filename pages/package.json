@@ -15,7 +15,7 @@
     "@octokit/rest": "^22.0.1",
     "astro": "^6.4.8",
     "pretty-bytes": "^7.1.1",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",
