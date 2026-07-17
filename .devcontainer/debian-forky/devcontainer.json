@@ -9,7 +9,6 @@
   "containerEnv": {
     "PLUGIN_BUILD_DIR": "/home/vscode/obs-backgroundremoval-build"
   },
-  "postCreateCommand": "bin/setup",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -17,7 +16,14 @@
         "ms-vscode.cmake-tools",
         "ms-vscode.cpp-devtools",
         "ms-vscode.cpptools-extension-pack"
-      ]
+      ],
+      "settings": {
+        "cmake.useCMakePresets": "never",
+        "cmake.buildDirectory": "/home/vscode/obs-backgroundremoval-build/build",
+        "cmake.configureSettings": {
+          "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        }
+      }
     }
   }
 }

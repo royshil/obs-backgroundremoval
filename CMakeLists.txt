@@ -5,7 +5,6 @@
 cmake_minimum_required(VERSION 3.28)
 
 ### Options
-set(PLUGIN_NAME "obs-backgroundremoval" CACHE STRING "Name of plugin")
 set(PLUGIN_DISPLAY_NAME "OBS Background Removal" CACHE STRING "Display name of plugin")
 set(PLUGIN_AUTHOR "Roy Shilkrot" CACHE STRING "Author of plugin")
 set(PLUGIN_EMAIL "roy.shil@gmail.com" CACHE STRING "Author email of plugin")
@@ -20,6 +19,7 @@ block(PROPAGATE PLUGIN_VERSION)
 endblock()
 
 project(obs-backgroundremoval VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
+set(PLUGIN_NAME "${CMAKE_PROJECT_NAME}")
 
 block(PROPAGATE OS_LINUX_DETECTED)
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -67,7 +67,7 @@ elseif(APPLE OR OS_LINUX)
   add_compile_options(-fno-omit-frame-pointer -fstack-protector-strong)
 endif()
 
-set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO RelWithDebInfo Release)
+set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO RelWithDebInfo Release None)
 
 ### Configure paths
 if(DEFINED ENV{PLUGIN_BUILD_DIR})
@@ -375,7 +375,6 @@ set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}${PACKAGE_VERSION_SUFFIX}")
 set(CPACK_PACKAGE_CONTACT "${PLUGIN_AUTHOR} <${PLUGIN_EMAIL}>")
 
 set(CPACK_ARCHIVE_THREADS 0)
-set(CPACK_OUTPUT_FILE_PREFIX "release")
 set(CPACK_SET_DESTDIR TRUE)
 set(CPACK_VERBATIM_VARIABLES TRUE)
 

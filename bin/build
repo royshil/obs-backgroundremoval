@@ -7,36 +7,20 @@
 set -euo pipefail
 shopt -s nullglob
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-: "${PLUGIN_BUILD_DIR:=$ROOT_DIR}"
-: "${PLUGIN_CONFIG:=RelWithDebInfo}"
-
-export PLUGIN_BUILD_DIR
-
-# shellcheck disable=SC2120
-xcbeautify() { if command -v xcbeautify >/dev/null 2>&1; then command xcbeautify "$@"; else cat; fi; }
-
 debian_forky() {
-  cmake -G Ninja -S "$ROOT_DIR" -B "${PLUGIN_BUILD_DIR:-.}/build_plugin"
-
-  cmake --build "${PLUGIN_BUILD_DIR:-.}/build_plugin"
-
-  (cd "${PLUGIN_BUILD_DIR:-.}/build_plugin" && cpack -G DEB)
-
-  . "${PLUGIN_BUILD_DIR:-.}/build_plugin/cmake_export.sh"
-
-  printf 'Run the following command to install the plugin:\n'
-  printf '  sudo dpkg -i %s\n' "$ROOT_DIR/release/${PLUGIN_NAME}_*.deb"
+  cmake -B "${PLUGIN_BUILD_DIR:-.}/build" --preset linux
+  cmake --build "${PLUGIN_BUILD_DIR:-.}/build" --preset linux
+  (cd "${PLUGIN_BUILD_DIR:-.}/build" && cpack -G DEB)
 }
 
 ubuntu_resolute() {
-  cmake -G Ninja -S "$ROOT_DIR" -B "${PLUGIN_BUILD_DIR:-.}/build_plugin"
+  cmake -G Ninja -S "$ROOT_DIR" -B "${PLUGIN_BUILD_DIR:-.}/build"
 
-  cmake --build "${PLUGIN_BUILD_DIR:-.}/build_plugin"
+  cmake --build "${PLUGIN_BUILD_DIR:-.}/build"
 
-  (cd "${PLUGIN_BUILD_DIR:-.}/build_plugin" && cpack -G DEB)
+  (cd "${PLUGIN_BUILD_DIR:-.}/build" && cpack -G DEB)
 
-  . "${PLUGIN_BUILD_DIR:-.}/build_plugin/cmake_export.sh"
+  . "${PLUGIN_BUILD_DIR:-.}/build/cmake_export.sh"
 
   printf 'Run the following command to install the plugin:\n'
   printf '  sudo dpkg -i %s\n' "$ROOT_DIR/release/${PLUGIN_NAME}_*.deb"
@@ -54,6 +38,8 @@ arch() {
 macos() {
   : "${PLUGIN_BUILD_DIR:=$PWD}"
   : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:-.}/vcpkg}"
+
+  xcbeautify() { if command -v xcbeautify >/dev/null 2>&1; then command xcbeautify; else cat; fi; }
 
   if [[ -z "${VCPKG_BINARY_SOURCES:-}" ]]; then
     VCPKG_BINARY_SOURCES="clear;files,${PLUGIN_BUILD_DIR:-.}/.vcpkg_archives,readwrite;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read"
