@@ -4,14 +4,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-debian_forky() {
-  printf 'INFO: No operation required for setup on Debian Forky.\n'
-}
-
-ubuntu_resolute() {
-  printf 'INFO: No operation required for setup on Ubuntu Resolute.\n'
-}
-
 macos() {
   : "${PLUGIN_BUILD_DIR:=$PWD}"
   : "${PYTHON:=$(brew --prefix python)/bin/python3}"
@@ -108,13 +100,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     exit 1
   fi
 
-  [[ -f /etc/os-release ]] && . /etc/os-release
   if [[ "$(uname -s)" == Darwin ]]; then
     macos
-  elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID}_$VERSION_CODENAME"; then
-    "${ID}_$VERSION_CODENAME"
-  else
-    printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
-    exit 1
   fi
 fi

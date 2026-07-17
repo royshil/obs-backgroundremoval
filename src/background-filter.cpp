@@ -11,6 +11,12 @@
 #include <wchar.h>
 #endif // _WIN32
 
+#include <opencv2/core/version.hpp>
+
+#if CV_VERSION_MAJOR >= 5
+#include <opencv2/geometry.hpp>
+#endif
+
 #include <opencv2/imgproc.hpp>
 
 #include <numeric>

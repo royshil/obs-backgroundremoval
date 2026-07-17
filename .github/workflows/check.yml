@@ -35,6 +35,8 @@ jobs:
         run: |
           set -euo pipefail
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew tap obsproject/tools
+          brew trust --formula obsproject/tools/clang-format@19
           brew install obsproject/tools/clang-format@19
           echo "$(brew --prefix obsproject/tools/clang-format@19)/bin" >> "$GITHUB_PATH"
 
@@ -63,6 +65,8 @@ jobs:
         run: |
           set -euo pipefail
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew tap obsproject/tools
+          brew trust --formula obsproject/tools/gersemi
           brew install obsproject/tools/gersemi
           echo "$(brew --prefix obsproject/tools/gersemi)/bin" >> "$GITHUB_PATH"
 
