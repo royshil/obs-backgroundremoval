@@ -10,7 +10,7 @@
 extern void blogva(int log_level, const char *format, va_list args);
 
 const char *PLUGIN_NAME = "obs-backgroundremoval";
-const char *PLUGIN_VERSION = "1.4.0";
+const char *PLUGIN_VERSION = "1.4.1";
 
 void obs_log(int log_level, const char *format, ...)
 {
