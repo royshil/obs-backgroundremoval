@@ -267,8 +267,8 @@ set(
   data/models/mediapipe.with_runtime_opt.ort.license
   data/models/pphumanseg_fp32.with_runtime_opt.ort
   data/models/pphumanseg_fp32.with_runtime_opt.ort.license
-  data/models/rvm_mobilenetv3_fp32.with_runtime_opt.ort
-  data/models/rvm_mobilenetv3_fp32.with_runtime_opt.ort.license
+  data/models/rvm_mobilenetv3_fp32.onnx
+  data/models/rvm_mobilenetv3_fp32.onnx.license
   data/models/selfie_multiclass_256x256.with_runtime_opt.ort
   data/models/selfie_multiclass_256x256.with_runtime_opt.ort.license
   data/models/selfie_segmentation.with_runtime_opt.ort

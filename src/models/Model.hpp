@@ -15,6 +15,7 @@
 
 #include <opencv2/imgproc.hpp>
 #include <algorithm>
+#include <cstring>
 
 template<typename T> T vectorProduct(const std::vector<T> &v)
 {
@@ -282,8 +283,25 @@ public:
 			rawOutputNames.push_back(outputName.get());
 		}
 
-		session->Run(Ort::RunOptions{nullptr}, rawInputNames.data(), inputTensor.data(), inputNames.size(),
-			     rawOutputNames.data(), outputTensor.data(), outputNames.size());
+		// Let ORT allocate the output tensors itself, then copy the results
+		// back into the pre-allocated CPU buffers. Pre-binding CPU output
+		// tensors can misbehave on GPU execution providers for stateful
+		// multi-output models (e.g. RVM).
+		std::vector<Ort::Value> results = session->Run(Ort::RunOptions{nullptr}, rawInputNames.data(),
+							       inputTensor.data(), inputNames.size(),
+							       rawOutputNames.data(), outputNames.size());
+
+		for (size_t i = 0; i < results.size() && i < outputTensor.size(); i++) {
+			const float *src = results[i].GetTensorData<float>();
+			float *dst = outputTensor[i].GetTensorMutableData<float>();
+			const size_t srcCount = results[i].GetTensorTypeAndShapeInfo().GetElementCount();
+			const size_t dstCount = outputTensor[i].GetTensorTypeAndShapeInfo().GetElementCount();
+			if (srcCount != dstCount) {
+				obs_log(LOG_WARNING, "Output %d size mismatch: model produced %d elements, expected %d",
+					(int)i, (int)srcCount, (int)dstCount);
+			}
+			memcpy(dst, src, (srcCount < dstCount ? srcCount : dstCount) * sizeof(float));
+		}
 	}
 };
 
