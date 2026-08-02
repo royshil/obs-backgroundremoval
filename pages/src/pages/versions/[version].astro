@@ -16,6 +16,11 @@ import {
   PRODUCTION_BASE_URL,
   PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL,
 } from "../../lib/info.js";
+import {
+  getReleaseDefinition,
+  LATEST_RELEASE,
+  requiresReleaseDefinition,
+} from "../../lib/releases.js";
 import DefineFileVerifierDropArea from "../../components/DefineFileVerifierDropArea.astro";
 import DefineLocalDate from "../../components/DefineLocalDate.astro";
 import Layout from "../../layouts/Layout.astro";
@@ -26,9 +31,6 @@ import GitHubMarkWhite from "../../../public/github-mark-white.svg";
 interface Props {
   release: Awaited<
     ReturnType<Octokit["rest"]["repos"]["getReleaseByTag"]>
-  >["data"];
-  latestRelease: Awaited<
-    ReturnType<Octokit["rest"]["repos"]["getLatestRelease"]>
   >["data"];
 }
 
@@ -47,17 +49,20 @@ export async function getStaticPaths(
     (release) => !release.draft && release.published_at,
   );
 
-  const latestRelease = await octokit.rest.repos.getLatestRelease({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-    headers: {
-      accept: "application/vnd.github.v3.text+json",
-    },
-  });
+  for (const release of publishedReleases) {
+    if (
+      requiresReleaseDefinition(release.tag_name) &&
+      !getReleaseDefinition(release.tag_name)
+    ) {
+      throw new Error(
+        `Release ${release.tag_name} must be added to the static release catalog`,
+      );
+    }
+  }
 
   return publishedReleases.map((release) => ({
     params: { version: release.tag_name },
-    props: { release, latestRelease: latestRelease.data },
+    props: { release },
   }));
 }
 
@@ -76,17 +81,61 @@ function stripMarkdown(markdown: string): string {
     .trim();
 }
 
-const { release, latestRelease } = Astro.props;
+const { release } = Astro.props;
+const releaseDefinition = getReleaseDefinition(release.tag_name);
 
-const windowsZipAsset = release.assets.find((a) =>
-  a.name.endsWith("windows-x64.zip"),
-);
-const macosPkgAsset = release.assets.find((a) =>
-  a.name.endsWith("macos-universal.pkg"),
-);
-const ubuntuDebAsset = release.assets.find((a) =>
-  a.name.endsWith("x86_64-linux-gnu.deb"),
-);
+function findCatalogAsset(assetName: string) {
+  const asset = release.assets.find(
+    (candidate) => candidate.name === assetName,
+  );
+  if (!asset) {
+    throw new Error(
+      `Release ${release.tag_name} is missing catalog asset ${assetName}`,
+    );
+  }
+  return asset;
+}
+
+const downloadAssets: Array<{
+  label: string;
+  asset: (typeof release.assets)[number];
+}> = [];
+
+if (releaseDefinition) {
+  for (const download of releaseDefinition.downloads) {
+    downloadAssets.push({
+      label: download.label,
+      asset: findCatalogAsset(download.file),
+    });
+  }
+} else {
+  const legacyDownloads = [
+    {
+      label: "Windows (zip)",
+      asset: release.assets.find((asset) =>
+        asset.name.endsWith("windows-x64.zip"),
+      ),
+    },
+    {
+      label: "Mac (pkg)",
+      asset: release.assets.find((asset) =>
+        asset.name.endsWith("macos-universal.pkg"),
+      ),
+    },
+    {
+      label: "Ubuntu (deb)",
+      asset: release.assets.find((asset) =>
+        asset.name.endsWith("x86_64-linux-gnu.deb"),
+      ),
+    },
+  ];
+
+  for (const download of legacyDownloads) {
+    if (download.asset) {
+      downloadAssets.push({ label: download.label, asset: download.asset });
+    }
+  }
+}
 
 const releaseBody = release.body || "No release notes provided.";
 
@@ -135,7 +184,7 @@ const dynamicDescription = cleanBody
         <div class="version-title-row">
           <h1>Version {release.tag_name}</h1>
           {
-            release.id === latestRelease.id && (
+            release.tag_name === LATEST_RELEASE.version && (
               <span class="badge-latest">Latest</span>
             )
           }
@@ -159,25 +208,11 @@ const dynamicDescription = cleanBody
 
         <ul class="download-links">
           {
-            windowsZipAsset && (
+            downloadAssets.map(({ label, asset }) => (
               <li>
-                <a href={windowsZipAsset.browser_download_url}>Windows (zip)</a>
+                <a href={asset.browser_download_url}>{label}</a>
               </li>
-            )
-          }
-          {
-            macosPkgAsset && (
-              <li>
-                <a href={macosPkgAsset.browser_download_url}>Mac (pkg)</a>
-              </li>
-            )
-          }
-          {
-            ubuntuDebAsset && (
-              <li>
-                <a href={ubuntuDebAsset.browser_download_url}>Ubuntu (deb)</a>
-              </li>
-            )
+            ))
           }
           <li>
             <a
@@ -202,11 +237,7 @@ const dynamicDescription = cleanBody
           </a>
         </div>
         <div class="video-tutorials-button">
-          <a
-            href={PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL}
-          >
-            ▶︎ YouTube Tutorials
-          </a>
+          <a href={PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL}> ▶︎ YouTube Tutorials </a>
         </div>
       </section>
 
@@ -229,38 +260,17 @@ const dynamicDescription = cleanBody
             >
           </dd>
           {
-            windowsZipAsset?.digest && (
-              <Fragment>
-                <dt>{windowsZipAsset.name}</dt>
-                <dd>{prettyBytes(windowsZipAsset.size, { binary: true })}</dd>
-                <dd>
-                  <code>{windowsZipAsset.digest}</code>
-                </dd>
-              </Fragment>
-            )
-          }
-
-          {
-            macosPkgAsset?.digest && (
-              <Fragment>
-                <dt>{macosPkgAsset.name}</dt>
-                <dd>{prettyBytes(macosPkgAsset.size, { binary: true })}</dd>
-                <dd>
-                  <code>{macosPkgAsset.digest}</code>
-                </dd>
-              </Fragment>
-            )
-          }
-
-          {
-            ubuntuDebAsset?.digest && (
-              <Fragment>
-                <dt>{ubuntuDebAsset.name}</dt>
-                <dd>{prettyBytes(ubuntuDebAsset.size, { binary: true })}</dd>
-                <dd>
-                  <code>{ubuntuDebAsset.digest}</code>
-                </dd>
-              </Fragment>
+            downloadAssets.map(
+              ({ asset }) =>
+                asset.digest && (
+                  <Fragment>
+                    <dt>{asset.name}</dt>
+                    <dd>{prettyBytes(asset.size, { binary: true })}</dd>
+                    <dd>
+                      <code>{asset.digest}</code>
+                    </dd>
+                  </Fragment>
+                ),
             )
           }
         </dl>

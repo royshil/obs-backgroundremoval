@@ -117,6 +117,24 @@ jobs:
           $actualGitCommit = git rev-parse HEAD
           if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
 
+      - name: Checkout vcpkg (ONNX Runtime)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ steps.buildspec.outputs.vcpkg_ort_git_tag }}
+          persist-credentials: false
+          path: vcpkg_ort
+          filter: blob:none
+
+      - name: Assert vcpkg git commit (ONNX Runtime)
+        shell: pwsh
+        working-directory: vcpkg_ort
+        env:
+          GIT_COMMIT: ${{ steps.buildspec.outputs.vcpkg_ort_git_commit }}
+        run: |
+          $actualGitCommit = git rev-parse HEAD
+          if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
+
       - name: Checkout obs-studio
         if: inputs.build-obs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,6 +179,14 @@ jobs:
         shell: pwsh
         env:
           VCPKG_ROOT: '${{ github.workspace }}\vcpkg'
+        run: |
+          & (Join-Path $env:VCPKG_ROOT 'bootstrap-vcpkg.bat') -disableMetrics
+
+      - name: Run bootstrap-vcpkg.bat (ONNX Runtime)
+        if: inputs.build-onnxruntime
+        shell: pwsh
+        env:
+          VCPKG_ROOT: '${{ github.workspace }}\vcpkg_ort'
         run: |
           & (Join-Path $env:VCPKG_ROOT 'bootstrap-vcpkg.bat') -disableMetrics
 
@@ -278,7 +304,7 @@ jobs:
 
           Import-Module ./scripts/BuildOnnxRuntime.psm1
 
-          $vcpkgExe = Join-Path $env:GITHUB_WORKSPACE 'vcpkg' 'vcpkg'
+          $vcpkgOrtRoot = Join-Path $env:GITHUB_WORKSPACE 'vcpkg_ort'
 
           # Configure ccache
           $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE '.ccache_ort'
@@ -293,9 +319,9 @@ jobs:
           ) -join [System.IO.Path]::PathSeparator
 
           $env:PATH = @(
-              Split-Path (Get-OrtToolchain -Name cmake) -Parent
-              Split-Path (Get-OrtToolchain -Name ninja) -Parent
-              Split-Path (Get-OrtToolchain -Name vswhere) -Parent
+              Split-Path (Get-OrtToolchain -VcpkgRoot $vcpkgOrtRoot -Name cmake) -Parent
+              Split-Path (Get-OrtToolchain -VcpkgRoot $vcpkgOrtRoot -Name ninja) -Parent
+              Split-Path (Get-OrtToolchain -VcpkgRoot $vcpkgOrtRoot -Name vswhere) -Parent
               $env:PATH
           ) -join [System.IO.Path]::PathSeparator
 

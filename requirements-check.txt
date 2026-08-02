@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+gersemi==0.27.7
+reuse[charset-normalizer]==6.2.0

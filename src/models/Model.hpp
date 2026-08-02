@@ -90,8 +90,8 @@ class Model {
 private:
 	/* data */
 public:
-	Model(/* args */) {};
-	virtual ~Model() {};
+	Model(/* args */){};
+	virtual ~Model(){};
 
 	const char *name;
 

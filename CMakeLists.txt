@@ -78,8 +78,7 @@ endif()
 
 if(MSVC)
   list(
-    PREPEND
-    CMAKE_PREFIX_PATH
+    PREPEND CMAKE_PREFIX_PATH
     "${PLUGIN_BUILD_DIR}/.deps/obs-deps-prebuilt"
     "${PLUGIN_BUILD_DIR}/.deps/obs-deps-qt6"
     "${PLUGIN_BUILD_DIR}/obs_installed"
@@ -89,8 +88,7 @@ if(MSVC)
   )
 elseif(APPLE)
   list(
-    PREPEND
-    CMAKE_PREFIX_PATH
+    PREPEND CMAKE_PREFIX_PATH
     "${PLUGIN_BUILD_DIR}/.deps/obs-deps-prebuilt"
     "${PLUGIN_BUILD_DIR}/.deps/obs-deps-qt6"
     "${PLUGIN_BUILD_DIR}/obs_installed"
