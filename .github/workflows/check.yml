@@ -25,26 +25,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install clang-format with Linuxbrew
-        shell: bash
-        env:
-          HOMEBREW_NO_ANALYTICS: "1"
-          HOMEBREW_NO_AUTO_UPDATE: "1"
-          HOMEBREW_NO_ENV_HINTS: "1"
-          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      - name: Print clang-format version
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          set -euo pipefail
-          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-          brew tap obsproject/tools
-          brew trust --formula obsproject/tools/clang-format@19
-          brew install obsproject/tools/clang-format@19
-          echo "$(brew --prefix obsproject/tools/clang-format@19)/bin" >> "$GITHUB_PATH"
+          clang-format-18 --version
 
       - name: Check with clang-format
-        shell: bash
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          set -euo pipefail
-          git ls-files "*.c" "*.cpp" "*.h" "*.hpp" | xargs --no-run-if-empty clang-format-19 --dry-run --Werror
+          git ls-files -z "*.c" "*.cpp" "*.h" "*.hpp" | xargs -0 -r clang-format-18 --dry-run --Werror
 
   check-gersemi:
     name: Check gersemi
@@ -55,20 +44,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install gersemi with Linuxbrew
-        shell: bash
-        env:
-          HOMEBREW_NO_ANALYTICS: "1"
-          HOMEBREW_NO_AUTO_UPDATE: "1"
-          HOMEBREW_NO_ENV_HINTS: "1"
-          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      - name: Set up Python for check requirements
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: .python-version
+
+      - name: Install check requirements
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          set -euo pipefail
-          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-          brew tap obsproject/tools
-          brew trust --formula obsproject/tools/gersemi
-          brew install obsproject/tools/gersemi
-          echo "$(brew --prefix obsproject/tools/gersemi)/bin" >> "$GITHUB_PATH"
+          python -m pip install -r requirements-check.txt
 
       - name: Check with gersemi
         shell: bash
@@ -91,12 +75,17 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python for REUSE
+      - name: Set up Python for check requirements
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.12"
-          pip-install: reuse
+          python-version-file: .python-version
+
+      - name: Install check requirements
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          python -m pip install -r requirements-check.txt
 
       - name: Lint with REUSE
-        shell: bash
-        run: reuse lint
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          reuse lint

@@ -137,6 +137,24 @@ jobs:
           $actualGitCommit = git rev-parse HEAD
           if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
 
+      - name: Checkout vcpkg (ONNX Runtime)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ steps.buildspec.outputs.vcpkg_ort_git_tag }}
+          persist-credentials: false
+          path: vcpkg_ort
+          filter: blob:none
+
+      - name: Assert vcpkg git commit (ONNX Runtime)
+        shell: pwsh
+        working-directory: vcpkg_ort
+        env:
+          GIT_COMMIT: ${{ steps.buildspec.outputs.vcpkg_ort_git_commit }}
+        run: |
+          $actualGitCommit = git rev-parse HEAD
+          if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
+
       - name: Checkout obs-studio
         if: inputs.build-obs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -182,6 +200,12 @@ jobs:
         run: |
           ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
+      - name: Run bootstrap-vcpkg.sh (ONNX Runtime)
+        if: inputs.build-onnxruntime
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          ./vcpkg_ort/bootstrap-vcpkg.sh -disableMetrics
+
       - name: Build OBS (macOS)
         if: inputs.build-obs
         shell: pwsh
@@ -196,8 +220,8 @@ jobs:
 
           # Set PATH
           $env:PATH = @(
-              Split-Path (Get-Command xcbeautify).Source -Parent
-              '/usr/bin:/bin:/usr/sbin:/sbin'
+              Split-Path (Get-Command pwsh).Source -Parent
+              '/opt/homebrew/opt/xcbeautify/bin:/usr/bin:/bin:/usr/sbin:/sbin'
           ) -join [System.IO.Path]::PathSeparator
 
           $env:PATH = @(
@@ -326,7 +350,7 @@ jobs:
 
           Import-Module ./scripts/BuildOnnxRuntime.psm1
 
-          $vcpkgExe = Join-Path $env:GITHUB_WORKSPACE 'vcpkg' 'vcpkg'
+          $vcpkgOrtRoot = Join-Path $env:GITHUB_WORKSPACE 'vcpkg_ort'
 
           # Configure ccache
           $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE '.ccache_ort'
@@ -336,13 +360,12 @@ jobs:
           # Set PATH
           $env:PATH = @(
               Split-Path (Get-Command ccache).Source -Parent
-              Split-Path (Get-Command xcbeautify).Source -Parent
-              '/usr/bin:/bin:/usr/sbin:/sbin'
+              '/opt/homebrew/opt/xcbeautify/bin:/usr/bin:/bin:/usr/sbin:/sbin'
           ) -join [System.IO.Path]::PathSeparator
 
           $env:PATH = @(
-              Split-Path (Get-OrtToolchain -Name cmake) -Parent
-              Split-Path (Get-OrtToolchain -Name ninja) -Parent
+              Split-Path (Get-OrtToolchain -VcpkgRoot $vcpkgOrtRoot -Name cmake) -Parent
+              Split-Path (Get-OrtToolchain -VcpkgRoot $vcpkgOrtRoot -Name ninja) -Parent
               $env:PATH
           ) -join [System.IO.Path]::PathSeparator
 

@@ -5,13 +5,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { joinURL, withTrailingSlash } from "ufo";
-import { Octokit, type RestEndpointMethodTypes } from "@octokit/rest";
 
 import { Image } from "astro:assets";
 
 import DefineLocalDate from "../components/DefineLocalDate.astro";
 
-import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL, PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL } from "../lib/info.js";
+import {
+  PRODUCTION_BASE_URL,
+  PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL,
+} from "../lib/info.js";
+import { LATEST_RELEASE } from "../lib/releases.js";
 
 import Layout from "../layouts/Layout.astro";
 
@@ -19,23 +22,7 @@ import demo from "../assets/demo.gif";
 import icon from "../assets/obs-backgroundremoval-icon.jpg";
 import GitHubMarkWhite from "../../public/github-mark-white.svg";
 
-export type LatestRelease =
-  RestEndpointMethodTypes["repos"]["getLatestRelease"]["response"]["data"];
-
 const { BASE_URL } = import.meta.env;
-
-async function getLatestRelease(): Promise<LatestRelease> {
-  const octokit = new Octokit({ auth: import.meta.env.GITHUB_TOKEN });
-
-  const latestRelease = await octokit.rest.repos.getLatestRelease({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-  });
-
-  return latestRelease.data;
-}
-
-const release = await getLatestRelease();
 ---
 
 <Layout lang="en" title="OBS Background Removal">
@@ -71,12 +58,14 @@ const release = await getLatestRelease();
     </p>
 
     <h2>
-      Download Latest {release.tag_name}
+      Download Latest {LATEST_RELEASE.version}
       {
         [
           "(",
-          <local-date data-date={release.published_at}>
-            <time datetime={release.published_at}>{release.published_at}</time>
+          <local-date data-date={LATEST_RELEASE.publishedAt}>
+            <time datetime={LATEST_RELEASE.publishedAt}>
+              {LATEST_RELEASE.publishedAt}
+            </time>
           </local-date>,
           ")",
         ]
@@ -98,17 +87,17 @@ const release = await getLatestRelease();
 
     <section class="material-button-section">
       <div class="github-button">
-        <a href={release.html_url} target="_blank" rel="noopener noreferrer">
+        <a
+          href={LATEST_RELEASE.releaseUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <GitHubMarkWhite viewBox="0 0 98 96" width="24" height="24" />
           <span>View on GitHub</span>
         </a>
       </div>
       <div class="video-tutorials-button">
-        <a
-          href={PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL}
-        >
-          ▶︎ YouTube Tutorials
-        </a>
+        <a href={PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL}> ▶︎ YouTube Tutorials </a>
       </div>
     </section>
 

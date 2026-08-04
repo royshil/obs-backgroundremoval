@@ -5,34 +5,30 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { joinURL, withTrailingSlash } from "ufo";
-import { Octokit, type RestEndpointMethodTypes } from "@octokit/rest";
 
 import Layout from "../layouts/Layout.astro";
 
-import { GITHUB_OWNER, GITHUB_REPO, PRODUCTION_BASE_URL, PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL } from "../lib/info.js";
+import {
+  PRODUCTION_BASE_URL,
+  PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL,
+} from "../lib/info.js";
+import {
+  getReleaseAssetUrl,
+  getReleaseDownload,
+  LATEST_RELEASE,
+} from "../lib/releases.js";
 
 import GitHubMarkWhite from "../../public/github-mark-white.svg";
 
-export type LatestRelease =
-  RestEndpointMethodTypes["repos"]["getLatestRelease"]["response"]["data"];
-
 const { BASE_URL } = import.meta.env;
-
-async function getLatestRelease(): Promise<LatestRelease> {
-  const octokit = new Octokit({ auth: import.meta.env.GITHUB_TOKEN });
-
-  const latestRelease = await octokit.rest.repos.getLatestRelease({
-    owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
-  });
-
-  return latestRelease.data;
-}
-
-const release = await getLatestRelease();
-
-const assetX64 = release.assets.find((e) => /windows-x64\.zip/.test(e.name));
-if (!assetX64) throw new Error("Windows x64 asset not found!");
+const download = getReleaseDownload(LATEST_RELEASE, "Windows x64");
+const assetX64 = {
+  name: download.file,
+  browser_download_url: getReleaseAssetUrl(
+    LATEST_RELEASE.version,
+    download.file,
+  ),
+};
 ---
 
 <Layout lang="en" title="Windows Installation Guide - Background Removal">
@@ -73,35 +69,39 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
 
     <section class="material-button-section">
       <div class="github-button">
-        <a href={release.html_url} target="_blank" rel="noopener noreferrer">
+        <a
+          href={LATEST_RELEASE.releaseUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <GitHubMarkWhite viewBox="0 0 98 96" width="24" height="24" />
           <span>View on GitHub</span>
         </a>
       </div>
       <div class="video-tutorials-button">
-        <a
-          href={PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL}
-        >
-          ▶︎ YouTube Tutorials
-        </a>
+        <a href={PLUGIN_TUTORIAL_YOUTUBE_COURSE_URL}> ▶︎ YouTube Tutorials </a>
       </div>
     </section>
 
-    <h2>Installing version {release.tag_name}</h2>
+    <h2>Installing version {LATEST_RELEASE.version}</h2>
 
     <ol>
       <li>
         <strong>Download ZIP:</strong> The latest release of our plugin is {
-          release.tag_name
+          LATEST_RELEASE.version
         }.<br />
         Please download our plugin from the GitHub Release of version {
-          release.tag_name
+          LATEST_RELEASE.version
         }.<br />
         <dl>
           <dt>
-            <strong>📝 The {release.tag_name} release page on GitHub:</strong>
+            <strong
+              >📝 The {LATEST_RELEASE.version} release page on GitHub:</strong
+            >
           </dt>
-          <dd><a href={release.html_url}>{release.html_url}</a></dd>
+          <dd>
+            <a href={LATEST_RELEASE.releaseUrl}>{LATEST_RELEASE.releaseUrl}</a>
+          </dd>
           <dt><strong>⬇️ Direct download link for Windows x64 ZIP:</strong></dt>
           <dd>
             <a href={assetX64.browser_download_url}
@@ -148,9 +148,9 @@ if (!assetX64) throw new Error("Windows x64 asset not found!");
       <li>
         <strong>Restart OBS Studio:</strong><br />
         Once you have installed a new plugin into OBS Studio, you need to restart
-        OBS Studio for these changes to take effect. Open the effect filters list of
-        any video sources to check if there are Background Removal and Low-Light Enhancement
-        filters available.
+        OBS Studio for these changes to take effect. Open the effect filters list
+        of any video sources to check if there are Background Removal and Low-Light
+        Enhancement filters available.
       </li>
       <li>
         <strong
