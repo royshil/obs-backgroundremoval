@@ -6,7 +6,11 @@
 #ifndef ORTMODELDATA_H
 #define ORTMODELDATA_H
 
+#ifdef HAVE_ONNXRUNTIME_CXX_API_H
 #include <onnxruntime_cxx_api.h>
+#else
+#include <onnxruntime/onnxruntime_cxx_api.h>
+#endif
 
 struct ORTModelData {
 	std::unique_ptr<Ort::Session> session;

@@ -3,12 +3,21 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#ifdef HAVE_ONNXRUNTIME_CXX_API_H
 #include <onnxruntime_cxx_api.h>
 #include <cpu_provider_factory.h>
+#else
+#include <onnxruntime/onnxruntime_cxx_api.h>
+#include <onnxruntime/cpu_provider_factory.h>
+#endif
 #include <filesystem>
 
 #if defined(__APPLE__)
+#ifdef HAVE_ONNXRUNTIME_CXX_API_H
 #include <coreml_provider_factory.h>
+#else
+#include <onnxruntime/coreml_provider_factory.h>
+#endif
 #endif
 
 #ifdef _WIN32

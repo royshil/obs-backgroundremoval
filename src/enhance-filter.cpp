@@ -5,7 +5,11 @@
 
 #include "enhance-filter.h"
 
+#ifdef HAVE_ONNXRUNTIME_CXX_API_H
 #include <onnxruntime_cxx_api.h>
+#else
+#include <onnxruntime/onnxruntime_cxx_api.h>
+#endif
 
 #ifdef _WIN32
 #include <wchar.h>
