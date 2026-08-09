@@ -321,18 +321,6 @@ function Install-Ort {
             cmake --install $ortBuildDirs.arm64 --config $Config --prefix $ortPrefixDirs.arm64
             cmake --install $ortBuildDirs.x86_64 --config $Config --prefix $ortPrefixDirs.x86_64
 
-            $ortLibs = Get-ChildItem -Path (Join-Path $ortPrefixDirs.universal 'lib' 'libonnxruntime_*.a')
-            $ortLibs += Get-ChildItem -Path (Join-Path $ortPrefixDirs.universal 'lib' 'libcoreml_proto.a')
-
-            foreach ($lib in $ortLibs) {
-                $basename = Split-Path $lib.Name -Leaf
-                $components = @(
-                    Join-Path $ortPrefixDirs.arm64 'lib' $basename
-                    Join-Path $ortPrefixDirs.x86_64 'lib' $basename
-                )
-                lipo -create $components -output $lib
-            }
-
             $dummyO = Join-Path $ortPrefixDirs.x86_64 'dummy.o'
             $dummyA = Join-Path $ortPrefixDirs.x86_64 'dummy.a'
 
@@ -340,9 +328,19 @@ function Install-Ort {
 
             libtool -static -o $dummyA $dummyO
 
-            $kleidiaiArm64 = Join-Path $ortPrefixDirs.arm64 'lib' 'libkleidiai.a'
-            $kleidiaiUniversal = Join-Path $ortPrefixDirs.universal 'lib' 'libkleidiai.a'
-            lipo -create $kleidiaiArm64 $dummyA -output $kleidiaiUniversal
+            $ortLibs = Get-ChildItem -Path (Join-Path $ortPrefixDirs.universal 'lib' '*.a')
+
+            foreach ($lib in $ortLibs) {
+                $basename = Split-Path $lib.Name -Leaf
+                $arm64Lib = Join-Path $ortPrefixDirs.arm64 'lib' $basename
+                $x64Lib = Join-Path $ortPrefixDirs.x86_64 'lib' $basename
+
+                if (-not (Test-Path -LiteralPath $x64Lib)) {
+                    $x64Lib = $dummyA
+                }
+
+                lipo -create $arm64Lib $x64Lib -output $lib
+            }
         }
     }
 }

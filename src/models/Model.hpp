@@ -6,7 +6,11 @@
 #ifndef MODEL_H
 #define MODEL_H
 
+#ifdef HAVE_ONNXRUNTIME_CXX_API_H
 #include <onnxruntime_cxx_api.h>
+#else
+#include <onnxruntime/onnxruntime_cxx_api.h>
+#endif
 #include "../plugin-support.h"
 
 #ifdef _WIN32

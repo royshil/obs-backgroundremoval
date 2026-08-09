@@ -81,6 +81,7 @@ jobs:
 
     env:
       DEVELOPER_DIR: ${{ inputs.DEVELOPER_DIR }}
+      ORT_CCACHE_DIR: '${{ github.workspace }}/.ccache_ort'
       OSX_ARCHITECTURES: arm64;x86_64
       OSX_DEPLOYMENT_TARGET: ${{ inputs.OSX_DEPLOYMENT_TARGET }}
       VCPKG_BINARY_SOURCES: '${{ inputs.VCPKG_BINARY_SOURCES }}'
@@ -317,24 +318,23 @@ jobs:
         run: |
           printf 'HASH=%s\n' "$HASH" >> "$GITHUB_OUTPUT"
 
-      - name: Restore ONNX Runtime ccache (macOS)
+      - name: Restore ONNX Runtime ccache
         if: inputs.build-onnxruntime
         id: restore-ccache-ort
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .ccache_ort
+          path: ${{ env.ORT_CCACHE_DIR }}
           key: ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain-hash.outputs.HASH }}-${{ steps.setup-ccache.outputs.VERSION }}
           restore-keys: |
             ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-${{ steps.ort-toolchain-hash.outputs.HASH }}-
             ccache-ort-${{ runner.os }}-universal-${{ steps.image-metadata.outputs.ImageVersion }}-
             ccache-ort-${{ runner.os }}-universal-
 
-      - name: Reset .ccache_ort stats
+      - name: Reset ONNX Runtime ccache stats
         if: inputs.build-onnxruntime
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          CCACHE_DIR: '${{ github.workspace }}/.ccache_ort'
-          CCACHE_BASEDIR: '${{ github.workspace }}'
+          CCACHE_DIR: '${{ env.ORT_CCACHE_DIR }}'
         run: |
           ccache -z
 
@@ -342,6 +342,8 @@ jobs:
         if: inputs.build-onnxruntime
         shell: pwsh
         env:
+          CCACHE_BASEDIR: '${{ github.workspace }}'
+          CCACHE_SLOPPINESS: include_file_mtime,time_macros
           GITHUB_TOKEN: '${{ github.token }}'
           PYTHON: ${{ steps.setup-python.outputs.python-path }}
           ORT_VERSION: ${{ steps.buildspec.outputs.onnxruntime_git_tag }}
@@ -351,11 +353,6 @@ jobs:
           Import-Module ./scripts/BuildOnnxRuntime.psm1
 
           $vcpkgOrtRoot = Join-Path $env:GITHUB_WORKSPACE 'vcpkg_ort'
-
-          # Configure ccache
-          $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE '.ccache_ort'
-          $env:CCACHE_BASEDIR = $env:GITHUB_WORKSPACE
-          $env:CCACHE_SLOPPINESS = 'include_file_mtime,time_macros'
 
           # Set PATH
           $env:PATH = @(
@@ -404,11 +401,11 @@ jobs:
             ./build_ort_arm64/Release/vcpkg_installed/arm64-osx \
             ./build_ort_x86_64/Release/vcpkg_installed/x64-osx
 
-      - name: Save ORT ccache
-        if: inputs.build-obs && inputs.build-onnxruntime
+      - name: Save ONNX Runtime ccache
+        if: inputs.build-onnxruntime
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .ccache_ort
+          path: ${{ env.ORT_CCACHE_DIR }}
           key: ${{ steps.restore-ccache-ort.outputs.cache-primary-key }}
 
       - name: Upload ONNX Runtime build logs
@@ -421,14 +418,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Show .ccache_ort stats
+      - name: Show ONNX Runtime ccache stats
         if: inputs.build-onnxruntime && always()
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          CCACHE_DIR: '${{ github.workspace }}/.ccache_ort'
-          CCACHE_BASEDIR: '${{ github.workspace }}'
+          CCACHE_DIR: '${{ env.ORT_CCACHE_DIR }}'
         run: |
-          ccache -s
+          printf '## ccache stats for ONNX Runtime (macOS)\n\n```\n%s```\n' "$(ccache -s)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build Plugin (macOS)
         if: inputs.build-obs && inputs.build-onnxruntime

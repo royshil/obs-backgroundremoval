@@ -28,7 +28,7 @@ if not defined VCPKG_ROOT (
 )
 
 if not defined VCPKG_BINARY_SOURCES (
-	set "VCPKG_BINARY_SOURCES=clear;files,%CD%\.vcpkg_archives,readwrite;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read"
+	set "VCPKG_BINARY_SOURCES=clear;files,%CD%\.vcpkg_archives,readwrite;http,https://vcpkg-obs.kaito.tokyo/{sha},read"
 )
 
 "%VCPKG_ROOT%\vcpkg.exe" fetch cmake  || (echo ERROR: vcpkg fetch powershell-core failed. & endlocal & exit /b 1)

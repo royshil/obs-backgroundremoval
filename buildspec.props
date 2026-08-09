@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-vcpkg_default_git_tag=2026.04.27
-vcpkg_default_git_commit=56bb2411609227288b70117ead2c47585ba07713
+vcpkg_default_git_tag=2026.07.29
+vcpkg_default_git_commit=9e593bb18ea69cc5095e012465dcd675a822ed0d
 
 obs_studio_git_tag=31.1.1
 obs_studio_git_commit=a32b3f9f6d5e1cf6fa0f8105a2ed46ec0b4d991c
@@ -20,8 +20,8 @@ qt6_windows_x64_sha256=0e76bf0555dd5382838850b748d3dcfab44a1e1058441309ab54e1a65
 qt6_macos_url=https://github.com/obsproject/obs-deps/releases/download/2025-07-11/macos-deps-qt6-2025-07-11-universal.tar.xz
 qt6_macos_sha256=d3f5f04b6ea486e032530bdf0187cbda9a54e0a49621a4c8ba984c5023998867
 
-onnxruntime_git_tag=v1.23.2
-onnxruntime_git_commit=a83fc4d58cb48eb68890dd689f94f28288cf2278
+onnxruntime_git_tag=v1.28.0
+onnxruntime_git_commit=da9b5e364c465de65c49d91e696cd6485270757f
 
 onnxruntime_reduced_ops_config=src/required_operators_and_types.with_runtime_opt.config
 

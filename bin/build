@@ -42,7 +42,7 @@ macos() {
   xcbeautify() { if command -v xcbeautify >/dev/null 2>&1; then command xcbeautify; else cat; fi; }
 
   if [[ -z "${VCPKG_BINARY_SOURCES:-}" ]]; then
-    VCPKG_BINARY_SOURCES="clear;files,${PLUGIN_BUILD_DIR:-.}/.vcpkg_archives,readwrite;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read"
+    VCPKG_BINARY_SOURCES="clear;files,${PLUGIN_BUILD_DIR:-.}/.vcpkg_archives,readwrite;http,https://vcpkg-obs.kaito.tokyo/{sha},read"
   fi
 
   export PLUGIN_BUILD_DIR VCPKG_ROOT VCPKG_BINARY_SOURCES

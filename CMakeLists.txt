@@ -176,6 +176,31 @@ block(PROPAGATE onnxruntime_FOUND)
   endif()
 endblock()
 
+# ONNX Runtime installs its public headers both flattened under <prefix>/include/onnxruntime
+# and nested under core/session, but which of those directories ends up on the include search
+# path depends on the release and on how the package was built. Probe the two spellings the
+# sources can use and let them switch on the result rather than pinning one layout.
+include(CheckCXXSourceCompiles)
+
+# A static library try_compile only compiles, so the whole ONNX Runtime does not have to link
+# just to resolve a header.
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+set(CMAKE_REQUIRED_LIBRARIES onnxruntime::onnxruntime)
+
+check_cxx_source_compiles("#include <onnxruntime_cxx_api.h>" HAVE_ONNXRUNTIME_CXX_API_H)
+check_cxx_source_compiles("#include <onnxruntime/onnxruntime_cxx_api.h>" HAVE_ONNXRUNTIME_ONNXRUNTIME_CXX_API_H)
+
+unset(CMAKE_REQUIRED_LIBRARIES)
+unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
+
+if(NOT HAVE_ONNXRUNTIME_CXX_API_H AND NOT HAVE_ONNXRUNTIME_ONNXRUNTIME_CXX_API_H)
+  message(
+    FATAL_ERROR
+    "onnxruntime_cxx_api.h is not reachable through onnxruntime::onnxruntime, neither as "
+    "<onnxruntime_cxx_api.h> nor as <onnxruntime/onnxruntime_cxx_api.h>."
+  )
+endif()
+
 ### Plugin main
 add_library(obs-backgroundremoval_options INTERFACE)
 
@@ -187,6 +212,10 @@ elseif(APPLE OR OS_LINUX)
 endif()
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
+
+if(HAVE_ONNXRUNTIME_CXX_API_H)
+  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_CXX_API_H)
+endif()
 
 add_subdirectory(src/update-checker/CurlClient)
 target_link_libraries(

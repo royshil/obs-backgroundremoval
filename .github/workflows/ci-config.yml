@@ -18,7 +18,7 @@ on:
       OSX_DEPLOYMENT_TARGET:
         value: ${{ fromJson(jobs.ci-config.outputs.CMAKE_PRESETS_MACOS).cacheVariables.CMAKE_OSX_DEPLOYMENT_TARGET }}
       VCPKG_BINARY_SOURCES:
-        value: clear;http,https://vcpkg-obs.kaito.tokyo/{name}/{version}/{sha},read
+        value: clear;http,https://vcpkg-obs.kaito.tokyo/{sha},read
 
 jobs:
   ci-config:
