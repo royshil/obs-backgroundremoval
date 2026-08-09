@@ -178,6 +178,8 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
   endif()
 
   ### Check execution provider availability
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
+
   cmake_push_check_state(RESET)
   set(CMAKE_REQUIRED_LIBRARIES onnxruntime::onnxruntime)
 

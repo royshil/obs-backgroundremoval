@@ -6,10 +6,10 @@
 #ifndef ORTMODELDATA_H
 #define ORTMODELDATA_H
 
-#if __has_include(<onnxruntime_cxx_api.h>)
-#include <onnxruntime_cxx_api.h>
-#elif __has_include(<onnxruntime/onnxruntime_cxx_api.h>)
+#if __has_include(<onnxruntime/onnxruntime_cxx_api.h>)
 #include <onnxruntime/onnxruntime_cxx_api.h>
+#elif __has_include(<onnxruntime_cxx_api.h>)
+#include <onnxruntime_cxx_api.h>
 #else
 #error "ONNX Runtime C++ headers were not found"
 #endif

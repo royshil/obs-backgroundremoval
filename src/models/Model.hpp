@@ -6,10 +6,10 @@
 #ifndef MODEL_H
 #define MODEL_H
 
-#if __has_include(<onnxruntime_cxx_api.h>)
-#include <onnxruntime_cxx_api.h>
-#elif __has_include(<onnxruntime/onnxruntime_cxx_api.h>)
+#if __has_include(<onnxruntime/onnxruntime_cxx_api.h>)
 #include <onnxruntime/onnxruntime_cxx_api.h>
+#elif __has_include(<onnxruntime_cxx_api.h>)
+#include <onnxruntime_cxx_api.h>
 #else
 #error "onnxruntime_cxx_api.h was not found"
 #endif
