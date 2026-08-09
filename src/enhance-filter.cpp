@@ -5,10 +5,12 @@
 
 #include "enhance-filter.h"
 
-#ifdef HAVE_ONNXRUNTIME_CXX_API_H
+#if __has_include(<onnxruntime_cxx_api.h>)
 #include <onnxruntime_cxx_api.h>
-#else
+#elif __has_include(<onnxruntime/onnxruntime_cxx_api.h>)
 #include <onnxruntime/onnxruntime_cxx_api.h>
+#else
+#error "onnxruntime_cxx_api.h was not found"
 #endif
 
 #ifdef _WIN32
