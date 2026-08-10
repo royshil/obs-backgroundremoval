@@ -3,22 +3,49 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifdef HAVE_ONNXRUNTIME_CXX_API_H
-#include <onnxruntime_cxx_api.h>
-#include <cpu_provider_factory.h>
-#else
+#if __has_include(<onnxruntime/onnxruntime_cxx_api.h>)
 #include <onnxruntime/onnxruntime_cxx_api.h>
-#include <onnxruntime/cpu_provider_factory.h>
+#elif __has_include(<onnxruntime_cxx_api.h>)
+#include <onnxruntime_cxx_api.h>
+#else
+#error "onnxruntime_cxx_api.h was not found"
 #endif
-#include <filesystem>
+
+#if __has_include(<onnxruntime/cpu_provider_factory.h>)
+#include <onnxruntime/cpu_provider_factory.h>
+#elif __has_include(<cpu_provider_factory.h>)
+#include <cpu_provider_factory.h>
+#endif
+
+#ifdef HAVE_ONNXRUNTIME_CUDA_EP
+#if __has_include(<onnxruntime/cuda_provider_factory.h>)
+#include <onnxruntime/cuda_provider_factory.h>
+#elif __has_include(<cuda_provider_factory.h>)
+#include <cuda_provider_factory.h>
+#elif __has_include(<onnxruntime/core/providers/cuda/cuda_provider_factory.h>)
+#include <onnxruntime/core/providers/cuda/cuda_provider_factory.h>
+#endif
+#endif // HAVE_ONNXRUNTIME_CUDA_EP
+
+#ifdef HAVE_ONNXRUNTIME_ROCM_EP
+#if __has_include(<onnxruntime/rocm_provider_factory.h>)
+#include <onnxruntime/rocm_provider_factory.h>
+#elif __has_include(<rocm_provider_factory.h>)
+#include <rocm_provider_factory.h>
+#elif __has_include(<onnxruntime/core/providers/rocm/rocm_provider_factory.h>)
+#include <onnxruntime/core/providers/rocm/rocm_provider_factory.h>
+#endif
+#endif // HAVE_ONNXRUNTIME_ROCM_EP
 
 #if defined(__APPLE__)
-#ifdef HAVE_ONNXRUNTIME_CXX_API_H
+#if __has_include(<onnxruntime/coreml_provider_factory.h>)
+#include <onnxruntime/coreml_provider_factory.h>
+#elif __has_include(<coreml_provider_factory.h>)
 #include <coreml_provider_factory.h>
 #else
-#include <onnxruntime/coreml_provider_factory.h>
+#error "coreml_provider_factory.h was not found"
 #endif
-#endif
+#endif // __APPLE__
 
 #ifdef _WIN32
 #include <wchar.h>

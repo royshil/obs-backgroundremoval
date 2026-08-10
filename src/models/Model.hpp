@@ -6,11 +6,14 @@
 #ifndef MODEL_H
 #define MODEL_H
 
-#ifdef HAVE_ONNXRUNTIME_CXX_API_H
+#if __has_include(<onnxruntime/onnxruntime_cxx_api.h>)
+#include <onnxruntime/onnxruntime_cxx_api.h>
+#elif __has_include(<onnxruntime_cxx_api.h>)
 #include <onnxruntime_cxx_api.h>
 #else
-#include <onnxruntime/onnxruntime_cxx_api.h>
+#error "onnxruntime_cxx_api.h was not found"
 #endif
+
 #include "../plugin-support.h"
 
 #ifdef _WIN32

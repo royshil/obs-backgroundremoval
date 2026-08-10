@@ -45,6 +45,8 @@ endblock()
 set(OS_LINUX ${OS_LINUX_DETECTED} CACHE STRING "Linux variant: Linux Debian Ubuntu FALSE")
 
 include(GNUInstallDirs)
+include(CheckCXXSymbolExists)
+include(CMakePushCheckState)
 
 ### Global configurations
 set(CMAKE_C_STANDARD 17)
@@ -150,7 +152,7 @@ block(PROPAGATE OpenCV_FOUND)
   endif()
 endblock()
 
-block(PROPAGATE onnxruntime_FOUND)
+block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM_EP)
   set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON)
 
   if(POLICY CMP0167)
@@ -174,54 +176,83 @@ block(PROPAGATE onnxruntime_FOUND)
   if(NOT TARGET onnxruntime::onnxruntime)
     add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
   endif()
+
+  ### Check execution provider availability
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
+
+  cmake_push_check_state(RESET)
+  set(CMAKE_REQUIRED_LIBRARIES onnxruntime::onnxruntime)
+
+  function(check_onnxruntime_execution_provider result symbol)
+    set(found FALSE)
+    set(index 0)
+
+    foreach(header IN LISTS ARGN)
+      math(EXPR index "${index} + 1")
+      set(check_variable "${result}_${index}")
+      check_cxx_symbol_exists("${symbol}" "${header}" "${check_variable}")
+
+      if(${check_variable})
+        set(found TRUE)
+        break()
+      endif()
+    endforeach()
+
+    set(${result} "${found}" PARENT_SCOPE)
+  endfunction()
+
+  check_onnxruntime_execution_provider(
+    HAVE_ONNXRUNTIME_CUDA_EP
+    OrtSessionOptionsAppendExecutionProvider_CUDA
+    onnxruntime_c_api.h
+    onnxruntime/onnxruntime_c_api.h
+    onnxruntime/core/session/onnxruntime_c_api.h
+    cuda_provider_factory.h
+    onnxruntime/cuda_provider_factory.h
+    onnxruntime/core/providers/cuda/cuda_provider_factory.h
+  )
+
+  check_onnxruntime_execution_provider(
+    HAVE_ONNXRUNTIME_ROCM_EP
+    OrtSessionOptionsAppendExecutionProvider_ROCM
+    onnxruntime_c_api.h
+    onnxruntime/onnxruntime_c_api.h
+    onnxruntime/core/session/onnxruntime_c_api.h
+    rocm_provider_factory.h
+    onnxruntime/rocm_provider_factory.h
+    onnxruntime/core/providers/rocm/rocm_provider_factory.h
+  )
+
+  cmake_pop_check_state()
 endblock()
 
-# ONNX Runtime installs its public headers both flattened under <prefix>/include/onnxruntime
-# and nested under core/session, but which of those directories ends up on the include search
-# path depends on the release and on how the package was built. Probe the two spellings the
-# sources can use and let them switch on the result rather than pinning one layout.
-include(CheckCXXSourceCompiles)
-
-# A static library try_compile only compiles, so the whole ONNX Runtime does not have to link
-# just to resolve a header.
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-set(CMAKE_REQUIRED_LIBRARIES onnxruntime::onnxruntime)
-
-check_cxx_source_compiles("#include <onnxruntime_cxx_api.h>" HAVE_ONNXRUNTIME_CXX_API_H)
-check_cxx_source_compiles("#include <onnxruntime/onnxruntime_cxx_api.h>" HAVE_ONNXRUNTIME_ONNXRUNTIME_CXX_API_H)
-
-unset(CMAKE_REQUIRED_LIBRARIES)
-unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
-
-if(NOT HAVE_ONNXRUNTIME_CXX_API_H AND NOT HAVE_ONNXRUNTIME_ONNXRUNTIME_CXX_API_H)
-  message(
-    FATAL_ERROR
-    "onnxruntime_cxx_api.h is not reachable through onnxruntime::onnxruntime, neither as "
-    "<onnxruntime_cxx_api.h> nor as <onnxruntime/onnxruntime_cxx_api.h>."
-  )
-endif()
-
 ### Plugin main
-add_library(obs-backgroundremoval_options INTERFACE)
+add_library(${CMAKE_PROJECT_NAME}_options INTERFACE)
 
 if(MSVC)
-  target_compile_options(obs-backgroundremoval_options INTERFACE /W4 /WX)
+  target_compile_options(${CMAKE_PROJECT_NAME}_options INTERFACE /W4 /WX)
 elseif(APPLE OR OS_LINUX)
-  target_compile_definitions(obs-backgroundremoval_options INTERFACE SIMDE_ENABLE_OPENMP)
-  target_compile_options(obs-backgroundremoval_options INTERFACE -fopenmp-simd -Wall -Wextra -Werror)
+  target_compile_definitions(${CMAKE_PROJECT_NAME}_options INTERFACE SIMDE_ENABLE_OPENMP)
+  target_compile_options(${CMAKE_PROJECT_NAME}_options INTERFACE -fopenmp-simd -Wall -Wextra -Werror)
+endif()
+
+if(HAVE_ONNXRUNTIME_CUDA_EP)
+  message(STATUS "ONNX Runtime CUDA Execution Provider found")
+  target_compile_definitions(${CMAKE_PROJECT_NAME}_options INTERFACE HAVE_ONNXRUNTIME_CUDA_EP)
+endif()
+
+if(HAVE_ONNXRUNTIME_ROCM_EP)
+  message(STATUS "ONNX Runtime ROCM Execution Provider found")
+  target_compile_definitions(${CMAKE_PROJECT_NAME}_options INTERFACE HAVE_ONNXRUNTIME_ROCM_EP)
 endif()
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
-
-if(HAVE_ONNXRUNTIME_CXX_API_H)
-  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ONNXRUNTIME_CXX_API_H)
-endif()
 
 add_subdirectory(src/update-checker/CurlClient)
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
-    obs-backgroundremoval_options
+    ${CMAKE_PROJECT_NAME}_options
     OBS::libobs
     OBS::obs-frontend-api
     onnxruntime::onnxruntime
