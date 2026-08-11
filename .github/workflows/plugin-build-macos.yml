@@ -124,7 +124,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: microsoft/vcpkg
-          ref: ${{ steps.buildspec.outputs.vcpkg_default_git_tag }}
+          ref: ${{ steps.buildspec.outputs.vcpkg_git_tag }}
           persist-credentials: false
           path: vcpkg
           filter: blob:none
@@ -133,7 +133,7 @@ jobs:
         shell: pwsh
         working-directory: vcpkg
         env:
-          GIT_COMMIT: ${{ steps.buildspec.outputs.vcpkg_default_git_commit }}
+          GIT_COMMIT: ${{ steps.buildspec.outputs.vcpkg_git_commit }}
         run: |
           $actualGitCommit = git rev-parse HEAD
           if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
@@ -294,15 +294,6 @@ jobs:
 
           & $vcpkgExe install --triplet=x64-osx-obs --x-install-root=vcpkg_x64_installed
 
-      - name: Lipo vcpkg_installed
-        if: inputs.install-vcpkg
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          ./scripts/lipo_vcpkg_macos.sh \
-            ./vcpkg_installed/universal-osx-obs \
-            ./vcpkg_arm64_installed/arm64-osx-obs \
-            ./vcpkg_x64_installed/x64-osx-obs
-
       - name: Generate toolchain hash for building ONNX Runtime
         if: inputs.build-onnxruntime
         id: ort-toolchain-hash
@@ -312,7 +303,7 @@ jobs:
             ${{ hashFiles(
               'buildspec.props',
               'scripts/BuildOnnxRuntime.psm1',
-              'src/required_operators_and_types.with_runtime_opt.config',
+              'src/required_operators.config',
               'scripts/ort_patches/*.patch'
             ) }}
         run: |
@@ -392,15 +383,6 @@ jobs:
           Invoke-OrtBuildPy -Command build -OsxArchitectures x86_64 -OsxDeploymentTarget $env:OSX_DEPLOYMENT_TARGET | tee build_onnxruntime_x86_64.log | xcbeautify
           Install-Ort
 
-      - name: Lipo ORT vcpkg_installed
-        if: inputs.build-onnxruntime
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          ./scripts/lipo_vcpkg_macos.sh \
-            ./vcpkg_ort_installed/universal-osx \
-            ./build_ort_arm64/Release/vcpkg_installed/arm64-osx \
-            ./build_ort_x86_64/Release/vcpkg_installed/x64-osx
-
       - name: Save ONNX Runtime ccache
         if: inputs.build-onnxruntime
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -446,8 +428,10 @@ jobs:
               $env:PATH
           ) -join [System.IO.Path]::PathSeparator
 
-          cmake --preset macos -G Xcode -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          cmake --build --preset macos --config RelWithDebInfo | tee build_plugin.log | xcbeautify
+          cmake --preset macos -B build_arm64 -G Xcode -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=arm64
+          cmake --build build_arm64 --config RelWithDebInfo | tee build_plugin_arm64.log | xcbeautify
+          cmake --preset macos -B build_x86_64 -G Xcode -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=x86_64
+          cmake --build build_x86_64 --config RelWithDebInfo | tee build_plugin_x86_64.log | xcbeautify
 
       - name: Upload Plugin build logs
         if: inputs.build-obs && inputs.build-onnxruntime && always()
@@ -459,21 +443,25 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Install Plugin into stage
+      - name: Install Plugins into architecture stages
         if: inputs.build-obs && inputs.build-onnxruntime
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          cmake --install build --config RelWithDebInfo --strip --prefix build_stage
+          cmake --install build_arm64 --config RelWithDebInfo --prefix build_stage_arm64
+          cmake --install build_x86_64 --config RelWithDebInfo --prefix build_stage_x86_64
 
       - name: Extract dSYM
         if: inputs.build-obs && inputs.build-onnxruntime
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
           mkdir -p release
-          . ./build/cmake_export.sh
+          . ./build_arm64/cmake_export.sh
 
-          dsymutil "build/RelWithDebInfo/$PLUGIN_NAME.plugin/Contents/MacOS/$PLUGIN_NAME" -o "build/$PLUGIN_NAME.dSYM"
-          ZSTD_CLEVEL=19 tar -acf "release/$PLUGIN_NAME.dSYM.tar.zst" --mac-metadata "build/$PLUGIN_NAME.dSYM"
+          for ARCH in arm64 x86_64; do
+            BINARY="build_stage_$ARCH/Library/Application Support/obs-studio/plugins/$PLUGIN_NAME.plugin/Contents/MacOS/$PLUGIN_NAME"
+            dsymutil "$BINARY" -o "build_$ARCH/$PLUGIN_NAME.dSYM"
+            ZSTD_CLEVEL=19 tar -acf "release/$PLUGIN_NAME-macos-$ARCH.dSYM.tar.zst" --mac-metadata "build_$ARCH/$PLUGIN_NAME.dSYM"
+          done
 
       - name: Set up macOS Signing Certificates
         if: inputs.build-obs && inputs.build-onnxruntime && inputs.environment == 'production-macos'
@@ -493,35 +481,38 @@ jobs:
           MACOS_SIGNING_INSTALLER_IDENTITY: ${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}
         run: |
           mkdir -p release
-          . ./build/cmake_export.sh
+          . ./build_arm64/cmake_export.sh
 
-          PLUGIN_BUNDLE="build_stage/Library/Application Support/obs-studio/plugins/$PLUGIN_NAME.plugin"
+          for ARCH in arm64 x86_64; do
+            BUILD_DIR="build_$ARCH"
+            STAGE_DIR="build_stage_$ARCH"
+            PLUGIN_BUNDLE="$STAGE_DIR/Library/Application Support/obs-studio/plugins/$PLUGIN_NAME.plugin"
+            strip -x "$PLUGIN_BUNDLE/Contents/MacOS/$PLUGIN_NAME"
 
-          if [[ "$CODESIGN_ENABLED" == true ]]; then
-            codesign -s "$MACOS_SIGNING_APPLICATION_IDENTITY" -f --deep --options runtime --timestamp "$PLUGIN_BUNDLE"
-          fi
+            if [[ "$CODESIGN_ENABLED" == true ]]; then
+              codesign -s "$MACOS_SIGNING_APPLICATION_IDENTITY" -f --deep --options runtime --timestamp "$PLUGIN_BUNDLE"
+            else
+              codesign -s - -f --deep --options runtime "$PLUGIN_BUNDLE"
+            fi
 
-          pkgbuild \
-            --root build_stage \
-            --identifier "$PLUGIN_BUNDLE_ID" \
-            --version "$PLUGIN_VERSION" \
-            --install-location / \
-            build/component.pkg
+            pkgbuild \
+              --root "$STAGE_DIR" \
+              --identifier "$PLUGIN_BUNDLE_ID" \
+              --version "$PLUGIN_VERSION" \
+              --install-location / \
+              "$BUILD_DIR/component.pkg"
 
-          if [[ "$CODESIGN_ENABLED" == true ]]; then
-            productbuild \
-              --distribution build/Distribution \
-              --package-path build \
-              --resources . \
-              --sign "$MACOS_SIGNING_INSTALLER_IDENTITY" \
-              "release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-universal.pkg"
-          else
-            productbuild \
-              --distribution build/Distribution \
-              --package-path build \
-              --resources . \
-              "release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-universal.pkg"
-          fi
+            PRODUCTBUILD_ARGS=(
+              --distribution "$BUILD_DIR/Distribution"
+              --package-path "$BUILD_DIR"
+              --resources .
+            )
+            if [[ "$CODESIGN_ENABLED" == true ]]; then
+              PRODUCTBUILD_ARGS+=(--sign "$MACOS_SIGNING_INSTALLER_IDENTITY")
+            fi
+            productbuild "${PRODUCTBUILD_ARGS[@]}" \
+              "release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-$ARCH.pkg"
+          done
 
       - name: Notarize Installer
         if: inputs.build-obs && inputs.build-onnxruntime && inputs.environment == 'production-macos'
@@ -531,21 +522,23 @@ jobs:
           MACOS_NOTARIZATION_PASSWORD: '${{ secrets.MACOS_NOTARIZATION_PASSWORD }}'
           MACOS_NOTARIZATION_USERNAME: '${{ secrets.MACOS_NOTARIZATION_USERNAME }}'
         run: |
-          . ./build/cmake_export.sh
+          . ./build_arm64/cmake_export.sh
 
-          xcrun notarytool submit "release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-universal.pkg" \
-            --apple-id "$MACOS_NOTARIZATION_USERNAME" \
-            --password "$MACOS_NOTARIZATION_PASSWORD" \
-            --team-id "$CODESIGN_TEAM" \
-            --wait
-
-          xcrun stapler staple "release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-universal.pkg"
+          for ARCH in arm64 x86_64; do
+            PACKAGE="release/$PLUGIN_NAME-$PLUGIN_VERSION-macos-$ARCH.pkg"
+            xcrun notarytool submit "$PACKAGE" \
+              --apple-id "$MACOS_NOTARIZATION_USERNAME" \
+              --password "$MACOS_NOTARIZATION_PASSWORD" \
+              --team-id "$CODESIGN_TEAM" \
+              --wait
+            xcrun stapler staple "$PACKAGE"
+          done
 
       - name: Upload Plugin Binary
         if: inputs.build-obs && inputs.build-onnxruntime
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: pluginbinary-${{ runner.os }}-universal-${{ github.run_id }}
+          name: pluginbinary-${{ runner.os }}-${{ github.run_id }}
           path: |
             release/*.pkg
             release/*.dSYM.tar.zst

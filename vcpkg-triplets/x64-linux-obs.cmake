@@ -1,9 +1,6 @@
-set(VCPKG_TARGET_ARCHITECTURE x64)
-set(VCPKG_CRT_LINKAGE dynamic)
-set(VCPKG_LIBRARY_LINKAGE static)
-
+set(VCPKG_C_FLAGS_RELEASE "${VCPKG_C_FLAGS_RELEASE} -fno-omit-frame-pointer -fstack-protector-strong -g")
 set(VCPKG_CMAKE_SYSTEM_NAME Linux)
-
-set(VCPKG_CMAKE_CONFIGURE_OPTIONS -DCMAKE_INSTALL_DO_STRIP=OFF)
-set(VCPKG_C_FLAGS_RELEASE "${VCPKG_C_FLAGS_RELEASE} -g -fno-omit-frame-pointer -fstack-protector-strong")
-set(VCPKG_CXX_FLAGS_RELEASE "${VCPKG_CXX_FLAGS_RELEASE} -g -fno-omit-frame-pointer -fstack-protector-strong")
+set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_CXX_FLAGS_RELEASE "${VCPKG_CXX_FLAGS_RELEASE} -fno-omit-frame-pointer -fstack-protector-strong -g")
+set(VCPKG_LIBRARY_LINKAGE static)
+set(VCPKG_TARGET_ARCHITECTURE x64)

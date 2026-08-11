@@ -121,7 +121,7 @@ jobs:
         id: ort-toolchain
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          HASH: ${{ hashFiles('src/required_operators_and_types.with_runtime_opt.config', 'scripts/build_ort_ubuntu.sh', 'scripts/ort_patches/*.patch') }}
+          HASH: ${{ hashFiles('src/required_operators.config', 'scripts/build_ort_ubuntu.sh', 'scripts/ort_patches/*.patch') }}
         run: |
           echo "HASH=$HASH" >> "$GITHUB_OUTPUT"
 

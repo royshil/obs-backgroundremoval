@@ -1,4 +1,5 @@
 .DS_Store
+.bin/
 .cache/
 .venv/
 .vscode/
@@ -14,3 +15,4 @@
 /release/
 /vcpkg/
 /*_lock.txt
+/macos-deps-*/

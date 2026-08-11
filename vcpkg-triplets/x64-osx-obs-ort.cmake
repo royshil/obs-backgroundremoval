@@ -1,4 +1,5 @@
 set(VCPKG_C_FLAGS_RELEASE "${VCPKG_C_FLAGS_RELEASE} -fno-omit-frame-pointer -fstack-protector-strong -g")
+set(VCPKG_CMAKE_CONFIGURE_OPTIONS -DCMAKE_CXX_STANDARD=20)
 set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
 set(VCPKG_CRT_LINKAGE dynamic)
 set(VCPKG_CXX_FLAGS_RELEASE "${VCPKG_CXX_FLAGS_RELEASE} -fno-omit-frame-pointer -fstack-protector-strong -g")

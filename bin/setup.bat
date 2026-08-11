@@ -25,11 +25,11 @@ if not defined VCPKG_ROOT (
 
 if /i "%VCPKG_ROOT%" == "%CD%\vcpkg" (
 	if not exist "%VCPKG_ROOT%" (
-		git clone --filter blob:none --branch "%buildspec_vcpkg_default_git_tag%" https://github.com/microsoft/vcpkg.git "%VCPKG_ROOT%" || (echo ERROR: vcpkg git clone failed. & endlocal & exit /b 1)
+		git clone --filter blob:none --branch "%buildspec_vcpkg_git_tag%" https://github.com/microsoft/vcpkg.git "%VCPKG_ROOT%" || (echo ERROR: vcpkg git clone failed. & endlocal & exit /b 1)
 	)
 
 	for /f "delims=" %%i in ('git -C vcpkg rev-parse HEAD') do (
-		if /i not "%%i" == "%buildspec_vcpkg_default_git_commit%" (
+		if /i not "%%i" == "%buildspec_vcpkg_git_commit%" (
 			echo ERROR: vcpkg commit hash mismatch. & endlocal & exit /b 1
 		)
 	)

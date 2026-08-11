@@ -104,7 +104,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: microsoft/vcpkg
-          ref: ${{ steps.buildspec.outputs.vcpkg_default_git_tag }}
+          ref: ${{ steps.buildspec.outputs.vcpkg_git_tag }}
           persist-credentials: false
           path: vcpkg
           filter: blob:none
@@ -113,7 +113,7 @@ jobs:
         shell: pwsh
         working-directory: vcpkg
         env:
-          GIT_COMMIT: ${{ steps.buildspec.outputs.vcpkg_default_git_commit }}
+          GIT_COMMIT: ${{ steps.buildspec.outputs.vcpkg_git_commit }}
         run: |
           $actualGitCommit = git rev-parse HEAD
           if ($actualGitCommit -ne $env:GIT_COMMIT) { throw "Git commit not match: expected $env:GIT_COMMIT, actual $actualGitCommit" }
@@ -267,7 +267,7 @@ jobs:
             ${{ hashFiles(
               'buildspec.props',
               'scripts/BuildOnnxRuntime.psm1',
-              'src/required_operators_and_types.with_runtime_opt.config',
+              'src/required_operators.config',
               'scripts/ort_patches/*.patch'
             ) }}
         run: |
