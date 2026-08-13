@@ -9,33 +9,140 @@ name: Push (main) CI
 on:
   push:
     branches: [main]
+  workflow_call:
+    inputs:
+      release-build:
+        description: Build in release mode.
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      WINDOWS_X64_RAW_ARTIFACT:
+        value: ${{ jobs.build-windows-x64.outputs.raw-artifact }}
+      MACOS_ARM64_DSYM_ARTIFACT:
+        value: ${{ jobs.build-macos-arm64.outputs.dsym-artifact }}
+      MACOS_ARM64_PKG_ARTIFACT:
+        value: ${{ jobs.build-macos-arm64.outputs.pkg-artifact }}
+      MACOS_X86_64_DSYM_ARTIFACT:
+        value: ${{ jobs.build-macos-x86_64.outputs.dsym-artifact }}
+      MACOS_X86_64_PKG_ARTIFACT:
+        value: ${{ jobs.build-macos-x86_64.outputs.pkg-artifact }}
+      DEBIAN_FORKY_AMD64_DEB_ARTIFACT:
+        value: ${{ jobs.build-debian-amd64.outputs.forky-deb-artifact }}
+      DEBIAN_FORKY_AMD64_DDEB_ARTIFACT:
+        value: ${{ jobs.build-debian-amd64.outputs.forky-ddeb-artifact }}
+      DEBIAN_FORKY_ARM64_DEB_ARTIFACT:
+        value: ${{ jobs.build-debian-arm64.outputs.forky-deb-artifact }}
+      DEBIAN_FORKY_ARM64_DDEB_ARTIFACT:
+        value: ${{ jobs.build-debian-arm64.outputs.forky-ddeb-artifact }}
+      UBUNTU_RESOLUTE_AMD64_DEB_ARTIFACT:
+        value: ${{ jobs.build-ubuntu-amd64.outputs.resolute-deb-artifact }}
+      UBUNTU_RESOLUTE_AMD64_DDEB_ARTIFACT:
+        value: ${{ jobs.build-ubuntu-amd64.outputs.resolute-ddeb-artifact }}
+      UBUNTU_RESOLUTE_ARM64_DEB_ARTIFACT:
+        value: ${{ jobs.build-ubuntu-arm64.outputs.resolute-deb-artifact }}
+      UBUNTU_RESOLUTE_ARM64_DDEB_ARTIFACT:
+        value: ${{ jobs.build-ubuntu-arm64.outputs.resolute-ddeb-artifact }}
 
 permissions: {}
 
 jobs:
-  build-plugin-macos:
-    uses: ./.github/workflows/build-plugin-macos.yml
+  build-windows-x64:
+    uses: ./.github/workflows/build-windows.yml
     permissions:
       artifact-metadata: write
       attestations: write
       contents: read
       id-token: write
     with:
-      runs-on: macos-15
-      DEVELOPER_DIR: /Applications/Xcode_16.4.app
-      osx-deploy-target: '12.0'
       upload-artifacts: true
+      attest-artifacts: true
+      runs-on: windows-2022
+      windows-sdk-version: '10.0.22621'
 
-  build-plugin-macos-x86_64:
-    uses: ./.github/workflows/build-plugin-macos.yml
+  build-macos-arm64:
+    uses: ./.github/workflows/build-macos.yml
+    secrets: inherit
     permissions:
       artifact-metadata: write
       attestations: write
       contents: read
       id-token: write
     with:
+      upload-artifacts: true
+      attest-artifacts: true
+      notarize: ${{ inputs.release-build || false }}
+      x86_64: false
       runs-on: macos-15
       DEVELOPER_DIR: /Applications/Xcode_16.4.app
       osx-deploy-target: '12.0'
+
+  build-macos-x86_64:
+    uses: ./.github/workflows/build-macos.yml
+    secrets: inherit
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+    with:
       upload-artifacts: true
+      attest-artifacts: true
+      notarize: ${{ inputs.release-build || false }}
       x86_64: true
+      runs-on: macos-15
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app
+      osx-deploy-target: '12.0'
+
+  build-debian-amd64:
+    uses: ./.github/workflows/build-debian.yml
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+    with:
+      upload-artifacts: true
+      attest-artifacts: true
+      arm64: false
+
+  build-debian-arm64:
+    uses: ./.github/workflows/build-debian.yml
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+    with:
+      upload-artifacts: true
+      attest-artifacts: true
+      arm64: true
+
+  build-ubuntu-amd64:
+    uses: ./.github/workflows/build-ubuntu.yml
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+    with:
+      upload-artifacts: true
+      attest-artifacts: true
+      arm64: false
+
+  build-ubuntu-arm64:
+    uses: ./.github/workflows/build-ubuntu.yml
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+    with:
+      upload-artifacts: true
+      attest-artifacts: true
+      arm64: true
+
+  build-arch:
+    uses: ./.github/workflows/build-arch.yml
+    permissions:
+      contents: read

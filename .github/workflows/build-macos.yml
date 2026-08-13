@@ -1,0 +1,589 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build (macOS)
+
+on:
+  workflow_call:
+    inputs:
+      upload-artifacts:
+        description: Uploads artifacts.
+        required: true
+        type: boolean
+      attest-artifacts:
+        description: Attests artifacts.
+        required: true
+        type: boolean
+      notarize:
+        description: Notarizes pkg.
+        required: true
+        type: boolean
+      x86_64:
+        description: Builds for x86_64.
+        required: true
+        type: boolean
+        default: false
+      runs-on:
+        description: GitHub Actions runner label.
+        required: true
+        type: string
+      DEVELOPER_DIR:
+        description: Xcode developer directory.
+        required: true
+        type: string
+      osx-deploy-target:
+        description: Minimum macOS deployment target.
+        required: true
+        type: string
+
+    secrets:
+      MACOS_NOTARIZATION_PASSWORD:
+        required: false
+      MACOS_NOTARIZATION_USERNAME:
+        required: false
+      MACOS_SIGNING_APPLICATION_IDENTITY:
+        required: false
+      MACOS_SIGNING_CERT_PASSWORD:
+        required: false
+      MACOS_SIGNING_CERT:
+        required: false
+      MACOS_SIGNING_INSTALLER_IDENTITY:
+        required: false
+
+    outputs:
+      dsym-artifact:
+        description: dSYM archive for macOS.
+        value: ${{ jobs.build.outputs.DSYM_ARTIFACT_NAME }}
+      pkg-artifact:
+        description: PKG artifact for macOS.
+        value: ${{ jobs.build.outputs.PKG_ARTIFACT_NAME }}
+
+env:
+  HOMEBREW_NO_ANALYTICS: '1'
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_ENV_HINTS: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
+  VCPKG_BINARY_SOURCES: clear;http,https://vcpkg-obs.kaito.tokyo/{sha},read
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 180
+
+    outputs:
+      DSYM_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
+      PKG_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+
+    env:
+      CCACHE_ORT_DIR: .ccache_ort
+      CMAKE_OSX_ARCHITECTURES: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
+      CMAKE_OSX_DEPLOYMENT_TARGET: ${{ inputs.osx-deploy-target }}
+      DEVELOPER_DIR: ${{ inputs.DEVELOPER_DIR }}
+      VCPKG_BINARY_SOURCES: clear;http,https://vcpkg-obs.kaito.tokyo/{sha},read
+      VCPKG_ORT_TARGET_TRIPLET: ${{ inputs.x86_64 && 'x64-osx-obs-ort' || 'arm64-osx-obs-ort' }}
+      VCPKG_ROOT: ${{ github.workspace }}/vendor/vcpkg
+      VCPKG_TARGET_TRIPLET: ${{ inputs.x86_64 && 'x64-osx-obs' || 'arm64-osx-obs' }}
+
+    steps:
+      - name: Print macOS version
+        id: macos-version
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          printf 'MACOS_PRODUCT_VERSION=%s\n' "$(sw_vers -productVersion)" | tee -a "${GITHUB_OUTPUT:?}"
+
+      - name: Print Xcode version
+        id: xcode-version
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          printf 'XCODE_VERSION=%s\n' "$(xcodebuild -version | awk 'NR == 1 { print $2 }')" | tee -a "${GITHUB_OUTPUT:?}"
+          printf 'XCODE_BUILD_VERSION=%s\n' "$(xcodebuild -version | awk 'NR == 2 { print $3 }')" | tee -a "${GITHUB_OUTPUT:?}"
+
+      - name: Install pkgconf (macOS)
+        id: pkgconf
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          brew install pkgconf
+          printf 'PKGCONF_BINDIR=%s\n' "$(brew --prefix pkgconf)/bin" >>"${GITHUB_OUTPUT:?}"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+
+      - name: Checkout submodules
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg vendor/onnxruntime
+
+      - name: Load VERSION
+        id: version
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        run: |
+          $PLUGIN_VERSION = (Get-Content -Raw -LiteralPath VERSION).Trim()
+          "PLUGIN_VERSION=$PLUGIN_VERSION"
+          Add-Content -Value "PLUGIN_VERSION=$PLUGIN_VERSION" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+
+      - name: Load buildspec.props
+        id: buildspec
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        run: |
+          foreach ($entry in (Get-Content -LiteralPath buildspec.props -Raw | ConvertFrom-StringData).GetEnumerator()) {
+            Add-Content -Value "$($entry.Key)=$($entry.Value)" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+          }
+
+      - name: Print expected artifact names (macOS)
+        id: expected-artifacts
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          ARCH: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
+          PLUGIN_VERSION: ${{ steps.version.outputs.PLUGIN_VERSION }}
+        run: |
+          printf 'DSYM_ARTIFACT_NAME=obs-backgroundremoval_%s_%s.plugin.dSYM.tar.xz\n' "${PLUGIN_VERSION:?}" "${ARCH:?}" | tee -a "${GITHUB_OUTPUT:?}"
+          printf 'PKG_ARTIFACT_NAME=obs-backgroundremoval_%s_%s.pkg\n' "${PLUGIN_VERSION:?}" "${ARCH:?}" | tee -a "${GITHUB_OUTPUT:?}"
+
+      - name: Initialize JOB_TEMP (macOS)
+        id: job-temp
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          JOB_TEMP="$(mktemp -d -t "${GITHUB_JOB:?}-${GITHUB_RUN_ID:?}.XXXXXXX")"
+          printf 'JOB_TEMP=%s\n' "${JOB_TEMP:?}" >>"${GITHUB_OUTPUT:?}"
+
+      # BEGIN: Set up toolchains
+
+      - name: Run bootstrap-vcpkg.sh
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          ENVS=(
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH=/usr/bin:/bin
+            VCPKG_ROOT="${VCPKG_ROOT:?}"
+          )
+          /usr/bin/env -i "${ENVS[@]}" "${VCPKG_ROOT:?}/bootstrap-vcpkg.sh" -disableMetrics
+
+      - name: Fetch vcpkg tools (macOS)
+        id: vcpkg-tools
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          ENVS=(
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH=/usr/bin:/bin
+            VCPKG_ROOT="${VCPKG_ROOT:?}"
+          )
+
+          CMAKE_COMMAND="$(/usr/bin/env -i "${ENVS[@]}" "${VCPKG_ROOT:?}/vcpkg" fetch cmake | tail -n1)"
+          NINJA_COMMAND="$(/usr/bin/env -i "${ENVS[@]}" "${VCPKG_ROOT:?}/vcpkg" fetch ninja | tail -n1)"
+
+          printf 'CMAKE_COMMAND=%s\n' "${CMAKE_COMMAND:?}" | tee -a "${GITHUB_OUTPUT:?}"
+          printf 'NINJA_COMMAND=%s\n' "${NINJA_COMMAND:?}" | tee -a "${GITHUB_OUTPUT:?}"
+
+      - name: Set up ccache (macOS)
+        id: setup-ccache
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          DESTDIR: ${{ github.workspace }}/.deps/ccache
+          JOB_TEMP: ${{ steps.job-temp.outputs.JOB_TEMP }}
+          VERSION: ${{ steps.buildspec.outputs.ccache_macos_version }}
+          URL: ${{ steps.buildspec.outputs.ccache_macos_url }}
+          SHA256: ${{ steps.buildspec.outputs.ccache_macos_sha256 }}
+        run: |
+          "${CMAKE_COMMAND:?}" -P scripts/download-deps.cmake
+          CCACHE_COMMAND="${DESTDIR:?}/ccache-${VERSION:?}-darwin/ccache"
+          chmod 755 "${CCACHE_COMMAND:?}"
+          printf 'CCACHE_COMMAND=%s\n' "${CCACHE_COMMAND:?}" | tee -a "${GITHUB_OUTPUT:?}"
+          printf 'CCACHE_VERSION=%s\n' "${VERSION:?}" | tee -a "${GITHUB_OUTPUT:?}"
+
+      - name: Set up obs-deps (macOS)
+        id: setup-obs-deps
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          JOB_TEMP: ${{ steps.job-temp.outputs.JOB_TEMP }}
+          DESTDIR: ${{ github.workspace }}/.deps/obs-deps
+          STAMP: ${{ github.workspace }}/vendor/obs-studio/.deps/.dependency_prebuilt_universal.sha256
+          URL: ${{ steps.buildspec.outputs.prebuilt_macos_url }}
+          SHA256: ${{ steps.buildspec.outputs.prebuilt_macos_sha256 }}
+        run: |
+          & $env:CMAKE_COMMAND -P scripts/download-deps.cmake
+
+          New-Item (Split-Path $env:STAMP -Parent) -ItemType Directory -Force
+          Set-Content -LiteralPath $env:STAMP -Value $env:SHA256 -NoNewline
+
+          "OBS_DEPS_PREFIX=$env:DESTDIR"
+          Add-Content -Value "OBS_DEPS_PREFIX=$env:DESTDIR" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+
+      - name: Set up obs-deps-qt6 (macOS)
+        id: setup-obs-deps-qt6
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          JOB_TEMP: ${{ steps.job-temp.outputs.JOB_TEMP }}
+          DESTDIR: ${{ github.workspace }}/.deps/obs-deps-qt6
+          STAMP: ${{ github.workspace }}/vendor/obs-studio/.deps/.dependency_qt6_universal.sha256
+          URL: ${{ steps.buildspec.outputs.qt6_macos_url }}
+          SHA256: ${{ steps.buildspec.outputs.qt6_macos_sha256 }}
+        run: |
+          & $env:CMAKE_COMMAND -P scripts/download-deps.cmake
+
+          New-Item (Split-Path $env:STAMP -Parent) -ItemType Directory -Force
+          Set-Content -LiteralPath $env:STAMP -Value $env:SHA256 -NoNewline
+
+          "OBS_DEPS_QT6_PREFIX=$env:DESTDIR"
+          Add-Content -Value "OBS_DEPS_QT6_PREFIX=$env:DESTDIR" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
+
+      # END: Set up toolchains
+
+      - name: Configure obs-studio (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          CMAKE_PREFIX_PATH: ${{ steps.setup-obs-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-obs-deps-qt6.outputs.OBS_DEPS_QT6_PREFIX }}
+          OBS_VERSION_OVERRIDE: ${{ steps.buildspec.outputs.obs_studio_git_tag }}
+        run: |
+          ENVS=(
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
+          )
+
+          /usr/bin/env -i "${ENVS[@]}" \
+            "${CMAKE_COMMAND:?}" \
+            -S "${GITHUB_WORKSPACE:?}/vendor/obs-studio" \
+            -B "${GITHUB_WORKSPACE:?}/build_obs" \
+            -G Xcode \
+            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE:?}/obs_installed" \
+            -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
+            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:?}" \
+            -DENABLE_FRONTEND=OFF \
+            -DENABLE_PLUGINS=OFF \
+            -DOBS_CMAKE_VERSION=3.0.0 \
+            -DOBS_VERSION_OVERRIDE="${OBS_VERSION_OVERRIDE:?}"
+
+      - name: Build obs-studio (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+        run: |
+          ENVS=(
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
+          )
+
+          /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND:?}" --build build_obs --target obs-frontend-api --config Release --parallel
+
+      - name: Install obs-studio (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+        run: |
+          "${CMAKE_COMMAND:?}" --install build_obs --component Development --config Release --prefix obs_installed
+
+      - name: Install vcpkg dependencies (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          PKGCONF_BINDIR: ${{ steps.pkgconf.outputs.PKGCONF_BINDIR }}
+        run: |
+          ENVS=(
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH="${PKGCONF_BINDIR:?}:/usr/bin:/bin"
+            VCPKG_BINARY_SOURCES="${VCPKG_BINARY_SOURCES:?}"
+            VCPKG_ROOT="${VCPKG_ROOT:?}"
+          )
+          /usr/bin/env -i "${ENVS[@]}" "${VCPKG_ROOT:?}/vcpkg" install --triplet="${VCPKG_TARGET_TRIPLET:?}"
+
+      - name: Install vcpkg_ort dependencies (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          PKGCONF_BINDIR: ${{ steps.pkgconf.outputs.PKGCONF_BINDIR }}
+        run: |
+          ENVS=(
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH="${PKGCONF_BINDIR:?}:/usr/bin:/bin"
+            VCPKG_BINARY_SOURCES="${VCPKG_BINARY_SOURCES:?}"
+            VCPKG_ROOT="${VCPKG_ROOT:?}"
+          )
+          /usr/bin/env -i "${ENVS[@]}" \
+            "${VCPKG_ROOT:?}/vcpkg" install \
+            --triplet="${VCPKG_ORT_TARGET_TRIPLET:?}" \
+            --overlay-triplets="${GITHUB_WORKSPACE:?}/vcpkg-triplets" \
+            --x-feature=coreml-ep \
+            --x-install-root="${GITHUB_WORKSPACE:?}/vcpkg_ort_installed" \
+            --x-manifest-root="${GITHUB_WORKSPACE:?}/vendor/onnxruntime/cmake"
+
+      - name: Restore ccache_ort (macOS)
+        id: ccache_ort
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_ORT_DIR }}
+          key: ccache_ort-v1--${{ runner.os }}-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}-${{ steps.macos-version.outputs.MACOS_PRODUCT_VERSION }}-${{ steps.xcode-version.outputs.XCODE_VERSION }}-${{ steps.xcode-version.outputs.XCODE_BUILD_VERSION }}-${{ steps.setup-ccache.outputs.CCACHE_VERSION }}-${{ inputs.osx-deploy-target }}--${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ccache_ort-v1--${{ runner.os }}-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}-${{ steps.macos-version.outputs.MACOS_PRODUCT_VERSION }}-${{ steps.xcode-version.outputs.XCODE_VERSION }}-${{ steps.xcode-version.outputs.XCODE_BUILD_VERSION }}-${{ steps.setup-ccache.outputs.CCACHE_VERSION }}-${{ inputs.osx-deploy-target }}--${{ github.run_id }}-
+            ccache_ort-v1--${{ runner.os }}-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}-${{ steps.macos-version.outputs.MACOS_PRODUCT_VERSION }}-${{ steps.xcode-version.outputs.XCODE_VERSION }}-${{ steps.xcode-version.outputs.XCODE_BUILD_VERSION }}-${{ steps.setup-ccache.outputs.CCACHE_VERSION }}-${{ inputs.osx-deploy-target }}--
+
+      - name: Reset ccache_ort stats
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CCACHE_COMMAND: ${{ steps.setup-ccache.outputs.CCACHE_COMMAND }}
+          CCACHE_DIR: ${{ github.workspace }}/${{ env.CCACHE_ORT_DIR }}
+        run: '"${CCACHE_COMMAND:?}" --zero-stats'
+
+      - name: Generate reduced operators for onnxruntime (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          REDUCED_OPS_CONFIG_PATH: ${{ steps.buildspec.outputs.onnxruntime_reduced_ops_config }}
+        run: |
+          /usr/bin/python3 -m pip install --user -r requirements-build.txt
+          /usr/bin/python3 vendor/onnxruntime/tools/ci_build/reduce_op_kernels.py \
+            "${REDUCED_OPS_CONFIG_PATH:?}" \
+            --cmake_build_dir build_ort \
+            --is_extended_minimal_build_or_higher
+
+      - name: Configure onnxruntime (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CCACHE_COMMAND: ${{ steps.setup-ccache.outputs.CCACHE_COMMAND }}
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          NINJA_COMMAND: ${{ steps.vcpkg-tools.outputs.NINJA_COMMAND }}
+          PKGCONF_BINDIR: ${{ steps.pkgconf.outputs.PKGCONF_BINDIR }}
+        run: |
+          ENVS=(
+            CCACHE_BASEDIR="${GITHUB_WORKSPACE:?}"
+            CCACHE_DIR="${GITHUB_WORKSPACE:?}/${CCACHE_ORT_DIR:?}"
+            CCACHE_SLOPPINESS=include_file_mtime,time_macros
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH="${PKGCONF_BINDIR:?}:${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
+          )
+
+          /usr/bin/env -i "${ENVS[@]}" \
+            "${CMAKE_COMMAND:?}" -S vendor/onnxruntime/cmake -B build_ort -G Ninja \
+            --compile-no-warning-as-error \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=${CCACHE_COMMAND:?} \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=${CCACHE_COMMAND:?} \
+            -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+            -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT:?}/scripts/buildsystems/vcpkg.cmake" \
+            -DPython_EXECUTABLE="/usr/bin/python3" \
+            -DVCPKG_INSTALLED_DIR="${GITHUB_WORKSPACE:?}/vcpkg_ort_installed" \
+            -DVCPKG_MANIFEST_INSTALL=OFF \
+            -DVCPKG_OVERLAY_TRIPLETS="${GITHUB_WORKSPACE:?}/vcpkg-triplets" \
+            -DVCPKG_TARGET_TRIPLET="${VCPKG_ORT_TARGET_TRIPLET:?}" \
+            -Donnxruntime_BUILD_SHARED_LIB=OFF \
+            -Donnxruntime_BUILD_UNIT_TESTS=OFF \
+            -Donnxruntime_DISABLE_RTTI=OFF \
+            -Donnxruntime_REDUCED_OPS_BUILD=ON \
+            -Donnxruntime_RUN_ONNX_TESTS=OFF \
+            -Donnxruntime_USE_COREML=ON \
+            -Donnxruntime_USE_VCPKG=ON
+
+      - name: Build onnxruntime (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          NINJA_COMMAND: ${{ steps.vcpkg-tools.outputs.NINJA_COMMAND }}
+        run: |
+          ENVS=(
+            CCACHE_BASEDIR="${GITHUB_WORKSPACE:?}"
+            CCACHE_DIR="${GITHUB_WORKSPACE:?}/${CCACHE_ORT_DIR:?}"
+            CCACHE_SLOPPINESS=include_file_mtime,time_macros
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
+          )
+          /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND:?}" --build build_ort --config Release --parallel
+
+      - name: Install onnxruntime (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+        run: |
+          "${CMAKE_COMMAND:?}" --install build_ort --prefix ort_installed
+
+      - name: Save ccache_ort
+        if: success() && steps.ccache_ort.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_ORT_DIR }}
+          key: ${{ steps.ccache_ort.outputs.cache-primary-key }}
+
+      - name: Show ccache_ort stats
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CCACHE_COMMAND: ${{ steps.setup-ccache.outputs.CCACHE_COMMAND }}
+          CCACHE_DIR: ${{ github.workspace }}/${{ env.CCACHE_ORT_DIR }}
+        run: '"${CCACHE_COMMAND:?}" --show-stats | tee -a "${GITHUB_STEP_SUMMARY:?}"'
+
+      - name: Configure (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          NINJA_COMMAND: ${{ steps.vcpkg-tools.outputs.NINJA_COMMAND }}
+          CMAKE_PREFIX_PATH: ${{ steps.setup-obs-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-obs-deps-qt6.outputs.OBS_DEPS_QT6_PREFIX }};${{ github.workspace }}/obs_installed;${{ github.workspace }}/obs_installed/Frameworks;${{ github.workspace }}/vcpkg_ort_installed/${{ env.VCPKG_ORT_TARGET_TRIPLET }};${{ github.workspace }}/ort_installed;${{ github.workspace }}/vcpkg_installed/${{ env.VCPKG_TARGET_TRIPLET }}
+        run: |
+          ENVS=(
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
+          )
+          /usr/bin/env -i "${ENVS[@]}" \
+            "${CMAKE_COMMAND:?}" -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
+            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:?}"
+
+      - name: Build (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          NINJA_COMMAND: ${{ steps.vcpkg-tools.outputs.NINJA_COMMAND }}
+        run: |
+          ENVS=(
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
+          )
+          /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND:?}" --build build --config RelWithDebInfo --parallel
+
+      - name: Extract dSYM
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          DSYM_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
+        run: |
+          dsymutil build/obs-backgroundremoval.plugin/Contents/MacOS/obs-backgroundremoval -o obs-backgroundremoval.plugin.dSYM
+          COPYFILE_DISABLE=1 tar -cJf "${DSYM_ARTIFACT_NAME:?}" --no-mac-metadata --no-xattrs obs-backgroundremoval.plugin.dSYM
+
+      - name: Attest dSYM artifact (macOS)
+        if: inputs.upload-artifacts && inputs.attest-artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
+
+      - name: Upload dSYM artifact (macOS)
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
+          archive: false
+          if-no-files-found: error
+
+      - name: Set up Apple code signing
+        id: setup-codesign
+        if: inputs.upload-artifacts && inputs.attest-artifacts
+        uses: kaito-tokyo/setup-apple-codesigning@b9f7d7c6819fe6f6bb44694b75963918dcbddd27 # v1.0.0
+        with:
+          MACOS_SIGNING_CERT: ${{ secrets.MACOS_SIGNING_CERT }}
+          MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+
+      - name: Package signed pkg (macOS)
+        if: inputs.upload-artifacts && inputs.attest-artifacts
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          MACOS_SIGNING_APPLICATION_IDENTITY: ${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}
+          MACOS_SIGNING_INSTALLER_IDENTITY: ${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}
+          PKG_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+          PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.plugin_bundle_id }}
+          PLUGIN_VERSION: ${{ steps.version.outputs.PLUGIN_VERSION }}
+        run: |
+          mkdir -p build_pkg
+
+          "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix build_prefix --strip
+
+          codesign \
+            --force \
+            --sign "${MACOS_SIGNING_APPLICATION_IDENTITY:?}" \
+            --options runtime \
+            --timestamp \
+            'build_prefix/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin'
+
+          pkgbuild \
+            --root build_prefix \
+            --identifier "${PLUGIN_BUNDLE_ID:?}" \
+            --version "${PLUGIN_VERSION:?}" \
+            --install-location / \
+            build_pkg/component.pkg
+
+          productbuild \
+            --distribution build/Distribution \
+            --package-path build_pkg \
+            --resources . \
+            --sign "${MACOS_SIGNING_INSTALLER_IDENTITY:?}" \
+            "${PKG_ARTIFACT_NAME:?}"
+
+      - name: Attest signed pkg (macOS)
+        if: inputs.upload-artifacts && inputs.attest-artifacts && !inputs.notarize
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+
+      - name: Notarize signed pkg
+        if: inputs.upload-artifacts && inputs.attest-artifacts && inputs.notarize
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CODESIGN_TEAM: ${{ steps.setup-codesign.outputs.CODESIGN_TEAM }}
+          MACOS_NOTARIZATION_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
+          MACOS_NOTARIZATION_USERNAME: ${{ secrets.MACOS_NOTARIZATION_USERNAME }}
+          PKG_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+        run: |
+          xcrun notarytool submit "${PKG_ARTIFACT_NAME:?}" \
+            --apple-id "${MACOS_NOTARIZATION_USERNAME:?}" \
+            --password "${MACOS_NOTARIZATION_PASSWORD:?}" \
+            --team-id "${CODESIGN_TEAM:?}" \
+            --wait
+          xcrun stapler staple "${PKG_ARTIFACT_NAME:?}"
+          xcrun stapler validate "${PKG_ARTIFACT_NAME:?}"
+          spctl --assess --type install --verbose=2 "${PKG_ARTIFACT_NAME:?}"
+
+      - name: Attest notarized pkg (macOS)
+        if: inputs.upload-artifacts && inputs.attest-artifacts && inputs.notarize
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+
+      - name: Package unsigned pkg (macOS)
+        if: inputs.upload-artifacts && !inputs.attest-artifacts
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+          PKG_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+          PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.plugin_bundle_id }}
+          PLUGIN_VERSION: ${{ steps.version.outputs.PLUGIN_VERSION }}
+        run: |
+          mkdir -p build_pkg
+
+          "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix build_prefix --strip
+
+          pkgbuild \
+            --root build_prefix \
+            --identifier "${PLUGIN_BUNDLE_ID:?}" \
+            --version "${PLUGIN_VERSION:?}" \
+            --install-location / \
+            build_pkg/component.pkg
+
+          productbuild \
+            --distribution build/Distribution \
+            --package-path build_pkg \
+            --resources . \
+            "${PKG_ARTIFACT_NAME:?}"
+
+      - name: Upload pkg artifact (macOS)
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+          archive: false
+          if-no-files-found: error
+
+      # END: Production process

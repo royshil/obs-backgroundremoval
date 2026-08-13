@@ -4,7 +4,6 @@
 .venv/
 .vscode/
 /.ccache*/
-/.deps_vendor/
 /.deps/
 /.vcpkg_archives/
 /*_installed/
@@ -15,4 +14,3 @@
 /release/
 /vcpkg/
 /*_lock.txt
-/macos-deps-*/

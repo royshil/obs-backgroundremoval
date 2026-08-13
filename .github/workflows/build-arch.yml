@@ -1,0 +1,107 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build (Arch)
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: Arch Linux Docker image to build for.
+        required: false
+        type: string
+        default: archlinux:base-devel
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    container: ${{ inputs.image }}
+
+    steps:
+      - name: Prepare runner image (Arch)
+        shell: /bin/sh -eu {0}
+        run: useradd -m -U runner
+
+      - name: Install build dependencies (Arch)
+        shell: /bin/sh -eu {0}
+        run: |
+          pacman --disable-sandbox --needed --noconfirm -Sy \
+            cmake \
+            curl \
+            ninja \
+            obs-studio \
+            onnxruntime \
+            opencv
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure (Arch)
+        shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
+        working-directory: /home/runner
+        run: |
+          cmake -S "${GITHUB_WORKSPACE:?}" -B build -G Ninja \
+            "-DCMAKE_BUILD_TYPE=RelWithDebInfo" \
+            "-DCMAKE_INSTALL_PREFIX=/usr"
+
+      - name: Build (Arch)
+        shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
+        working-directory: /home/runner
+        run: cmake --build build --config RelWithDebInfo --parallel
+
+      - name: Install (Arch)
+        shell: /bin/sh -eu {0}
+        working-directory: /home/runner
+        run: cmake --install build --config RelWithDebInfo --prefix /usr
+
+      - name: Install test dependencies (Arch)
+        shell: /bin/sh -eu {0}
+        run: pacman --disable-sandbox --needed --noconfirm -Sy openbsd-netcat ruby ruby-base64 xorg-server-xvfb
+
+      - name: Test (Arch)
+        shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
+        working-directory: /home/runner
+        env:
+          XDG_CONFIG_HOME: /home/runner/.config
+        run: |
+          rm -rf "${XDG_CONFIG_HOME:?}/obs-studio"
+          mkdir -p "${XDG_CONFIG_HOME:?}/obs-studio/plugin_config/obs-websocket" && \
+          printf '{
+            "alerts_enabled": false,
+            "auth_required": true,
+            "first_load": false,
+            "server_enabled": true,
+            "server_password": "DUMMY_PASSWORD",
+            "server_port":4455
+          }\n' >"${XDG_CONFIG_HOME:?}/obs-studio/plugin_config/obs-websocket/config.json"
+
+          xvfb-run -a obs >obs.log 2>&1 &
+          obs_pid=${!:?}
+          cleanup() {
+            status=${?:?}
+            trap - EXIT
+            kill "${obs_pid:?}" 2>/dev/null || true
+            wait "${obs_pid:?}" 2>/dev/null || true
+            exit "${status:?}"
+          }
+          trap cleanup EXIT
+
+          timeout 30s /bin/sh -c 'until nc -z 127.0.0.1 4455; do sleep 1; done'
+          ruby -I "${GITHUB_WORKSPACE:?}/scripts" -r ws_client -e '
+          WSClient.open("127.0.0.1", 4455, "DUMMY_PASSWORD") do |client|
+            filters = client.call("GetSourceFilterKindList")["sourceFilterKinds"]
+            abort filters.inspect unless %w[background_removal enhanceportrait].all? { filters.include?(_1) }
+            puts "Plugin loaded successfully: background_removal, enhanceportrait"
+          end
+          '
+
+      - name: Show test log (Arch)
+        if: always()
+        shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
+        run: cat /home/runner/obs.log

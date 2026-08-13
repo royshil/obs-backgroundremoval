@@ -46,21 +46,24 @@ if [[ "${PLUGIN_BUILD_DIR}" == / ]]; then
 fi
 
 targets=(
-  "${PLUGIN_BUILD_DIR}"/macos-deps-*
-  "${PLUGIN_BUILD_DIR}/.bin"
+  "${PLUGIN_BUILD_DIR}/.deps"
   "${PLUGIN_BUILD_DIR}/.venv"
+  "${PLUGIN_BUILD_DIR}/build"
   "${PLUGIN_BUILD_DIR}/build_obs"
   "${PLUGIN_BUILD_DIR}/build_ort"
   "${PLUGIN_BUILD_DIR}/build_prefix"
-  "${PLUGIN_BUILD_DIR}/build"
   "${PLUGIN_BUILD_DIR}/obs_installed"
-  "${PLUGIN_BUILD_DIR}/obs-studio"
-  "${PLUGIN_BUILD_DIR}/onnxruntime"
   "${PLUGIN_BUILD_DIR}/ort_installed"
   "${PLUGIN_BUILD_DIR}/release"
   "${PLUGIN_BUILD_DIR}/vcpkg_installed"
   "${PLUGIN_BUILD_DIR}/vcpkg_ort_installed"
-  "${PLUGIN_BUILD_DIR}/vcpkg"
+  "${PLUGIN_BUILD_DIR}/vendor/obs-studio/.deps"
+  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/buildtrees"
+  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/downloads"
+  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/installed"
+  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/packages"
+  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/vcpkg"
+  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/vcpkg.disable-metrics"
 )
 
 if ! [[ "${OPT_FORCE:-0}" == 1 ]]; then
