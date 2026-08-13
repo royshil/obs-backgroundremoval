@@ -2,31 +2,33 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-vcpkg_default_git_tag=2026.07.29
-vcpkg_default_git_commit=9e593bb18ea69cc5095e012465dcd675a822ed0d
+vcpkg_git_tag=2025.08.27
+vcpkg_git_commit=120deac3062162151622ca4860575a33844ba10b
 
 obs_studio_git_tag=31.1.1
 obs_studio_git_commit=a32b3f9f6d5e1cf6fa0f8105a2ed46ec0b4d991c
 
+prebuilt_windows_x64_name=windows-deps-2025-07-11-x64
 prebuilt_windows_x64_url=https://github.com/obsproject/obs-deps/releases/download/2025-07-11/windows-deps-2025-07-11-x64.zip
 prebuilt_windows_x64_sha256=c8c642c1070dc31ce9a0f1e4cef5bb992f4bff4882255788b5da12129e85caa7
 
+prebuilt_macos_name=macos-deps-2025-07-11-universal
 prebuilt_macos_url=https://github.com/obsproject/obs-deps/releases/download/2025-07-11/macos-deps-2025-07-11-universal.tar.xz
 prebuilt_macos_sha256=495687e63383d1a287684b6e2e9bfe246bb8f156fe265926afb1a325af1edd2a
 
+qt6_windows_x64_name=windows-deps-qt6-2025-07-11-x64
 qt6_windows_x64_url=https://github.com/obsproject/obs-deps/releases/download/2025-07-11/windows-deps-qt6-2025-07-11-x64.zip
 qt6_windows_x64_sha256=0e76bf0555dd5382838850b748d3dcfab44a1e1058441309ab54e1a65b156d0a
 
+qt6_macos_name=macos-deps-qt6-2025-07-11-universal
 qt6_macos_url=https://github.com/obsproject/obs-deps/releases/download/2025-07-11/macos-deps-qt6-2025-07-11-universal.tar.xz
 qt6_macos_sha256=d3f5f04b6ea486e032530bdf0187cbda9a54e0a49621a4c8ba984c5023998867
+
+ccache_macos_version=4.13.6
+ccache_macos_url=https://github.com/ccache/ccache/releases/download/v4.13.6/ccache-4.13.6-darwin.tar.gz
+ccache_macos_sha256=0274210ec9c9936ed5711d59b0de3167a51216a588ddde35f6bc828f366fe6d9
 
 onnxruntime_git_tag=v1.28.0
 onnxruntime_git_commit=da9b5e364c465de65c49d91e696cd6485270757f
 
-onnxruntime_reduced_ops_config=src/required_operators_and_types.with_runtime_opt.config
-
-vcpkg_ort_git_tag=2025.08.27
-vcpkg_ort_git_commit=120deac3062162151622ca4860575a33844ba10b
-
-onnxruntime_pwsh_windows_x64_url=https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/PowerShell-7.5.4-win-x64.zip
-onnxruntime_pwsh_windows_x64_sha384=8f3f9439d4265c315c13f04cf95739d00637b13cf7b43c94cc5b63cbfd6f2144d146bbedf9171742c207f2c04be46c8c
+onnxruntime_reduced_ops_config=src/required_operators.config

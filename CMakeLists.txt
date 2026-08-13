@@ -88,17 +88,6 @@ if(MSVC)
     "${PLUGIN_BUILD_DIR}/ort_installed"
     "${PLUGIN_BUILD_DIR}/vcpkg_installed/x64-windows-static-md-obs"
   )
-elseif(APPLE)
-  list(
-    PREPEND CMAKE_PREFIX_PATH
-    "${PLUGIN_BUILD_DIR}/.deps/obs-deps-prebuilt"
-    "${PLUGIN_BUILD_DIR}/.deps/obs-deps-qt6"
-    "${PLUGIN_BUILD_DIR}/obs_installed"
-    "${PLUGIN_BUILD_DIR}/obs_installed/Frameworks"
-    "${PLUGIN_BUILD_DIR}/vcpkg_ort_installed/universal-osx"
-    "${PLUGIN_BUILD_DIR}/ort_installed"
-    "${PLUGIN_BUILD_DIR}/vcpkg_installed/universal-osx-obs"
-  )
 endif()
 
 ### Package dependencies
@@ -321,26 +310,26 @@ set(
 
 set(
   MODELS_FILES
-  data/models/mediapipe.with_runtime_opt.ort
-  data/models/mediapipe.with_runtime_opt.ort.license
-  data/models/pphumanseg_fp32.with_runtime_opt.ort
-  data/models/pphumanseg_fp32.with_runtime_opt.ort.license
-  data/models/rvm_mobilenetv3_fp32.with_runtime_opt.ort
-  data/models/rvm_mobilenetv3_fp32.with_runtime_opt.ort.license
-  data/models/selfie_multiclass_256x256.with_runtime_opt.ort
-  data/models/selfie_multiclass_256x256.with_runtime_opt.ort.license
-  data/models/selfie_segmentation.with_runtime_opt.ort
-  data/models/selfie_segmentation.with_runtime_opt.ort.license
-  data/models/semantic_guided_llie_180x324.with_runtime_opt.ort
-  data/models/semantic_guided_llie_180x324.with_runtime_opt.ort.license
-  data/models/SINet_Softmax_simple.with_runtime_opt.ort
-  data/models/SINet_Softmax_simple.with_runtime_opt.ort.license
-  data/models/tbefn_fp32.with_runtime_opt.ort
-  data/models/tbefn_fp32.with_runtime_opt.ort.license
-  data/models/tcmonodepth_tcsmallnet_192x320.with_runtime_opt.ort
-  data/models/tcmonodepth_tcsmallnet_192x320.with_runtime_opt.ort.license
-  data/models/uretinex_net_180x320.with_runtime_opt.ort
-  data/models/uretinex_net_180x320.with_runtime_opt.ort.license
+  data/models/mediapipe.onnx
+  data/models/mediapipe.onnx.license
+  data/models/pphumanseg_fp32.onnx
+  data/models/pphumanseg_fp32.onnx.license
+  data/models/rvm_mobilenetv3_fp32.onnx
+  data/models/rvm_mobilenetv3_fp32.onnx.license
+  data/models/selfie_multiclass_256x256.onnx
+  data/models/selfie_multiclass_256x256.onnx.license
+  data/models/selfie_segmentation.onnx
+  data/models/selfie_segmentation.onnx.license
+  data/models/semantic_guided_llie_180x324.onnx
+  data/models/semantic_guided_llie_180x324.onnx.license
+  data/models/SINet_Softmax_simple.onnx
+  data/models/SINet_Softmax_simple.onnx.license
+  data/models/tbefn_fp32.onnx
+  data/models/tbefn_fp32.onnx.license
+  data/models/tcmonodepth_tcsmallnet_192x320.onnx
+  data/models/tcmonodepth_tcsmallnet_192x320.onnx.license
+  data/models/uretinex_net_180x320.onnx
+  data/models/uretinex_net_180x320.onnx.license
 )
 
 configure_file(
@@ -348,38 +337,6 @@ configure_file(
   "${CMAKE_CURRENT_BINARY_DIR}/Distribution"
   @ONLY
 )
-
-file(
-  CONFIGURE
-  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/codesign_after_install.cmake"
-  CONTENT
-    [[
-set(INSTALL_DIR "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
-set(PLUGIN_DIR "${INSTALL_DIR}/Library/Application Support/obs-studio/plugins")
-
-set(BUNDLE_PATH "${PLUGIN_DIR}/@CMAKE_PROJECT_NAME@.plugin")
-
-if(EXISTS "${BUNDLE_PATH}")
-  message(STATUS "Re-signing: ${BUNDLE_PATH}...")
-
-  execute_process(
-    COMMAND xattr -cr "${BUNDLE_PATH}"
-    COMMAND_ERROR_IS_FATAL NONE
-  )
-
-  execute_process(
-    COMMAND dot_clean -m "${BUNDLE_PATH}"
-    COMMAND_ERROR_IS_FATAL NONE
-  )
-
-  execute_process(
-    COMMAND codesign -s - -f -o runtime --deep "${BUNDLE_PATH}"
-    COMMAND_ERROR_IS_FATAL ANY
-  )
-endif()
-]]
-)
-install(CODE "")
 
 if(APPLE)
   set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES BUNDLE TRUE BUNDLE_EXTENSION "plugin")
@@ -393,8 +350,6 @@ if(APPLE)
     BUNDLE DESTINATION "Library/Application Support/obs-studio/plugins"
     LIBRARY DESTINATION "Library/Application Support/obs-studio/plugins"
   )
-
-  install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/codesign_after_install.cmake")
 elseif(MSVC)
   set(OBS_PLUGIN_BIN_DIR "${CMAKE_PROJECT_NAME}/bin/64bit")
   set(OBS_PLUGIN_DATA_DIR "${CMAKE_PROJECT_NAME}/data")

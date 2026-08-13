@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+set -euo pipefail
+shopt -s nullglob
+
+: "${PLUGIN_BUILD_DIR:=${PWD:?}}"
+
+case "${1:-}" in
+'')
+  ;;
+--help | -h)
+  printf 'Usage: %q\n' "$0"
+  printf 'Purges all build artifacts from the PLUGIN_BUILD_DIR.\n'
+  printf 'OPT_FORCE=1 to skip confirmation for non-interactive session.\n'
+  exit 0
+  ;;
+*)
+  printf 'ERROR: Unknown option provided.\n' >&2
+  printf 'Run %q --help for help.\n' "${0:?}" >&2
+  exit 64
+  ;;
+esac
+
+if [[ ! -f buildspec.props ]]; then
+  printf 'ERROR: buildspec.props not found. The working directory MUST be the root of the project.\n' >&2
+  exit 1
+fi
+
+if [[ ! -d "${PLUGIN_BUILD_DIR:?}" ]]; then
+  printf 'ERROR: PLUGIN_BUILD_DIR does not exist: %q\n' "${PLUGIN_BUILD_DIR}" >&2
+  exit 1
+fi
+
+PLUGIN_BUILD_DIR="$(
+  cd -- "${PLUGIN_BUILD_DIR:?}"
+  pwd -P
+)"
+
+if [[ "${PLUGIN_BUILD_DIR}" == / ]]; then
+  printf 'ERROR: refusing to purge the filesystem root.\n' >&2
+  exit 1
+fi
+
+targets=(
+  "${PLUGIN_BUILD_DIR}"/macos-deps-*
+  "${PLUGIN_BUILD_DIR}/.bin"
+  "${PLUGIN_BUILD_DIR}/.venv"
+  "${PLUGIN_BUILD_DIR}/build_obs"
+  "${PLUGIN_BUILD_DIR}/build_ort"
+  "${PLUGIN_BUILD_DIR}/build_prefix"
+  "${PLUGIN_BUILD_DIR}/build"
+  "${PLUGIN_BUILD_DIR}/obs_installed"
+  "${PLUGIN_BUILD_DIR}/obs-studio"
+  "${PLUGIN_BUILD_DIR}/onnxruntime"
+  "${PLUGIN_BUILD_DIR}/ort_installed"
+  "${PLUGIN_BUILD_DIR}/release"
+  "${PLUGIN_BUILD_DIR}/vcpkg_installed"
+  "${PLUGIN_BUILD_DIR}/vcpkg_ort_installed"
+  "${PLUGIN_BUILD_DIR}/vcpkg"
+)
+
+if ! [[ "${OPT_FORCE:-0}" == 1 ]]; then
+  if ! [[ -t 0 ]]; then
+    printf 'ERROR: confirmation requires a TTY; use OPT_FORCE=1 for non-interactive use.\n' >&2
+    exit 1
+  fi
+
+  printf '\033[1m==> Removing the following directories...\033[0m\n'
+
+  for target in "${targets[@]}"; do
+    printf '%q\n' "${target:?}"
+  done
+
+  printf '\033[1m==> Continue? [Y/n] \033[0m'
+
+  read -r answer
+
+  if ! [[ "${answer:-y}" =~ ^[Yy] ]]; then
+    printf 'ERROR: Aborted.\n' >&2
+    exit 1
+  fi
+fi
+
+for target in "${targets[@]}"; do
+  printf 'rm -rf -- %q\n' "${target:?}"
+  "${RM:-rm}" -rf -- "${target:?}"
+done
+
+printf 'INFO: purge completed\n' >&2
+printf 'INFO: Run following commands to remove build caches\n' >&2
+printf 'INFO: rm -rf %q/.ccache_ort %q/.vcpkg_archives\n' "${PLUGIN_BUILD_DIR:?}" "${PLUGIN_BUILD_DIR:?}" >&2

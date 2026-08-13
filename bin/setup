@@ -5,90 +5,103 @@
 # SPDX-License-Identifier: Apache-2.0
 
 macos() {
-  : "${PLUGIN_BUILD_DIR:=$PWD}"
-  : "${PYTHON:=$(brew --prefix python)/bin/python3}"
-  export PLUGIN_BUILD_DIR PYTHON
+  : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
 
-  printf '#==> Load buildspec.props\n'
+  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vcpkg}"
 
-  local vcpkg_default_git_tag vcpkg_default_git_commit obs_studio_git_tag obs_studio_git_commit onnxruntime_git_tag onnxruntime_git_commit
-  eval "$(awk '/^(vcpkg_default|obs_studio|onnxruntime)_git_(tag|commit)=/{print}' buildspec.props)"
+  local vcpkg_git_tag vcpkg_git_commit obs_studio_git_tag obs_studio_git_commit onnxruntime_git_tag onnxruntime_git_commit
+  eval "$(awk '/^(vcpkg|obs_studio|onnxruntime)_git_(tag|commit)=/ { print }' buildspec.props)"
 
-  printf '#==> Ensure vcpkg and its toolchains\n'
+  local prebuilt_macos_name prebuilt_macos_url prebuilt_macos_sha256 qt6_macos_name qt6_macos_url qt6_macos_sha256
+  eval "$(awk '/^(prebuilt|qt6)_macos_(name|url|sha256)=/ { print }' buildspec.props)"
 
-  if [[ -z "${VCPKG_ROOT:-}" ]]; then
-    export VCPKG_ROOT="${PLUGIN_BUILD_DIR:-.}/vcpkg"
+  local ccache_macos_name ccache_macos_url ccache_macos_sha256
+  eval "$(awk '/^ccache_macos_(url|sha256)=/ { print }' buildspec.props)"
+  printf 'INFO: buildspec.props was loaded\n' >&2
 
-    if ! [[ -d "$VCPKG_ROOT" ]]; then
-      git clone --filter blob:none --branch "$vcpkg_default_git_tag" https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
-    fi
-
-    if ! git -C "$VCPKG_ROOT" rev-parse HEAD | grep -q "$vcpkg_default_git_commit"; then
-      printf 'ERROR: vcpkg commit hash mismatch.\n'; exit 1
-    fi
-
-    if ! [[ -e "$VCPKG_ROOT/vcpkg" ]]; then
-      "$VCPKG_ROOT/bootstrap-vcpkg.sh"
-    fi
+  if ! [[ -d "${VCPKG_ROOT:?}" ]]; then
+    git clone --branch "${vcpkg_git_tag:?}" https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT:?}"
   fi
-
-  local pwshExe
-  pwshExe=$("$VCPKG_ROOT/vcpkg" fetch powershell-core | tail -n1)
-
-  if ! [[ -e "$pwshExe" ]]; then
-    printf 'ERROR: pwsh not found.\n'; exit 1
+  if [[ "$(git -C "${PLUGIN_BUILD_DIR:?}/vcpkg" rev-parse HEAD)" != "${vcpkg_git_commit:?}" ]]; then
+    printf 'ERROR: vcpkg commit hash mismatch\n'; exit 1
   fi
+  printf 'INFO: vcpkg source is up to date\n' >&2
 
-  PATH="${pwshExe%/*}:$PATH"
-  export PATH
-
-  printf '#==> Set up OBS sources and dependencies\n'
+  if ! [[ -e "${VCPKG_ROOT:?}/vcpkg" ]]; then
+    "${VCPKG_ROOT:?}/bootstrap-vcpkg.sh" -disableMetrics
+    printf 'INFO: vcpkg was bootstrapped\n' >&2
+  fi
 
   if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/obs-studio" ]]; then
-    git clone --filter blob:none --branch "$obs_studio_git_tag" https://github.com/obsproject/obs-studio.git "${PLUGIN_BUILD_DIR:-.}/obs-studio"
+    git clone --recurse-submodules --branch "${obs_studio_git_tag:?}" https://github.com/obsproject/obs-studio.git "${PLUGIN_BUILD_DIR:-.}/obs-studio"
   fi
-
-  git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" fetch origin "$obs_studio_git_tag"
-  git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" checkout --force FETCH_HEAD
-  git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" clean -fdx
-  git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" submodule update --init --recursive --filter=blob:none
-
-  if ! git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" rev-parse HEAD | grep -q "$obs_studio_git_commit"; then
+  if [[ "$(git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" rev-parse HEAD)" != "${obs_studio_git_commit:?}" ]]; then
     printf 'ERROR: obs-studio commit hash mismatch.\n'; exit 1
   fi
+  printf 'INFO: obs-studio source is up to date\n' >&2
 
-  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/.deps/obs-deps" ]]; then
-    pwsh -NoProfile -Command 'Import-Module ./scripts/BuildOBS.psm1; Initialize-ObsDeps -Component prebuilt'
+  if [[ -f "${PLUGIN_BUILD_DIR:-.}/${prebuilt_macos_name:?}/.ok" ]]; then
+    printf 'INFO: obs-deps already exists\n' >&2
+  else
+    local NAME="${prebuilt_macos_name:?}"
+    local URL="${prebuilt_macos_url:?}"
+    local SHA256="${prebuilt_macos_sha256:?}"
+
+    mkdir -p "${TMPDIR:?}/obs-backgroundremoval-setup"
+    curl -fsSLo "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" "${URL:?}"
+    printf '%s  %s\n' "${SHA256:?}" "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" | shasum -a 256 -c -
+    mkdir -p "${PLUGIN_BUILD_DIR:-.}/${NAME:?}"
+    tar -C "${PLUGIN_BUILD_DIR:-.}/${NAME:?}" -xf "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}"
+    touch "${PLUGIN_BUILD_DIR:-.}/${prebuilt_macos_name:?}/.ok"
+    printf 'INFO: obs-deps was installed at %q\n' "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" >&2
   fi
 
-  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/.deps/obs-deps-qt6" ]]; then
-    pwsh -NoProfile -Command 'Import-Module ./scripts/BuildOBS.psm1; Initialize-ObsDeps -Component qt6'
-  fi
+  if [[ -f "${PLUGIN_BUILD_DIR:-.}/${qt6_macos_name:?}/.ok" ]]; then
+    printf 'INFO: obs-deps-qt6 already exists\n' >&2
+  else
+    local NAME="${qt6_macos_name:?}"
+    local URL="${qt6_macos_url:?}"
+    local SHA256="${qt6_macos_sha256:?}"
 
-  printf '#==> Set up ONNX Runtime source\n'
+    mkdir -p "${TMPDIR:?}/obs-backgroundremoval-setup"
+    curl -fsSLo "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" "${URL:?}"
+    printf '%s  %s\n' "${SHA256:?}" "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" | shasum -a 256 -c -
+    mkdir -p "${PLUGIN_BUILD_DIR:-.}/${NAME:?}"
+    tar -C "${PLUGIN_BUILD_DIR:-.}/${NAME:?}" -xf "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}"
+    touch "${PLUGIN_BUILD_DIR:-.}/${qt6_macos_name:?}/.ok"
+    printf 'INFO: obs-deps-qt6 was installed at %q\n' "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" >&2
+  fi
 
   if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/onnxruntime" ]]; then
-    git clone --filter blob:none --branch "$onnxruntime_git_tag" https://github.com/microsoft/onnxruntime.git "${PLUGIN_BUILD_DIR:-.}/onnxruntime"
+    git clone --recurse-submodules --branch "${onnxruntime_git_tag:?}" https://github.com/microsoft/onnxruntime.git "${PLUGIN_BUILD_DIR:-.}/onnxruntime"
   fi
-
-  git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" fetch origin "$onnxruntime_git_tag"
-  git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" checkout --force FETCH_HEAD
-  git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" clean -fdx
-  git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" submodule update --init --recursive --filter=blob:none
-
-  if ! git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" rev-parse HEAD | grep -q "$onnxruntime_git_commit"; then
-    printf 'ERROR: onnxruntime commit hash mismatch.\n'; exit 1
+  if [[ "$(git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" rev-parse HEAD)" != "${onnxruntime_git_commit:?}" ]]; then
+    printf 'ERROR: onnxruntime commit hash mismatch\n' >&2; exit 1
   fi
-
-  pwsh -NoProfile -Command 'Import-Module ./scripts/BuildOnnxRuntime.psm1; Update-OrtSourceWithPatches'
-
-  printf '#==> Set up python\n'
+  printf 'INFO: onnxruntime source is up to date\n' >&2
 
   if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/.venv" ]]; then
-    "$PYTHON" -m venv "${PLUGIN_BUILD_DIR:-.}/.venv"
+    "$(brew --prefix python)/bin/python3" -m venv "${PLUGIN_BUILD_DIR:-.}/.venv"
+    printf 'INFO: .venv was created\n' >&2
   fi
 
-  "${PLUGIN_BUILD_DIR:-.}/.venv/bin/pip3" install -r requirements-build.txt
+  "${PLUGIN_BUILD_DIR:-.}/.venv/bin/python3" -m pip install -r requirements-build.txt
+  printf 'INFO: packages in .venv were updated\n' >&2
+
+  if [[ -e "${PLUGIN_BUILD_DIR:-.}/.bin/ccache" ]]; then
+    printf 'INFO: ccache already exists\n' >&2
+  else
+    local URL="${ccache_macos_url:?}"
+    local SHA256="${ccache_macos_sha256:?}"
+
+    mkdir -p "${TMPDIR:?}/obs-backgroundremoval-setup"
+    curl -fsSLo "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" "${URL:?}"
+    printf '%s  %s\n' "${SHA256:?}" "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" | shasum -a 256 -c -
+    mkdir -p "${PLUGIN_BUILD_DIR:-.}/.bin"
+    tar --strip-components 1 -C "${PLUGIN_BUILD_DIR:-.}/.bin" -xf "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" '*/ccache'
+    chmod 755 "${PLUGIN_BUILD_DIR:-.}/.bin/ccache"
+    printf 'INFO: ccache was installed at %q\n' "${PLUGIN_BUILD_DIR:-.}/.bin/scache" >&2
+  fi
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

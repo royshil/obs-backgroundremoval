@@ -43,7 +43,7 @@ ubuntu_resolute() {
 }
 
 macos() {
-  brew install ccache pkg-config python xcbeautify
+  brew install pkg-config
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

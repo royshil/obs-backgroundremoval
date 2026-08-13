@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Push (main) CI
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  build-plugin-macos:
+    uses: ./.github/workflows/build-plugin-macos.yml
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+    with:
+      runs-on: macos-15
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app
+      osx-deploy-target: '12.0'
+      upload-artifacts: true
+
+  build-plugin-macos-x86_64:
+    uses: ./.github/workflows/build-plugin-macos.yml
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+    with:
+      runs-on: macos-15
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app
+      osx-deploy-target: '12.0'
+      upload-artifacts: true
+      x86_64: true
