@@ -120,9 +120,9 @@ This video on YouTube will take you through the major parts of the code and expl
 </div>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=royshil/obs-backgroundremoval&type=Date&theme=dark" />
-  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=royshil/obs-backgroundremoval&type=Date" />
-  <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=royshil/obs-backgroundremoval&type=Date" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=royshil/obs-backgroundremoval&type=Date&theme=dark" />
+  <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=royshil/obs-backgroundremoval&type=Date" />
+  <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=royshil/obs-backgroundremoval&type=Date" />
 </picture>
 
 ---
