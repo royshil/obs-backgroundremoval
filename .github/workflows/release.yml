@@ -1,0 +1,138 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Release CD
+
+on:
+  push:
+    tags: ['*']
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Validate release tag
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        run: |
+          $expectedTag = (Get-Content -Raw -LiteralPath VERSION).Trim()
+          if ($env:GITHUB_REF_NAME -ne $expectedTag) {
+            throw "Release tag $env:GITHUB_REF_NAME does not match VERSION ($expectedTag)."
+          }
+
+  build:
+    needs: validate-release
+    uses: ./.github/workflows/push-main.yml
+    secrets: inherit
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+    with:
+      release-build: true
+
+  draft-release:
+    needs: build
+    runs-on: ubuntu-slim
+    timeout-minutes: 60
+
+    permissions:
+      actions: read
+      attestations: read
+      contents: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: 'obs-backgroundremoval_*'
+          merge-multiple: true
+          path: ${{ runner.temp }}/release-assets
+
+      - name: Draft release
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        env:
+          ARTIFACTS: ${{ toJson(needs.build.outputs) }}
+          ARTIFACTS_DIR: ${{ runner.temp }}/release-assets
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $artifacts = ConvertFrom-Json -InputObject $env:ARTIFACTS
+
+          $assetsWithTitles = @{
+            $artifacts.WINDOWS_X64_RAW_ARTIFACT = $null
+            $artifacts.MACOS_ARM64_DSYM_ARTIFACT = $null
+            $artifacts.MACOS_ARM64_PKG_ARTIFACT = $null
+            $artifacts.MACOS_X86_64_DSYM_ARTIFACT = $null
+            $artifacts.MACOS_X86_64_PKG_ARTIFACT = $null
+            $artifacts.DEBIAN_FORKY_AMD64_DEB_ARTIFACT = $null
+            $artifacts.DEBIAN_FORKY_AMD64_DDEB_ARTIFACT = $null
+            $artifacts.DEBIAN_FORKY_ARM64_DEB_ARTIFACT = $null
+            $artifacts.DEBIAN_FORKY_ARM64_DDEB_ARTIFACT = $null
+            $artifacts.UBUNTU_RESOLUTE_AMD64_DEB_ARTIFACT = $null
+            $artifacts.UBUNTU_RESOLUTE_AMD64_DDEB_ARTIFACT = $null
+            $artifacts.UBUNTU_RESOLUTE_ARM64_DEB_ARTIFACT = $null
+            $artifacts.UBUNTU_RESOLUTE_ARM64_DDEB_ARTIFACT = $null
+          }
+
+          $assets = $assetsWithTitles.GetEnumerator() | ForEach-Object {
+            $artifactPath = Join-Path $env:ARTIFACTS_DIR $_.Key
+
+            gh attestation verify $artifactPath `
+              --repo $env:GITHUB_REPOSITORY `
+              --source-ref $env:GITHUB_REF `
+              --source-digest $env:GITHUB_SHA `
+              --signer-digest $env:GITHUB_SHA `
+              --deny-self-hosted-runners | Out-Host
+
+            if ($_.Value)
+            {
+              "$artifactPath#$($_.Value)"
+            }
+            else
+            {
+              "$artifactPath"
+            }
+          }
+
+          $release = gh release list `
+            --repo $env:GITHUB_REPOSITORY `
+            --limit 1000 `
+            --json tagName,isDraft |
+            ConvertFrom-Json |
+            Where-Object tagName -EQ $env:GITHUB_REF_NAME |
+            Select-Object -First 1
+
+          if ($null -eq $release) {
+            gh release create $env:GITHUB_REF_NAME @assets `
+              --repo $env:GITHUB_REPOSITORY `
+              --draft `
+              --generate-notes `
+              --title $env:GITHUB_REF_NAME `
+              --verify-tag
+          } elseif ($release.isDraft) {
+            gh release upload $env:GITHUB_REF_NAME @assets `
+              --repo $env:GITHUB_REPOSITORY `
+              --clobber
+          } else {
+            throw "Release $env:GITHUB_REF_NAME is already published."
+          }

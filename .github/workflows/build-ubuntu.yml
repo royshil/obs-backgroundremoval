@@ -1,0 +1,168 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build (Ubuntu)
+
+on:
+  workflow_call:
+    inputs:
+      upload-artifacts:
+        description: Uploads artifacts.
+        required: true
+        type: boolean
+      attest-artifacts:
+        description: Attests artifacts.
+        required: true
+        type: boolean
+      arm64:
+        description: Builds for arm64.
+        required: true
+        type: boolean
+      PACKAGE_VERSION_SUFFIX_RESOLUTE:
+        description: Version suffix for resolute.
+        required: false
+        type: string
+        default: '-1~resolute1'
+    outputs:
+      resolute-deb-artifact:
+        description: Binary package for Ubuntu Resolute.
+        value: ${{ jobs.resolute.outputs.DEB_ARTIFACT_NAME }}
+      resolute-ddeb-artifact:
+        description: Debug symbols for Ubuntu Resolute.
+        value: ${{ jobs.resolute.outputs.DDEB_ARTIFACT_NAME }}
+
+jobs:
+  resolute:
+    runs-on: ${{ inputs.arm64 && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
+    timeout-minutes: 180
+
+    outputs:
+      DEB_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.DEB_ARTIFACT_NAME }}
+      DDEB_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.DDEB_ARTIFACT_NAME }}
+
+    env:
+      PACKAGE_VERSION_SUFFIX: ${{ inputs.PACKAGE_VERSION_SUFFIX_RESOLUTE }}
+
+    steps:
+      - name: Install dependencies (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          sudo apt-get update && sudo apt-get -y --no-install-recommends install \
+            build-essential \
+            ca-certificates \
+            cmake \
+            file \
+            git \
+            libcurl4-openssl-dev \
+            libobs-dev \
+            libonnxruntime-dev \
+            libopencv-dev
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Print expected artifact names (Ubuntu)
+        id: expected-artifacts
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          ARCH: ${{ inputs.arm64 && 'arm64' || 'amd64' }}
+        run: |
+          PLUGIN_VERSION="$(cat VERSION)"
+          printf 'DEB_ARTIFACT_NAME=obs-backgroundremoval_%s_%s.deb\n' "${PLUGIN_VERSION:?}${PACKAGE_VERSION_SUFFIX:?}" "${ARCH:?}" | tee -a "${GITHUB_OUTPUT:?}"
+          printf 'DDEB_ARTIFACT_NAME=obs-backgroundremoval-dbgsym_%s_%s.ddeb\n' "${PLUGIN_VERSION:?}${PACKAGE_VERSION_SUFFIX:?}" "${ARCH:?}" | tee -a "${GITHUB_OUTPUT:?}"
+
+      - name: Configure (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          cmake -S "${GITHUB_WORKSPACE:?}" -B build \
+            "-DCMAKE_BUILD_TYPE=RelWithDebInfo" \
+            "-DCMAKE_INSTALL_PREFIX=/usr" \
+            "-DCPACK_GENERATOR=DEB" \
+            "-DPACKAGE_VERSION_SUFFIX=${PACKAGE_VERSION_SUFFIX:?}"
+
+      - name: Build (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: cmake --build build --config RelWithDebInfo --parallel
+
+      - name: Package deb and ddeb artifacts (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: cmake --build build --config RelWithDebInfo --target package
+
+      - name: Attest package artifacts (Ubuntu)
+        if: inputs.upload-artifacts && inputs.attest-artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            build/${{ steps.expected-artifacts.outputs.DEB_ARTIFACT_NAME }}
+            build/${{ steps.expected-artifacts.outputs.DDEB_ARTIFACT_NAME }}
+
+      - name: Upload deb artifact (Ubuntu)
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: build/${{ steps.expected-artifacts.outputs.DEB_ARTIFACT_NAME }}
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload ddeb artifact (Ubuntu)
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: build/${{ steps.expected-artifacts.outputs.DDEB_ARTIFACT_NAME }}
+          archive: false
+          if-no-files-found: error
+
+      - name: Install (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          PACKAGE_FILE: ./build/${{ steps.expected-artifacts.outputs.DEB_ARTIFACT_NAME }}
+        run: sudo apt-get -y install "${PACKAGE_FILE:?}"
+
+      - name: Install test dependencies (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: sudo apt-get -y install netcat-openbsd obs-studio ruby ruby-base64 xvfb
+
+      - name: Test (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          export XDG_CONFIG_HOME="${HOME:?}/.config"
+          rm -rf "${XDG_CONFIG_HOME:?}/obs-studio"
+          mkdir -p "${XDG_CONFIG_HOME:?}/obs-studio/plugin_config/obs-websocket" && \
+          printf '{
+            "alerts_enabled": false,
+            "auth_required": true,
+            "first_load": false,
+            "server_enabled": true,
+            "server_password": "DUMMY_PASSWORD",
+            "server_port":4455
+          }\n' >"${XDG_CONFIG_HOME:?}/obs-studio/plugin_config/obs-websocket/config.json"
+
+          xvfb-run -a obs >obs.log 2>&1 &
+          obs_pid=${!:?}
+          cleanup() {
+            status=${?:?}
+            trap - EXIT
+            kill "${obs_pid:?}" 2>/dev/null || true
+            wait "${obs_pid:?}" 2>/dev/null || true
+            exit "${status:?}"
+          }
+          trap cleanup EXIT
+
+          timeout 30s /bin/sh -c 'until nc -z 127.0.0.1 4455; do sleep 1; done'
+          ruby -I "${GITHUB_WORKSPACE:?}/scripts" -r ws_client -e '
+          WSClient.open("127.0.0.1", 4455, "DUMMY_PASSWORD") do |client|
+            filters = client.call("GetSourceFilterKindList")["sourceFilterKinds"]
+            abort filters.inspect unless %w[background_removal enhanceportrait].all? { filters.include?(_1) }
+            puts "Plugin loaded successfully: background_removal, enhanceportrait"
+          end
+          '
+
+      - name: Show test log (Ubuntu)
+        if: always()
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: cat obs.log

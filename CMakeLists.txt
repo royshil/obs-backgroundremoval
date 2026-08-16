@@ -171,6 +171,7 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
 
   cmake_push_check_state(RESET)
   set(CMAKE_REQUIRED_LIBRARIES onnxruntime::onnxruntime)
+  set(CMAKE_REQUIRED_QUIET TRUE)
 
   function(check_onnxruntime_execution_provider result symbol)
     set(found FALSE)
@@ -226,13 +227,17 @@ elseif(APPLE OR OS_LINUX)
 endif()
 
 if(HAVE_ONNXRUNTIME_CUDA_EP)
-  message(STATUS "ONNX Runtime CUDA Execution Provider found")
+  message(STATUS "Building with ONNX Runtime CUDA EP.")
   target_compile_definitions(${CMAKE_PROJECT_NAME}_options INTERFACE HAVE_ONNXRUNTIME_CUDA_EP)
+else()
+  message(STATUS "Building without ONNX Runtime CUDA EP.")
 endif()
 
 if(HAVE_ONNXRUNTIME_ROCM_EP)
-  message(STATUS "ONNX Runtime ROCM Execution Provider found")
+  message(STATUS "Building with ONNX Runtime ROCm EP.")
   target_compile_definitions(${CMAKE_PROJECT_NAME}_options INTERFACE HAVE_ONNXRUNTIME_ROCM_EP)
+else()
+  message(STATUS "Building without ONNX Runtime ROCm EP.")
 endif()
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
@@ -398,21 +403,3 @@ set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS TRUE)
 
 include(CPack) # This line must be placed after all the package configurations
-
-### Export variables
-block()
-  set(SH_CONTENT "")
-  set(PS1_CONTENT "")
-
-  foreach(VAR_NAME PLUGIN_BUNDLE_ID PLUGIN_DISPLAY_NAME PLUGIN_NAME PLUGIN_VERSION)
-    set(VAR_VALUE "${${VAR_NAME}}")
-    if(NOT VAR_VALUE MATCHES [[^[-A-Za-z0-9._ ]+$]])
-      message(FATAL_ERROR "${VAR_NAME} contains unsupported characters: ${VAR_VALUE}")
-    endif()
-    string(APPEND SH_CONTENT "${VAR_NAME}=\'${VAR_VALUE}\'\n")
-    string(APPEND PS1_CONTENT "\$${VAR_NAME} = \'${VAR_VALUE}\'\n")
-  endforeach()
-
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cmake_export.sh" "${SH_CONTENT}")
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cmake_export.ps1" "${PS1_CONTENT}")
-endblock()

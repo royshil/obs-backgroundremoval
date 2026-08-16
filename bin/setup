@@ -7,101 +7,70 @@
 macos() {
   : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
 
-  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vcpkg}"
+  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
 
-  local vcpkg_git_tag vcpkg_git_commit obs_studio_git_tag obs_studio_git_commit onnxruntime_git_tag onnxruntime_git_commit
-  eval "$(awk '/^(vcpkg|obs_studio|onnxruntime)_git_(tag|commit)=/ { print }' buildspec.props)"
+  local vcpkg_git_tag obs_studio_git_tag onnxruntime_git_tag
+  eval "$(awk '/^(vcpkg|obs_studio|onnxruntime)_git_tag=/ { print }' buildspec.props)"
 
-  local prebuilt_macos_name prebuilt_macos_url prebuilt_macos_sha256 qt6_macos_name qt6_macos_url qt6_macos_sha256
-  eval "$(awk '/^(prebuilt|qt6)_macos_(name|url|sha256)=/ { print }' buildspec.props)"
+  local prebuilt_macos_url prebuilt_macos_sha256 qt6_macos_url qt6_macos_sha256
+  eval "$(awk '/^(prebuilt|qt6)_macos_(url|sha256)=/ { print }' buildspec.props)"
 
-  local ccache_macos_name ccache_macos_url ccache_macos_sha256
-  eval "$(awk '/^ccache_macos_(url|sha256)=/ { print }' buildspec.props)"
+  local ccache_macos_version ccache_macos_url ccache_macos_sha256
+  eval "$(awk '/^ccache_macos_(version|url|sha256)=/ { print }' buildspec.props)"
   printf 'INFO: buildspec.props was loaded\n' >&2
 
-  if ! [[ -d "${VCPKG_ROOT:?}" ]]; then
-    git clone --branch "${vcpkg_git_tag:?}" https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT:?}"
-  fi
-  if [[ "$(git -C "${PLUGIN_BUILD_DIR:?}/vcpkg" rev-parse HEAD)" != "${vcpkg_git_commit:?}" ]]; then
-    printf 'ERROR: vcpkg commit hash mismatch\n'; exit 1
-  fi
-  printf 'INFO: vcpkg source is up to date\n' >&2
+  JOB_TEMP="$(mktemp -d -t "obs-backgroundremoval-setup.XXXXXXX")"
+  export JOB_TEMP
+  mkdir -p "${JOB_TEMP:?}"
 
   if ! [[ -e "${VCPKG_ROOT:?}/vcpkg" ]]; then
     "${VCPKG_ROOT:?}/bootstrap-vcpkg.sh" -disableMetrics
     printf 'INFO: vcpkg was bootstrapped\n' >&2
   fi
 
-  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/obs-studio" ]]; then
-    git clone --recurse-submodules --branch "${obs_studio_git_tag:?}" https://github.com/obsproject/obs-studio.git "${PLUGIN_BUILD_DIR:-.}/obs-studio"
+  if [[ -e "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache/ccache-${ccache_macos_version:?}-darwin/ccache" ]]; then
+    printf 'INFO: ccache already exists\n' >&2
+  else
+    env \
+      URL="${ccache_macos_url:?}" \
+      SHA256="${ccache_macos_sha256:?}" \
+      DESTDIR="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache" \
+      cmake -P scripts/download-deps.cmake
+    chmod 755 "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache/ccache-${ccache_macos_version:?}-darwin/ccache"
+    printf 'INFO: ccache was installed at %q\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache/ccache-${ccache_macos_version:?}-darwin/ccache" >&2
   fi
-  if [[ "$(git -C "${PLUGIN_BUILD_DIR:-.}/obs-studio" rev-parse HEAD)" != "${obs_studio_git_commit:?}" ]]; then
-    printf 'ERROR: obs-studio commit hash mismatch.\n'; exit 1
-  fi
-  printf 'INFO: obs-studio source is up to date\n' >&2
 
-  if [[ -f "${PLUGIN_BUILD_DIR:-.}/${prebuilt_macos_name:?}/.ok" ]]; then
+  if [[ -f "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps/.ok" ]]; then
     printf 'INFO: obs-deps already exists\n' >&2
   else
-    local NAME="${prebuilt_macos_name:?}"
-    local URL="${prebuilt_macos_url:?}"
-    local SHA256="${prebuilt_macos_sha256:?}"
-
-    mkdir -p "${TMPDIR:?}/obs-backgroundremoval-setup"
-    curl -fsSLo "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" "${URL:?}"
-    printf '%s  %s\n' "${SHA256:?}" "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" | shasum -a 256 -c -
-    mkdir -p "${PLUGIN_BUILD_DIR:-.}/${NAME:?}"
-    tar -C "${PLUGIN_BUILD_DIR:-.}/${NAME:?}" -xf "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}"
-    touch "${PLUGIN_BUILD_DIR:-.}/${prebuilt_macos_name:?}/.ok"
-    printf 'INFO: obs-deps was installed at %q\n' "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" >&2
+    env \
+      URL="${prebuilt_macos_url:?}" \
+      SHA256="${prebuilt_macos_sha256:?}" \
+      DESTDIR="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps" \
+      cmake -P scripts/download-deps.cmake
+    touch "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps/.ok"
+    printf 'INFO: obs-deps was installed at %q\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps" >&2
   fi
 
-  if [[ -f "${PLUGIN_BUILD_DIR:-.}/${qt6_macos_name:?}/.ok" ]]; then
+  if [[ -f "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6/.ok" ]]; then
     printf 'INFO: obs-deps-qt6 already exists\n' >&2
   else
-    local NAME="${qt6_macos_name:?}"
-    local URL="${qt6_macos_url:?}"
-    local SHA256="${qt6_macos_sha256:?}"
-
-    mkdir -p "${TMPDIR:?}/obs-backgroundremoval-setup"
-    curl -fsSLo "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" "${URL:?}"
-    printf '%s  %s\n' "${SHA256:?}" "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" | shasum -a 256 -c -
-    mkdir -p "${PLUGIN_BUILD_DIR:-.}/${NAME:?}"
-    tar -C "${PLUGIN_BUILD_DIR:-.}/${NAME:?}" -xf "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}"
-    touch "${PLUGIN_BUILD_DIR:-.}/${qt6_macos_name:?}/.ok"
-    printf 'INFO: obs-deps-qt6 was installed at %q\n' "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" >&2
+    env \
+      URL="${qt6_macos_url:?}" \
+      SHA256="${qt6_macos_sha256:?}" \
+      DESTDIR="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6" \
+      cmake -P scripts/download-deps.cmake
+    touch "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6/.ok"
+    printf 'INFO: obs-deps-qt6 was installed at %q\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6" >&2
   fi
 
-  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/onnxruntime" ]]; then
-    git clone --recurse-submodules --branch "${onnxruntime_git_tag:?}" https://github.com/microsoft/onnxruntime.git "${PLUGIN_BUILD_DIR:-.}/onnxruntime"
-  fi
-  if [[ "$(git -C "${PLUGIN_BUILD_DIR:-.}/onnxruntime" rev-parse HEAD)" != "${onnxruntime_git_commit:?}" ]]; then
-    printf 'ERROR: onnxruntime commit hash mismatch\n' >&2; exit 1
-  fi
-  printf 'INFO: onnxruntime source is up to date\n' >&2
-
-  if ! [[ -d "${PLUGIN_BUILD_DIR:-.}/.venv" ]]; then
-    "$(brew --prefix python)/bin/python3" -m venv "${PLUGIN_BUILD_DIR:-.}/.venv"
+  if ! [[ -d "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv" ]]; then
+    "$(brew --prefix python)/bin/python3" -m venv "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv"
     printf 'INFO: .venv was created\n' >&2
   fi
 
-  "${PLUGIN_BUILD_DIR:-.}/.venv/bin/python3" -m pip install -r requirements-build.txt
+  "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv/bin/python3" -m pip install -r requirements-build.txt
   printf 'INFO: packages in .venv were updated\n' >&2
-
-  if [[ -e "${PLUGIN_BUILD_DIR:-.}/.bin/ccache" ]]; then
-    printf 'INFO: ccache already exists\n' >&2
-  else
-    local URL="${ccache_macos_url:?}"
-    local SHA256="${ccache_macos_sha256:?}"
-
-    mkdir -p "${TMPDIR:?}/obs-backgroundremoval-setup"
-    curl -fsSLo "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" "${URL:?}"
-    printf '%s  %s\n' "${SHA256:?}" "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" | shasum -a 256 -c -
-    mkdir -p "${PLUGIN_BUILD_DIR:-.}/.bin"
-    tar --strip-components 1 -C "${PLUGIN_BUILD_DIR:-.}/.bin" -xf "${TMPDIR:?}/obs-backgroundremoval-setup/${URL##*/}" '*/ccache'
-    chmod 755 "${PLUGIN_BUILD_DIR:-.}/.bin/ccache"
-    printf 'INFO: ccache was installed at %q\n' "${PLUGIN_BUILD_DIR:-.}/.bin/scache" >&2
-  fi
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
