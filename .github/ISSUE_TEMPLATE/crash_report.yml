@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Crash Report
+description: Submit an OBS Studio crash report directly or through an explicitly authorized agent
+title: '[Crash]: '
+labels: 'crash report'
+assignees: umireon
+body:
+  - type: checkboxes
+    id: privacy_and_sharing
+    attributes:
+      label: Privacy and Sharing
+      options:
+        - label: I confirm that the crash reports I upload do not contain personal information, and I agree to share their contents publicly with the community.
+          required: true
+
+  - type: upload
+    id: crash_report
+    attributes:
+      label: Crash Report
+      description: |
+        Upload one or more OBS Studio crash reports.
+        Windows: `%APPDATA%\obs-studio\crashes`
+        macOS: Find the `.ips` report in Console > Crash Reports and compress it as a `.zip` file.
+        Linux: Save the output of `coredumpctl info obs` or other available crash output as a `.txt` file.
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Add anything else that may help. This field is optional.
+    validations:
+      required: false
