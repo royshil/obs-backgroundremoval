@@ -31,7 +31,7 @@ Please search existing issues before submitting a new report.
 
 <!--
 You must provide exact version of OBS Studio here.
-Versions earlier than 31.1.1 are not supported and do not ask here to fix for such older versions.
+Versions earlier than 32.2.1 are not supported and do not ask here to fix for such older versions.
 -->
 
 ## Installation method

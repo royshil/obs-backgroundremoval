@@ -2,21 +2,7 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "windows",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "binaryDir": "build",
-      "architecture": "x64",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_SYSTEM_VERSION": "10.0.22621"
-      }
-    },
-    {
-      "name": "macos",
+      "name": "macos-arm64",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -25,38 +11,20 @@
       "binaryDir": "build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_INSTALL_PREFIX": "$env{HOME}",
-        "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0"
-      }
-    },
-    {
-      "name": "linux",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "13.0",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/obs-deps;${sourceDir}/.deps/obs-deps-qt6;${sourceDir}/obs_installed;${sourceDir}/obs_installed/Frameworks;${sourceDir}/vcpkg_ort_installed/arm64-osx-obs-ort;${sourceDir}/ort_installed;${sourceDir}/vcpkg_installed/arm64-osx-obs"
       },
-      "binaryDir": "build",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      "warnings": {
+        "dev": false
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "windows",
-      "configurePreset": "windows",
-      "configuration": "RelWithDebInfo"
-    },
-    {
-      "name": "macos",
-      "configurePreset": "macos",
-      "configuration": "RelWithDebInfo"
-    },
-    {
-      "name": "linux",
-      "configurePreset": "linux",
+      "name": "macos-arm64",
+      "configurePreset": "macos-arm64",
       "configuration": "RelWithDebInfo"
     }
   ]

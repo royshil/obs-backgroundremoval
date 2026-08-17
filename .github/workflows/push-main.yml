@@ -17,8 +17,8 @@ on:
         type: boolean
         default: false
     outputs:
-      WINDOWS_X64_RAW_ARTIFACT:
-        value: ${{ jobs.build-windows-x64.outputs.raw-artifact }}
+      WINDOWS_X64_DLL_ARTIFACT:
+        value: ${{ jobs.build-windows-x64.outputs.dll-artifact }}
       MACOS_ARM64_DSYM_ARTIFACT:
         value: ${{ jobs.build-macos-arm64.outputs.dsym-artifact }}
       MACOS_ARM64_PKG_ARTIFACT:
@@ -57,8 +57,7 @@ jobs:
     with:
       upload-artifacts: true
       attest-artifacts: true
-      runs-on: windows-2022
-      windows-sdk-version: '10.0.22621'
+      runs-on: windows-2025-vs2026
 
   build-macos-arm64:
     uses: ./.github/workflows/build-macos.yml
@@ -73,9 +72,8 @@ jobs:
       attest-artifacts: true
       notarize: ${{ inputs.release-build || false }}
       x86_64: false
-      runs-on: macos-15
-      DEVELOPER_DIR: /Applications/Xcode_16.4.app
-      osx-deploy-target: '12.0'
+      runs-on: macos-26
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
   build-macos-x86_64:
     uses: ./.github/workflows/build-macos.yml
@@ -90,9 +88,8 @@ jobs:
       attest-artifacts: true
       notarize: ${{ inputs.release-build || false }}
       x86_64: true
-      runs-on: macos-15
-      DEVELOPER_DIR: /Applications/Xcode_16.4.app
-      osx-deploy-target: '12.0'
+      runs-on: macos-26
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
   build-debian-amd64:
     uses: ./.github/workflows/build-debian.yml

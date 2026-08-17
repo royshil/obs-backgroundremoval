@@ -28,41 +28,7 @@ macos() {
     printf 'INFO: vcpkg was bootstrapped\n' >&2
   fi
 
-  if [[ -e "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache/ccache-${ccache_macos_version:?}-darwin/ccache" ]]; then
-    printf 'INFO: ccache already exists\n' >&2
-  else
-    env \
-      URL="${ccache_macos_url:?}" \
-      SHA256="${ccache_macos_sha256:?}" \
-      DESTDIR="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache" \
-      cmake -P scripts/download-deps.cmake
-    chmod 755 "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache/ccache-${ccache_macos_version:?}-darwin/ccache"
-    printf 'INFO: ccache was installed at %q\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache/ccache-${ccache_macos_version:?}-darwin/ccache" >&2
-  fi
-
-  if [[ -f "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps/.ok" ]]; then
-    printf 'INFO: obs-deps already exists\n' >&2
-  else
-    env \
-      URL="${prebuilt_macos_url:?}" \
-      SHA256="${prebuilt_macos_sha256:?}" \
-      DESTDIR="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps" \
-      cmake -P scripts/download-deps.cmake
-    touch "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps/.ok"
-    printf 'INFO: obs-deps was installed at %q\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps" >&2
-  fi
-
-  if [[ -f "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6/.ok" ]]; then
-    printf 'INFO: obs-deps-qt6 already exists\n' >&2
-  else
-    env \
-      URL="${qt6_macos_url:?}" \
-      SHA256="${qt6_macos_sha256:?}" \
-      DESTDIR="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6" \
-      cmake -P scripts/download-deps.cmake
-    touch "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6/.ok"
-    printf 'INFO: obs-deps-qt6 was installed at %q\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6" >&2
-  fi
+  cmake -P scripts/download-deps.cmake
 
   if ! [[ -d "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv" ]]; then
     "$(brew --prefix python)/bin/python3" -m venv "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv"

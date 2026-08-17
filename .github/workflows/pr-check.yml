@@ -23,8 +23,7 @@ jobs:
     with:
       upload-artifacts: ${{ contains(github.event.pull_request.labels.*.name, 'upload-artifacts') }}
       attest-artifacts: false
-      runs-on: windows-2022
-      windows-sdk-version: '10.0.22621'
+      runs-on: windows-2025-vs2026
 
   build-macos-arm64:
     uses: ./.github/workflows/build-macos.yml
@@ -35,9 +34,8 @@ jobs:
       attest-artifacts: false
       notarize: false
       x86_64: false
-      runs-on: macos-15
-      DEVELOPER_DIR: /Applications/Xcode_16.4.app
-      osx-deploy-target: '12.0'
+      runs-on: macos-26
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
   build-macos-x86_64:
     uses: ./.github/workflows/build-macos.yml
@@ -48,9 +46,8 @@ jobs:
       attest-artifacts: false
       notarize: false
       x86_64: true
-      runs-on: macos-15
-      DEVELOPER_DIR: /Applications/Xcode_16.4.app
-      osx-deploy-target: '12.0'
+      runs-on: macos-26
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
   build-debian-amd64:
     uses: ./.github/workflows/build-debian.yml

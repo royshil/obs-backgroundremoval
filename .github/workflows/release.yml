@@ -79,7 +79,7 @@ jobs:
           $artifacts = ConvertFrom-Json -InputObject $env:ARTIFACTS
 
           $assetsWithTitles = @{
-            $artifacts.WINDOWS_X64_RAW_ARTIFACT = $null
+            $artifacts.WINDOWS_X64_DLL_ARTIFACT = $null
             $artifacts.MACOS_ARM64_DSYM_ARTIFACT = $null
             $artifacts.MACOS_ARM64_PKG_ARTIFACT = $null
             $artifacts.MACOS_X86_64_DSYM_ARTIFACT = $null
