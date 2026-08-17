@@ -1,0 +1,10 @@
+<!--
+SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+
+SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="53" viewBox="0 0 100 53">
+<rect width="100" height="40" rx="6" fill="#555555"/>
+<text x="50" y="25" text-anchor="middle" fill="#FFFFFF" font-size="15px" font-weight="700">macOS</text>
+<text x="50" y="51" text-anchor="middle" fill="#656D76" font-size="12px" font-weight="700">Apple</text>
+</svg>
