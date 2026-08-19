@@ -1,2 +1,3 @@
 *.bat text eol=crlf
 .github/workflows/*.lock.yml linguist-generated=true merge=ours
+docs/download-trends.svg linguist-generated=true merge=ours

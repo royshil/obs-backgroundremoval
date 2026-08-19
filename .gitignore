@@ -9,6 +9,7 @@
 /*_installed/
 /build/
 /build_*/
+/docs/build/
 /obs-studio/
 /onnxruntime/
 /release/
