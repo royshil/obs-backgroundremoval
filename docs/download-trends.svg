@@ -1,0 +1,71 @@
+<!--s
+SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+
+SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="440" viewBox="0 0 800 440" role="img" aria-labelledby="title description">
+  <title id="title">Download trends</title>
+  <desc id="description">Cumulative GitHub release asset downloads through each release date, captured at 2026-08-19T05:29:33.286Z.</desc>
+  <defs>
+    <clipPath id="chart-clip">
+      <rect x="90" y="0" width="710" height="310"/>
+    </clipPath>
+    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0969da" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#0969da" stop-opacity="0.03"/>
+    </linearGradient>
+    <style>
+      .background { fill: #ffffff; }
+      .grid { shape-rendering: crispEdges; stroke: #d0d7de; stroke-opacity: 0.55; }
+      .axis { shape-rendering: crispEdges; stroke: #8c959f; }
+      .date { fill: #57606a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 12px; }
+      .tick-label { fill: #57606a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 11px; }
+      .generated-at { fill: #57606a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 10px; }
+      .axis-title { fill: #24292f; font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", "Noto Sans", sans-serif; font-size: 22px; font-style: italic; font-weight: 650; letter-spacing: 0.02em; }
+      .callout { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; }
+      .callout-box { fill: #ffffff; stroke: #cf222e; stroke-width: 2; }
+      .callout-line { fill: none; stroke: #cf222e; stroke-width: 1.5; }
+      .callout-point { fill: #ffffff; stroke: #cf222e; stroke-width: 2; }
+      .trend { stroke: #0969da; }
+      @media (prefers-color-scheme: dark) {
+        .background { fill: #0d1117; }
+        .grid { stroke: #30363d; stroke-opacity: 0.8; }
+        .axis { stroke: #6e7681; }
+        .date { fill: #8c959f; }
+        .tick-label { fill: #8c959f; }
+        .generated-at { fill: #8c959f; }
+        .axis-title { fill: #c9d1d9; }
+        .callout { fill: #f0f6fc; }
+        .callout-box { fill: #0d1117; stroke: #ff7b72; }
+        .callout-line { stroke: #ff7b72; }
+        .callout-point { fill: #0d1117; stroke: #ff7b72; }
+        .trend { stroke: #58a6ff; }
+        #area stop:first-child { stop-color: #58a6ff; }
+        #area stop:last-child { stop-color: #58a6ff; }
+      }
+    </style>
+  </defs>
+  <rect class="background" width="800" height="440" rx="6"/>
+  <g fill="none" vector-effect="non-scaling-stroke">
+    <path class="grid" d="M90 257.6H772 M90 205.2H772 M90 152.8H772 M90 100.4H772 M90 48.0H772"/>
+  </g>
+  <g clip-path="url(#chart-clip)">
+    <path fill="url(#area)" d="M90 310 L90.0 310.0 Q101.2 309.4 129.7 284.5 Q158.2 259.7 243.5 259.7 Q328.8 259.6 351.5 251.7 Q374.3 243.7 390.1 231.8 Q406.0 220.0 421.0 217.6 Q436.1 215.3 437.0 209.9 Q437.9 204.5 449.2 204.5 Q460.6 204.4 461.8 159.6 Q463.0 114.7 567.6 114.7 Q672.2 114.6 674.9 107.0 Q677.6 99.4 688.7 96.0 Q699.8 92.6 705.3 76.5 Q710.8 60.5 741.4 57.5 Q772.0 54.5 772.0 54.5 L772 310Z"/>
+    <path class="trend" fill="none" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" d="M90.0 310.0 Q101.2 309.4 129.7 284.5 Q158.2 259.7 243.5 259.7 Q328.8 259.6 351.5 251.7 Q374.3 243.7 390.1 231.8 Q406.0 220.0 421.0 217.6 Q436.1 215.3 437.0 209.9 Q437.9 204.5 449.2 204.5 Q460.6 204.4 461.8 159.6 Q463.0 114.7 567.6 114.7 Q672.2 114.6 674.9 107.0 Q677.6 99.4 688.7 96.0 Q699.8 92.6 705.3 76.5 Q710.8 60.5 741.4 57.5 Q772.0 54.5 772.0 54.5"/>
+  </g>
+  <path class="axis" fill="none" vector-effect="non-scaling-stroke" d="M90 47.5V310H772"/>
+  <text class="tick-label" x="82" y="257.6" text-anchor="end" dominant-baseline="middle">0.5M</text>
+  <text class="tick-label" x="82" y="205.2" text-anchor="end" dominant-baseline="middle">1.0M</text>
+  <text class="tick-label" x="82" y="152.8" text-anchor="end" dominant-baseline="middle">1.5M</text>
+  <text class="tick-label" x="82" y="100.4" text-anchor="end" dominant-baseline="middle">2.0M</text>
+  <text class="tick-label" x="82" y="48.0" text-anchor="end" dominant-baseline="middle">2.5M</text>
+  <text class="tick-label" x="82" y="310" text-anchor="end" dominant-baseline="middle">0</text>
+  <text class="generated-at" x="104" y="68">Generated at 2026-08-19T05:29:33.286Z</text>
+  <text class="date" x="90" y="330" text-anchor="end" transform="rotate(-60 90 330)">2021-04-23</text>
+  <text class="date" x="772" y="330" text-anchor="end" transform="rotate(-60 772 330)">2026-08-19</text>
+  <text class="axis-title" x="422" y="356" text-anchor="middle">Download trends for royshil/obs-backgroundremoval</text>
+  <path class="callout-line" d="M772 54.5L652 168"/>
+  <circle class="callout-point" cx="772" cy="54.5" r="5"/>
+  <rect class="callout-box" x="492" y="168" width="160" height="24"/>
+  <text class="callout" x="572" y="185" text-anchor="middle">2,438,043 downloads</text>
+</svg>

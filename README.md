@@ -1,3 +1,10 @@
+<!--
+SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # OBS Plugin: Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement
 
 <div align="center">
@@ -119,15 +126,6 @@ This video on YouTube will take you through the major parts of the code and expl
   </a>
 </div>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=royshil/obs-backgroundremoval&type=Date&theme=dark" />
-  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=royshil/obs-backgroundremoval&type=Date" />
-  <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=royshil/obs-backgroundremoval&type=Date" />
-</picture>
+## Download trends
 
----
-
-> SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>  
-> SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>  
->
-> SPDX-License-Identifier: GPL-3.0-or-later  
+![Download Trends](docs/download-trends.svg)
