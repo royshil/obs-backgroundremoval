@@ -1,14 +1,14 @@
-<!--s
+<!--
 SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 
 SPDX-License-Identifier: Apache-2.0
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="440" viewBox="0 0 800 440" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="292" viewBox="0 0 800 292" role="img" aria-labelledby="title description">
   <title id="title">Download trends</title>
-  <desc id="description">Cumulative GitHub release asset downloads through each release date, captured at 2026-08-19T05:29:33.286Z.</desc>
+  <desc id="description">Cumulative GitHub release asset downloads through each release date, captured at 2026-08-19T16:52:27.516Z.</desc>
   <defs>
     <clipPath id="chart-clip">
-      <rect x="90" y="0" width="710" height="310"/>
+      <rect x="90" y="16" width="682" height="210"/>
     </clipPath>
     <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#0969da" stop-opacity="0.32"/>
@@ -21,8 +21,8 @@ SPDX-License-Identifier: Apache-2.0
       .date { fill: #57606a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 12px; }
       .tick-label { fill: #57606a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 11px; }
       .generated-at { fill: #57606a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 10px; }
-      .axis-title { fill: #24292f; font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", "Noto Sans", sans-serif; font-size: 22px; font-style: italic; font-weight: 650; letter-spacing: 0.02em; }
-      .callout { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; }
+      .axis-title { fill: #24292f; font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", "Noto Sans", sans-serif; font-size: 22px; font-style: italic; font-weight: bold; }
+      .callout { fill: #1f2328; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 14px; font-weight: bold; }
       .callout-box { fill: #ffffff; stroke: #cf222e; stroke-width: 2; }
       .callout-line { fill: none; stroke: #cf222e; stroke-width: 1.5; }
       .callout-point { fill: #ffffff; stroke: #cf222e; stroke-width: 2; }
@@ -45,27 +45,27 @@ SPDX-License-Identifier: Apache-2.0
       }
     </style>
   </defs>
-  <rect class="background" width="800" height="440" rx="6"/>
+  <rect class="background" width="800" height="292" rx="6"/>
   <g fill="none" vector-effect="non-scaling-stroke">
-    <path class="grid" d="M90 257.6H772 M90 205.2H772 M90 152.8H772 M90 100.4H772 M90 48.0H772"/>
+    <path class="grid" d="M90 226H772 M90 184H772 M90 142H772 M90 100H772 M90 58H772 M90 16H772"/>
   </g>
   <g clip-path="url(#chart-clip)">
-    <path fill="url(#area)" d="M90 310 L90.0 310.0 Q101.2 309.4 129.7 284.5 Q158.2 259.7 243.5 259.7 Q328.8 259.6 351.5 251.7 Q374.3 243.7 390.1 231.8 Q406.0 220.0 421.0 217.6 Q436.1 215.3 437.0 209.9 Q437.9 204.5 449.2 204.5 Q460.6 204.4 461.8 159.6 Q463.0 114.7 567.6 114.7 Q672.2 114.6 674.9 107.0 Q677.6 99.4 688.7 96.0 Q699.8 92.6 705.3 76.5 Q710.8 60.5 741.4 57.5 Q772.0 54.5 772.0 54.5 L772 310Z"/>
-    <path class="trend" fill="none" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" d="M90.0 310.0 Q101.2 309.4 129.7 284.5 Q158.2 259.7 243.5 259.7 Q328.8 259.6 351.5 251.7 Q374.3 243.7 390.1 231.8 Q406.0 220.0 421.0 217.6 Q436.1 215.3 437.0 209.9 Q437.9 204.5 449.2 204.5 Q460.6 204.4 461.8 159.6 Q463.0 114.7 567.6 114.7 Q672.2 114.6 674.9 107.0 Q677.6 99.4 688.7 96.0 Q699.8 92.6 705.3 76.5 Q710.8 60.5 741.4 57.5 Q772.0 54.5 772.0 54.5"/>
+    <path fill="url(#area)" d="M90 226 L90.0 226.0 Q112.7 217.7 135.5 201.7 Q158.2 185.7 249.1 183.5 Q340.1 181.4 351.4 178.2 Q362.8 175.1 374.2 172.0 Q385.5 168.8 396.9 161.3 Q408.3 153.8 419.6 152.6 Q431.0 151.4 442.4 146.4 Q453.7 141.5 465.1 105.5 Q476.5 69.5 578.8 63.3 Q681.1 57.2 692.4 54.5 Q703.8 51.7 715.2 38.5 Q726.5 25.2 749.3 23.1 Q772.0 21.1 772.0 21.1 L772 226Z"/>
+    <path class="trend" fill="none" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" d="M90.0 226.0 Q112.7 217.7 135.5 201.7 Q158.2 185.7 249.1 183.5 Q340.1 181.4 351.4 178.2 Q362.8 175.1 374.2 172.0 Q385.5 168.8 396.9 161.3 Q408.3 153.8 419.6 152.6 Q431.0 151.4 442.4 146.4 Q453.7 141.5 465.1 105.5 Q476.5 69.5 578.8 63.3 Q681.1 57.2 692.4 54.5 Q703.8 51.7 715.2 38.5 Q726.5 25.2 749.3 23.1 Q772.0 21.1 772.0 21.1"/>
   </g>
-  <path class="axis" fill="none" vector-effect="non-scaling-stroke" d="M90 47.5V310H772"/>
-  <text class="tick-label" x="82" y="257.6" text-anchor="end" dominant-baseline="middle">0.5M</text>
-  <text class="tick-label" x="82" y="205.2" text-anchor="end" dominant-baseline="middle">1.0M</text>
-  <text class="tick-label" x="82" y="152.8" text-anchor="end" dominant-baseline="middle">1.5M</text>
-  <text class="tick-label" x="82" y="100.4" text-anchor="end" dominant-baseline="middle">2.0M</text>
-  <text class="tick-label" x="82" y="48.0" text-anchor="end" dominant-baseline="middle">2.5M</text>
-  <text class="tick-label" x="82" y="310" text-anchor="end" dominant-baseline="middle">0</text>
-  <text class="generated-at" x="104" y="68">Generated at 2026-08-19T05:29:33.286Z</text>
-  <text class="date" x="90" y="330" text-anchor="end" transform="rotate(-60 90 330)">2021-04-23</text>
-  <text class="date" x="772" y="330" text-anchor="end" transform="rotate(-60 772 330)">2026-08-19</text>
-  <text class="axis-title" x="422" y="356" text-anchor="middle">Download trends for royshil/obs-backgroundremoval</text>
-  <path class="callout-line" d="M772 54.5L652 168"/>
-  <circle class="callout-point" cx="772" cy="54.5" r="5"/>
-  <rect class="callout-box" x="492" y="168" width="160" height="24"/>
-  <text class="callout" x="572" y="185" text-anchor="middle">2,438,043 downloads</text>
+  <path class="axis" fill="none" vector-effect="non-scaling-stroke" d="M90 16V226H772"/>
+  <text class="tick-label" x="82" y="226" text-anchor="end" dominant-baseline="middle">0</text>
+  <text class="tick-label" x="82" y="184" text-anchor="end" dominant-baseline="middle">0.5M</text>
+  <text class="tick-label" x="82" y="142" text-anchor="end" dominant-baseline="middle">1.0M</text>
+  <text class="tick-label" x="82" y="100" text-anchor="end" dominant-baseline="middle">1.5M</text>
+  <text class="tick-label" x="82" y="58" text-anchor="end" dominant-baseline="middle">2.0M</text>
+  <text class="tick-label" x="82" y="16" text-anchor="end" dominant-baseline="middle">2.5M</text>
+  <text class="generated-at" x="104" y="36">Generated at 2026-08-19T16:52:27.516Z</text>
+  <text class="date" x="90" y="246" text-anchor="end" transform="rotate(-60 90 246)">2021-04</text>
+  <text class="date" x="772" y="246" text-anchor="end" transform="rotate(-60 772 246)">2026-08</text>
+  <text class="axis-title" x="428" y="272" text-anchor="middle">Download trends for royshil/obs-backgroundremoval</text>
+  <path class="callout-line" d="M772 21.1L652 136"/>
+  <circle class="callout-point" cx="772" cy="21.1" r="5"/>
+  <rect class="callout-box" x="492" y="136" width="160" height="24"/>
+  <text class="callout" x="572" y="153" text-anchor="middle">2,439,750 downloads</text>
 </svg>
