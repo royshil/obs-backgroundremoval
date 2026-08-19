@@ -126,6 +126,11 @@ This video on YouTube will take you through the major parts of the code and expl
   </a>
 </div>
 
-## Download trends
+## Download Trends and Star History
+
+<div align="center">
 
 ![Download Trends](docs/download-trends.svg)
+![GitHub Star History](docs/star-history.svg)
+
+</div>

@@ -80,11 +80,55 @@ export async function listReleases(repository, page = 1, token = undefined, endp
     throw new TypeError("List releases API did not return an array");
   }
 
-  if (releases.length < 100) {
-    return releases;
-  } else {
-    return [...releases, ...await listReleases(repository, page + 1, token, endpoint)];
+  return releases;
+}
+
+/**
+ * @typedef {Object} ListStargazersItem
+ * @property {string} starred_at
+ * @property {Object} user
+ */
+
+/**
+ * @param {string} repository
+ * @param {number} [page]
+ * @param {string} [token]
+ * @param {string} [endpoint]
+ * @returns {Promise<ListStargazersItem[]>}
+ */
+export async function listStargazers(
+  repository,
+  page = 1,
+  token = undefined,
+  endpoint = DEFAULT_GITHUB_API_ENDPOINT,
+) {
+  const url = new URL(`${endpoint}/repos/${repository}/stargazers`);
+  url.searchParams.set("per_page", "100");
+  url.searchParams.set("page", page);
+
+  const headers = {
+    "Accept": "application/vnd.github.star+json",
+    "X-GitHub-Api-Version": "2026-03-10",
+    "User-Agent": "obs-backgroundremoval-document-generator"
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    throw new Error(
+      `List stargazers API returned ${response.status} ${response.statusText}`,
+    );
+  }
+
+  const stargazers = await response.json();
+  if (!Array.isArray(stargazers)) {
+    throw new TypeError("List stargazers API did not return an array");
+  }
+
+  return stargazers;
 }
 
 export class GitHubClient {
@@ -94,15 +138,29 @@ export class GitHubClient {
    * @param {string} [endpoint]
    */
   constructor(repository, token = process.env.GITHUB_TOKEN, endpoint = DEFAULT_GITHUB_API_ENDPOINT) {
+    /** @type {string} */
     this.repository = repository;
+
+    /** @type {string} */
     this.endpoint = endpoint;
+
+    /** @type {string|undefined} */
     this.token = token;
   }
 
   /**
+   * @param {number} [page]
    * @returns {Promise<ListReleasesItem[]>}
    */
-  listReleases() {
-    return listReleases(this.repository, 1, this.token, this.endpoint);
+  listReleases(page = 1) {
+    return listReleases(this.repository, page, this.token, this.endpoint);
+  }
+
+  /**
+   * @param {number} page
+   * @returns {Promise<ListStargazersItem[]>}
+   */
+  listStargazers(page = 1) {
+    return listStargazers(this.repository, page, this.token, this.endpoint);
   }
 }
