@@ -4,57 +4,40 @@
 
 cmake_minimum_required(VERSION 3.28)
 
-### Options
-set(PLUGIN_DISPLAY_NAME "OBS Background Removal" CACHE STRING "Display name of plugin")
-set(PLUGIN_AUTHOR "Roy Shilkrot" CACHE STRING "Author of plugin")
-set(PLUGIN_EMAIL "roy.shil@gmail.com" CACHE STRING "Author email of plugin")
-set(PLUGIN_BUILD_NUMBER "1" CACHE STRING "Build number in plugin metadata")
-set(PLUGIN_BUNDLE_ID "com.royshilkrot.obs-backgroundremoval" CACHE STRING "Bundle ID of plugin installer")
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
+
 set(PACKAGE_VERSION_SUFFIX "" CACHE STRING "Version suffix for plugin package")
 
-### Project
 block(PROPAGATE PLUGIN_VERSION)
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_CONTENT)
   string(STRIP "${VERSION_CONTENT}" PLUGIN_VERSION)
 endblock()
-
 project(obs-backgroundremoval VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
-set(PLUGIN_NAME "${CMAKE_PROJECT_NAME}")
 
-block(PROPAGATE OS_LINUX_DETECTED)
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    if(EXISTS "/etc/os-release")
-      file(STRINGS "/etc/os-release" OS_RELEASE_ID_LINE REGEX "^ID=")
-      string(TOLOWER "${OS_RELEASE_ID_LINE}" OS_RELEASE_ID_LINE_LOWER)
-
-      if(OS_RELEASE_ID_LINE_LOWER MATCHES [[^id=['"]?debian['"]?$]])
-        set(OS_LINUX_DETECTED Debian)
-      elseif(OS_RELEASE_ID_LINE_LOWER MATCHES [[^id=['"]?ubuntu['"]?$]])
-        set(OS_LINUX_DETECTED Ubuntu)
-      else()
-        set(OS_LINUX_DETECTED Linux)
-      endif()
-    else()
-      set(OS_LINUX_DETECTED Linux)
-    endif()
-  else()
-    set(OS_LINUX_DETECTED FALSE)
-  endif()
-endblock()
-
-set(OS_LINUX ${OS_LINUX_DETECTED} CACHE STRING "Linux variant: Linux Debian Ubuntu FALSE")
-
-include(GNUInstallDirs)
 include(CheckCXXSymbolExists)
 include(CMakePushCheckState)
+include(CTest)
+include(GNUInstallDirs)
+
+block(PROPAGATE PLUGIN_DISPLAY_NAME PLUGIN_AUTHOR PLUGIN_EMAIL PLUGIN_BUNDLE_ID)
+  file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.props" BUILDSPEC_LINES)
+  foreach(LINE IN LISTS BUILDSPEC_LINES)
+    if(LINE MATCHES "^([a-zA-Z][a-zA-Z0-9_]*)=(.*)$")
+      set("${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}")
+    endif()
+  endforeach()
+endblock()
 
 ### Global configurations
+set(CMAKE_C_EXTENSIONS FALSE)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
-set(CMAKE_C_EXTENSIONS FALSE)
+set(CMAKE_CXX_EXTENSIONS FALSE)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
-set(CMAKE_CXX_EXTENSIONS FALSE)
+set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO RelWithDebInfo Release None)
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 if(MSVC)
@@ -65,36 +48,81 @@ if(MSVC)
     $<$<COMPILE_LANGUAGE:CXX>:/permissive->
     $<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>
   )
-elseif(APPLE OR OS_LINUX)
+elseif(UNIX)
   add_compile_options(-fno-omit-frame-pointer -fstack-protector-strong)
 endif()
 
-set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO RelWithDebInfo Release None)
+### Package dependency helpers
+function(map_imported_executable_to_release TARGET_NAME FALLBACK_LOCATION)
+  if(NOT TARGET "${TARGET_NAME}")
+    return()
+  endif()
 
-### Configure paths
-if(DEFINED ENV{PLUGIN_BUILD_DIR})
-  set(PLUGIN_BUILD_DIR "$ENV{PLUGIN_BUILD_DIR}")
-else()
-  set(PLUGIN_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-endif()
+  get_target_property(TARGET_TYPE "${TARGET_NAME}" TYPE)
+  get_target_property(TARGET_LOCATION "${TARGET_NAME}" IMPORTED_LOCATION)
+  if(NOT TARGET_LOCATION)
+    set(TARGET_LOCATION "${FALLBACK_LOCATION}")
+  endif()
 
-if(MSVC)
-  list(
-    PREPEND CMAKE_PREFIX_PATH
-    "${PLUGIN_BUILD_DIR}/.deps/obs-deps-prebuilt"
-    "${PLUGIN_BUILD_DIR}/.deps/obs-deps-qt6"
-    "${PLUGIN_BUILD_DIR}/obs_installed"
-    "${PLUGIN_BUILD_DIR}/build_ort/Release/vcpkg_installed/x64-windows-static-md"
-    "${PLUGIN_BUILD_DIR}/ort_installed"
-    "${PLUGIN_BUILD_DIR}/vcpkg_installed/x64-windows-static-md-obs"
-  )
-endif()
+  if(TARGET_TYPE STREQUAL "EXECUTABLE" AND TARGET_LOCATION)
+    set_target_properties(
+      "${TARGET_NAME}"
+      PROPERTIES
+        IMPORTED_CONFIGURATIONS RELEASE
+        IMPORTED_LOCATION_RELEASE "${TARGET_LOCATION}"
+        MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release
+    )
+  endif()
+endfunction()
+
+function(check_onnxruntime_execution_provider result symbol)
+  set(found FALSE)
+  set(index 0)
+
+  foreach(header IN LISTS ARGN)
+    math(EXPR index "${index} + 1")
+    set(check_variable "${result}_${index}")
+    check_cxx_symbol_exists("${symbol}" "${header}" "${check_variable}")
+
+    if(${check_variable})
+      set(found TRUE)
+      break()
+    endif()
+  endforeach()
+
+  set(${result} "${found}" PARENT_SCOPE)
+endfunction()
 
 ### Package dependencies
 find_package(PkgConfig QUIET)
 
 find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
+
+block()
+  find_package(Qt6 COMPONENTS Widgets REQUIRED)
+
+  # WORKAROUND: CMake 4 compatibility
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
+    get_property(QT_TARGETS DIRECTORY PROPERTY IMPORTED_TARGETS)
+    foreach(TARGET_NAME IN LISTS QT_TARGETS)
+      if(TARGET_NAME MATCHES "^Qt::")
+        map_imported_executable_to_release("${TARGET_NAME}" "")
+      endif()
+    endforeach()
+  endif()
+
+  # WORKAROUND: Remove deprecated AGL.framework when it is not available
+  if(APPLE AND TARGET WrapOpenGL::WrapOpenGL)
+    get_target_property(WRAP_OPENGL_LINK_LIBRARIES WrapOpenGL::WrapOpenGL INTERFACE_LINK_LIBRARIES)
+    list(FILTER WRAP_OPENGL_LINK_LIBRARIES EXCLUDE REGEX "(^|/)AGL\\.framework$|^-framework AGL$")
+    set_target_properties(WrapOpenGL::WrapOpenGL PROPERTIES INTERFACE_LINK_LIBRARIES "${WRAP_OPENGL_LINK_LIBRARIES}")
+  endif()
+
+  if(NOT Qt6_FOUND)
+    message(FATAL_ERROR "Qt6 not found via CMake.")
+  endif()
+endblock()
 
 block(PROPAGATE CURL_FOUND)
   find_package(CURL QUIET)
@@ -144,11 +172,14 @@ endblock()
 block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM_EP)
   set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON)
 
-  if(POLICY CMP0167)
-    cmake_policy(SET CMP0167 OLD)
-  endif()
+  find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc HINTS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES tools/protobuf)
 
   find_package(onnxruntime CONFIG)
+
+  # WORKAROUND: CMake 4 compatibility
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
+    map_imported_executable_to_release(protobuf::protoc "${Protobuf_PROTOC_EXECUTABLE}")
+  endif()
 
   if(NOT onnxruntime_FOUND AND PkgConfig_FOUND)
     pkg_check_modules(PC_onnxruntime onnxruntime IMPORTED_TARGET)
@@ -172,24 +203,6 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
   cmake_push_check_state(RESET)
   set(CMAKE_REQUIRED_LIBRARIES onnxruntime::onnxruntime)
   set(CMAKE_REQUIRED_QUIET TRUE)
-
-  function(check_onnxruntime_execution_provider result symbol)
-    set(found FALSE)
-    set(index 0)
-
-    foreach(header IN LISTS ARGN)
-      math(EXPR index "${index} + 1")
-      set(check_variable "${result}_${index}")
-      check_cxx_symbol_exists("${symbol}" "${header}" "${check_variable}")
-
-      if(${check_variable})
-        set(found TRUE)
-        break()
-      endif()
-    endforeach()
-
-    set(${result} "${found}" PARENT_SCOPE)
-  endfunction()
 
   check_onnxruntime_execution_provider(
     HAVE_ONNXRUNTIME_CUDA_EP
@@ -221,7 +234,7 @@ add_library(${CMAKE_PROJECT_NAME}_options INTERFACE)
 
 if(MSVC)
   target_compile_options(${CMAKE_PROJECT_NAME}_options INTERFACE /W4 /WX)
-elseif(APPLE OR OS_LINUX)
+elseif(UNIX)
   target_compile_definitions(${CMAKE_PROJECT_NAME}_options INTERFACE SIMDE_ENABLE_OPENMP)
   target_compile_options(${CMAKE_PROJECT_NAME}_options INTERFACE -fopenmp-simd -Wall -Wextra -Werror)
 endif()
@@ -280,7 +293,7 @@ if(APPLE)
   )
 elseif(MSVC)
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/exported_symbols_windows.def")
-elseif(OS_LINUX)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_options(
     ${CMAKE_PROJECT_NAME}
     PRIVATE "-Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/src/exported_symbols_linux.map" "-Wl,-Bsymbolic"
@@ -367,7 +380,7 @@ elseif(MSVC)
   install(FILES ${EFFECTS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/effects")
   install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
   install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
-elseif(OS_LINUX)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(OBS_PLUGIN_DATA_DIR "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}")
   set(OBS_PLUGIN_DOC_DIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${CMAKE_PROJECT_NAME}")
   set(OBS_PLUGIN_LIB_DIR "${CMAKE_INSTALL_LIBDIR}/obs-plugins")
@@ -403,3 +416,10 @@ set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS TRUE)
 
 include(CPack) # This line must be placed after all the package configurations
+
+### Testing
+if(BUILD_TESTING)
+  enable_testing()
+  set(PLUGIN_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_subdirectory(tests)
+endif()

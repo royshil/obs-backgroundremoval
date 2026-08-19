@@ -39,7 +39,7 @@ macos() {
   : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
   export PLUGIN_BUILD_DIR
 
-  : "${CMAKE_OSX_DEPLOYMENT_TARGET:=12.0}"
+  : "${CMAKE_OSX_DEPLOYMENT_TARGET:=13.0}"
   : "${VCPKG_BINARY_SOURCES:=clear;files,${PLUGIN_BUILD_DIR:?}/.vcpkg_archives,readwrite}"
   : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
   export CMAKE_OSX_DEPLOYMENT_TARGET VCPKG_BINARY_SOURCES VCPKG_ROOT
