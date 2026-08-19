@@ -30,7 +30,7 @@ const DOWNLOAD_TRENDS_CHART_URL = new URL("./download-trends.svg", import.meta.u
  * @returns {AnalyzeDownloadCountsItem[]}
  */
 function analyzeDownloadCounts(releases) {
-  /** @type {AnalyzeDownloadCountsItem} */
+  /** @type {AnalyzeDownloadCountsItem[]} */
   const results = [];
 
   const publishedReleases = releases.filter(({ draft, published_at }) => !draft && published_at);
