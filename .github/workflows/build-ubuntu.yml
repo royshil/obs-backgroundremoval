@@ -9,10 +9,6 @@ name: Build (Ubuntu)
 on:
   workflow_call:
     inputs:
-      upload-artifacts:
-        description: Uploads artifacts.
-        required: true
-        type: boolean
       attest-artifacts:
         description: Attests artifacts.
         required: true
@@ -33,6 +29,9 @@ on:
       resolute-ddeb-artifact:
         description: Debug symbols for Ubuntu Resolute.
         value: ${{ jobs.resolute.outputs.DDEB_ARTIFACT_NAME }}
+
+env:
+  DEBIAN_FRONTEND: noninteractive
 
 jobs:
   resolute:
@@ -90,12 +89,16 @@ jobs:
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: cmake --build build --config RelWithDebInfo --parallel
 
+      - name: Test (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: ctest --test-dir build --output-on-failure
+
       - name: Package deb and ddeb artifacts (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: cmake --build build --config RelWithDebInfo --target package
 
       - name: Attest package artifacts (Ubuntu)
-        if: inputs.upload-artifacts && inputs.attest-artifacts
+        if: inputs.attest-artifacts
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
@@ -103,7 +106,6 @@ jobs:
             build/${{ steps.expected-artifacts.outputs.DDEB_ARTIFACT_NAME }}
 
       - name: Upload deb artifact (Ubuntu)
-        if: inputs.upload-artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: build/${{ steps.expected-artifacts.outputs.DEB_ARTIFACT_NAME }}
@@ -111,59 +113,59 @@ jobs:
           if-no-files-found: error
 
       - name: Upload ddeb artifact (Ubuntu)
-        if: inputs.upload-artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: build/${{ steps.expected-artifacts.outputs.DDEB_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
 
-      - name: Install (Ubuntu)
-        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          PACKAGE_FILE: ./build/${{ steps.expected-artifacts.outputs.DEB_ARTIFACT_NAME }}
-        run: sudo apt-get -y install "${PACKAGE_FILE:?}"
+  test-resolute:
+    needs: resolute
+    runs-on: ${{ inputs.arm64 && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
+    timeout-minutes: 30
 
-      - name: Install test dependencies (Ubuntu)
-        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: sudo apt-get -y install netcat-openbsd obs-studio ruby ruby-base64 xvfb
-
-      - name: Test (Ubuntu)
+    steps:
+      - name: Install scenario test dependencies (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          export XDG_CONFIG_HOME="${HOME:?}/.config"
-          rm -rf "${XDG_CONFIG_HOME:?}/obs-studio"
-          mkdir -p "${XDG_CONFIG_HOME:?}/obs-studio/plugin_config/obs-websocket" && \
-          printf '{
-            "alerts_enabled": false,
-            "auth_required": true,
-            "first_load": false,
-            "server_enabled": true,
-            "server_password": "DUMMY_PASSWORD",
-            "server_port":4455
-          }\n' >"${XDG_CONFIG_HOME:?}/obs-studio/plugin_config/obs-websocket/config.json"
+          sudo apt-get update
+          sudo apt-get -y --no-install-recommends install \
+            at-spi2-core \
+            ca-certificates \
+            dbus-daemon \
+            dbus-x11 \
+            ffmpeg \
+            git \
+            obs-studio \
+            python3-pyatspi \
+            xauth \
+            xvfb
 
-          xvfb-run -a obs >obs.log 2>&1 &
-          obs_pid=${!:?}
-          cleanup() {
-            status=${?:?}
-            trap - EXIT
-            kill "${obs_pid:?}" 2>/dev/null || true
-            wait "${obs_pid:?}" 2>/dev/null || true
-            exit "${status:?}"
-          }
-          trap cleanup EXIT
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-          timeout 30s /bin/sh -c 'until nc -z 127.0.0.1 4455; do sleep 1; done'
-          ruby -I "${GITHUB_WORKSPACE:?}/scripts" -r ws_client -e '
-          WSClient.open("127.0.0.1", 4455, "DUMMY_PASSWORD") do |client|
-            filters = client.call("GetSourceFilterKindList")["sourceFilterKinds"]
-            abort filters.inspect unless %w[background_removal enhanceportrait].all? { filters.include?(_1) }
-            puts "Plugin loaded successfully: background_removal, enhanceportrait"
-          end
-          '
+      - name: Download deb artifact (Ubuntu)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.resolute.outputs.DEB_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/${{ github.job }}
 
-      - name: Show test log (Ubuntu)
-        if: always()
+      - name: Install deb artifact (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: cat obs.log
+        env:
+          PACKAGE_FILE: ${{ runner.temp }}/${{ github.job }}/${{ needs.resolute.outputs.DEB_ARTIFACT_NAME }}
+        run: sudo apt-get -y install "${PACKAGE_FILE:?}"
+
+      - name: Run scenario tests (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: ./tests/Scenarios/+run-debian.sh run_all
+
+      - name: Upload scenario test artifacts (Ubuntu)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scenario-test-results-ubuntu-resolute-${{ inputs.arm64 && 'arm64' || 'amd64' }}
+          path: ${{ github.workspace }}/build_test_reports
+          if-no-files-found: warn

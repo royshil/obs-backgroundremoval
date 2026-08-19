@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   build-essential \
   ca-certificates \
   clang-format-19 \
+  clangd \
   cmake \
   curl \
   file \
@@ -20,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libopencv-dev \
   ninja-build \
   python3.14-venv \
+  qt6-base-dev \
   sudo \
   tar \
   unzip \

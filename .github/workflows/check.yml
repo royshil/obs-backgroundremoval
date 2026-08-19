@@ -19,7 +19,7 @@ jobs:
   check-clang-format:
     name: Check clang-format
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -28,12 +28,12 @@ jobs:
       - name: Print clang-format version
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          clang-format-18 --version
+          clang-format-22 --version
 
       - name: Check with clang-format
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          git ls-files -z "*.c" "*.cpp" "*.h" "*.hpp" | xargs -0 -r clang-format-18 --dry-run --Werror
+          git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' ':!vendor/' | xargs -0 -r clang-format-22 --dry-run --Werror
 
   check-gersemi:
     name: Check gersemi

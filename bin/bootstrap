@@ -18,6 +18,7 @@ debian_forky() {
     libonnxruntime-dev \
     libopencv-dev \
     ninja-build \
+    qt6-base-dev \
     tar \
     unzip \
     zip
@@ -43,7 +44,7 @@ ubuntu_resolute() {
 }
 
 macos() {
-  brew install pkg-config
+  brew install cmake ninja pkg-config
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
@@ -53,7 +54,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   [[ -f /etc/os-release ]] && . /etc/os-release
   if [[ "$(uname -s)" == Darwin ]]; then
     macos
-  elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID}_$VERSION_CODENAME"; then
+  elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID}_$VERSION_CODENAME" >/dev/null; then
     "${ID}_$VERSION_CODENAME"
   else
     printf 'ERROR: Your platform is not supported. Exiting...\n' >&2

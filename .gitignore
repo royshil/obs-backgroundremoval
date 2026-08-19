@@ -1,17 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 .DS_Store
-.bin/
 .cache/
 .venv/
-.vscode/
-/.ccache*/
+__pycache__/
+
+.venv*/
+*.pyc
+
 /.deps/
 /.vcpkg_archives/
-/*_installed/
 /build/
-/build_*/
 /docs/build/
-/obs-studio/
-/onnxruntime/
 /release/
-/vcpkg/
-/*_lock.txt
+
+/.ccache*/
+/*_installed/
+/build_*/

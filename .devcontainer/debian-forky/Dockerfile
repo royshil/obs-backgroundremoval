@@ -9,7 +9,8 @@ FROM debian:forky-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
   build-essential \
   ca-certificates \
-  clang-format-19 \
+  clang-format-21 \
+  clangd \
   cmake \
   curl \
   file \
@@ -20,10 +21,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libopencv-dev \
   ninja-build \
   python3.13-venv \
+  qt6-base-dev \
   sudo \
   tar \
   unzip \
   zip \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  accerciser \
+  at-spi2-core \
+  dbus-daemon \
+  dbus-x11 \
+  ffmpeg \
+  obs-studio \
+  openbox \
+  python3-pyatspi \
+  tigervnc-standalone-server \
+  x11-utils \
+  xterm \
+  xvfb \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --chmod=400 <<'EOF' /etc/sudoers.d/vscode

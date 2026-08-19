@@ -1,0 +1,9 @@
+version = 1
+
+[[annotations]]
+path = "README.md"
+SPDX-FileCopyrightText = [
+    "Nicolai Josuttis",
+    "Lewis Baker",
+]
+SPDX-License-Identifier = "CC-BY-4.0"

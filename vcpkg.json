@@ -3,22 +3,6 @@
   "dependencies": [
     "cpuinfo",
     {
-      "name": "curl",
-      "default-features": false,
-      "features": [
-        "ssl"
-      ],
-      "platform": "((windows & !uwp) | mingw) & !osx"
-    },
-    {
-      "name": "curl",
-      "default-features": false,
-      "features": [
-        "wolfssl"
-      ],
-      "platform": "((uwp | !windows) & !mingw) & !osx"
-    },
-    {
       "name": "opencv4",
       "default-features": false,
       "features": [

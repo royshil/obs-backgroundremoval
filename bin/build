@@ -4,13 +4,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set -euo pipefail
-shopt -s nullglob
-
 debian_forky() {
-  cmake -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --preset linux
-  cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --preset linux
-  (cd "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" && cpack -G DEB)
+  cmake -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --config Release
 }
 
 ubuntu_resolute() {
@@ -172,6 +168,7 @@ macos() {
     -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
     -G Ninja \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
     -DCMAKE_PREFIX_PATH="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps;${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed/Frameworks;${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_ort_installed/${VCPKG_ORT_TARGET_TRIPLET:-arm64-osx-obs-ort};${PLUGIN_BUILD_DIR:-${PWD:?}}/ort_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_installed/${VCPKG_TARGET_TRIPLET:-arm64-osx-obs}"
@@ -206,8 +203,8 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   [[ -f /etc/os-release ]] && . /etc/os-release
   if [[ "$(uname -s)" == Darwin ]]; then
     macos
-  elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID}_$VERSION_CODENAME"; then
-    "${ID}_$VERSION_CODENAME"
+  elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID:?}_${VERSION_CODENAME:?}" >/dev/null; then
+    "${ID:?}_${VERSION_CODENAME:?}" "$@"
   elif [[ "$ID" == 'arch' ]]; then
     arch
   else

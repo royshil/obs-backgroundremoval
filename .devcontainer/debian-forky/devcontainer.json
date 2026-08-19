@@ -7,23 +7,43 @@
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
   "containerEnv": {
-    "PLUGIN_BUILD_DIR": "/home/vscode/obs-backgroundremoval-build"
+    "PLUGIN_BUILD_DIR": "/home/vscode/obs-backgroundremoval-build",
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8"
+  },
+  "forwardPorts": [5901],
+  "portsAttributes": {
+    "5901": {
+      "label": "VNC",
+      "onAutoForward": "notify"
+    }
   },
   "customizations": {
     "vscode": {
       "extensions": [
         "editorconfig.editorconfig",
+        "llvm-vs-code-extensions.vscode-clangd",
         "ms-vscode.cmake-tools",
-        "ms-vscode.cpp-devtools",
-        "ms-vscode.cpptools-extension-pack"
+        "openai.chatgpt",
+        "stevejpurves.cucumber"
       ],
       "settings": {
-        "cmake.useCMakePresets": "never",
         "cmake.buildDirectory": "/home/vscode/obs-backgroundremoval-build/build",
         "cmake.configureSettings": {
           "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-        }
+        },
+        "clangd.arguments": [
+          "--compile-commands-dir=/home/vscode/obs-backgroundremoval-build/build"
+        ]
       }
     }
-  }
+  },
+  "postStartCommand": {
+    "start-vnc": ".devcontainer/debian-forky/start-vnc.sh",
+    "fix-codex-permissions": "sudo chown -R vscode:vscode /home/vscode/.codex"
+  },
+  "mounts": [
+    "source=codex-auth,target=/home/vscode/.codex,type=volume"
+  ],
+  "securityOpt": ["seccomp=unconfined"]
 }

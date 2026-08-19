@@ -1,0 +1,68 @@
+obs-backgroundremoval
+Copyright (C) 2021-2026 Roy Shilkrot
+Copyright (C) 2023-2026 Kaito Udagawa
+
+This product includes software developed by the ONNX Runtime project
+(https://onnxruntime.ai/), Copyright (C) Microsoft Corporation, licensed under
+the MIT License.
+
+This product includes software developed by the OpenCV project
+(https://opencv.org/), licensed under the Apache License 2.0.
+
+This product includes software developed by the curl project
+(https://curl.se/), Copyright (C) Daniel Stenberg and contributors, licensed
+under the curl license.
+
+This product includes software developed by the cpuinfo project
+(https://github.com/pytorch/cpuinfo/), Copyright (C) Google LLC, Facebook,
+Inc., Georgia Institute of Technology, and Marat Dukhan, licensed under the
+BSD 3-Clause License.
+
+This product includes pretrained models provided under the following notices.
+
+SINet_Softmax_simple.onnx
+Copyright (C) 2019 Anil Sathyan
+License: MIT
+
+mediapipe.onnx
+Copyright (C) 2021 Google LLC
+Copyright (C) 2021 Katsuya Hyodo
+License: Apache-2.0
+
+pphumanseg_fp32.onnx
+Copyright (C) 2021 PaddlePaddle Authors
+License: Apache-2.0
+
+rvm_mobilenetv3_fp32.onnx
+Copyright (C) 2021 Peter Lin
+License: GPL-3.0-only
+
+selfie_multiclass_256x256.onnx
+Copyright (C) 2021 Google LLC
+Copyright (C) 2021 Katsuya Hyodo
+License: Apache-2.0
+
+selfie_segmentation.onnx
+Copyright (C) 2021 Google LLC
+Copyright (C) 2021 Katsuya Hyodo
+License: Apache-2.0
+
+semantic_guided_llie_180x324.onnx
+Copyright (C) 2021 ShenZheng2000
+Copyright (C) 2021 Katsuya Hyodo
+License: MIT
+
+tbefn_fp32.onnx
+Copyright (C) 2021 KUN LU
+Copyright (C) 2021 Katsuya Hyodo
+License: BSD-3-Clause
+
+tcmonodepth_tcsmallnet_192x320.onnx
+Copyright (C) 2021 Yu Li
+Copyright (C) 2021 Katsuya Hyodo
+License: MIT
+
+uretinex_net_180x320.onnx
+Copyright (C) 2022 AndersonYong
+Copyright (C) 2022 Katsuya Hyodo
+License: MIT

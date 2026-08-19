@@ -1,0 +1,6 @@
+version = 1
+
+[[annotations]]
+path = "pull_request_template.md"
+SPDX-FileCopyrightText = ""
+SPDX-License-Identifier = "CC0-1.0"

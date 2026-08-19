@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 *.bat text eol=crlf
 .github/workflows/*.lock.yml linguist-generated=true merge=ours
 docs/download-trends.svg linguist-generated=true merge=ours

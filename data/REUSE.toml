@@ -1,0 +1,9 @@
+version = 1
+
+[[annotations]]
+path = [
+  "config.json",
+  "manifest.json",
+]
+SPDX-FileCopyrightText = ""
+SPDX-License-Identifier = "CC0-1.0"
