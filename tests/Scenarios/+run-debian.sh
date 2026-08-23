@@ -7,7 +7,7 @@
 set -euo pipefail
 
 usage() {
-  printf 'Usage: %s {setup|run_all}\n' "$0"
+  printf 'Usage: %s [run_all]\n' "$0"
 }
 
 if [[ ! -f VERSION ]]; then
@@ -59,14 +59,6 @@ session_cleanup() {
 }
 
 ### Subcommands
-
-setup() {
-  require_command python3
-
-  python3 -m venv "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv_test"
-  "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv_test/bin/python3" -m pip install --upgrade pip
-  "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv_test/bin/python3" -m pip install python3-pyatspi
-}
 
 run_scenario() {
   require_command ffmpeg
@@ -133,17 +125,11 @@ run_all() {
 }
 
 if (($# == 0)); then
-  setup
   run_all
   exit 0
 fi
 
 case "${1:-}" in
-setup)
-  shift
-  setup "$@"
-  exit 0
-  ;;
 run_all)
   shift
   run_all "$@"

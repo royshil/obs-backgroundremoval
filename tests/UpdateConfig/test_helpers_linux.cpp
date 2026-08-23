@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <string_view>
@@ -18,7 +19,8 @@ namespace TestHelpers {
 
 class HttpServer::Impl final {
 public:
-	explicit Impl(std::string body, int statusCode) : socket_(socket(AF_INET, SOCK_STREAM, 0))
+	explicit Impl(std::string body, int statusCode, std::chrono::milliseconds responseDelay)
+		: socket_(socket(AF_INET, SOCK_STREAM, 0))
 	{
 		if (socket_ == -1) {
 			std::cerr << "Failed to create test HTTP socket\n";
@@ -41,11 +43,12 @@ public:
 		}
 		port_ = ntohs(address.sin_port);
 
-		worker_ = std::thread([this, body = std::move(body), statusCode] {
+		worker_ = std::thread([this, body = std::move(body), statusCode, responseDelay] {
 			const int client = accept(socket_, nullptr, nullptr);
 			if (client == -1) {
 				return;
 			}
+			std::this_thread::sleep_for(responseDelay);
 
 			const std::string response = "HTTP/1.1 " + std::to_string(statusCode) +
 						     " Test\r\nContent-Length: " + std::to_string(body.size()) +
@@ -78,7 +81,10 @@ private:
 	std::thread worker_;
 };
 
-HttpServer::HttpServer(std::string body, int statusCode) : impl_(std::make_unique<Impl>(std::move(body), statusCode)) {}
+HttpServer::HttpServer(std::string body, int statusCode, std::chrono::milliseconds responseDelay)
+	: impl_(std::make_unique<Impl>(std::move(body), statusCode, responseDelay))
+{
+}
 
 HttpServer::~HttpServer() noexcept = default;
 

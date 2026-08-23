@@ -4,6 +4,7 @@
 
 #include "UpdateConfig.hpp"
 
+#include <atomic>
 #include <limits>
 #include <mutex>
 #include <vector>
@@ -69,6 +70,7 @@ public:
 	std::vector<char> response_;
 	bool responseReady_{false};
 	std::mutex fetchThreadMutex_;
+	std::atomic_bool fetchInProgress_{false};
 	std::optional<jthread> fetchThread_;
 
 	~CurlLatestVersionClient() override = default;
@@ -76,9 +78,24 @@ public:
 	void fetchAsync(std::string url, std::string userAgent) override
 	{
 		std::lock_guard lock(fetchThreadMutex_);
-		if (!fetchThread_ || !fetchThread_->joinable()) {
+		if (fetchInProgress_) {
+			return;
+		}
+
+		fetchThread_.reset();
+		{
+			std::lock_guard responseLock(responseMutex_);
+			responseReady_ = false;
+			response_.clear();
+		}
+
+		fetchInProgress_ = true;
+		try {
 			fetchThread_.emplace(&CurlLatestVersionClient::fetch, this, std::move(url),
 					     std::move(userAgent));
+		} catch (...) {
+			fetchInProgress_ = false;
+			throw;
 		}
 	}
 
@@ -117,6 +134,11 @@ public:
 private:
 	void fetch(std::string url, std::string userAgent) noexcept
 	{
+		struct FetchCompletion final {
+			std::atomic_bool &fetchInProgress;
+			~FetchCompletion() { fetchInProgress = false; }
+		} fetchCompletion{fetchInProgress_};
+
 		if (curlGlobal_.result != CURLE_OK) {
 			return;
 		}

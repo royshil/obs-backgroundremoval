@@ -40,6 +40,22 @@ std::optional<std::string> waitForLatestVersion(const std::string &url)
 	return {};
 }
 
+std::optional<std::string> retryUntilLatestVersion(const std::string &url)
+{
+	static constexpr auto timeout = 5s;
+	const auto deadline = std::chrono::steady_clock::now() + timeout;
+
+	do {
+		if (auto response = UpdateConfig::getLatestVersion()) {
+			return response;
+		}
+		UpdateConfig::fetchLatestVersionAsync(url, "UpdateConfigCurlTest/1.0");
+		std::this_thread::sleep_for(10ms);
+	} while (std::chrono::steady_clock::now() < deadline);
+
+	return {};
+}
+
 void testSuccessfulFetch()
 {
 	HttpServer server("\r\n  1.2.3 \t\n");
@@ -69,14 +85,48 @@ void testFailedFetch()
 	UpdateConfig::resetLatestVersion();
 }
 
-void testResetAllowsAnotherFetch()
+void testCompletedFetchAllowsAnotherFetch()
 {
 	HttpServer firstServer("2.3.4\n");
 	expect(waitForLatestVersion(firstServer.url()) == "2.3.4", "the first response should be published");
-	UpdateConfig::resetLatestVersion();
 
 	HttpServer secondServer("3.4.5\n");
-	expect(waitForLatestVersion(secondServer.url()) == "3.4.5", "reset should allow another fetch");
+	expect(waitForLatestVersion(secondServer.url()) == "3.4.5", "a completed fetch should allow another fetch");
+	UpdateConfig::resetLatestVersion();
+}
+
+void testFailedFetchAllowsRetry()
+{
+	HttpServer failedServer("unavailable", 503, 100ms);
+	UpdateConfig::fetchLatestVersionAsync(failedServer.url(), "UpdateConfigCurlTest/1.0");
+
+	HttpServer successfulServer("4.5.6\n");
+	expect(retryUntilLatestVersion(successfulServer.url()) == "4.5.6", "a failed fetch should allow a retry");
+	UpdateConfig::resetLatestVersion();
+}
+
+void testFetchInProgressIgnoresAnotherFetch()
+{
+	HttpServer server("5.6.7\n", 200, 100ms);
+	UpdateConfig::fetchLatestVersionAsync(server.url(), "UpdateConfigCurlTest/1.0");
+	UpdateConfig::fetchLatestVersionAsync(server.url(), "UpdateConfigCurlTest/1.0");
+
+	const auto deadline = std::chrono::steady_clock::now() + 5s;
+	while (!UpdateConfig::getLatestVersion() && std::chrono::steady_clock::now() < deadline) {
+		std::this_thread::sleep_for(10ms);
+	}
+	expect(UpdateConfig::getLatestVersion() == "5.6.7", "an in-progress fetch should ignore another fetch");
+	UpdateConfig::resetLatestVersion();
+}
+
+void testNewFetchClearsPreviousResponse()
+{
+	HttpServer firstServer("6.7.8\n");
+	expect(waitForLatestVersion(firstServer.url()) == "6.7.8", "the first response should be published");
+
+	HttpServer failedServer("unavailable", 503, 100ms);
+	UpdateConfig::fetchLatestVersionAsync(failedServer.url(), "UpdateConfigCurlTest/1.0");
+	expect(!UpdateConfig::getLatestVersion(), "a new fetch should clear the previous response");
 	UpdateConfig::resetLatestVersion();
 }
 
@@ -88,6 +138,9 @@ int main()
 	testSuccessfulFetch();
 	testEmptyResponse();
 	testFailedFetch();
-	testResetAllowsAnotherFetch();
+	testCompletedFetchAllowsAnotherFetch();
+	testFailedFetchAllowsRetry();
+	testFetchInProgressIgnoresAnotherFetch();
+	testNewFetchClearsPreviousResponse();
 	return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

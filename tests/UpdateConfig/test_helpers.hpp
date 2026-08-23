@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <string>
 
@@ -11,7 +12,8 @@ namespace TestHelpers {
 
 class HttpServer final {
 public:
-	explicit HttpServer(std::string body, int statusCode = 200);
+	explicit HttpServer(std::string body, int statusCode = 200,
+			    std::chrono::milliseconds responseDelay = std::chrono::milliseconds::zero());
 	~HttpServer() noexcept;
 
 	HttpServer(const HttpServer &) = delete;
