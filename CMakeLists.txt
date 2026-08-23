@@ -14,6 +14,7 @@ block(PROPAGATE PLUGIN_VERSION)
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_CONTENT)
   string(STRIP "${VERSION_CONTENT}" PLUGIN_VERSION)
 endblock()
+
 project(obs-backgroundremoval VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
 
 include(CheckCXXSymbolExists)
@@ -21,7 +22,11 @@ include(CMakePushCheckState)
 include(CTest)
 include(GNUInstallDirs)
 
-block(PROPAGATE PLUGIN_DISPLAY_NAME PLUGIN_AUTHOR PLUGIN_EMAIL PLUGIN_BUNDLE_ID)
+include(./cmake/collect_licenses.cmake OPTIONAL)
+
+block(
+  PROPAGATE PLUGIN_DISPLAY_NAME PLUGIN_AUTHOR PLUGIN_EMAIL PLUGIN_BUNDLE_ID PLUGIN_LATEST_VERSION_URL
+)
   file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.props" BUILDSPEC_LINES)
   foreach(LINE IN LISTS BUILDSPEC_LINES)
     if(LINE MATCHES "^([a-zA-Z][a-zA-Z0-9_]*)=(.*)$")
@@ -37,22 +42,41 @@ set(CMAKE_C_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_EXTENSIONS FALSE)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
-set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO RelWithDebInfo Release None)
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
+add_library(BuildOptions INTERFACE)
+
 if(MSVC)
-  add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
-  add_compile_options(
-    /utf-8
-    /Zc:preprocessor
-    $<$<COMPILE_LANGUAGE:CXX>:/permissive->
-    $<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>
+  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
+  target_compile_definitions(BuildOptions INTERFACE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+  target_compile_options(
+    BuildOptions
+    INTERFACE
+      /utf-8
+      /Zc:preprocessor
+      $<$<COMPILE_LANGUAGE:CXX>:/permissive->
+      $<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>
+      /W4
+      /WX
   )
 elseif(UNIX)
-  add_compile_options(-fno-omit-frame-pointer -fstack-protector-strong)
+  target_compile_definitions(BuildOptions INTERFACE SIMDE_ENABLE_OPENMP)
+  target_compile_options(
+    BuildOptions
+    INTERFACE -fno-omit-frame-pointer -fstack-protector-strong -fopenmp-simd -Wall -Wextra -Werror
+  )
 endif()
 
-### Package dependency helpers
+target_compile_definitions(
+  BuildOptions
+  INTERFACE
+    PLUGIN_NAME_STR="${CMAKE_PROJECT_NAME}"
+    PLUGIN_VERSION_STR="${PLUGIN_VERSION}"
+    PLUGIN_LATEST_VERSION_URL="${PLUGIN_LATEST_VERSION_URL}"
+    OBS_LOG_HEADER="[${CMAKE_PROJECT_NAME}] "
+)
+
+### Dependency helpers
 function(map_imported_executable_to_release TARGET_NAME FALLBACK_LOCATION)
   if(NOT TARGET "${TARGET_NAME}")
     return()
@@ -125,7 +149,16 @@ block()
 endblock()
 
 block(PROPAGATE CURL_FOUND)
-  find_package(CURL QUIET)
+  if(APPLE)
+    # WORKAROUND: Prefer system curl on macOS
+    find_package(CURL MODULE QUIET)
+
+    if(NOT CURL_FOUND)
+      find_package(CURL CONFIG QUIET)
+    endif()
+  else()
+    find_package(CURL QUIET)
+  endif()
 
   if(NOT CURL_FOUND AND PkgConfig_FOUND)
     pkg_check_modules(PC_CURL libcurl IMPORTED_TARGET)
@@ -135,8 +168,8 @@ block(PROPAGATE CURL_FOUND)
     endif()
   endif()
 
-  if(NOT CURL_FOUND)
-    message(FATAL_ERROR "CURL not found via CMake or pkg-config.")
+  if(CURL_FOUND)
+    target_compile_definitions(BuildOptions INTERFACE PLUGIN_HAVE_CURL)
   endif()
 endblock()
 
@@ -215,6 +248,13 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
     onnxruntime/core/providers/cuda/cuda_provider_factory.h
   )
 
+  if(HAVE_ONNXRUNTIME_CUDA_EP)
+    message(STATUS "Building with ONNX Runtime CUDA EP.")
+    target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_CUDA_EP)
+  else()
+    message(STATUS "Building without ONNX Runtime CUDA EP.")
+  endif()
+
   check_onnxruntime_execution_provider(
     HAVE_ONNXRUNTIME_ROCM_EP
     OrtSessionOptionsAppendExecutionProvider_ROCM
@@ -226,44 +266,31 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
     onnxruntime/core/providers/rocm/rocm_provider_factory.h
   )
 
+  if(HAVE_ONNXRUNTIME_ROCM_EP)
+    message(STATUS "Building with ONNX Runtime ROCm EP.")
+    target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_ROCM_EP)
+  else()
+    message(STATUS "Building without ONNX Runtime ROCm EP.")
+  endif()
+
   cmake_pop_check_state()
 endblock()
 
 ### Plugin main
-add_library(${CMAKE_PROJECT_NAME}_options INTERFACE)
-
-if(MSVC)
-  target_compile_options(${CMAKE_PROJECT_NAME}_options INTERFACE /W4 /WX)
-elseif(UNIX)
-  target_compile_definitions(${CMAKE_PROJECT_NAME}_options INTERFACE SIMDE_ENABLE_OPENMP)
-  target_compile_options(${CMAKE_PROJECT_NAME}_options INTERFACE -fopenmp-simd -Wall -Wextra -Werror)
-endif()
-
-if(HAVE_ONNXRUNTIME_CUDA_EP)
-  message(STATUS "Building with ONNX Runtime CUDA EP.")
-  target_compile_definitions(${CMAKE_PROJECT_NAME}_options INTERFACE HAVE_ONNXRUNTIME_CUDA_EP)
-else()
-  message(STATUS "Building without ONNX Runtime CUDA EP.")
-endif()
-
-if(HAVE_ONNXRUNTIME_ROCM_EP)
-  message(STATUS "Building with ONNX Runtime ROCm EP.")
-  target_compile_definitions(${CMAKE_PROJECT_NAME}_options INTERFACE HAVE_ONNXRUNTIME_ROCM_EP)
-else()
-  message(STATUS "Building without ONNX Runtime ROCm EP.")
-endif()
+add_subdirectory(vendor/josuttis-jthread)
+add_subdirectory(src/UpdateConfig)
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
 
-add_subdirectory(src/update-checker/CurlClient)
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
-    ${CMAKE_PROJECT_NAME}_options
+    BuildOptions
     OBS::libobs
     OBS::obs-frontend-api
+    Qt6::Widgets
     onnxruntime::onnxruntime
-    CurlClient
+    UpdateConfig
     OpenCV::opencv_core
     OpenCV::opencv_imgproc
     $<$<TARGET_EXISTS:OpenCV::opencv_geometry>:OpenCV::opencv_geometry>
@@ -272,18 +299,25 @@ target_link_libraries(
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
-    src/plugin-main.c
+    src/plugin-main.cpp
     src/plugin-support.c
+    src/UI/AboutDialog.cpp
+    src/UI/AboutDialogIntegration.cpp
+    src/Resources/resources.qrc
     src/ort-utils/ort-session-utils.cpp
     src/obs-utils/obs-utils.cpp
-    src/obs-utils/obs-config-utils.cpp
-    src/update-checker/github-utils.cpp
-    src/update-checker/update-checker.cpp
-    src/background-filter-info.c
     src/background-filter.cpp
     src/enhance-filter.cpp
-    src/enhance-filter-info.c
 )
+
+set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES AUTORCC ON)
+
+if(COMMAND collect_licenses)
+  set(legal_header "${CMAKE_CURRENT_BINARY_DIR}/legal.hpp")
+  collect_licenses("${legal_header}")
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${legal_header}")
+  target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
 
 ### Hide symbols
 if(APPLE)
@@ -396,6 +430,12 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
   install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
   install(FILES LICENSE DESTINATION "${OBS_PLUGIN_DOC_DIR}" RENAME copyright)
+
+  # User plugin
+  install(TARGETS "${CMAKE_PROJECT_NAME}" LIBRARY DESTINATION "bin/64bit" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
+  install(FILES ${EFFECTS_FILES} DESTINATION "data/effects" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
+  install(FILES ${LOCALE_FILES} DESTINATION "data/locale" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
+  install(FILES ${MODELS_FILES} DESTINATION "data/models" COMPONENT UserPlugin EXCLUDE_FROM_ALL OPTIONAL)
 else()
   message("Installing on this platform is not supported officially.")
 endif()

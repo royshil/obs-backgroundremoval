@@ -68,12 +68,10 @@ jobs:
       contents: read
       id-token: write
     with:
-      upload-artifacts: true
       attest-artifacts: true
       notarize: ${{ inputs.release-build || false }}
       x86_64: false
-      runs-on: macos-26
-      DEVELOPER_DIR: /Applications/Xcode_26.5.app
+      TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
   build-macos-x86_64:
     uses: ./.github/workflows/build-macos.yml
@@ -84,12 +82,10 @@ jobs:
       contents: read
       id-token: write
     with:
-      upload-artifacts: true
       attest-artifacts: true
       notarize: ${{ inputs.release-build || false }}
       x86_64: true
-      runs-on: macos-26
-      DEVELOPER_DIR: /Applications/Xcode_26.5.app
+      TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
   build-debian-amd64:
     uses: ./.github/workflows/build-debian.yml
@@ -99,7 +95,6 @@ jobs:
       contents: read
       id-token: write
     with:
-      upload-artifacts: true
       attest-artifacts: true
       arm64: false
 
@@ -111,7 +106,6 @@ jobs:
       contents: read
       id-token: write
     with:
-      upload-artifacts: true
       attest-artifacts: true
       arm64: true
 
@@ -123,7 +117,6 @@ jobs:
       contents: read
       id-token: write
     with:
-      upload-artifacts: true
       attest-artifacts: true
       arm64: false
 
@@ -135,7 +128,6 @@ jobs:
       contents: read
       id-token: write
     with:
-      upload-artifacts: true
       attest-artifacts: true
       arm64: true
 

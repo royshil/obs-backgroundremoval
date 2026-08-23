@@ -1,52 +1,23 @@
 version = 1
 
-# Configuration files
 [[annotations]]
-path = "VERSION"
-SPDX-FileCopyrightText = [
-    "2021-2026 Roy Shilkrot <roy.shil@gmail.com>",
-    "2023-2026 Kaito Udagawa <umireon@kaito.tokyo>",
-]
-SPDX-License-Identifier = "CC0-1.0"
+path = "NOTICE"
+SPDX-FileCopyrightText = ""
+SPDX-License-Identifier = "LicenseRef-Not-Copyrightable"
 
 [[annotations]]
 path = [
-    ".gitattributes",
-    ".github/actions/setup-ccache/SHA256SUMS-*.txt",
-    ".github/agents/agentic-workflows.agent.md",
-    ".github/aw/actions-lock.json",
-    ".github/dependabot.yml",
-    ".github/pull_request_template.md",
-    ".github/workflows/*.lock.yml",
-    ".gitignore",
-    ".python-version",
-    "buildspec.json",
-    "CMakePresets.json",
-    "data/config.json",
-    "data/manifest.json",
-    "requirements-build.txt",
-    "scripts/windows/*",
-    "src/exported_symbols_linux.map",
-    "src/exported_symbols_macos.txt",
-    "src/exported_symbols_windows.def",
-    "vcpkg-configuration.json",
-    "vcpkg.json",
-    "vcpkg-configuration.json",
+  ".python-version",
+  "CMakePresets.json",
+  "scripts/windows/*",
+  "vcpkg-configuration.json",
+  "vcpkg.json",
+  "VERSION",
 ]
-SPDX-FileCopyrightText = [
-    "2018-2026 OBS Project and its contributors",
-    "2021-2026 Roy Shilkrot <roy.shil@gmail.com>",
-    "2023-2026 Kaito Udagawa <umireon@kaito.tokyo>",
-]
-SPDX-License-Identifier = "CC0-1.0"
+SPDX-FileCopyrightText = "2026 Kaito Udagawa <umireon@kaito.tokyo>"
+SPDX-License-Identifier = "Apache-2.0"
 
-# Locale files (reuse tool has some bug around reading not-ASCII files)
 [[annotations]]
-path = [
-    "data/locale/*.ini"
-]
-SPDX-FileCopyrightText = [
-    "2021-2026 Roy Shilkrot <roy.shil@gmail.com>",
-    "2023-2026 Kaito Udagawa <umireon@kaito.tokyo>",
-]
+path = ["data/locale/*.ini"]
+SPDX-FileCopyrightText = ""
 SPDX-License-Identifier = "CC0-1.0"

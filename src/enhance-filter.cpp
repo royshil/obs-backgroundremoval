@@ -28,12 +28,13 @@
 #include <regex>
 
 #include "plugin-support.h"
+#include "UI/AboutDialogIntegration.hpp"
+#include "UpdateConfig/UpdateConfig.hpp"
 #include "consts.h"
 #include "obs-utils/obs-utils.hpp"
 #include "ort-utils/ort-session-utils.hpp"
 #include "models/ModelTBEFN.hpp"
 #include "models/ModelURetinex.hpp"
-#include "update-checker/update-checker.h"
 
 struct enhance_filter : public filter_data, public std::enable_shared_from_this<enhance_filter> {
 	cv::Mat outputBGRA;
@@ -86,11 +87,13 @@ obs_properties_t *enhance_filter_properties(void *data)
 	// replace the placeholder with the current version using std::regex_replace
 	std::string basic_info = std::regex_replace(PLUGIN_INFO_TEMPLATE, std::regex("%1"), PLUGIN_VERSION);
 	// Check for update
-	if (get_latest_version() != nullptr) {
-		basic_info += std::regex_replace(PLUGIN_INFO_TEMPLATE_UPDATE_AVAILABLE, std::regex("%1"),
-						 get_latest_version());
+	if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion();
+	    latestVersion && *latestVersion != PLUGIN_VERSION) {
+		basic_info +=
+			std::regex_replace(PLUGIN_INFO_TEMPLATE_UPDATE_AVAILABLE, std::regex("%1"), *latestVersion);
 	}
 	obs_properties_add_text(props, "info", basic_info.c_str(), OBS_TEXT_INFO);
+	AboutDialogIntegration::addButton(props);
 
 	return props;
 }

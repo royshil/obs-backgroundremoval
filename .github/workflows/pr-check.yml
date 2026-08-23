@@ -30,31 +30,26 @@ jobs:
     permissions:
       contents: read
     with:
-      upload-artifacts: ${{ contains(github.event.pull_request.labels.*.name, 'upload-artifacts') }}
       attest-artifacts: false
       notarize: false
       x86_64: false
-      runs-on: macos-26
-      DEVELOPER_DIR: /Applications/Xcode_26.5.app
+      TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
   build-macos-x86_64:
     uses: ./.github/workflows/build-macos.yml
     permissions:
       contents: read
     with:
-      upload-artifacts: ${{ contains(github.event.pull_request.labels.*.name, 'upload-artifacts') }}
       attest-artifacts: false
       notarize: false
       x86_64: true
-      runs-on: macos-26
-      DEVELOPER_DIR: /Applications/Xcode_26.5.app
+      TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
   build-debian-amd64:
     uses: ./.github/workflows/build-debian.yml
     permissions:
       contents: read
     with:
-      upload-artifacts: ${{ contains(github.event.pull_request.labels.*.name, 'upload-artifacts') }}
       attest-artifacts: false
       arm64: false
 
@@ -63,7 +58,6 @@ jobs:
     permissions:
       contents: read
     with:
-      upload-artifacts: ${{ contains(github.event.pull_request.labels.*.name, 'upload-artifacts') }}
       attest-artifacts: false
       arm64: true
 
@@ -72,7 +66,6 @@ jobs:
     permissions:
       contents: read
     with:
-      upload-artifacts: ${{ contains(github.event.pull_request.labels.*.name, 'upload-artifacts') }}
       attest-artifacts: false
       arm64: false
 
@@ -81,7 +74,6 @@ jobs:
     permissions:
       contents: read
     with:
-      upload-artifacts: ${{ contains(github.event.pull_request.labels.*.name, 'upload-artifacts') }}
       attest-artifacts: false
       arm64: true
 

@@ -1,0 +1,10 @@
+version = 1
+
+[[annotations]]
+path = [
+  "exported_symbols_linux.map",
+  "exported_symbols_macos.txt",
+  "exported_symbols_windows.def",
+]
+SPDX-FileCopyrightText = "2026 Kaito Udagawa <umireon@kaito.tokyo>"
+SPDX-License-Identifier = "Apache-2.0"

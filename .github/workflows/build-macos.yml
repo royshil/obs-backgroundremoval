@@ -9,10 +9,6 @@ name: Build (macOS)
 on:
   workflow_call:
     inputs:
-      upload-artifacts:
-        description: Uploads artifacts.
-        required: true
-        type: boolean
       attest-artifacts:
         description: Attests artifacts.
         required: true
@@ -26,12 +22,8 @@ on:
         required: true
         type: boolean
         default: false
-      runs-on:
-        description: GitHub Actions runner label.
-        required: true
-        type: string
-      DEVELOPER_DIR:
-        description: Xcode developer directory.
+      TAHOE_DEVELOPER_DIR:
+        description: Xcode developer directory for Tahoe.
         required: true
         type: string
 
@@ -52,10 +44,10 @@ on:
     outputs:
       dsym-artifact:
         description: dSYM archive for macOS.
-        value: ${{ jobs.build.outputs.DSYM_ARTIFACT_NAME }}
+        value: ${{ jobs.tahoe.outputs.DSYM_ARTIFACT_NAME }}
       pkg-artifact:
         description: PKG artifact for macOS.
-        value: ${{ jobs.build.outputs.PKG_ARTIFACT_NAME }}
+        value: ${{ jobs.tahoe.outputs.PKG_ARTIFACT_NAME }}
 
 env:
   HOMEBREW_NO_ANALYTICS: '1'
@@ -66,8 +58,8 @@ env:
   VCPKG_BINARY_SOURCES: clear;http,https://vcpkg-obs.kaito.tokyo/{sha},read
 
 jobs:
-  build:
-    runs-on: ${{ inputs.runs-on }}
+  tahoe:
+    runs-on: macos-26
     timeout-minutes: 180
 
     outputs:
@@ -77,7 +69,7 @@ jobs:
     env:
       CCACHE_ORT_DIR: .ccache_ort
       CMAKE_OSX_ARCHITECTURES: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
-      DEVELOPER_DIR: ${{ inputs.DEVELOPER_DIR }}
+      DEVELOPER_DIR: ${{ inputs.TAHOE_DEVELOPER_DIR }}
       VCPKG_BINARY_SOURCES: clear;http,https://vcpkg-obs.kaito.tokyo/{sha},read
       VCPKG_ORT_TARGET_TRIPLET: ${{ inputs.x86_64 && 'x64-osx-obs-ort' || 'arm64-osx-obs-ort' }}
       VCPKG_ROOT: ${{ github.workspace }}/vendor/vcpkg
@@ -410,6 +402,34 @@ jobs:
 
           /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND:?}" --build build --config RelWithDebInfo --parallel
 
+      - name: Test (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+        run: |
+          ENVS=(
+            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            HOME="${HOME:?}"
+            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
+          )
+
+          /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND%/*}/ctest" \
+            --test-dir build --output-on-failure
+
+      - name: Stage plugin for scenario tests (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
+        run: |
+          "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix scenario_build_prefix
+
+      - name: Upload plugin for scenario tests (macOS)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scenario-plugin-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
+          path: scenario_build_prefix
+          if-no-files-found: error
+
       - name: Extract dSYM
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
@@ -419,13 +439,12 @@ jobs:
           COPYFILE_DISABLE=1 tar -cJf "${DSYM_ARTIFACT_NAME:?}" --no-mac-metadata --no-xattrs obs-backgroundremoval.plugin.dSYM
 
       - name: Attest dSYM artifact (macOS)
-        if: inputs.upload-artifacts && inputs.attest-artifacts
+        if: inputs.attest-artifacts
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
 
       - name: Upload dSYM artifact (macOS)
-        if: inputs.upload-artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
@@ -434,14 +453,14 @@ jobs:
 
       - name: Set up Apple code signing
         id: setup-codesign
-        if: inputs.upload-artifacts && inputs.attest-artifacts
+        if: inputs.attest-artifacts
         uses: kaito-tokyo/setup-apple-codesigning@b9f7d7c6819fe6f6bb44694b75963918dcbddd27 # v1.0.0
         with:
           MACOS_SIGNING_CERT: ${{ secrets.MACOS_SIGNING_CERT }}
           MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
 
       - name: Package signed pkg (macOS)
-        if: inputs.upload-artifacts && inputs.attest-artifacts
+        if: inputs.attest-artifacts
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
@@ -477,13 +496,13 @@ jobs:
             "${PKG_ARTIFACT_NAME:?}"
 
       - name: Attest signed pkg (macOS)
-        if: inputs.upload-artifacts && inputs.attest-artifacts && !inputs.notarize
+        if: inputs.attest-artifacts && !inputs.notarize
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
 
       - name: Notarize signed pkg
-        if: inputs.upload-artifacts && inputs.attest-artifacts && inputs.notarize
+        if: inputs.attest-artifacts && inputs.notarize
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CODESIGN_TEAM: ${{ steps.setup-codesign.outputs.CODESIGN_TEAM }}
@@ -501,13 +520,13 @@ jobs:
           spctl --assess --type install --verbose=2 "${PKG_ARTIFACT_NAME:?}"
 
       - name: Attest notarized pkg (macOS)
-        if: inputs.upload-artifacts && inputs.attest-artifacts && inputs.notarize
+        if: inputs.attest-artifacts && inputs.notarize
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
 
       - name: Package unsigned pkg (macOS)
-        if: inputs.upload-artifacts && !inputs.attest-artifacts
+        if: ${{ !inputs.attest-artifacts }}
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
@@ -533,11 +552,58 @@ jobs:
             "${PKG_ARTIFACT_NAME:?}"
 
       - name: Upload pkg artifact (macOS)
-        if: inputs.upload-artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
 
-      # END: Production process
+  test-tahoe:
+    if: ${{ !inputs.x86_64 }}
+    needs: tahoe
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install scenario test dependencies (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          brew install --cask obs
+          xattr -dr com.apple.quarantine /Applications/OBS.app
+
+      - name: Download plugin for scenario tests (macOS)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: scenario-plugin-macos-arm64
+          path: ${{ runner.temp }}/${{ github.job }}/artifact
+
+      - name: Install plugin for scenario tests (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          ARTIFACT_DIR: ${{ runner.temp }}/${{ github.job }}/artifact
+        run: |
+          plugin_dir="${HOME:?}/Library/Application Support/obs-studio/plugins"
+          mkdir -p "${plugin_dir}"
+          cp -R \
+            "${ARTIFACT_DIR:?}/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin" \
+            "${plugin_dir}/"
+          chmod +x "${plugin_dir}/obs-backgroundremoval.plugin/Contents/MacOS/obs-backgroundremoval"
+
+      - name: Run scenario tests (macOS)
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          PLUGIN_BUILD_DIR: ${{ runner.temp }}/${{ github.job }}
+        run: ./tests/Scenarios/+run-macos.sh run_all
+
+      - name: Upload scenario test results (macOS)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scenario-test-results-macos-arm64
+          path: ${{ runner.temp }}/${{ github.job }}/build_test_reports
+          if-no-files-found: warn

@@ -6,6 +6,7 @@ PLUGIN_DISPLAY_NAME=OBS Background Removal
 PLUGIN_AUTHOR=Roy Shilkrot
 PLUGIN_EMAIL=roy.shil@gmail.com
 PLUGIN_BUNDLE_ID=com.royshilkrot.obs-backgroundremoval
+PLUGIN_LATEST_VERSION_URL=https://royshil.github.io/obs-backgroundremoval/metadata/latest-version.txt
 
 onnxruntime_reduced_ops_config=src/required_operators.config
 osx_deployment_target=13.0

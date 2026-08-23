@@ -35,6 +35,8 @@
 #include <thread>
 
 #include "plugin-support.h"
+#include "UI/AboutDialogIntegration.hpp"
+#include "UpdateConfig/UpdateConfig.hpp"
 #include "models/ModelSINET.hpp"
 #include "models/ModelMediapipe.hpp"
 #include "models/ModelSelfie.hpp"
@@ -46,7 +48,6 @@
 #include "ort-utils/ort-session-utils.hpp"
 #include "obs-utils/obs-utils.hpp"
 #include "consts.h"
-#include "update-checker/update-checker.h"
 
 struct background_removal_filter : public filter_data, public std::enable_shared_from_this<background_removal_filter> {
 	bool enableThreshold = true;
@@ -245,11 +246,13 @@ obs_properties_t *background_filter_properties(void *data)
 	// use std::regex_replace instead of QString::arg because the latter doesn't work on Linux
 	std::string basic_info = std::regex_replace(PLUGIN_INFO_TEMPLATE, std::regex("%1"), PLUGIN_VERSION);
 	// Check for update
-	if (get_latest_version() != nullptr) {
-		basic_info += std::regex_replace(PLUGIN_INFO_TEMPLATE_UPDATE_AVAILABLE, std::regex("%1"),
-						 get_latest_version());
+	if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion();
+	    latestVersion && *latestVersion != PLUGIN_VERSION) {
+		basic_info +=
+			std::regex_replace(PLUGIN_INFO_TEMPLATE_UPDATE_AVAILABLE, std::regex("%1"), *latestVersion);
 	}
 	obs_properties_add_text(props, "info", basic_info.c_str(), OBS_TEXT_INFO);
+	AboutDialogIntegration::addButton(props);
 
 	UNUSED_PARAMETER(data);
 	return props;
