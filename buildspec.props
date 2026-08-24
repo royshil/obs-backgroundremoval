@@ -13,6 +13,8 @@ osx_deployment_target=13.0
 windows_sdk_version=10.0.26100
 
 obs_studio_git_tag=32.2.1
+obs_studio_windows_x64_sha256=db64a2934f8261f85b1410b84be011207a0afda5400d008289f1f1e211bcc7de
+obs_studio_windows_x64_url=https://github.com/obsproject/obs-studio/releases/download/32.2.1/OBS-Studio-32.2.1-Windows-x64.zip
 onnxruntime_git_tag=v1.28.0
 vcpkg_git_tag=2025.08.27
 

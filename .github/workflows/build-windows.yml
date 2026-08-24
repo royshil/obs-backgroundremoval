@@ -372,6 +372,13 @@ jobs:
           Set-Location build_prefix
           Compress-Archive -Path '*' -DestinationPath (Join-Path $env:GITHUB_WORKSPACE $env:DLL_ARTIFACT_NAME)
 
+      - name: Upload plugin for scenario tests (Windows)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scenario-plugin-windows-x64
+          path: build_prefix
+          if-no-files-found: error
+
       - name: Attest DLL artifact
         if: inputs.upload-artifacts && inputs.attest-artifacts
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
@@ -385,3 +392,53 @@ jobs:
           path: ${{ steps.expected-artifacts.outputs.DLL_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
+
+  test:
+    needs: build
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install scenario test dependencies (Windows)
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        run: |
+          $buildspec = Get-Content -LiteralPath buildspec.props -Raw | ConvertFrom-StringData
+          $archive = Join-Path $env:RUNNER_TEMP 'obs-studio-windows-x64.zip'
+          $destination = Join-Path $env:RUNNER_TEMP 'obs-studio-windows-x64'
+          Invoke-WebRequest -Uri $buildspec.obs_studio_windows_x64_url -OutFile $archive
+          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+          if ($actualHash -ne $buildspec.obs_studio_windows_x64_sha256) {
+            throw "OBS Studio archive hash mismatch: $actualHash"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination
+
+          $obsExecutable = Get-ChildItem -LiteralPath $destination -Filter obs64.exe -File -Recurse |
+            Where-Object { $_.FullName -match '[\\/]bin[\\/]64bit[\\/]obs64\.exe$' } |
+            Select-Object -First 1
+          if (-not $obsExecutable) {
+            throw 'obs64.exe was not found in the official OBS Studio archive.'
+          }
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "GUI_SCENARIO_OBS_EXECUTABLE=$($obsExecutable.FullName)" -Encoding utf8
+
+      - name: Download plugin for scenario tests (Windows)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: scenario-plugin-windows-x64
+          path: ${{ runner.temp }}/${{ github.job }}/plugin
+
+      - name: Run scenario tests (Windows)
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        run: ./tests/Scenarios/+run-windows.ps1 -PluginRoot '${{ runner.temp }}/${{ github.job }}/plugin/obs-backgroundremoval'
+
+      - name: Upload scenario test artifacts (Windows)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scenario-test-results-windows-x64
+          path: artifacts/scenario-tests/windows
+          if-no-files-found: warn

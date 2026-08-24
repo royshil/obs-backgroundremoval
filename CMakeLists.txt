@@ -148,7 +148,7 @@ block()
   endif()
 endblock()
 
-block(PROPAGATE CURL_FOUND)
+block()
   if(APPLE)
     # WORKAROUND: Prefer system curl on macOS
     find_package(CURL MODULE QUIET)
@@ -168,8 +168,8 @@ block(PROPAGATE CURL_FOUND)
     endif()
   endif()
 
-  if(CURL_FOUND)
-    target_compile_definitions(BuildOptions INTERFACE PLUGIN_HAVE_CURL)
+  if(NOT CURL_FOUND)
+    message(FATAL_ERROR "cURL not found.")
   endif()
 endblock()
 

@@ -10,95 +10,32 @@ if not exist "buildspec.props" (
 
 setlocal
 
-echo == Load buildspec.props ==
-
-for /f "usebackq tokens=1,2 delims== eol=#" %%i in ("buildspec.props") do (
-	echo %%i=%%j
-	set "buildspec_%%i=%%j"
-)
+set "VCPKG_FORCE_DOWNLOADED_BINARIES=1"
+set "VCPKG_ROOT=%CD%\vendor\vcpkg"
 
 echo == Ensure vcpkg and its toolchains ==
 
-if not defined VCPKG_ROOT (
-	set "VCPKG_ROOT=%CD%\vcpkg"
+git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg vendor/onnxruntime || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
+
+call "%VCPKG_ROOT%\bootstrap-vcpkg.bat" -disableMetrics || (echo ERROR: vcpkg bootstrap failed. & endlocal & exit /b 1)
+
+for /f "delims=" %%i in ('""%VCPKG_ROOT%\vcpkg.exe" fetch vswhere"') do set "VSWHERE_COMMAND=%%i"
+if not defined VSWHERE_COMMAND (
+	echo ERROR: Vswhere was not found. & endlocal & exit /b 1
 )
 
-if /i "%VCPKG_ROOT%" == "%CD%\vcpkg" (
-	if not exist "%VCPKG_ROOT%" (
-		git clone --filter blob:none --branch "%buildspec_vcpkg_git_tag%" https://github.com/microsoft/vcpkg.git "%VCPKG_ROOT%" || (echo ERROR: vcpkg git clone failed. & endlocal & exit /b 1)
-	)
-
-	for /f "delims=" %%i in ('git -C vcpkg rev-parse HEAD') do (
-		if /i not "%%i" == "%buildspec_vcpkg_git_commit%" (
-			echo ERROR: vcpkg commit hash mismatch. & endlocal & exit /b 1
-		)
-	)
-
-	if not exist "%VCPKG_ROOT%\vcpkg.exe" (
-		call "%VCPKG_ROOT%\bootstrap-vcpkg.bat" || (echo ERROR: vcpkg bootstrap failed. & endlocal & exit /b 1)
-	)
+for /f "delims=" %%i in ('""%VSWHERE_COMMAND%" -latest -version 18 -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath"') do set "VS_INSTALL_PATH=%%i"
+if not defined VS_INSTALL_PATH (
+	echo ERROR: Visual Studio 18 with the MSVC x64/x86 build tools was not found. & endlocal & exit /b 1
 )
 
-"%VCPKG_ROOT%\vcpkg.exe" fetch powershell-core || (echo ERROR: vcpkg fetch powershell-core failed. & endlocal & exit /b 1)
-
-for /f "delims=" %%i in ('"%VCPKG_ROOT%\vcpkg.exe" fetch powershell-core') do set "PWSH_DIR=%%~dpi"
-
-if not exist "%PWSH_DIR%" (
-	echo ERROR: pwsh not found. & endlocal & exit /b 1
+set "CMAKE_COMMAND=%VS_INSTALL_PATH%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+if not exist "%CMAKE_COMMAND%" (
+	echo ERROR: Visual Studio CMake was not found. & endlocal & exit /b 1
 )
 
-set "PATH=%PWSH_DIR%;%PATH%"
+echo === Set up OBS dependencies ===
 
-echo == Set up OBS sources and dependencies ==
-
-if not exist "obs-studio" (
-	git clone --filter blob:none --branch "%buildspec_obs_studio_git_tag%" https://github.com/obsproject/obs-studio.git || (echo ERROR: obs-studio git clone failed. & endlocal & exit /b 1)
-)
-
-git -C obs-studio fetch origin "%buildspec_obs_studio_git_tag%" || (echo ERROR: obs-studio git fetch failed. & endlocal & exit /b 1)
-git -C obs-studio checkout --force FETCH_HEAD || (echo ERROR: obs-studio git checkout failed. & endlocal & exit /b 1)
-git -C obs-studio clean -fdx || (echo ERROR: obs-studio git clean failed. & endlocal & exit /b 1)
-git -C obs-studio submodule update --init --recursive --filter=blob:none || (echo ERROR: obs-studio git submodule update failed. & endlocal & exit /b 1)
-
-for /f "delims=" %%i in ('git -C obs-studio rev-parse HEAD') do (
-	if /i not "%%i" == "%buildspec_obs_studio_git_commit%" (
-		echo ERROR: obs-studio commit hash mismatch. & endlocal & exit /b 1
-	)
-)
-
-if not exist "%PLUGIN_BUILD_DIR%\.deps\obs-deps" (
-	pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1; Initialize-ObsDeps -Component prebuilt" || (echo ERROR: Initialize-ObsDeps prebuilt failed. & endlocal & exit /b 1)
-)
-
-if not exist "%PLUGIN_BUILD_DIR%\.deps\obs-deps-qt6" (
-	pwsh -NoProfile -Command "Import-Module ./scripts/BuildOBS.psm1; Initialize-ObsDeps -Component qt6" || (echo ERROR: Initialize-ObsDeps qt6 failed. & endlocal & exit /b 1)
-)
-
-echo == Set up ONNX Runtime source ==
-
-if not exist "onnxruntime" (
-	git clone --filter blob:none --branch "%buildspec_onnxruntime_git_tag%" https://github.com/microsoft/onnxruntime.git || (echo ERROR: onnxruntime git clone failed. & endlocal & exit /b 1)
-)
-
-git -C onnxruntime fetch origin "%buildspec_onnxruntime_git_tag%" || (echo ERROR: onnxruntime git fetch failed. & endlocal & exit /b 1)
-git -C onnxruntime checkout --force FETCH_HEAD || (echo ERROR: onnxruntime git checkout failed. & endlocal & exit /b 1)
-git -C onnxruntime clean -fdx  || (echo ERROR: onnxruntime git clean failed. & endlocal & exit /b 1)
-git -C onnxruntime submodule update --init --recursive --filter=blob:none || (echo ERROR: onnxruntime git submodule update failed. & endlocal & exit /b 1)
-
-for /f "delims=" %%i in ('git -C onnxruntime rev-parse HEAD') do (
-	if not "%%i" == "%buildspec_onnxruntime_git_commit%" (
-		echo ERROR: onnxruntime commit hash mismatch. & endlocal & exit /b 1
-	)
-)
-
-pwsh -NoProfile -Command "Import-Module ./scripts/BuildOnnxRuntime.psm1; Update-OrtSourceWithPatches" || (echo ERROR: Update-OrtTreeWithPatches failed. & endlocal & exit /b 1)
-
-echo == Set up python ==
-
-if not exist ".venv" (
-	python -m venv .venv || (echo ERROR: python venv creation failed. & endlocal & exit /b 1)
-)
-
-.\.venv\Scripts\pip.exe install -r requirements-build.txt || (echo ERROR: pip install failed. & endlocal & exit /b 1)
+"%CMAKE_COMMAND%" -P scripts\download-deps.cmake || (echo ERROR: download-deps.cmake failed. & endlocal & exit /b 1)
 
 endlocal

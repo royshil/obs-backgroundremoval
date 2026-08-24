@@ -20,26 +20,30 @@ function(configure_update_config_test TARGET_NAME)
 endfunction()
 
 add_executable(
-  UpdateConfigDummyTest
-  UpdateConfigDummyTest.cpp
+  UpdateConfigCurlTest
+  UpdateConfigCurlTest.cpp
   test_obs_module.cpp
   "${PLUGIN_SOURCE_DIR}/UpdateConfig/UpdateConfigCommon.cpp"
-  "${PLUGIN_SOURCE_DIR}/UpdateConfig/UpdateConfigDummy.cpp"
+  "${PLUGIN_SOURCE_DIR}/UpdateConfig/UpdateConfigCurl.cpp"
 )
-configure_update_config_test(UpdateConfigDummyTest)
 
-if(CURL_FOUND)
-  add_executable(
+if(WIN32)
+  target_sources(UpdateConfigCurlTest PRIVATE test_helpers_windows.cpp)
+  target_link_libraries(UpdateConfigCurlTest PRIVATE ws2_32)
+else()
+  target_sources(UpdateConfigCurlTest PRIVATE test_helpers_linux.cpp)
+endif()
+
+configure_update_config_test(UpdateConfigCurlTest)
+target_link_libraries(UpdateConfigCurlTest PRIVATE CURL::libcurl)
+if(APPLE)
+  target_link_libraries(UpdateConfigCurlTest PRIVATE jthread::jthread)
+endif()
+
+if(WIN32)
+  set_tests_properties(
     UpdateConfigCurlTest
-    UpdateConfigCurlTest.cpp
-    test_helpers_linux.cpp
-    test_obs_module.cpp
-    "${PLUGIN_SOURCE_DIR}/UpdateConfig/UpdateConfigCommon.cpp"
-    "${PLUGIN_SOURCE_DIR}/UpdateConfig/UpdateConfigCurl.cpp"
+    PROPERTIES ENVIRONMENT_MODIFICATION
+               "PATH=path_list_prepend:${CMAKE_SOURCE_DIR}/.deps/obs-deps/bin;PATH=path_list_prepend:${CMAKE_SOURCE_DIR}/obs_installed/bin/64bit"
   )
-  configure_update_config_test(UpdateConfigCurlTest)
-  target_link_libraries(UpdateConfigCurlTest PRIVATE CURL::libcurl)
-  if(APPLE)
-    target_link_libraries(UpdateConfigCurlTest PRIVATE jthread::jthread)
-  endif()
 endif()

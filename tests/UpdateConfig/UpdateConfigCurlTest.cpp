@@ -66,6 +66,11 @@ void testSuccessfulFetch()
 	UpdateConfig::resetLatestVersion();
 }
 
+void testServerWithoutClientCanBeDestroyed()
+{
+	HttpServer server("unused");
+}
+
 void testEmptyResponse()
 {
 	HttpServer server(" \r\n\t");
@@ -135,6 +140,7 @@ void testNewFetchClearsPreviousResponse()
 int main()
 {
 	UpdateConfig::latestVersionClient();
+	testServerWithoutClientCanBeDestroyed();
 	testSuccessfulFetch();
 	testEmptyResponse();
 	testFailedFetch();

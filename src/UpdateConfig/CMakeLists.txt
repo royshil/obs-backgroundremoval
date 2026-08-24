@@ -2,18 +2,10 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-add_library(UpdateConfig STATIC UpdateConfigCommon.cpp)
+add_library(UpdateConfig STATIC UpdateConfigCommon.cpp UpdateConfigCurl.cpp)
 
-target_link_libraries(UpdateConfig PRIVATE BuildOptions OBS::libobs)
+target_link_libraries(UpdateConfig PRIVATE BuildOptions OBS::libobs CURL::libcurl)
 
-if(CURL_FOUND)
-  message(STATUS "UpdateConfig cURL backend selected")
-  target_sources(UpdateConfig PRIVATE UpdateConfigCurl.cpp)
-  target_link_libraries(UpdateConfig PRIVATE CURL::libcurl)
-  if(APPLE)
-    target_link_libraries(UpdateConfig PRIVATE jthread::jthread)
-  endif()
-else()
-  message(STATUS "UpdateConfig dummy backend selected")
-  target_sources(UpdateConfig PRIVATE UpdateConfigDummy.cpp)
+if(APPLE)
+  target_link_libraries(UpdateConfig PRIVATE jthread::jthread)
 endif()
