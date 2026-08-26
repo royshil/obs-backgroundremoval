@@ -255,6 +255,7 @@ jobs:
             "-DCMAKE_CXX_COMPILER_LAUNCHER=$env:CCACHE_COMMAND" `
             "-DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON" `
             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" `
+            "-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=$(Join-Path $env:GITHUB_WORKSPACE 'cmake' 'inspect_onnxruntime_targets.cmake')" `
             "-DCMAKE_SYSTEM_VERSION=$env:CMAKE_SYSTEM_VERSION" `
             "-DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE" `
             "-DPython_EXECUTABLE=$env:PYTHON_COMMAND" `
@@ -301,6 +302,27 @@ jobs:
           $env:Path = "$CMAKE_BINDIR;$env:Path"
 
           cmake --install build_ort --config Release --prefix ort_installed
+
+      - name: Inspect ONNX Runtime static artifacts (Windows)
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        run: |
+          Write-Output '::group::ONNX Runtime target properties'
+          Get-Content -LiteralPath 'build_ort/onnxruntime-static-targets.txt'
+          Write-Output '::endgroup::'
+
+          Write-Output '::group::Installed ONNX Runtime libraries and CMake files'
+          Get-ChildItem -LiteralPath 'ort_installed' -Recurse -File |
+            Where-Object { $_.Extension -in '.lib', '.dll', '.cmake' } |
+            ForEach-Object { [System.IO.Path]::GetRelativePath($env:GITHUB_WORKSPACE, $_.FullName) } |
+            Sort-Object
+          Write-Output '::endgroup::'
+
+          Write-Output '::group::Dawn build-tree libraries and DLLs'
+          Get-ChildItem -LiteralPath 'build_ort/_deps/dawn-build' -Recurse -File |
+            Where-Object { $_.Extension -in '.lib', '.dll' } |
+            ForEach-Object { [System.IO.Path]::GetRelativePath($env:GITHUB_WORKSPACE, $_.FullName) } |
+            Sort-Object
+          Write-Output '::endgroup::'
 
       - name: Save ccache_ort
         if: success() && steps.ccache-ort.outputs.cache-hit != 'true'
