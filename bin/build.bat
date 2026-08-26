@@ -143,7 +143,8 @@ set "CCACHE_BASEDIR=%CD%"
 	"-Donnxruntime_DISABLE_RTTI=OFF" ^
 	"-Donnxruntime_REDUCED_OPS_BUILD=ON" ^
 	"-Donnxruntime_RUN_ONNX_TESTS=OFF" ^
-	"-Donnxruntime_USE_VCPKG=ON" || (echo ERROR: ONNX Runtime configuration failed. & endlocal & exit /b 1)
+	"-Donnxruntime_USE_VCPKG=ON" ^
+	"-Donnxruntime_USE_WEBGPU=ON" || (echo ERROR: ONNX Runtime configuration failed. & endlocal & exit /b 1)
 
 "%CMAKE_COMMAND%" --build build_ort --config Release --parallel || (echo ERROR: ONNX Runtime build failed. & endlocal & exit /b 1)
 "%CMAKE_COMMAND%" --install build_ort --config Release --prefix ort_installed || (echo ERROR: ONNX Runtime installation failed. & endlocal & exit /b 1)
