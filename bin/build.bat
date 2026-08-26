@@ -134,6 +134,7 @@ set "CCACHE_BASEDIR=%CD%"
 	"-DCMAKE_SYSTEM_VERSION=%buildspec_windows_sdk_version%" ^
 	"-DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake" ^
 	"-DPython_EXECUTABLE=%PYTHON_COMMAND%" ^
+	"-DPython3_EXECUTABLE=%PYTHON_COMMAND%" ^
 	"-DVCPKG_INSTALLED_DIR=%CD%\vcpkg_ort_installed" ^
 	"-DVCPKG_MANIFEST_INSTALL=OFF" ^
 	"-DVCPKG_OVERLAY_TRIPLETS=%CD%\vcpkg-triplets" ^
