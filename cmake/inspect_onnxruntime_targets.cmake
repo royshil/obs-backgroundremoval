@@ -6,14 +6,7 @@ function(write_onnxruntime_target_properties)
   set(output_file "${CMAKE_BINARY_DIR}/onnxruntime-static-targets.txt")
   file(WRITE "${output_file}" "")
 
-  foreach(
-    target
-    IN ITEMS
-      onnxruntime
-      onnxruntime_providers_webgpu
-      dawn::dawn_native
-      dawn::dawn_proc
-  )
+  foreach(target IN ITEMS onnxruntime onnxruntime_providers_webgpu dawn::dawn_native dawn::dawn_proc)
     if(NOT TARGET "${target}")
       file(APPEND "${output_file}" "TARGET ${target}: NOT FOUND\n\n")
       continue()
@@ -22,7 +15,8 @@ function(write_onnxruntime_target_properties)
     file(APPEND "${output_file}" "TARGET ${target}\n")
     foreach(
       property
-      IN ITEMS
+      IN
+      ITEMS
         TYPE
         IMPORTED
         ALIASED_TARGET
