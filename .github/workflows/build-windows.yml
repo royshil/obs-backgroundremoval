@@ -237,7 +237,7 @@ jobs:
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
 
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           $env:VCPKG_DISABLE_METRICS = '1'
           $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
           $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
@@ -267,7 +267,8 @@ jobs:
             "-Donnxruntime_DISABLE_RTTI=OFF" `
             "-Donnxruntime_REDUCED_OPS_BUILD=ON" `
             "-Donnxruntime_RUN_ONNX_TESTS=OFF" `
-            "-Donnxruntime_USE_VCPKG=ON"
+            "-Donnxruntime_USE_VCPKG=ON" `
+            "-Donnxruntime_USE_WEBGPU=ON"
 
       - name: Build ONNX Runtime (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
@@ -275,7 +276,7 @@ jobs:
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
 
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           $env:VCPKG_DISABLE_METRICS = '1'
           $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
           $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
