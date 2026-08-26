@@ -105,7 +105,7 @@ jobs:
         run: |
           $BOOTSTRAP_VCPKG_BAT = Join-Path $env:VCPKG_ROOT 'bootstrap-vcpkg.bat'
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 
           & $BOOTSTRAP_VCPKG_BAT -disableMetrics
@@ -115,7 +115,7 @@ jobs:
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 
           cmake -P scripts/download-deps.cmake
@@ -124,7 +124,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.9'
+          python-version: '3.12'
 
       # END: Set up toolchains
 
@@ -136,7 +136,7 @@ jobs:
           OBS_VERSION_OVERRIDE: ${{ steps.buildspec.outputs.obs_studio_git_tag }}
         run: |
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 
           cmake -S vendor/obs-studio -B build_obs -G 'Visual Studio 18 2026' -A x64 `
@@ -153,7 +153,7 @@ jobs:
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 
           cmake --build build_obs --target obs-frontend-api --config Release --parallel
@@ -162,7 +162,7 @@ jobs:
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 
           cmake --install build_obs --component Development --config Release --prefix obs_installed
@@ -173,7 +173,7 @@ jobs:
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
 
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 
           $env:VCPKG_DISABLE_METRICS = '1'
@@ -186,7 +186,7 @@ jobs:
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
 
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 
           $env:VCPKG_DISABLE_METRICS = '1'
@@ -294,7 +294,7 @@ jobs:
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           $env:VCPKG_DISABLE_METRICS = '1'
           $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
           $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
@@ -325,7 +325,7 @@ jobs:
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
 
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           $env:VCPKG_DISABLE_METRICS = '1'
           $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
           $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
@@ -345,7 +345,7 @@ jobs:
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
 
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           $env:VCPKG_DISABLE_METRICS = '1'
           $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
           $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
@@ -362,7 +362,7 @@ jobs:
           DLL_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.DLL_ARTIFACT_NAME }}
         run: |
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          $env:Path = 'C:\Program Files\Git\bin;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           $env:VCPKG_DISABLE_METRICS = '1'
           $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
           $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
