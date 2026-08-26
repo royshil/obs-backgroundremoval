@@ -212,6 +212,7 @@ jobs:
         env:
           CCACHE_COMMAND: ${{ steps.setup-buildspec-deps.outputs.CCACHE_COMMAND }}
         run: |
+          $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE $env:CCACHE_ORT_DIR
           & $env:CCACHE_COMMAND --zero-stats
 
       - name: Generate reduced operators for ONNX Runtime
@@ -336,6 +337,7 @@ jobs:
         env:
           CCACHE_COMMAND: ${{ steps.setup-buildspec-deps.outputs.CCACHE_COMMAND }}
         run: |
+          $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE $env:CCACHE_ORT_DIR
           & $env:CCACHE_COMMAND --show-stats | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 
       - name: Configure (Windows)
