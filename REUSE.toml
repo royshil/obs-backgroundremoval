@@ -8,6 +8,7 @@ SPDX-License-Identifier = "LicenseRef-Not-Copyrightable"
 [[annotations]]
 path = [
   ".python-version",
+  "cmake/patches/*.patch",
   "CMakePresets.json",
   "scripts/windows/*",
   "vcpkg-configuration.json",
