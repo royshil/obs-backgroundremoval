@@ -2,5 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+If:
+  PathMatch: .*\.(cpp|cc|cxx|hpp|hh|hxx|h)$
 CompileFlags:
-  CompilationDatabase: build
+  Add:
+    - -std=c++20
+
+---
+If:
+  PathMatch: .*\.c$
+CompileFlags:
+  Add:
+    - -std=c17
+
+---
+If:
+  PathMatch: .*\.mm$
+CompileFlags:
+  Add:
+    - -std=c++20
+    - -xobjective-c++

@@ -9,16 +9,6 @@ macos() {
 
   : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
 
-  local vcpkg_git_tag obs_studio_git_tag onnxruntime_git_tag
-  eval "$(awk '/^(vcpkg|obs_studio|onnxruntime)_git_tag=/ { print }' buildspec.props)"
-
-  local prebuilt_macos_url prebuilt_macos_sha256 qt6_macos_url qt6_macos_sha256
-  eval "$(awk '/^(prebuilt|qt6)_macos_(url|sha256)=/ { print }' buildspec.props)"
-
-  local ccache_macos_version ccache_macos_url ccache_macos_sha256
-  eval "$(awk '/^ccache_macos_(version|url|sha256)=/ { print }' buildspec.props)"
-  printf 'INFO: buildspec.props was loaded\n' >&2
-
   JOB_TEMP="$(mktemp -d -t "obs-backgroundremoval-setup.XXXXXXX")"
   export JOB_TEMP
   mkdir -p "${JOB_TEMP:?}"
@@ -29,14 +19,6 @@ macos() {
   fi
 
   cmake -P scripts/download-deps.cmake
-
-  if ! [[ -d "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv" ]]; then
-    "$(brew --prefix python)/bin/python3" -m venv "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv"
-    printf 'INFO: .venv was created\n' >&2
-  fi
-
-  "${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv/bin/python3" -m pip install -r requirements-build.txt
-  printf 'INFO: packages in .venv were updated\n' >&2
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

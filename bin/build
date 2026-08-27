@@ -36,7 +36,6 @@ macos() {
   export PLUGIN_BUILD_DIR
 
   : "${CMAKE_OSX_DEPLOYMENT_TARGET:=13.0}"
-  : "${VCPKG_BINARY_SOURCES:=clear;files,${PLUGIN_BUILD_DIR:?}/.vcpkg_archives,readwrite}"
   : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
   export CMAKE_OSX_DEPLOYMENT_TARGET VCPKG_BINARY_SOURCES VCPKG_ROOT
 
@@ -47,21 +46,13 @@ macos() {
 
   if [[ "${X86_64:-0}" == '0' ]]; then
     : "${CMAKE_OSX_ARCHITECTURES:=arm64}"
-    : "${VCPKG_TARGET_TRIPLET:=arm64-osx-obs}"
-    : "${VCPKG_ORT_TARGET_TRIPLET:=arm64-osx-obs-ort}"
   else
     : "${CMAKE_OSX_ARCHITECTURES:=x86_64}"
-    : "${VCPKG_TARGET_TRIPLET:=x64-osx-obs}"
-    : "${VCPKG_ORT_TARGET_TRIPLET:=x64-osx-obs-ort}"
   fi
-  export CMAKE_OSX_ARCHITECTURES VCPKG_TARGET_TRIPLET VCPKG_ORT_TARGET_TRIPLET
+  export CMAKE_OSX_ARCHITECTURES
 
   local obs_studio_git_tag
   eval "$(awk '/^obs_studio_git_tag=/ { print }' buildspec.props)"
-
-  local ccache_macos_version
-  eval "$(awk '/^ccache_macos_version=/ { print }' buildspec.props)"
-  printf 'INFO: buildspec.props loaded\n' >&2
 
   CMAKE_COMMAND="$(PATH=/usr/bin:/bin "${VCPKG_ROOT:?}/vcpkg" fetch cmake | tail -n1)"
   export CMAKE_COMMAND
@@ -71,11 +62,7 @@ macos() {
   export NINJA_COMMAND
   printf "INFO: ninja found at %s\n" "${NINJA_COMMAND:?}" >&2
 
-  PKG_CONFIG_BINDIR="$(brew --prefix pkg-config)/bin"
-  export PKG_CONFIG_BINDIR
-  printf "INFO: pkg-config found at %s\n" "${PKG_CONFIG_BINDIR:?}" >&2
-
-  export PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:${PKG_CONFIG_BINDIR:?}:/usr/bin:/bin"
+  export PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
   printf 'INFO: PATH set to %s\n' "$PATH" >&2
 
   "${VCPKG_ROOT:?}/vcpkg" install --triplet="${VCPKG_TARGET_TRIPLET:-arm64-osx-obs}" --x-install-root="${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_installed"
@@ -101,61 +88,13 @@ macos() {
   cmake --install "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_obs" --component Development --config Release --prefix "${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed"
   printf "INFO: obs-studio was installed\n" >&2
 
-  "${VCPKG_ROOT:?}/vcpkg" install \
-    --triplet="${VCPKG_ORT_TARGET_TRIPLET:-arm64}" \
-    --overlay-triplets="${PWD:?}/vcpkg-triplets" \
-    --x-feature=coreml-ep \
-    --x-install-root="${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_ort_installed" \
-    --x-manifest-root="${PLUGIN_BUILD_DIR:-${PWD:?}}/vendor/onnxruntime/cmake"
-  printf "INFO: vcpkg dependencies of onnxruntime were installed\n" >&2
-
-  if [[ "${PLUGIN_BUILD_DIR:?}" == "${PWD:?}" ]]; then
-    export CCACHE_BASEDIR="${PLUGIN_BUILD_DIR:?}"
-  fi
-
-  export CCACHE_DIR="${PLUGIN_BUILD_DIR:-${PWD:?}}/.ccache_ort"
-  export CCACHE_SLOPPINESS='include_file_mtime,time_macros'
-
-  cmake \
-    -S "${PLUGIN_BUILD_DIR:-${PWD:?}}/vendor/onnxruntime/cmake" \
-    -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_ort" \
-    -G Ninja \
-    --compile-no-warning-as-error \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_COMPILER_LAUNCHER="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache/ccache-${ccache_macos_version:?}-darwin/ccache" \
-    -DCMAKE_CXX_COMPILER_LAUNCHER="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/ccache/ccache-${ccache_macos_version:?}-darwin/ccache" \
-    -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-    -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT:?}/scripts/buildsystems/vcpkg.cmake" \
-    -Donnxruntime_BUILD_SHARED_LIB=OFF \
-    -Donnxruntime_BUILD_UNIT_TESTS=OFF \
-    -Donnxruntime_DISABLE_RTTI=OFF \
-    -Donnxruntime_RUN_ONNX_TESTS=OFF \
-    -Donnxruntime_USE_COREML=ON \
-    -Donnxruntime_USE_VCPKG=ON \
-    -DPython_EXECUTABLE="${PLUGIN_BUILD_DIR:-${PWD:?}}/.venv/bin/python3" \
-    -DVCPKG_INSTALLED_DIR="${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_ort_installed" \
-    -DVCPKG_MANIFEST_INSTALL=OFF \
-    -DVCPKG_OVERLAY_TRIPLETS="${PWD:?}/vcpkg-triplets" \
-    -DVCPKG_TARGET_TRIPLET="${VCPKG_ORT_TARGET_TRIPLET:-arm64-macos-obs-ort}"
-  printf "INFO: onnxruntime was configured\n" >&2
-
-  cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_ort" --config Release --parallel
-  printf "INFO: onnxruntime was built\n" >&2
-
-  cmake --install "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_ort" --prefix "${PLUGIN_BUILD_DIR:-${PWD:?}}/ort_installed"
-  printf "INFO: onnxruntime was installed\n" >&2
-
-  unset CCACHE_BASEDIR CCACHE_DIR CCACHE_SLOPPINESS
-
   cmake \
     -S "${PWD:?}" \
     -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
     -G Xcode \
     -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-    -DCMAKE_PREFIX_PATH="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps;${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed/Frameworks;${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_ort_installed/${VCPKG_ORT_TARGET_TRIPLET:-arm64-osx-obs-ort};${PLUGIN_BUILD_DIR:-${PWD:?}}/ort_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_installed/${VCPKG_TARGET_TRIPLET:-arm64-osx-obs}"
+    -DCMAKE_PREFIX_PATH="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps;${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed/Frameworks"
   printf "INFO: plugin was configured\n" >&2
 
   cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --config RelWithDebInfo --parallel

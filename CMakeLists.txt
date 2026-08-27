@@ -17,6 +17,14 @@ endblock()
 
 project(obs-backgroundremoval VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
 
+if(APPLE AND NOT CMAKE_GENERATOR STREQUAL "Xcode")
+  message(FATAL_ERROR "The macOS plugin requires the Xcode generator.")
+endif()
+
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
+
 include(CheckCXXSymbolExists)
 include(CMakePushCheckState)
 include(CTest)
@@ -182,106 +190,110 @@ block()
 endblock()
 
 block(PROPAGATE OpenCV_FOUND)
-  find_package(OpenCV CONFIG QUIET)
+  if(NOT APPLE)
+    find_package(OpenCV CONFIG QUIET)
 
-  if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
-    pkg_check_modules(PC_OPENCV opencv4 IMPORTED_TARGET)
-    if(PC_OPENCV_FOUND)
-      add_library(OpenCV::opencv_core ALIAS PkgConfig::PC_OPENCV)
-      add_library(OpenCV::opencv_imgproc ALIAS PkgConfig::PC_OPENCV)
-      set(OpenCV_FOUND TRUE)
+    if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
+      pkg_check_modules(PC_OPENCV opencv4 IMPORTED_TARGET)
+      if(PC_OPENCV_FOUND)
+        add_library(OpenCV::opencv_core ALIAS PkgConfig::PC_OPENCV)
+        add_library(OpenCV::opencv_imgproc ALIAS PkgConfig::PC_OPENCV)
+        set(OpenCV_FOUND TRUE)
+      endif()
     endif()
-  endif()
 
-  if(NOT OpenCV_FOUND)
-    message(FATAL_ERROR "OpenCV not found via CMake or pkg-config.")
-  endif()
+    if(NOT OpenCV_FOUND)
+      message(FATAL_ERROR "OpenCV not found via CMake or pkg-config.")
+    endif()
 
-  if(NOT TARGET OpenCV::opencv_core)
-    add_library(OpenCV::opencv_core ALIAS opencv_core)
-  endif()
+    if(NOT TARGET OpenCV::opencv_core)
+      add_library(OpenCV::opencv_core ALIAS opencv_core)
+    endif()
 
-  if(NOT TARGET OpenCV::opencv_imgproc)
-    add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
-  endif()
+    if(NOT TARGET OpenCV::opencv_imgproc)
+      add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
+    endif()
 
-  if(TARGET opencv_geometry AND NOT TARGET OpenCV::opencv_geometry)
-    add_library(OpenCV::opencv_geometry ALIAS opencv_geometry)
+    if(TARGET opencv_geometry AND NOT TARGET OpenCV::opencv_geometry)
+      add_library(OpenCV::opencv_geometry ALIAS opencv_geometry)
+    endif()
   endif()
 endblock()
 
 block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM_EP)
-  set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON)
+  if(NOT APPLE)
+    set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON)
 
-  find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc HINTS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES tools/protobuf)
+    find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc HINTS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES tools/protobuf)
 
-  find_package(onnxruntime CONFIG)
+    find_package(onnxruntime CONFIG)
 
-  # WORKAROUND: CMake 4 compatibility
-  if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
-    map_imported_executable_to_release(protobuf::protoc "${Protobuf_PROTOC_EXECUTABLE}")
-  endif()
-
-  if(NOT onnxruntime_FOUND AND PkgConfig_FOUND)
-    pkg_check_modules(PC_onnxruntime onnxruntime IMPORTED_TARGET)
-    if(PC_onnxruntime_FOUND)
-      add_library(onnxruntime::onnxruntime ALIAS PkgConfig::PC_onnxruntime)
-      set(onnxruntime_FOUND TRUE)
+    # WORKAROUND: CMake 4 compatibility
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
+      map_imported_executable_to_release(protobuf::protoc "${Protobuf_PROTOC_EXECUTABLE}")
     endif()
+
+    if(NOT onnxruntime_FOUND AND PkgConfig_FOUND)
+      pkg_check_modules(PC_onnxruntime onnxruntime IMPORTED_TARGET)
+      if(PC_onnxruntime_FOUND)
+        add_library(onnxruntime::onnxruntime ALIAS PkgConfig::PC_onnxruntime)
+        set(onnxruntime_FOUND TRUE)
+      endif()
+    endif()
+
+    if(NOT onnxruntime_FOUND)
+      message(FATAL_ERROR "ONNX Runtime not found via CMake or pkg-config.")
+    endif()
+
+    if(NOT TARGET onnxruntime::onnxruntime)
+      add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
+    endif()
+
+    ### Check execution provider availability
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
+
+    cmake_push_check_state(RESET)
+    set(CMAKE_REQUIRED_LIBRARIES onnxruntime::onnxruntime)
+    set(CMAKE_REQUIRED_QUIET TRUE)
+
+    check_onnxruntime_execution_provider(
+      HAVE_ONNXRUNTIME_CUDA_EP
+      OrtSessionOptionsAppendExecutionProvider_CUDA
+      onnxruntime_c_api.h
+      onnxruntime/onnxruntime_c_api.h
+      onnxruntime/core/session/onnxruntime_c_api.h
+      cuda_provider_factory.h
+      onnxruntime/cuda_provider_factory.h
+      onnxruntime/core/providers/cuda/cuda_provider_factory.h
+    )
+
+    if(HAVE_ONNXRUNTIME_CUDA_EP)
+      message(STATUS "Building with ONNX Runtime CUDA EP.")
+      target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_CUDA_EP)
+    else()
+      message(STATUS "Building without ONNX Runtime CUDA EP.")
+    endif()
+
+    check_onnxruntime_execution_provider(
+      HAVE_ONNXRUNTIME_ROCM_EP
+      OrtSessionOptionsAppendExecutionProvider_ROCM
+      onnxruntime_c_api.h
+      onnxruntime/onnxruntime_c_api.h
+      onnxruntime/core/session/onnxruntime_c_api.h
+      rocm_provider_factory.h
+      onnxruntime/rocm_provider_factory.h
+      onnxruntime/core/providers/rocm/rocm_provider_factory.h
+    )
+
+    if(HAVE_ONNXRUNTIME_ROCM_EP)
+      message(STATUS "Building with ONNX Runtime ROCm EP.")
+      target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_ROCM_EP)
+    else()
+      message(STATUS "Building without ONNX Runtime ROCm EP.")
+    endif()
+
+    cmake_pop_check_state()
   endif()
-
-  if(NOT onnxruntime_FOUND)
-    message(FATAL_ERROR "ONNX Runtime not found via CMake or pkg-config.")
-  endif()
-
-  if(NOT TARGET onnxruntime::onnxruntime)
-    add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
-  endif()
-
-  ### Check execution provider availability
-  set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
-
-  cmake_push_check_state(RESET)
-  set(CMAKE_REQUIRED_LIBRARIES onnxruntime::onnxruntime)
-  set(CMAKE_REQUIRED_QUIET TRUE)
-
-  check_onnxruntime_execution_provider(
-    HAVE_ONNXRUNTIME_CUDA_EP
-    OrtSessionOptionsAppendExecutionProvider_CUDA
-    onnxruntime_c_api.h
-    onnxruntime/onnxruntime_c_api.h
-    onnxruntime/core/session/onnxruntime_c_api.h
-    cuda_provider_factory.h
-    onnxruntime/cuda_provider_factory.h
-    onnxruntime/core/providers/cuda/cuda_provider_factory.h
-  )
-
-  if(HAVE_ONNXRUNTIME_CUDA_EP)
-    message(STATUS "Building with ONNX Runtime CUDA EP.")
-    target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_CUDA_EP)
-  else()
-    message(STATUS "Building without ONNX Runtime CUDA EP.")
-  endif()
-
-  check_onnxruntime_execution_provider(
-    HAVE_ONNXRUNTIME_ROCM_EP
-    OrtSessionOptionsAppendExecutionProvider_ROCM
-    onnxruntime_c_api.h
-    onnxruntime/onnxruntime_c_api.h
-    onnxruntime/core/session/onnxruntime_c_api.h
-    rocm_provider_factory.h
-    onnxruntime/rocm_provider_factory.h
-    onnxruntime/core/providers/rocm/rocm_provider_factory.h
-  )
-
-  if(HAVE_ONNXRUNTIME_ROCM_EP)
-    message(STATUS "Building with ONNX Runtime ROCm EP.")
-    target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_ROCM_EP)
-  else()
-    message(STATUS "Building without ONNX Runtime ROCm EP.")
-  endif()
-
-  cmake_pop_check_state()
 endblock()
 
 ### Plugin main
@@ -292,30 +304,64 @@ add_library(${CMAKE_PROJECT_NAME} MODULE)
 
 target_link_libraries(
   ${CMAKE_PROJECT_NAME}
-  PRIVATE
-    BuildOptions
-    OBS::libobs
-    OBS::obs-frontend-api
-    Qt6::Widgets
-    onnxruntime::onnxruntime
-    UpdateConfig
-    OpenCV::opencv_core
-    OpenCV::opencv_imgproc
-    $<$<TARGET_EXISTS:OpenCV::opencv_geometry>:OpenCV::opencv_geometry>
+  PRIVATE BuildOptions OBS::libobs OBS::obs-frontend-api Qt6::Widgets UpdateConfig
 )
+
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src)
+
+if(APPLE)
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE
+      src/Memory/AlignedBuffer.cpp
+      src/ObsBridgeUtils/AsyncTextureReader.cpp
+      src/ObsBridgeUtils/GsUnique.cpp
+      src/macos/ImageProcessing.cpp
+      src/macos/plugin-main.cpp
+      src/macos/BackgroundRemoval/MainEffect.cpp
+      src/macos/BackgroundRemoval/FilterContext.cpp
+      src/macos/BackgroundRemoval/MediaPipeLandscapePipeline.mm
+  )
+  set_source_files_properties(
+    src/macos/BackgroundRemoval/MediaPipeLandscapePipeline.mm
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
+  )
+
+  target_link_libraries(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE "-framework Accelerate" "-framework CoreML" "-framework Foundation"
+  )
+
+  set(MEDIAPIPE_LANDSCAPE_MODEL "${CMAKE_CURRENT_SOURCE_DIR}/src/macos/BackgroundRemoval/MediaPipeLandscape.mlpackage")
+  set_source_files_properties(
+    "${MEDIAPIPE_LANDSCAPE_MODEL}"
+    PROPERTIES MACOSX_PACKAGE_LOCATION "Resources" XCODE_EXPLICIT_FILE_TYPE "folder.mlpackage"
+  )
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${MEDIAPIPE_LANDSCAPE_MODEL}")
+else()
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE
+      src/plugin-main.cpp
+      src/background-filter.cpp
+      src/plugin-support.c
+      src/ort-utils/ort-session-utils.cpp
+      src/obs-utils/obs-utils.cpp
+      src/enhance-filter.cpp
+  )
+  target_link_libraries(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE
+      onnxruntime::onnxruntime
+      OpenCV::opencv_core
+      OpenCV::opencv_imgproc
+      $<$<TARGET_EXISTS:OpenCV::opencv_geometry>:OpenCV::opencv_geometry>
+  )
+endif()
 
 target_sources(
   ${CMAKE_PROJECT_NAME}
-  PRIVATE
-    src/plugin-main.cpp
-    src/plugin-support.c
-    src/UI/AboutDialog.cpp
-    src/UI/AboutDialogIntegration.cpp
-    src/Resources/resources.qrc
-    src/ort-utils/ort-session-utils.cpp
-    src/obs-utils/obs-utils.cpp
-    src/background-filter.cpp
-    src/enhance-filter.cpp
+  PRIVATE src/UI/AboutDialog.cpp src/UI/AboutDialogIntegration.cpp src/Resources/resources.qrc
 )
 
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES AUTORCC ON)

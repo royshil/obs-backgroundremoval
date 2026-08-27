@@ -1,0 +1,9 @@
+version = 1
+
+[[annotations]]
+path = "MediaPipeLandscape.mlpackage/**"
+SPDX-FileCopyrightText = [
+  "SPDX-FileCopyrightText: 2021 Google LLC",
+  "SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>",
+]
+SPDX-License-Identifier = "Apache-2.0"
