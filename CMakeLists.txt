@@ -17,6 +17,28 @@ endblock()
 
 project(obs-backgroundremoval VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+  option(ENABLE_AVX2 "Enable AVX2 optimizations" ON)
+endif()
+
+if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  option(FORCE_SYSTEM_OPENCV "Require a system-provided OpenCV" OFF)
+  option(FORCE_VENDORED_OPENCV "Use vendor/opencv without searching for a system-provided OpenCV" OFF)
+
+  if(FORCE_SYSTEM_OPENCV AND FORCE_VENDORED_OPENCV)
+    message(FATAL_ERROR "FORCE_SYSTEM_OPENCV and FORCE_VENDORED_OPENCV cannot both be enabled.")
+  endif()
+endif()
+
+if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  option(FORCE_SYSTEM_NCNN "Require a system-provided ncnn" OFF)
+  option(FORCE_VENDORED_NCNN "Use vendor/ncnn without searching for a system-provided ncnn" OFF)
+
+  if(FORCE_SYSTEM_NCNN AND FORCE_VENDORED_NCNN)
+    message(FATAL_ERROR "FORCE_SYSTEM_NCNN and FORCE_VENDORED_NCNN cannot both be enabled.")
+  endif()
+endif()
+
 if(APPLE AND NOT CMAKE_GENERATOR STREQUAL "Xcode")
   message(FATAL_ERROR "The macOS plugin requires the Xcode generator.")
 endif()
@@ -233,19 +255,29 @@ endblock()
 
 block(PROPAGATE OpenCV_FOUND)
   if(NOT APPLE)
-    find_package(OpenCV CONFIG QUIET)
+    if(FORCE_VENDORED_OPENCV)
+      set(BUILD_LIST "core,imgproc,geometry")
+      add_subdirectory(vendor/opencv EXCLUDE_FROM_ALL)
+      set(OpenCV_FOUND TRUE)
+    else()
+      find_package(OpenCV CONFIG QUIET)
 
-    if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
-      pkg_check_modules(PC_OPENCV opencv4 IMPORTED_TARGET)
-      if(PC_OPENCV_FOUND)
-        add_library(OpenCV::opencv_core ALIAS PkgConfig::PC_OPENCV)
-        add_library(OpenCV::opencv_imgproc ALIAS PkgConfig::PC_OPENCV)
+      if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
+        pkg_check_modules(PC_OPENCV opencv4 IMPORTED_TARGET)
+        if(PC_OPENCV_FOUND)
+          add_library(OpenCV::opencv_core ALIAS PkgConfig::PC_OPENCV)
+          add_library(OpenCV::opencv_imgproc ALIAS PkgConfig::PC_OPENCV)
+          set(OpenCV_FOUND TRUE)
+        endif()
+      endif()
+
+      if(NOT OpenCV_FOUND AND FORCE_SYSTEM_OPENCV)
+        message(FATAL_ERROR "OpenCV not found via CMake or pkg-config, but FORCE_SYSTEM_OPENCV is enabled.")
+      elseif(NOT OpenCV_FOUND)
+        set(BUILD_LIST "core,imgproc,geometry")
+        add_subdirectory(vendor/opencv EXCLUDE_FROM_ALL)
         set(OpenCV_FOUND TRUE)
       endif()
-    endif()
-
-    if(NOT OpenCV_FOUND)
-      message(FATAL_ERROR "OpenCV not found via CMake or pkg-config.")
     endif()
 
     if(NOT TARGET OpenCV::opencv_core)
@@ -263,7 +295,7 @@ block(PROPAGATE OpenCV_FOUND)
 endblock()
 
 block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM_EP)
-  if(NOT APPLE)
+  if(WIN32)
     set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON)
 
     find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc HINTS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES tools/protobuf)
@@ -338,6 +370,43 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
   endif()
 endblock()
 
+block(PROPAGATE ncnn_FOUND)
+  if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    macro(add_vendored_ncnn)
+      set(NCNN_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
+      set(NCNN_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+      set(NCNN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+      set(NCNN_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+      set(NCNN_INSTALL_SDK OFF CACHE BOOL "" FORCE)
+      add_subdirectory(vendor/ncnn EXCLUDE_FROM_ALL)
+    endmacro()
+
+    if(FORCE_VENDORED_NCNN)
+      add_vendored_ncnn()
+    else()
+      find_package(ncnn CONFIG QUIET)
+
+      if(NOT ncnn_FOUND AND PkgConfig_FOUND)
+        pkg_check_modules(PC_NCNN ncnn IMPORTED_TARGET)
+        if(PC_NCNN_FOUND)
+          add_library(ncnn::ncnn ALIAS PkgConfig::PC_NCNN)
+          set(ncnn_FOUND TRUE)
+        endif()
+      endif()
+
+      if(NOT ncnn_FOUND AND FORCE_SYSTEM_NCNN)
+        message(FATAL_ERROR "ncnn not found via CMake or pkg-config, but FORCE_SYSTEM_NCNN is enabled.")
+      elseif(NOT ncnn_FOUND)
+        add_vendored_ncnn()
+      endif()
+    endif()
+
+    if(NOT TARGET ncnn::ncnn)
+      add_library(ncnn::ncnn ALIAS ncnn)
+    endif()
+  endif()
+endblock()
+
 ### Plugin main
 add_subdirectory(vendor/josuttis-jthread)
 add_subdirectory(src/UpdateConfig)
@@ -351,27 +420,32 @@ target_link_libraries(
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src)
 
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/common/BackgroundRemoval/FilterProperty.cpp)
+
 if(APPLE)
   target_sources(
     ${CMAKE_PROJECT_NAME}
     PRIVATE
       src/Memory/AlignedBuffer.cpp
-      src/ObsBridgeUtils/AsyncTextureReader.cpp
+      src/ObsBridgeUtils/TextureReader.cpp
       src/ObsBridgeUtils/GsUnique.cpp
-      src/macos/ImageProcessing.cpp
+      src/common/Operators.cpp
+      src/macos/Operators.cpp
       src/macos/plugin-main.cpp
-      src/macos/BackgroundRemoval/MainEffect.cpp
+      src/Effects/BackgroundRemovalEffect.cpp
       src/macos/BackgroundRemoval/FilterContext.cpp
-      src/macos/BackgroundRemoval/MediaPipeLandscapePipeline.mm
+      src/macos/BackgroundRemoval/PipelineFactory.cpp
+      src/macos/BackgroundRemoval/MediaPipeLandscapeCoreMLPipeline.mm
+      src/common/BackgroundRemoval/MediaPipeLandscapeNcnnPipeline.cpp
   )
   set_source_files_properties(
-    src/macos/BackgroundRemoval/MediaPipeLandscapePipeline.mm
+    src/macos/BackgroundRemoval/MediaPipeLandscapeCoreMLPipeline.mm
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
   )
 
   target_link_libraries(
     ${CMAKE_PROJECT_NAME}
-    PRIVATE "-framework Accelerate" "-framework CoreML" "-framework Foundation"
+    PRIVATE ncnn::ncnn "-framework Accelerate" "-framework CoreML" "-framework Foundation"
   )
 
   set(MEDIAPIPE_LANDSCAPE_MODEL "${CMAKE_CURRENT_SOURCE_DIR}/src/macos/BackgroundRemoval/MediaPipeLandscape.mlpackage")
@@ -380,6 +454,47 @@ if(APPLE)
     PROPERTIES MACOSX_PACKAGE_LOCATION "Resources" XCODE_EXPLICIT_FILE_TYPE "folder.mlpackage"
   )
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${MEDIAPIPE_LANDSCAPE_MODEL}")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE
+      src/linux/plugin-main.cpp
+      src/Memory/AlignedBuffer.cpp
+      src/common/Operators.cpp
+      src/linux/Operators.cpp
+      src/linux/BackgroundRemoval/FilterContext.cpp
+      src/linux/BackgroundRemoval/PipelineFactory.cpp
+      src/ObsBridgeUtils/TextureReader.cpp
+      src/ObsBridgeUtils/GsUnique.cpp
+      src/Effects/BackgroundRemovalEffect.cpp
+      src/common/BackgroundRemoval/MediaPipeLandscapeNcnnPipeline.cpp
+  )
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-march=x86-64" CXX_COMPILER_SUPPORTS_X86_64_BASELINE)
+    if(NOT CXX_COMPILER_SUPPORTS_X86_64_BASELINE)
+      message(FATAL_ERROR "The x86_64 target requires compiler support for -march=x86-64.")
+    endif()
+
+    set(LINUX_OPERATORS_COMPILE_OPTIONS "-march=x86-64")
+    if(ENABLE_AVX2)
+      check_cxx_compiler_flag("-mavx2" CXX_COMPILER_SUPPORTS_AVX2)
+      if(NOT CXX_COMPILER_SUPPORTS_AVX2)
+        message(FATAL_ERROR "ENABLE_AVX2 requires compiler support for -mavx2.")
+      endif()
+
+      list(APPEND LINUX_OPERATORS_COMPILE_OPTIONS "-mavx2")
+    endif()
+    set_source_files_properties(src/linux/Operators.cpp PROPERTIES COMPILE_OPTIONS "${LINUX_OPERATORS_COMPILE_OPTIONS}")
+  endif()
+  target_link_libraries(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE
+      ncnn::ncnn
+      OpenCV::opencv_core
+      OpenCV::opencv_imgproc
+      $<$<TARGET_EXISTS:OpenCV::opencv_geometry>:OpenCV::opencv_geometry>
+  )
 else()
   target_sources(
     ${CMAKE_PROJECT_NAME}
@@ -538,14 +653,12 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   )
   install(FILES ${EFFECTS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/effects")
   install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
-  install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
   install(FILES LICENSE DESTINATION "${OBS_PLUGIN_DOC_DIR}" RENAME copyright)
 
   # User plugin
   install(TARGETS "${CMAKE_PROJECT_NAME}" LIBRARY DESTINATION "bin/64bit" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
   install(FILES ${EFFECTS_FILES} DESTINATION "data/effects" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
   install(FILES ${LOCALE_FILES} DESTINATION "data/locale" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
-  install(FILES ${MODELS_FILES} DESTINATION "data/models" COMPONENT UserPlugin EXCLUDE_FROM_ALL OPTIONAL)
 else()
   message("Installing on this platform is not supported officially.")
 endif()

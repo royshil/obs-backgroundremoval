@@ -16,8 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   file \
   git \
   libcurl4-openssl-dev \
+  libncnn-dev \
   libobs-dev \
-  libonnxruntime-dev \
   libopencv-dev \
   ninja-build \
   python3.14-venv \

@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+huggingface_hub==0.34.4
+numpy==2.2.6
+pnnx==20260526

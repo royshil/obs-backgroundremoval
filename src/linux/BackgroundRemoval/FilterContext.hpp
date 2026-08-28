@@ -13,7 +13,6 @@
 #include <optional>
 
 #include <obs-module.h>
-#include <os/log.h>
 
 namespace Effects {
 class BackgroundRemovalEffect;
@@ -53,20 +52,18 @@ public:
 	static auto create(obs_data_t *settings, obs_source_t *source) noexcept -> void *;
 	static void destroy(void *data) noexcept;
 	static void getDefaults(obs_data_t *settings) noexcept;
-	static auto getProperties(void *data) noexcept -> obs_properties_t *;
+	static auto getProperties(void *) noexcept -> obs_properties_t *;
 	static void update(void *data, obs_data_t *settings) noexcept;
 	static void videoTick(void *data, float seconds) noexcept;
 	static void videoRender(void *data, gs_effect_t *effect) noexcept;
 
 private:
-	static auto osLogger() noexcept -> os_log_t;
-
 	obs_source_t *const source_;
 	std::optional<FilterProperty> pendingFilterProperty_;
 	FilterProperty currentFilterProperty_{};
 	std::unique_ptr<Effects::BackgroundRemovalEffect> backgroundRemovalEffect_;
 	mutable std::mutex renderingPipelineMutex_;
-	std::shared_ptr<IRenderingPipeline> renderingPipeline_{nullptr};
+	std::shared_ptr<IRenderingPipeline> renderingPipeline_;
 	std::atomic<long long> heldPipelineId_{};
 	std::atomic<std::uint32_t> heldWidth_{};
 	std::atomic<std::uint32_t> heldHeight_{};
