@@ -19,6 +19,9 @@ function(configure_update_config_test TARGET_NAME)
   add_test(NAME "${TARGET_NAME}" COMMAND "${TARGET_NAME}")
 endfunction()
 
+add_executable(UpdateConfigSemverTest UpdateConfigSemverTest.cpp "${PLUGIN_SOURCE_DIR}/UpdateConfig/UpdateConfigSemver.cpp")
+configure_update_config_test(UpdateConfigSemverTest)
+
 add_executable(
   UpdateConfigCurlTest
   UpdateConfigCurlTest.cpp
