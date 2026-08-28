@@ -45,5 +45,6 @@
   "mounts": [
     "source=codex-auth,target=/home/vscode/.codex,type=volume"
   ],
+  "privileged": true,
   "securityOpt": ["seccomp=unconfined"]
 }
