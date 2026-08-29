@@ -163,6 +163,7 @@ jobs:
         with:
           name: ${{ needs.forky.outputs.DEB_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/${{ github.job }}
+          skip-decompress: true
 
       - name: Install deb artifact (Debian)
         shell: /bin/sh -eu {0}

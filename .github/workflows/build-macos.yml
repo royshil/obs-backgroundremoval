@@ -428,7 +428,7 @@ jobs:
           MACOS_SIGNING_CERT: ${{ secrets.MACOS_SIGNING_CERT }}
           MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
 
-      - name: Package signed pkg (macOS)
+      - name: Package signed PKG (macOS)
         if: inputs.attest-artifacts
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
@@ -464,13 +464,13 @@ jobs:
             --sign "${MACOS_SIGNING_INSTALLER_IDENTITY:?}" \
             "${PKG_ARTIFACT_NAME:?}"
 
-      - name: Attest signed pkg (macOS)
+      - name: Attest signed PKG (macOS)
         if: inputs.attest-artifacts && !inputs.notarize
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
 
-      - name: Notarize signed pkg
+      - name: Notarize signed PKG
         if: inputs.attest-artifacts && inputs.notarize
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
@@ -488,13 +488,13 @@ jobs:
           xcrun stapler validate "${PKG_ARTIFACT_NAME:?}"
           spctl --assess --type install --verbose=2 "${PKG_ARTIFACT_NAME:?}"
 
-      - name: Attest notarized pkg (macOS)
+      - name: Attest notarized PKG (macOS)
         if: inputs.attest-artifacts && inputs.notarize
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
 
-      - name: Package unsigned pkg (macOS)
+      - name: Package unsigned PKG (macOS)
         if: ${{ !inputs.attest-artifacts }}
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
@@ -520,7 +520,7 @@ jobs:
             --resources . \
             "${PKG_ARTIFACT_NAME:?}"
 
-      - name: Upload pkg artifact (macOS)
+      - name: Upload PKG artifact (macOS)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
@@ -545,11 +545,12 @@ jobs:
           brew install --cask obs
           xattr -dr com.apple.quarantine /Applications/OBS.app
 
-      - name: Download plugin for scenario tests (macOS)
+      - name: Download PKG artifact (macOS)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ needs.tahoe.outputs.PKG_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/${{ github.job }}/artifact
+          skip-decompress: true
 
       - name: Install plugin for scenario tests (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
