@@ -247,7 +247,7 @@ obs_properties_t *background_filter_properties(void *data)
 	std::string basic_info = std::regex_replace(PLUGIN_INFO_TEMPLATE, std::regex("%1"), PLUGIN_VERSION);
 	// Check for update
 	if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion();
-	    latestVersion && *latestVersion != PLUGIN_VERSION) {
+	    latestVersion && UpdateConfig::isSemverNewer(*latestVersion, PLUGIN_VERSION)) {
 		basic_info +=
 			std::regex_replace(PLUGIN_INFO_TEMPLATE_UPDATE_AVAILABLE, std::regex("%1"), *latestVersion);
 	}

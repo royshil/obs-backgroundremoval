@@ -4,13 +4,20 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 
 namespace UpdateConfig {
+
+[[nodiscard]] std::optional<std::uint64_t> getSemverMajor(std::string_view version);
+[[nodiscard]] std::optional<std::uint64_t> getSemverMinor(std::string_view version);
+[[nodiscard]] std::optional<std::uint64_t> getSemverPatch(std::string_view version);
+[[nodiscard]] bool isSemverNewer(std::string_view candidate, std::string_view current);
 
 struct HandleFirstRunRequest final {
 	std::string pluginVersion;
