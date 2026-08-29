@@ -65,7 +65,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: 'obs-backgroundremoval_*'
+          pattern: 'obs-backgroundremoval*'
           merge-multiple: true
           path: ${{ runner.temp }}/release-assets
 
@@ -79,7 +79,8 @@ jobs:
           $artifacts = ConvertFrom-Json -InputObject $env:ARTIFACTS
 
           $assetsWithTitles = @{
-            $artifacts.WINDOWS_X64_DLL_ARTIFACT = $null
+            $artifacts.WINDOWS_X64_ZIP_ARTIFACT = $null
+            $artifacts.WINDOWS_X64_PDB_ARTIFACT = $null
             $artifacts.MACOS_ARM64_DSYM_ARTIFACT = $null
             $artifacts.MACOS_ARM64_PKG_ARTIFACT = $null
             $artifacts.MACOS_X86_64_DSYM_ARTIFACT = $null

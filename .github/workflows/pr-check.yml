@@ -21,7 +21,6 @@ jobs:
     permissions:
       contents: read
     with:
-      upload-artifacts: ${{ contains(github.event.pull_request.labels.*.name, 'upload-artifacts') }}
       attest-artifacts: false
       runs-on: windows-2025-vs2026
 
