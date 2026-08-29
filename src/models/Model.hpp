@@ -64,7 +64,7 @@ static void chw_to_hwc_32f(cv::InputArray src, cv::OutputArray dst)
 	const int height = srcMat.rows;
 	const int width = srcMat.cols;
 	const int dtype = srcMat.type();
-	assert(dtype == CV_32F);
+	assert(CV_MAT_DEPTH(dtype) == CV_32F);
 	const int channelStride = height * width;
 
 	// Flatten to a vector of channels
