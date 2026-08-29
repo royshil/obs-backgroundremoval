@@ -151,6 +151,7 @@ jobs:
         with:
           name: ${{ needs.resolute.outputs.DEB_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/${{ github.job }}
+          skip-decompress: true
 
       - name: Install deb artifact (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
