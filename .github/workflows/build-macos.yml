@@ -63,8 +63,8 @@ jobs:
     timeout-minutes: 180
 
     outputs:
-      DSYM_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
-      PKG_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+      DSYM_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.plugin.dSYM.tar.xz
+      PKG_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
 
     env:
       CCACHE_ORT_DIR: .ccache_ort
@@ -96,13 +96,6 @@ jobs:
           brew install pkgconf
           printf 'PKGCONF_BINDIR=%s\n' "$(brew --prefix pkgconf)/bin" >>"${GITHUB_OUTPUT:?}"
 
-      - name: Initialize JOB_TEMP (macOS)
-        id: job-temp
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          JOB_TEMP="$(mktemp -d -t "${GITHUB_JOB:?}-${GITHUB_RUN_ID:?}.XXXXXXX")"
-          printf 'JOB_TEMP=%s\n' "${JOB_TEMP:?}" >>"${GITHUB_OUTPUT:?}"
-
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,16 +116,6 @@ jobs:
           $PLUGIN_VERSION = (Get-Content -Raw -LiteralPath VERSION).Trim()
           "PLUGIN_VERSION=$PLUGIN_VERSION"
           Add-Content -Value "PLUGIN_VERSION=$PLUGIN_VERSION" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
-
-      - name: Print expected artifact names (macOS)
-        id: expected-artifacts
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          ARCH: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
-          PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
-        run: |
-          printf 'DSYM_ARTIFACT_NAME=obs-backgroundremoval_%s_%s.plugin.dSYM.tar.xz\n' "${PLUGIN_VERSION:?}" "${ARCH:?}" | tee -a "${GITHUB_OUTPUT:?}"
-          printf 'PKG_ARTIFACT_NAME=obs-backgroundremoval_%s_%s.pkg\n' "${PLUGIN_VERSION:?}" "${ARCH:?}" | tee -a "${GITHUB_OUTPUT:?}"
 
       # BEGIN: Set up toolchains
 
@@ -416,24 +399,10 @@ jobs:
           /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND%/*}/ctest" \
             --test-dir build --output-on-failure
 
-      - name: Stage plugin for scenario tests (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
-        run: |
-          "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix scenario_build_prefix
-
-      - name: Upload plugin for scenario tests (macOS)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: scenario-plugin-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
-          path: scenario_build_prefix
-          if-no-files-found: error
-
       - name: Extract dSYM
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          DSYM_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
+          DSYM_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.plugin.dSYM.tar.xz
         run: |
           dsymutil build/obs-backgroundremoval.plugin/Contents/MacOS/obs-backgroundremoval -o obs-backgroundremoval.plugin.dSYM
           COPYFILE_DISABLE=1 tar -cJf "${DSYM_ARTIFACT_NAME:?}" --no-mac-metadata --no-xattrs obs-backgroundremoval.plugin.dSYM
@@ -442,12 +411,12 @@ jobs:
         if: inputs.attest-artifacts
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
+          subject-path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.plugin.dSYM.tar.xz
 
       - name: Upload dSYM artifact (macOS)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: ${{ steps.expected-artifacts.outputs.DSYM_ARTIFACT_NAME }}
+          path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.plugin.dSYM.tar.xz
           archive: false
           if-no-files-found: error
 
@@ -466,7 +435,7 @@ jobs:
           CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
           MACOS_SIGNING_APPLICATION_IDENTITY: ${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}
           MACOS_SIGNING_INSTALLER_IDENTITY: ${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}
-          PKG_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+          PKG_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
           PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.PLUGIN_BUNDLE_ID }}
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
@@ -499,7 +468,7 @@ jobs:
         if: inputs.attest-artifacts && !inputs.notarize
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+          subject-path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
 
       - name: Notarize signed pkg
         if: inputs.attest-artifacts && inputs.notarize
@@ -508,7 +477,7 @@ jobs:
           CODESIGN_TEAM: ${{ vars.CODESIGN_TEAM }}
           MACOS_NOTARIZATION_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
           MACOS_NOTARIZATION_USERNAME: ${{ secrets.MACOS_NOTARIZATION_USERNAME }}
-          PKG_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+          PKG_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
         run: |
           xcrun notarytool submit "${PKG_ARTIFACT_NAME:?}" \
             --apple-id "${MACOS_NOTARIZATION_USERNAME:?}" \
@@ -523,14 +492,14 @@ jobs:
         if: inputs.attest-artifacts && inputs.notarize
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+          subject-path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
 
       - name: Package unsigned pkg (macOS)
         if: ${{ !inputs.attest-artifacts }}
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
-          PKG_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+          PKG_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
           PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.PLUGIN_BUNDLE_ID }}
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
@@ -554,7 +523,7 @@ jobs:
       - name: Upload pkg artifact (macOS)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
+          path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-macos-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}.pkg
           archive: false
           if-no-files-found: error
 
@@ -579,7 +548,7 @@ jobs:
       - name: Download plugin for scenario tests (macOS)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: scenario-plugin-macos-arm64
+          name: ${{ needs.tahoe.outputs.PKG_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/${{ github.job }}/artifact
 
       - name: Install plugin for scenario tests (macOS)
@@ -587,12 +556,9 @@ jobs:
         env:
           ARTIFACT_DIR: ${{ runner.temp }}/${{ github.job }}/artifact
         run: |
-          plugin_dir="${HOME:?}/Library/Application Support/obs-studio/plugins"
-          mkdir -p "${plugin_dir}"
-          cp -R \
-            "${ARTIFACT_DIR:?}/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin" \
-            "${plugin_dir}/"
-          chmod +x "${plugin_dir}/obs-backgroundremoval.plugin/Contents/MacOS/obs-backgroundremoval"
+          pkg_path="${ARTIFACT_DIR:?}/${{ needs.tahoe.outputs.PKG_ARTIFACT_NAME }}"
+          test -f "${pkg_path}"
+          installer -pkg "${pkg_path}" -target CurrentUserHomeDirectory
 
       - name: Run scenario tests (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}

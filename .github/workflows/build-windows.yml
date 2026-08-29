@@ -9,10 +9,6 @@ name: Build (Windows)
 on:
   workflow_call:
     inputs:
-      upload-artifacts:
-        description: Uploads artifacts.
-        required: true
-        type: boolean
       attest-artifacts:
         description: Attests artifacts.
         required: true
@@ -22,9 +18,12 @@ on:
         required: true
         type: string
     outputs:
-      dll-artifact:
-        description: DLL artifact for Windows.
-        value: ${{ jobs.build.outputs.DLL_ARTIFACT_NAME }}
+      zip-artifact:
+        description: ZIP artifact for Windows.
+        value: ${{ jobs.build.outputs.ZIP_ARTIFACT_NAME }}
+      pdb-artifact:
+        description: PDB artifact for Windows.
+        value: ${{ jobs.build.outputs.PDB_ARTIFACT_NAME }}
 
 env:
   # https://github.com/kaito-tokyo/vcpkg-obs-kaito-tokyo
@@ -36,7 +35,8 @@ jobs:
     timeout-minutes: 180
 
     outputs:
-      DLL_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.DLL_ARTIFACT_NAME }}
+      ZIP_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.zip
+      PDB_ARTIFACT_NAME: obs-backgroundremoval-pdb-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.7z
 
     env:
       CCACHE_ORT_DIR: .ccache_ort
@@ -57,14 +57,6 @@ jobs:
           $WINDOWS_BUILD_VERSION = [Environment]::OSVersion.Version.Build
           "WINDOWS_BUILD_VERSION=$WINDOWS_BUILD_VERSION"
           Add-Content -Value "WINDOWS_BUILD_VERSION=$WINDOWS_BUILD_VERSION" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
-
-      - name: Initialize JOB_TEMP (Windows)
-        id: job-temp
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $jobTemp = Join-Path $env:RUNNER_TEMP ([System.IO.Path]::GetRandomFileName())
-          New-Item $jobTemp -ItemType Directory -Force
-          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "JOB_TEMP=$jobTemp" -Encoding utf8
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,16 +79,6 @@ jobs:
           $PLUGIN_VERSION = (Get-Content -Raw -LiteralPath VERSION).Trim()
           "PLUGIN_VERSION=$PLUGIN_VERSION"
           Add-Content -Value "PLUGIN_VERSION=$PLUGIN_VERSION" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
-
-      - name: Print expected artifact names (Windows)
-        id: expected-artifacts
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        env:
-          PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
-        run: |
-          $DLL_ARTIFACT_NAME = "obs-backgroundremoval_$env:PLUGIN_VERSION.dll.zip"
-          "DLL_ARTIFACT_NAME=$DLL_ARTIFACT_NAME"
-          Add-Content -Value "DLL_ARTIFACT_NAME=$DLL_ARTIFACT_NAME" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
       # BEGIN: Set up toolchains
 
@@ -355,10 +337,10 @@ jobs:
 
           cmake --build build --config RelWithDebInfo --parallel
 
-      - name: Package dll artifact (Windows)
+      - name: Package ZIP artifact (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         env:
-          DLL_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.DLL_ARTIFACT_NAME }}
+          ZIP_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.zip
         run: |
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
           $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
@@ -367,29 +349,64 @@ jobs:
           $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
           $env:Path = "$CMAKE_BINDIR;$env:Path"
 
-          cmake --install build --config RelWithDebInfo --prefix build_prefix
+          cmake --install build --config RelWithDebInfo --prefix build_package/obs-studio/plugins
+          Copy-Item -Path 'docs\windows-zip\*' -Destination build_package -Recurse -Force
 
-          Set-Location build_prefix
-          Compress-Archive -Path '*' -DestinationPath (Join-Path $env:GITHUB_WORKSPACE $env:DLL_ARTIFACT_NAME)
+          if (-not (Test-Path 'build_package\INSTALL.html')) {
+            throw 'INSTALL.html is missing from the Windows package.'
+          }
+          if (-not (Test-Path 'build_package\obs-studio\plugins\obs-backgroundremoval\bin\64bit\obs-backgroundremoval.dll')) {
+            throw 'obs-backgroundremoval.dll is missing from the Windows package.'
+          }
 
-      - name: Upload plugin for scenario tests (Windows)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: scenario-plugin-windows-x64
-          path: build_prefix
-          if-no-files-found: error
+          Set-Location 'build_package'
+          Compress-Archive -Path '*' -DestinationPath (Join-Path $env:GITHUB_WORKSPACE $env:ZIP_ARTIFACT_NAME)
 
-      - name: Attest DLL artifact
-        if: inputs.upload-artifacts && inputs.attest-artifacts
+      - name: Package PDB artifact (Windows)
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        env:
+          PDB_ARTIFACT_NAME: obs-backgroundremoval-pdb-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.7z
+        run: |
+          $DLL_FILES = @(Get-ChildItem -LiteralPath build -Filter 'obs-backgroundremoval.dll' -File -Recurse)
+          if ($DLL_FILES.Count -ne 1) {
+            throw "Expected exactly one obs-backgroundremoval.dll, found $($DLL_FILES.Count)."
+          }
+          $PDB_PATH = [System.IO.Path]::ChangeExtension($DLL_FILES[0].FullName, '.pdb')
+          if (-not (Test-Path -LiteralPath $PDB_PATH -PathType Leaf)) {
+            throw "The linker PDB was not found next to the plugin DLL: $PDB_PATH"
+          }
+
+          $SEVEN_ZIP = (Get-Command 7z.exe -ErrorAction Stop).Source
+          $PDB_ARCHIVE = Join-Path $env:GITHUB_WORKSPACE $env:PDB_ARTIFACT_NAME
+          & $SEVEN_ZIP a -t7z -mx=9 $PDB_ARCHIVE $PDB_PATH
+          if ($LASTEXITCODE -ne 0) { throw 'PDB compression failed.' }
+
+          & $SEVEN_ZIP t $PDB_ARCHIVE
+          if ($LASTEXITCODE -ne 0) { throw 'PDB archive validation failed.' }
+
+      - name: Attest ZIP artifact
+        if: inputs.attest-artifacts
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: ${{ steps.expected-artifacts.outputs.DLL_ARTIFACT_NAME }}
+          subject-path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.zip
 
-      - name: Upload DLL artifact
-        if: inputs.upload-artifacts
+      - name: Attest PDB artifact
+        if: inputs.attest-artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: obs-backgroundremoval-pdb-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.7z
+
+      - name: Upload ZIP artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: ${{ steps.expected-artifacts.outputs.DLL_ARTIFACT_NAME }}
+          path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.zip
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload PDB artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: obs-backgroundremoval-pdb-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.7z
           archive: false
           if-no-files-found: error
 
@@ -425,15 +442,26 @@ jobs:
           }
           Add-Content -LiteralPath $env:GITHUB_ENV -Value "GUI_SCENARIO_OBS_EXECUTABLE=$($obsExecutable.FullName)" -Encoding utf8
 
-      - name: Download plugin for scenario tests (Windows)
+      - name: Download ZIP artifact (Windows)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: scenario-plugin-windows-x64
+          name: ${{ needs.build.outputs.ZIP_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/${{ github.job }}/plugin
+          skip-decompress: true
 
       - name: Run scenario tests (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: ./tests/Scenarios/+run-windows.ps1 -PluginRoot '${{ runner.temp }}/${{ github.job }}/plugin/obs-backgroundremoval'
+        run: |
+          $PACKAGE_DOWNLOAD = '${{ runner.temp }}/${{ github.job }}/plugin'
+          $PACKAGE_ZIP = Get-ChildItem -LiteralPath $PACKAGE_DOWNLOAD -Filter '*.zip' -File | Select-Object -First 1
+          if (-not $PACKAGE_ZIP) { throw 'The Windows plugin ZIP was not found.' }
+
+          $PACKAGE_ROOT = '${{ runner.temp }}/${{ github.job }}/plugin-extracted'
+          Expand-Archive -LiteralPath $PACKAGE_ZIP.FullName -DestinationPath $PACKAGE_ROOT
+          $PLUGIN_ROOT = Join-Path $PACKAGE_ROOT 'obs-studio\plugins\obs-backgroundremoval'
+          if (-not (Test-Path $PLUGIN_ROOT)) { throw "The plugin directory was not found in the ZIP: $PLUGIN_ROOT" }
+
+          ./tests/Scenarios/+run-windows.ps1 -PluginRoot $PLUGIN_ROOT
 
       - name: Upload scenario test artifacts (Windows)
         if: always()

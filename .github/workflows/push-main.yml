@@ -17,8 +17,10 @@ on:
         type: boolean
         default: false
     outputs:
-      WINDOWS_X64_DLL_ARTIFACT:
-        value: ${{ jobs.build-windows-x64.outputs.dll-artifact }}
+      WINDOWS_X64_ZIP_ARTIFACT:
+        value: ${{ jobs.build-windows-x64.outputs.zip-artifact }}
+      WINDOWS_X64_PDB_ARTIFACT:
+        value: ${{ jobs.build-windows-x64.outputs.pdb-artifact }}
       MACOS_ARM64_DSYM_ARTIFACT:
         value: ${{ jobs.build-macos-arm64.outputs.dsym-artifact }}
       MACOS_ARM64_PKG_ARTIFACT:
@@ -55,7 +57,6 @@ jobs:
       contents: read
       id-token: write
     with:
-      upload-artifacts: true
       attest-artifacts: true
       runs-on: windows-2025-vs2026
 
