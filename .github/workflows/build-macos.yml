@@ -505,7 +505,7 @@ jobs:
         if: inputs.attest-artifacts && inputs.notarize
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          CODESIGN_TEAM: ${{ steps.setup-codesign.outputs.CODESIGN_TEAM }}
+          CODESIGN_TEAM: ${{ vars.CODESIGN_TEAM }}
           MACOS_NOTARIZATION_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
           MACOS_NOTARIZATION_USERNAME: ${{ secrets.MACOS_NOTARIZATION_USERNAME }}
           PKG_ARTIFACT_NAME: ${{ steps.expected-artifacts.outputs.PKG_ARTIFACT_NAME }}
@@ -513,7 +513,7 @@ jobs:
           xcrun notarytool submit "${PKG_ARTIFACT_NAME:?}" \
             --apple-id "${MACOS_NOTARIZATION_USERNAME:?}" \
             --password "${MACOS_NOTARIZATION_PASSWORD:?}" \
-            --team-id "${CODESIGN_TEAM:?}" \
+            --team-id "${CODESIGN_TEAM:?vars.CODESIGN_TEAM is not set}" \
             --wait
           xcrun stapler staple "${PKG_ARTIFACT_NAME:?}"
           xcrun stapler validate "${PKG_ARTIFACT_NAME:?}"

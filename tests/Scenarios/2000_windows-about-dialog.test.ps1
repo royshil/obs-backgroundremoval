@@ -182,30 +182,46 @@ function Write-UpdateConfig {
         [Text.UTF8Encoding]::new($false))
 }
 
-function Read-UpdateConfig {
+function Wait-ForUpdateConfig {
+    param(
+        [Parameter(Mandatory)][scriptblock] $ConditionScript,
+        [Parameter(Mandatory)][string] $Description,
+        [int] $TimeoutSeconds = 3
+    )
+    $lastContents = $null
+    $lastError = $null
     $stopwatch = [Diagnostics.Stopwatch]::StartNew()
-    while ($stopwatch.Elapsed.TotalSeconds -lt 3) {
-        if (Test-Path -LiteralPath $UpdateConfig -PathType Leaf) {
-            try { return Get-Content -LiteralPath $UpdateConfig -Raw } catch [IO.IOException] {}
+    while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        try {
+            $lastContents = Get-Content -LiteralPath $UpdateConfig -Raw -ErrorAction Stop
+            $lastError = $null
+            if (& $ConditionScript $lastContents) { return $lastContents }
+        } catch [System.Management.Automation.ItemNotFoundException], [IO.IOException] {
+            $lastError = $_.Exception.Message
         }
         Start-Sleep -Milliseconds 50
     }
-    throw 'Plugin update.ini was not written or remained locked.'
+    if ($lastError) {
+        throw "Timed out waiting for update.ini to $Description. Last read error: $lastError"
+    }
+    throw "Timed out waiting for update.ini to $Description. Last contents: $lastContents"
 }
 
 function Assert-VersionAcknowledged {
     param([string] $Expected = $Version)
-    if ((Read-UpdateConfig) -notmatch "(?m)^version=$([regex]::Escape($Expected))`r?$") {
-        throw "update.ini does not contain version=$Expected."
-    }
+    Wait-ForUpdateConfig -Description "contain version=$Expected" -ConditionScript {
+        param($contents)
+        $contents -match "(?m)^version=$([regex]::Escape($Expected))`r?$"
+    } | Out-Null
 }
 
 function Assert-Notifications {
     param([bool] $Enabled)
     $expected = if ($Enabled) { 'true' } else { 'false' }
-    if ((Read-UpdateConfig) -notmatch "(?m)^check_for_updates=$expected`r?$") {
-        throw "update.ini does not contain check_for_updates=$expected."
-    }
+    Wait-ForUpdateConfig -Description "contain check_for_updates=$expected" -ConditionScript {
+        param($contents)
+        $contents -match "(?m)^check_for_updates=$expected`r?$"
+    } | Out-Null
 }
 
 function Get-AboutDialog {
@@ -394,7 +410,10 @@ $cases['ST-2000.9 current version cannot be recorded'] = {
             Assert-Log $log '[obs-backgroundremoval] Failed to save update config'
         }
     } finally { Set-ItemProperty -LiteralPath $UpdateConfig -Name IsReadOnly -Value $false }
-    if ((Read-UpdateConfig) -notmatch '(?m)^version=0\.0\.0\r?$') { throw 'The earlier version was changed.' }
+    Wait-ForUpdateConfig -Description 'retain version=0.0.0' -ConditionScript {
+        param($contents)
+        $contents -match '(?m)^version=0\.0\.0\r?$'
+    } | Out-Null
 }
 $cases['ST-2000.10 unwritable stale temporary file'] = {
     Write-UpdateConfig '[update]' 'version=0.0.0' 'check_for_updates=false'
