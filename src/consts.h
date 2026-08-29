@@ -14,6 +14,7 @@ const char *const MODEL_SELFIE = "models/selfie_segmentation.onnx";
 const char *const MODEL_SELFIE_MULTICLASS = "models/selfie_multiclass_256x256.onnx";
 const char *const MODEL_RVM = "models/rvm_mobilenetv3_fp32.onnx";
 const char *const MODEL_PPHUMANSEG = "models/pphumanseg_fp32.onnx";
+const char *const MODEL_RVM_RESNET50 = "models/rvm_resnet50_fp16.onnx";
 const char *const MODEL_ENHANCE_TBEFN = "models/tbefn_fp32.onnx";
 const char *const MODEL_ENHANCE_URETINEX = "models/uretinex_net_180x320.onnx";
 const char *const MODEL_ENHANCE_SGLLIE = "models/semantic_guided_llie_180x324.onnx";

@@ -43,6 +43,7 @@
 #include "models/ModelSelfieMulticlass.hpp"
 #include "models/ModelRVM.hpp"
 #include "models/ModelPPHumanSeg.hpp"
+#include "models/ModelRVMResNet50.hpp"
 #include "models/ModelTCMonoDepth.hpp"
 #include "FilterData.hpp"
 #include "ort-utils/ort-session-utils.hpp"
@@ -212,6 +213,7 @@ obs_properties_t *background_filter_properties(void *data)
 	obs_property_list_add_string(p_model_select, obs_module_text("PPHumanSeg"), MODEL_PPHUMANSEG);
 	obs_property_list_add_string(p_model_select, obs_module_text("Robust Video Matting"), MODEL_RVM);
 	obs_property_list_add_string(p_model_select, obs_module_text("TCMonoDepth"), MODEL_DEPTH_TCMONODEPTH);
+	obs_property_list_add_string(p_model_select, obs_module_text("RVM-ResNet50"), MODEL_RVM_RESNET50);
 
 	obs_properties_add_float_slider(props, "temporal_smooth_factor", obs_module_text("TemporalSmoothFactor"), 0.0,
 					1.0, 0.01);
@@ -355,6 +357,9 @@ void background_filter_update(void *data, obs_data_t *settings)
 		}
 		if (tf->modelSelection == MODEL_DEPTH_TCMONODEPTH) {
 			tf->model.reset(new ModelTCMonoDepth);
+		}
+		if (tf->modelSelection == MODEL_RVM_RESNET50) {
+			tf->model.reset(new ModelRVMResNet50);
 		}
 
 		int ortSessionResult = createOrtSession(tf.get());

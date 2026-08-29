@@ -382,6 +382,8 @@ set(
   data/models/tcmonodepth_tcsmallnet_192x320.onnx.license
   data/models/uretinex_net_180x320.onnx
   data/models/uretinex_net_180x320.onnx.license
+  data/models/rvm_resnet50_fp16.onnx
+  data/models/rvm_resnet50_fp16.onnx.license
 )
 
 configure_file(
