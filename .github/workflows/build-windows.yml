@@ -352,7 +352,7 @@ jobs:
           $env:Path = "$CMAKE_BINDIR;$env:Path"
 
           cmake --install build --config RelWithDebInfo --prefix build_package/obs-studio/plugins
-          Copy-Item -Path 'docs\windows-zip\*' -Destination build_package -Recurse -Force
+          Copy-Item -Path 'docs\windows\INSTALL.html' -Destination build_package -Force
 
           if (-not (Test-Path 'build_package\INSTALL.html')) {
             throw 'INSTALL.html is missing from the Windows package.'

@@ -84,6 +84,39 @@ export async function listReleases(repository, page = 1, token = undefined, endp
 }
 
 /**
+ * @param {string} repository
+ * @param {string} [token]
+ * @param {string} [endpoint]
+ * @returns {Promise<ListReleasesItem>}
+ */
+export async function getLatestRelease(repository, token = undefined, endpoint = DEFAULT_GITHUB_API_ENDPOINT) {
+  const url = new URL(`${endpoint}/repos/${repository}/releases/latest`);
+  const headers = {
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2026-03-10",
+    "User-Agent": "obs-backgroundremoval-document-generator"
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    throw new Error(
+      `Get latest release API returned ${response.status} ${response.statusText}`,
+    );
+  }
+
+  const release = await response.json();
+  if (!release || typeof release !== "object" || Array.isArray(release)) {
+    throw new TypeError("Get latest release API did not return an object");
+  }
+
+  return release;
+}
+
+/**
  * @typedef {Object} ListStargazersItem
  * @property {string} starred_at
  * @property {Object} user
@@ -154,6 +187,13 @@ export class GitHubClient {
    */
   listReleases(page = 1) {
     return listReleases(this.repository, page, this.token, this.endpoint);
+  }
+
+  /**
+   * @returns {Promise<ListReleasesItem>}
+   */
+  getLatestRelease() {
+    return getLatestRelease(this.repository, this.token, this.endpoint);
   }
 
   /**
