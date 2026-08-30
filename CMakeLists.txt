@@ -35,6 +35,12 @@ block(
   endforeach()
 endblock()
 
+if(DEFINED ENV{GITHUB_RUN_ID})
+  set(PLUGIN_BUILD_NUMBER "$ENV{GITHUB_RUN_ID}")
+else()
+  set(PLUGIN_BUILD_NUMBER "1")
+endif()
+
 ### Global configurations
 set(CMAKE_C_EXTENSIONS FALSE)
 set(CMAKE_C_STANDARD 17)
@@ -391,7 +397,21 @@ configure_file(
 )
 
 if(APPLE)
-  set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES BUNDLE TRUE BUNDLE_EXTENSION "plugin")
+  set_target_properties(
+    ${CMAKE_PROJECT_NAME}
+    PROPERTIES
+      BUNDLE TRUE
+      BUNDLE_EXTENSION "plugin"
+      XCODE_ATTRIBUTE_PRODUCT_NAME "${CMAKE_PROJECT_NAME}"
+      XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${PLUGIN_BUNDLE_ID}"
+      XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION "${PLUGIN_BUILD_NUMBER}"
+      XCODE_ATTRIBUTE_MARKETING_VERSION "${PLUGIN_VERSION}"
+      XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE YES
+      XCODE_ATTRIBUTE_INFOPLIST_FILE ""
+      XCODE_ATTRIBUTE_INFOPLIST_KEY_CFBundleDisplayName "${PLUGIN_DISPLAY_NAME}"
+      XCODE_ATTRIBUTE_INFOPLIST_KEY_NSHumanReadableCopyright
+        "Copyright © 2021-2026 Roy Shilkrot; Copyright © 2023-2026 Kaito Udagawa"
+  )
   set_source_files_properties(${EFFECTS_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/effects")
   set_source_files_properties(${LOCALE_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/locale")
   set_source_files_properties(${MODELS_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/models")

@@ -166,9 +166,7 @@ macos() {
   cmake \
     -S "${PWD:?}" \
     -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
-    -G Ninja \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -G Xcode \
     -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
     -DCMAKE_PREFIX_PATH="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps;${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed/Frameworks;${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_ort_installed/${VCPKG_ORT_TARGET_TRIPLET:-arm64-osx-obs-ort};${PLUGIN_BUILD_DIR:-${PWD:?}}/ort_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_installed/${VCPKG_TARGET_TRIPLET:-arm64-osx-obs}"

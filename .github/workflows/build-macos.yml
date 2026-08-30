@@ -356,17 +356,16 @@ jobs:
           CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
           CMAKE_OSX_DEPLOYMENT_TARGET: ${{ steps.buildspec.outputs.osx_deployment_target }}
           CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }};${{ github.workspace }}/obs_installed;${{ github.workspace }}/obs_installed/Frameworks;${{ github.workspace }}/vcpkg_ort_installed/${{ env.VCPKG_ORT_TARGET_TRIPLET }};${{ github.workspace }}/ort_installed;${{ github.workspace }}/vcpkg_installed/${{ env.VCPKG_TARGET_TRIPLET }}
-          NINJA_COMMAND: ${{ steps.vcpkg-tools.outputs.NINJA_COMMAND }}
         run: |
           ENVS=(
             DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            GITHUB_RUN_ID="${GITHUB_RUN_ID:?}"
             HOME="${HOME:?}"
-            PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
+            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
           )
 
           /usr/bin/env -i "${ENVS[@]}" \
-            "${CMAKE_COMMAND:?}" -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            "${CMAKE_COMMAND:?}" -S . -B build -G Xcode \
             -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
             -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
             -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:?}"
@@ -375,12 +374,11 @@ jobs:
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
-          NINJA_COMMAND: ${{ steps.vcpkg-tools.outputs.NINJA_COMMAND }}
         run: |
           ENVS=(
             DEVELOPER_DIR="${DEVELOPER_DIR:?}"
             HOME="${HOME:?}"
-            PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
+            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
           )
 
           /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND:?}" --build build --config RelWithDebInfo --parallel
@@ -397,7 +395,7 @@ jobs:
           )
 
           /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND%/*}/ctest" \
-            --test-dir build --output-on-failure
+            --test-dir build --build-config RelWithDebInfo --output-on-failure
 
       - name: Archive dSYM (macOS)
         id: archive-dsym
@@ -407,7 +405,7 @@ jobs:
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
           DSYM_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos-${ARCH:?}.plugin.dSYM.tar.xz"
-          dsymutil build/obs-backgroundremoval.plugin/Contents/MacOS/obs-backgroundremoval -o obs-backgroundremoval.plugin.dSYM
+          dsymutil build/RelWithDebInfo/obs-backgroundremoval.plugin/Contents/MacOS/obs-backgroundremoval -o obs-backgroundremoval.plugin.dSYM
           COPYFILE_DISABLE=1 tar -cJf "${DSYM_ARTIFACT_NAME:?}" --no-mac-metadata --no-xattrs obs-backgroundremoval.plugin.dSYM
           printf 'DSYM_ARTIFACT_NAME=%s\n' "${DSYM_ARTIFACT_NAME:?}" | tee -a "${GITHUB_OUTPUT:?}"
 
@@ -445,6 +443,7 @@ jobs:
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
           PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos-${ARCH:?}.pkg"
+
           mkdir -p build_pkg
 
           "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix build_prefix --strip
@@ -469,6 +468,7 @@ jobs:
             --resources . \
             --sign "${MACOS_SIGNING_INSTALLER_IDENTITY:?}" \
             "${PKG_ARTIFACT_NAME:?}"
+
           printf 'PKG_ARTIFACT_NAME=%s\n' "${PKG_ARTIFACT_NAME:?}" | tee -a "${GITHUB_OUTPUT:?}"
 
       - name: Attest signed PKG (macOS)
@@ -512,9 +512,16 @@ jobs:
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
           PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos-${ARCH:?}.unsigned.pkg"
+
           mkdir -p build_pkg
 
           "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix build_prefix --strip
+
+          codesign \
+            --force \
+            --sign - \
+            --options runtime \
+            'build_prefix/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin'
 
           pkgbuild \
             --root build_prefix \
@@ -528,6 +535,7 @@ jobs:
             --package-path build_pkg \
             --resources . \
             "${PKG_ARTIFACT_NAME:?}"
+
           printf 'PKG_ARTIFACT_NAME=%s\n' "${PKG_ARTIFACT_NAME:?}" | tee -a "${GITHUB_OUTPUT:?}"
 
       - name: Upload PKG artifact (macOS)
