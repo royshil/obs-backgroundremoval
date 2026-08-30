@@ -440,26 +440,12 @@ else()
   message("Installing on this platform is not supported officially.")
 endif()
 
-### CPack configurations
-set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
-set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}${PACKAGE_VERSION_SUFFIX}")
-set(CPACK_PACKAGE_CONTACT "${PLUGIN_AUTHOR} <${PLUGIN_EMAIL}>")
-
-set(CPACK_ARCHIVE_THREADS 0)
-set(CPACK_SET_DESTDIR TRUE)
-set(CPACK_VERBATIM_VARIABLES TRUE)
-
-set(CPACK_DEBIAN_COMPRESSION_LEVEL 19)
-set(CPACK_DEBIAN_COMPRESSION_TYPE zstd)
-set(CPACK_DEBIAN_DEBUGINFO_PACKAGE TRUE)
-set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS TRUE)
-
-include(CPack) # This line must be placed after all the package configurations
-
 ### Testing
 if(BUILD_TESTING)
   enable_testing()
   set(PLUGIN_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
   add_subdirectory(tests)
 endif()
+
+### CPack
+include(./cmake/cpack.cmake OPTIONAL)
