@@ -65,6 +65,8 @@ if(MSVC)
       /W4
       /WX
   )
+elseif(APPLE)
+  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
 elseif(UNIX)
   target_compile_definitions(BuildOptions INTERFACE SIMDE_ENABLE_OPENMP)
   target_compile_options(

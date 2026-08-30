@@ -120,9 +120,6 @@ set "CCACHE_DIR=%CD%\.ccache_ort"
 set "CCACHE_SLOPPINESS=include_file_mtime,time_macros"
 set "CCACHE_BASEDIR=%CD%"
 
-"%PYTHON_COMMAND%" -m pip install -r requirements-build.txt || (echo ERROR: Python build dependency installation failed. & endlocal & exit /b 1)
-"%PYTHON_COMMAND%" vendor\onnxruntime\tools\ci_build\reduce_op_kernels.py "%buildspec_onnxruntime_reduced_ops_config%" --cmake_build_dir build_ort --is_extended_minimal_build_or_higher || (echo ERROR: ONNX Runtime operator reduction failed. & endlocal & exit /b 1)
-
 "%CMAKE_COMMAND%" --fresh -S vendor\onnxruntime\cmake -B build_ort -G Ninja --compile-no-warning-as-error ^
 	"-DCMAKE_BUILD_TYPE=Release" ^
 	"-DCMAKE_C_COMPILER_LAUNCHER=%CCACHE_COMMAND%" ^
@@ -141,7 +138,6 @@ set "CCACHE_BASEDIR=%CD%"
 	"-Donnxruntime_BUILD_SHARED_LIB=OFF" ^
 	"-Donnxruntime_BUILD_UNIT_TESTS=OFF" ^
 	"-Donnxruntime_DISABLE_RTTI=OFF" ^
-	"-Donnxruntime_REDUCED_OPS_BUILD=ON" ^
 	"-Donnxruntime_RUN_ONNX_TESTS=OFF" ^
 	"-Donnxruntime_USE_VCPKG=ON" || (echo ERROR: ONNX Runtime configuration failed. & endlocal & exit /b 1)
 
