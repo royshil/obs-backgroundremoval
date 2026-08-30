@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="292" viewBox="0 0 800 292" role="img" aria-labelledby="title description">
   <title id="title">GitHub star history</title>
-  <desc id="description">Cumulative GitHub stars by month, captured at 2026-08-19T16:52:27.516Z.</desc>
+  <desc id="description">Cumulative GitHub stars by month, captured at 2026-08-30T09:02:34.506Z.</desc>
   <defs>
     <clipPath id="chart-clip"><rect x="90" y="16" width="682" height="210"/></clipPath>
     <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
@@ -31,8 +31,8 @@ SPDX-License-Identifier: Apache-2.0
   <rect class="background" width="800" height="292" rx="6"/>
   <path class="grid" fill="none" vector-effect="non-scaling-stroke" d="M90 226H772 M90 184H772 M90 142H772 M90 100H772 M90 58H772 M90 16H772"/>
   <g clip-path="url(#chart-clip)">
-    <path fill="url(#area)" d="M90 226 L90.0 224.9 L100.4 222.4 L111.2 221.0 L121.6 220.0 L132.3 219.2 L143.1 216.9 L153.5 214.7 L164.2 211.3 L174.6 208.9 L185.4 205.9 L196.1 192.9 L205.8 188.8 L216.6 186.2 L227.0 183.8 L237.7 181.6 L248.1 180.1 L258.9 178.2 L269.6 176.6 L280.0 175.2 L290.8 173.7 L301.2 172.1 L311.9 170.5 L322.7 169.0 L332.4 166.7 L343.1 163.6 L353.5 160.2 L364.3 157.1 L374.7 153.9 L385.5 150.7 L396.2 146.9 L406.6 143.6 L417.4 140.0 L427.8 137.2 L438.5 133.6 L449.3 130.3 L459.3 126.9 L470.1 123.5 L480.5 120.6 L491.2 117.4 L501.6 115.0 L512.4 112.2 L523.1 109.3 L533.5 106.4 L544.3 103.5 L554.7 100.8 L565.4 98.2 L576.2 96.1 L585.9 93.4 L596.6 91.5 L607.0 88.5 L617.8 78.8 L628.2 74.0 L638.9 71.4 L649.7 68.9 L660.1 65.9 L670.8 62.3 L681.2 59.2 L692.0 56.0 L702.7 53.5 L712.5 50.2 L723.2 47.6 L733.6 44.8 L744.4 41.9 L754.8 39.4 L772.0 37.9 L772 226Z"/>
-    <path class="trend" fill="none" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" d="M90.0 224.9 L100.4 222.4 L111.2 221.0 L121.6 220.0 L132.3 219.2 L143.1 216.9 L153.5 214.7 L164.2 211.3 L174.6 208.9 L185.4 205.9 L196.1 192.9 L205.8 188.8 L216.6 186.2 L227.0 183.8 L237.7 181.6 L248.1 180.1 L258.9 178.2 L269.6 176.6 L280.0 175.2 L290.8 173.7 L301.2 172.1 L311.9 170.5 L322.7 169.0 L332.4 166.7 L343.1 163.6 L353.5 160.2 L364.3 157.1 L374.7 153.9 L385.5 150.7 L396.2 146.9 L406.6 143.6 L417.4 140.0 L427.8 137.2 L438.5 133.6 L449.3 130.3 L459.3 126.9 L470.1 123.5 L480.5 120.6 L491.2 117.4 L501.6 115.0 L512.4 112.2 L523.1 109.3 L533.5 106.4 L544.3 103.5 L554.7 100.8 L565.4 98.2 L576.2 96.1 L585.9 93.4 L596.6 91.5 L607.0 88.5 L617.8 78.8 L628.2 74.0 L638.9 71.4 L649.7 68.9 L660.1 65.9 L670.8 62.3 L681.2 59.2 L692.0 56.0 L702.7 53.5 L712.5 50.2 L723.2 47.6 L733.6 44.8 L744.4 41.9 L754.8 39.4 L772.0 37.9"/>
+    <path fill="url(#area)" d="M90 226 L90.0 224.9 L100.3 222.4 L111.0 221.0 L121.4 220.0 L132.1 219.2 L142.8 216.9 L153.1 214.7 L163.8 211.3 L174.2 208.9 L184.8 205.9 L195.5 192.9 L205.2 188.8 L215.9 186.3 L226.2 183.9 L236.9 181.6 L247.3 180.1 L258.0 178.2 L268.7 176.6 L279.0 175.3 L289.7 173.8 L300.0 172.1 L310.7 170.5 L321.4 169.0 L331.1 166.7 L341.8 163.6 L352.1 160.3 L362.8 157.1 L373.2 154.0 L383.9 150.7 L394.5 147.0 L404.9 143.7 L415.6 140.1 L425.9 137.3 L436.6 133.6 L447.3 130.4 L457.3 127.0 L468.0 123.6 L478.4 120.7 L489.1 117.5 L499.4 115.0 L510.1 112.3 L520.8 109.4 L531.1 106.5 L541.8 103.6 L552.2 100.9 L562.9 98.3 L573.6 96.2 L583.2 93.4 L593.9 91.6 L604.2 88.6 L614.9 78.9 L625.3 74.0 L636.0 71.5 L646.7 69.0 L657.0 65.9 L667.7 62.4 L678.1 59.3 L688.7 56.1 L699.4 53.5 L709.1 50.3 L719.8 47.7 L730.1 44.9 L740.8 42.0 L751.2 39.5 L772.0 37.1 L772 226Z"/>
+    <path class="trend" fill="none" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" d="M90.0 224.9 L100.3 222.4 L111.0 221.0 L121.4 220.0 L132.1 219.2 L142.8 216.9 L153.1 214.7 L163.8 211.3 L174.2 208.9 L184.8 205.9 L195.5 192.9 L205.2 188.8 L215.9 186.3 L226.2 183.9 L236.9 181.6 L247.3 180.1 L258.0 178.2 L268.7 176.6 L279.0 175.3 L289.7 173.8 L300.0 172.1 L310.7 170.5 L321.4 169.0 L331.1 166.7 L341.8 163.6 L352.1 160.3 L362.8 157.1 L373.2 154.0 L383.9 150.7 L394.5 147.0 L404.9 143.7 L415.6 140.1 L425.9 137.3 L436.6 133.6 L447.3 130.4 L457.3 127.0 L468.0 123.6 L478.4 120.7 L489.1 117.5 L499.4 115.0 L510.1 112.3 L520.8 109.4 L531.1 106.5 L541.8 103.6 L552.2 100.9 L562.9 98.3 L573.6 96.2 L583.2 93.4 L593.9 91.6 L604.2 88.6 L614.9 78.9 L625.3 74.0 L636.0 71.5 L646.7 69.0 L657.0 65.9 L667.7 62.4 L678.1 59.3 L688.7 56.1 L699.4 53.5 L709.1 50.3 L719.8 47.7 L730.1 44.9 L740.8 42.0 L751.2 39.5 L772.0 37.1"/>
   </g>
   <path class="axis" fill="none" vector-effect="non-scaling-stroke" d="M90 16V226H772"/>
   <text class="tick-label" x="82" y="226" text-anchor="end" dominant-baseline="middle">0</text>
@@ -41,7 +41,7 @@ SPDX-License-Identifier: Apache-2.0
   <text class="tick-label" x="82" y="100" text-anchor="end" dominant-baseline="middle">3,000</text>
   <text class="tick-label" x="82" y="58" text-anchor="end" dominant-baseline="middle">4,000</text>
   <text class="tick-label" x="82" y="16" text-anchor="end" dominant-baseline="middle">5,000</text>
-  <text class="generated-at" x="104" y="36">Generated at 2026-08-19T16:52:27.516Z</text>
+  <text class="generated-at" x="104" y="36">Generated at 2026-08-30T09:02:34.506Z</text>
   <text class="date" x="90" y="246" text-anchor="end" transform="rotate(-60 90 246)">2021-04</text>
   <text class="date" x="772" y="246" text-anchor="end" transform="rotate(-60 772 246)">2026-08</text>
   <text class="axis-title" x="428" y="272" text-anchor="middle">Star history for royshil/obs-backgroundremoval</text>
