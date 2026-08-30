@@ -35,8 +35,8 @@ jobs:
     timeout-minutes: 180
 
     outputs:
-      ZIP_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.zip
-      PDB_ARTIFACT_NAME: obs-backgroundremoval-pdb-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.7z
+      ZIP_ARTIFACT_NAME: ${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}
+      PDB_ARTIFACT_NAME: ${{ steps.package-pdb.outputs.PDB_ARTIFACT_NAME }}
 
     env:
       CCACHE_ORT_DIR: .ccache_ort
@@ -338,10 +338,12 @@ jobs:
           cmake --build build --config RelWithDebInfo --parallel
 
       - name: Package ZIP artifact (Windows)
+        id: package-zip
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         env:
-          ZIP_ARTIFACT_NAME: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.zip
+          PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
+          $ZIP_ARTIFACT_NAME = "obs-backgroundremoval-$($env:PLUGIN_VERSION)-windows-x64.zip"
           $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
           $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           $env:VCPKG_DISABLE_METRICS = '1'
@@ -360,13 +362,16 @@ jobs:
           }
 
           Set-Location 'build_package'
-          Compress-Archive -Path '*' -DestinationPath (Join-Path $env:GITHUB_WORKSPACE $env:ZIP_ARTIFACT_NAME)
+          Compress-Archive -Path '*' -DestinationPath (Join-Path $env:GITHUB_WORKSPACE $ZIP_ARTIFACT_NAME)
+          Add-Content -Value "ZIP_ARTIFACT_NAME=$ZIP_ARTIFACT_NAME" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
       - name: Package PDB artifact (Windows)
+        id: package-pdb
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         env:
-          PDB_ARTIFACT_NAME: obs-backgroundremoval-pdb-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.7z
+          PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
+          $PDB_ARTIFACT_NAME = "obs-backgroundremoval-$($env:PLUGIN_VERSION)-windows-x64-pdb.7z"
           $DLL_FILES = @(Get-ChildItem -LiteralPath build -Filter 'obs-backgroundremoval.dll' -File -Recurse)
           if ($DLL_FILES.Count -ne 1) {
             throw "Expected exactly one obs-backgroundremoval.dll, found $($DLL_FILES.Count)."
@@ -377,36 +382,37 @@ jobs:
           }
 
           $SEVEN_ZIP = (Get-Command 7z.exe -ErrorAction Stop).Source
-          $PDB_ARCHIVE = Join-Path $env:GITHUB_WORKSPACE $env:PDB_ARTIFACT_NAME
+          $PDB_ARCHIVE = Join-Path $env:GITHUB_WORKSPACE $PDB_ARTIFACT_NAME
           & $SEVEN_ZIP a -t7z -mx=9 $PDB_ARCHIVE $PDB_PATH
           if ($LASTEXITCODE -ne 0) { throw 'PDB compression failed.' }
 
           & $SEVEN_ZIP t $PDB_ARCHIVE
           if ($LASTEXITCODE -ne 0) { throw 'PDB archive validation failed.' }
+          Add-Content -Value "PDB_ARTIFACT_NAME=$PDB_ARTIFACT_NAME" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
       - name: Attest ZIP artifact
         if: inputs.attest-artifacts
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.zip
+          subject-path: ${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}
 
       - name: Attest PDB artifact
         if: inputs.attest-artifacts
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: obs-backgroundremoval-pdb-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.7z
+          subject-path: ${{ steps.package-pdb.outputs.PDB_ARTIFACT_NAME }}
 
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: obs-backgroundremoval-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.zip
+          path: ${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
 
       - name: Upload PDB artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: obs-backgroundremoval-pdb-${{ steps.buildspec.outputs.PLUGIN_VERSION }}-windows-x64.7z
+          path: ${{ steps.package-pdb.outputs.PDB_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
 

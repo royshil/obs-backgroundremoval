@@ -40,8 +40,8 @@ jobs:
     container: debian:forky-20260803
 
     outputs:
-      DEB_ARTIFACT_NAME: obs-backgroundremoval_${{ steps.buildspec.outputs.PLUGIN_VERSION }}${{ inputs.PACKAGE_VERSION_SUFFIX_FORKY }}_${{ inputs.arm64 && 'arm64' || 'amd64' }}.deb
-      DDEB_ARTIFACT_NAME: obs-backgroundremoval-dbgsym_${{ steps.buildspec.outputs.PLUGIN_VERSION }}${{ inputs.PACKAGE_VERSION_SUFFIX_FORKY }}_${{ inputs.arm64 && 'arm64' || 'amd64' }}.ddeb
+      DEB_ARTIFACT_NAME: ${{ steps.package.outputs.DEB_ARTIFACT_NAME }}
+      DDEB_ARTIFACT_NAME: ${{ steps.package.outputs.DDEB_ARTIFACT_NAME }}
 
     env:
       PACKAGE_VERSION_SUFFIX: ${{ inputs.PACKAGE_VERSION_SUFFIX_FORKY }}
@@ -72,18 +72,22 @@ jobs:
           persist-credentials: false
 
       - name: Load VERSION
-        id: buildspec
+        id: version
         shell: /bin/sh -eu {0}
         run: printf 'PLUGIN_VERSION=%s\n' "$(cat VERSION)" | tee -a "${GITHUB_OUTPUT:?}"
 
       - name: Configure (Debian)
-        shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
+        shell: /usr/sbin/runuser -u runner -- /bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
         working-directory: /home/runner
+        env:
+          ARCH: ${{ inputs.arm64 && 'arm64' || 'amd64' }}
+          PLUGIN_VERSION: ${{ steps.version.outputs.PLUGIN_VERSION }}
         run: |
           cmake -S "${GITHUB_WORKSPACE:?}" -B build \
             "-DCMAKE_BUILD_TYPE=RelWithDebInfo" \
             "-DCMAKE_INSTALL_PREFIX=/usr" \
             "-DCPACK_GENERATOR=DEB" \
+            "-DCPACK_DEBIAN_FILE_NAME=obs-backgroundremoval_${PLUGIN_VERSION:?}${PACKAGE_VERSION_SUFFIX//[~+]/.}_${ARCH:?}.deb" \
             "-DPACKAGE_VERSION_SUFFIX=${PACKAGE_VERSION_SUFFIX:?}"
 
       - name: Build (Debian)
@@ -96,30 +100,39 @@ jobs:
         working-directory: /home/runner
         run: ctest --test-dir build --output-on-failure
 
-      - name: Package deb and ddeb artifacts (Debian)
+      - name: Package (Debian)
         shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
         working-directory: /home/runner
-        run: cmake --build build --config RelWithDebInfo --target package
+        run: |
+          export GITHUB_OUTPUT="${PWD:?}/GITHUB_OUTPUT.package"
+          : >"${GITHUB_OUTPUT:?}"
+          cmake --build build --config RelWithDebInfo --target package
+
+      - name: Output Package (Debian)
+        id: package
+        shell: /bin/sh -eu {0}
+        working-directory: /home/runner
+        run: tee -a "${GITHUB_OUTPUT:?}" <"${PWD:?}/GITHUB_OUTPUT.package"
 
       - name: Attest deb and ddeb artifacts (Debian)
         if: inputs.attest-artifacts
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
-            /home/runner/build/obs-backgroundremoval_${{ steps.buildspec.outputs.PLUGIN_VERSION }}${{ inputs.PACKAGE_VERSION_SUFFIX_FORKY }}_${{ inputs.arm64 && 'arm64' || 'amd64' }}.deb
-            /home/runner/build/obs-backgroundremoval-dbgsym_${{ steps.buildspec.outputs.PLUGIN_VERSION }}${{ inputs.PACKAGE_VERSION_SUFFIX_FORKY }}_${{ inputs.arm64 && 'arm64' || 'amd64' }}.ddeb
+            /home/runner/build/${{ steps.package.outputs.DEB_ARTIFACT_NAME }}
+            /home/runner/build/${{ steps.package.outputs.DDEB_ARTIFACT_NAME }}
 
       - name: Upload deb artifact (Debian)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: /home/runner/build/obs-backgroundremoval_${{ steps.buildspec.outputs.PLUGIN_VERSION }}${{ inputs.PACKAGE_VERSION_SUFFIX_FORKY }}_${{ inputs.arm64 && 'arm64' || 'amd64' }}.deb
+          path: /home/runner/build/${{ steps.package.outputs.DEB_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
 
       - name: Upload ddeb artifact (Debian)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: /home/runner/build/obs-backgroundremoval-dbgsym_${{ steps.buildspec.outputs.PLUGIN_VERSION }}${{ inputs.PACKAGE_VERSION_SUFFIX_FORKY }}_${{ inputs.arm64 && 'arm64' || 'amd64' }}.ddeb
+          path: /home/runner/build/${{ steps.package.outputs.DDEB_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
 
