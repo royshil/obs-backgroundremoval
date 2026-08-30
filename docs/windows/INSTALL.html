@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="../favicon.ico">
+  <title>Install OBS Background Removal on Windows</title>
+  <style>
+    :root {
+      --ink:#111820; --muted:#5d6874; --pale:#eef3f6; --blue:#287ee8; --red:#c93630;
+    }
+    * { box-sizing:border-box }
+    html,body { width:100%; height:100%; margin:0; overflow:hidden; background:#151a20; color:var(--ink); font-family:"Segoe UI",Arial,sans-serif }
+    input[name="slide"] { position:fixed; opacity:0; pointer-events:none }
+    #stage { position:fixed; inset:0; display:grid; place-items:center; padding:24px 96px 76px }
+    #deck { position:relative; width:1280px; height:720px; scale:min(calc((100vw - 192px)/1280),calc((100vh - 100px)/720),1); background:white; box-shadow:0 24px 72px #0006 }
+    .slide { position:absolute; inset:0; display:none; overflow:hidden; padding:34px 42px 38px; background:white }
+    #slide-1,#slide-2,#slide-3 { padding-top:56px }
+    #go-1:checked ~ #stage #slide-1,#go-2:checked ~ #stage #slide-2,#go-3:checked ~ #stage #slide-3 { display:block }
+    h2,h3,p { margin-top:0 }
+    h2 { margin-bottom:16px; font-size:40px; line-height:1.15; letter-spacing:-.035em }
+    h2 .repo-ref { font-size:80% }
+    .rule { height:2px; background:var(--ink) }
+    .quick-n { position:absolute; left:22px; top:22px; display:grid; place-items:center; width:50px; height:50px; background:var(--blue); color:white; font-size:24px; font-weight:800 }
+    .quick-layout { display:grid; grid-template-columns:1fr 1fr; gap:42px; align-items:center; margin:28px 16px 0; height:500px }
+    .quick-rows { display:flex; flex-direction:column; justify-content:space-between; height:500px }
+    .quick-row { position:relative; padding:24px 24px 20px 88px; background:var(--pale) }
+    .quick-row.danger .quick-n { background:var(--red) }
+    .quick-row h3 { margin:0 0 9px; font-size:25px }
+    .quick-row p { margin:0; color:var(--muted); font-size:18px; line-height:1.4 }
+    .path-copy-row { display:flex; align-items:center; min-height:48px; margin-top:10px; padding:0 15px; background:#f6f8fa }
+    .path-code { color:#1f2328; font:700 18px/1.2 Consolas,"Courier New",monospace; white-space:nowrap }
+    .path-copy-row.with-action { justify-content:space-between; padding-right:9px }
+    .copy-path { display:grid; place-items:center; width:32px; height:32px; padding:0; border:0; background:transparent; font-size:17px; cursor:pointer }
+    .copy-path:hover { background:#eaeef2 }
+    .copy-path:focus-visible { outline:2px solid #0969da; outline-offset:-2px }
+    .folder-code { padding:.08em .3em; background:#f6f8fa; font:600 .82em/1.2 Consolas,"Courier New",monospace; white-space:nowrap }
+    .verification-row { min-height:42px; margin-top:7px }
+    .verification-row .path-code { font-size:12px; white-space:normal; overflow-wrap:anywhere }
+    .pitfalls { margin:28px 16px 0 }
+    .support-channels .quick-row { padding-top:18px; padding-bottom:16px }
+    .support-channels .quick-row .quick-n { top:18px }
+    .support-channels .quick-row h3 { font-size:23px }
+    .support-channels .quick-row p { font-size:17px }
+    .slide-jump { color:inherit; text-decoration:none; cursor:pointer }
+    .slide-jump:hover { outline:2px solid var(--blue); outline-offset:-2px }
+    .win-control.close { font-size:15px }
+    .win-control.close:hover { background:#c42b1c; color:white }
+    #edge-nav { position:fixed; z-index:10; inset:0; pointer-events:none }
+    #edge-nav button { position:absolute; top:50%; display:grid; place-items:center; width:64px; height:128px; padding:0; transform:translateY(-50%); border:1px solid #67717c; background:#27303a; color:#fff; font:300 68px/1 "Segoe UI",Arial,sans-serif; cursor:pointer; pointer-events:auto; user-select:none }
+    #edge-nav .previous { left:16px }
+    #edge-nav .next { right:16px }
+    #controls { position:fixed; right:22px; bottom:18px; left:22px; display:flex; gap:8px; justify-content:center; align-items:center; color:white }
+    #controls label { display:grid; place-items:center; width:38px; height:38px; border:1px solid #67717c; border-radius:6px; background:#27303a; cursor:pointer; font-weight:700 }
+    #controls label:hover { background:#3a4856 }
+    #go-1:checked ~ #controls label[for="go-1"],#go-2:checked ~ #controls label[for="go-2"],#go-3:checked ~ #controls label[for="go-3"] { background:var(--blue); border-color:#7ab6ff }
+    @media print {
+      html,body{overflow:visible;height:auto;background:white} input,#controls,#edge-nav{display:none!important} #stage{position:static;display:block;padding:0}
+      #deck{width:auto;height:auto;scale:1;box-shadow:none}.slide{position:relative;display:block!important;width:1280px;height:720px;break-after:page}
+      @page{size:13.333in 7.5in;margin:0}
+    }
+  </style>
+</head>
+<body>
+  <input type="radio" name="slide" id="go-1" checked><input type="radio" name="slide" id="go-2"><input type="radio" name="slide" id="go-3">
+  <main id="stage"><div id="deck">
+    <section class="slide" id="slide-1">
+      <h2>1. INSTALLING THE PLUGIN <span class="repo-ref">(<a href="https://github.com/royshil/obs-backgroundremoval" target="_blank" rel="noopener noreferrer">royshil/obs-backgroundremoval</a>)</span></h2><div class="rule"></div>
+      <div class="quick-layout">
+        <div class="quick-rows">
+          <div class="quick-row"><div class="quick-n">1</div><h3>Open ProgramData in File Explorer</h3><div class="path-copy-row with-action"><code class="path-code">C:\ProgramData</code><button class="copy-path" type="button" data-copy="C:\ProgramData" aria-label="Copy C:\ProgramData" title="Copy">📋</button></div></div>
+          <div class="quick-row"><div class="quick-n">2</div><h3>Paste ZIP's <code class="folder-code">📁 obs-studio</code> into there</h3><p>Let File Explorer merge it with the existing obs-studio folder. After merging, confirm that this DLL exists:</p><div class="path-copy-row verification-row"><code class="path-code">C:\ProgramData\obs-studio\plugins\obs-backgroundremoval\bin\64bit\obs-backgroundremoval.dll</code></div></div>
+          <div class="quick-row"><div class="quick-n">3</div><h3>Restart OBS completely</h3><p>Exit OBS completely and launch it again. The About dialog shown at right confirms the plugin loaded.</p></div>
+        </div>
+        <figure style="margin:0">
+          <div role="img" aria-label="Simplified OBS Studio window with the About obs-backgroundremoval dialog shown as a popup" style="position:relative;height:458px;overflow:hidden;border:1px solid #7b838b;background:#20252d;box-shadow:0 9px 24px #17263333">
+            <div style="display:flex;align-items:center;justify-content:space-between;height:28px;padding-left:10px;background:#f3f3f3;color:#202124;font-size:9px"><span style="display:flex;align-items:center;gap:5px"><span aria-hidden="true" style="display:block;width:9px;height:9px;border-radius:50%;background:#000"></span>OBS 32.x.x</span><span aria-hidden="true" style="display:flex;align-self:stretch"><span style="display:grid;place-items:center;width:32px;color:#202124;font:12px/1 'Segoe UI Symbol','Segoe UI',sans-serif">−</span><span style="display:grid;place-items:center;width:32px;color:#202124;font:12px/1 'Segoe UI Symbol','Segoe UI',sans-serif">□</span><span class="win-control close" style="display:grid;place-items:center;width:32px;color:#202124;font-family:'Segoe UI Symbol','Segoe UI',sans-serif">×</span></span></div>
+            <div style="height:24px;padding:6px 9px;background:#181c22;color:#d7dde4;font-size:8px;word-spacing:9px">File Edit View Docks Profile Scene&nbsp;Collection Tools Help</div>
+            <div style="display:grid;grid-template-columns:112px 1fr;height:406px">
+              <div style="display:grid;grid-template-rows:1fr 1fr;gap:6px;padding:6px;background:#252b34"><div style="border:1px solid #353d47;background:#292f39"><div style="padding:5px 6px;border-bottom:1px solid #3d4651;color:#e7edf3;font-size:8px;font-weight:700">Scenes</div></div><div style="border:1px solid #353d47;background:#292f39"><div style="padding:5px 6px;border-bottom:1px solid #3d4651;color:#e7edf3;font-size:8px;font-weight:700">Sources</div><div style="display:grid;place-items:center;height:120px;color:#aab4bf;font-size:8px;text-align:center">No sources<br>Click + to add one</div></div></div>
+              <div style="background:#20252d"></div>
+            </div>
+            <div style="position:absolute;inset:52px 0 0;z-index:1;background:#05080b55"></div>
+            <div style="position:absolute;z-index:2;top:66px;right:12px;left:12px;overflow:hidden;border:1px solid #555e68;background:#20232b;color:#edf2f7;box-shadow:0 16px 34px #000c">
+            <div style="display:flex;align-items:center;justify-content:space-between;height:28px;padding-left:8px;border-bottom:1px solid #8c9298;background:#f3f3f3;color:#202124;font-size:10px;font-weight:400"><span style="display:flex;align-items:center;gap:5px"><span aria-hidden="true" style="display:block;width:10px;height:10px;border-radius:50%;background:#000"></span>About obs-backgroundremoval</span><span aria-hidden="true" style="display:grid;place-items:center;align-self:stretch;width:38px;font-size:15px;font-weight:400">×</span></div>
+            <div style="padding:10px 10px 8px;background:#20232b">
+              <div style="display:grid;grid-template-columns:76px 1fr;gap:10px;align-items:center"><img style="display:block;width:72px;height:72px;object-fit:cover" alt="OBS Background Removal icon" width="72" height="72" src="data:image/webp;base64,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"><div><p style="margin:0 0 8px;font-size:12px;font-weight:700;line-height:1.25">Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement</p><p style="margin:6px 0;color:#c0cad4;font-size:9px;line-height:1.3"><a style="color:#4e8ddd;text-decoration:underline" href="https://github.com/royshil" target="_blank" rel="noopener noreferrer">Roy Shilkrot (royshil)</a> and <a style="color:#4e8ddd;text-decoration:underline" href="https://github.com/umireon" target="_blank" rel="noopener noreferrer">Kaito Udagawa (umireon)</a></p><p style="margin:6px 0;color:#c0cad4;font-size:9px;line-height:1.3">Version x.y.z — <a style="color:#4e8ddd;text-decoration:underline" href="https://github.com/royshil/obs-backgroundremoval/releases" target="_blank" rel="noopener noreferrer">Check for latest version</a></p></div></div>
+              <div style="height:1px;margin:7px 0;background:#343a44"></div>
+              <p style="margin:0 0 7px;font-size:9px;line-height:1.35">An OBS plugin for removing background in portrait images (video), making it easy to replace the background when recording or streaming.</p>
+              <div style="display:flex;align-items:center;gap:4px;margin:0 0 7px;font-size:9px;white-space:nowrap"><a href="https://royshil.github.io/obs-backgroundremoval/" target="_blank" rel="noopener noreferrer" style="color:#4e8ddd;text-decoration:underline">Official Site</a><span style="color:#7e8994">·</span><a href="https://github.com/royshil/obs-backgroundremoval" target="_blank" rel="noopener noreferrer" style="color:#4e8ddd;text-decoration:underline">GitHub</a><span style="color:#7e8994">·</span><a href="https://github.com/royshil/obs-backgroundremoval/discussions" target="_blank" rel="noopener noreferrer" style="color:#4e8ddd;text-decoration:underline">Community</a><span style="color:#7e8994">·</span><a href="https://obsproject.com/forum/resources/background-removal-virtual-green-screen-low-light-enhance.1260/" target="_blank" rel="noopener noreferrer" style="color:#4e8ddd;text-decoration:underline">OBS Forum</a></div>
+              <div style="padding:8px;background:#2a2e38"><strong style="display:block;margin-bottom:6px;font-size:9px">☑ Notify me about new versions on its Filter Properties screen</strong><p style="margin:0 0 3px 18px;color:#e0e5ea;font-size:7px;line-height:1.25">When OBS Studio starts, the plugin downloads one plain-text file from our project's GitHub Pages site. It sends no additional information, diagnostics, analytics, or usage data. The plugin never downloads or installs updates.</p><p style="margin:0 0 3px 18px;color:#fff;font-size:7px;line-height:1.25"><span>[1] </span><span style="text-decoration:underline">https://royshil.github.io/obs-backgroundremoval/metadata/latest-version.txt</span></p></div>
+              <p style="margin:7px 0 0;color:#e0e5ea;font-size:7px;line-height:1.35">Copyright © 2021–2026 Roy Shilkrot and © 2023–2026 Kaito Udagawa.<br>Licensed under the GNU General Public License v3.0 or later. This plugin includes third-party software and pretrained models provided under their respective licenses.</p>
+            </div>
+            <div style="display:flex;gap:6px;justify-content:flex-end;padding:8px 10px;background:#20232b"><span style="min-width:58px;padding:5px 9px;border:1px solid #4e5865;background:#3b4250;color:#f2f5f8;font-size:9px;text-align:center;cursor:pointer">OK</span><span style="min-width:58px;padding:5px 9px;border:1px solid #4e5865;background:#3b4250;color:#f2f5f8;font-size:9px;text-align:center;cursor:pointer">Licenses</span><span style="min-width:58px;padding:5px 9px;border:1px solid #4e5865;background:#3b4250;color:#f2f5f8;font-size:9px;text-align:center;cursor:pointer">About Qt</span></div>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </section>
+    <section class="slide" id="slide-2">
+      <h2>2. Common pitfalls when installing OBS plugins</h2><div class="rule"></div>
+      <div class="quick-rows pitfalls">
+        <div class="quick-row"><div class="quick-n">1</div><div><h3>Use the latest x64 version of OBS Studio</h3><p>This plugin is for 64-bit Windows. Make sure you installed the Windows x64 build of OBS Studio.</p></div></div>
+        <div class="quick-row"><div class="quick-n">2</div><div><h3>Install OBS Studio on the C drive</h3><p>By default, OBS Studio is installed on the C drive. The plugin should be installed on the C drive.</p></div></div>
+        <div class="quick-row danger"><div class="quick-n">3</div><div><h3>NEVER put this plugin in C:\Program Files</h3><p>Do not paste the included <strong>obs-studio</strong> folder into <strong>C:\Program Files</strong>. It belongs in <strong>C:\ProgramData</strong>.</p></div></div>
+        <div class="quick-row danger"><div class="quick-n">4</div><div><h3>C:\ProgramData is the correct location</h3><p>OBS Studio recommends <strong>C:\ProgramData\obs-studio\plugins</strong> for Windows plugins. The <strong>C:\Program Files</strong> location is legacy and will stop working in a future version of OBS Studio. This package already contains the required plugin directory structure, so copy its <strong>obs-studio</strong> folder into <strong>C:\ProgramData</strong> and let File Explorer merge the folders.</p></div></div>
+      </div>
+    </section>
+    <section class="slide" id="slide-3">
+      <h2>3. Getting help and contributing <span class="repo-ref">(<a href="https://github.com/royshil/obs-backgroundremoval" target="_blank" rel="noopener noreferrer">royshil/obs-backgroundremoval</a>)</span></h2><div class="rule"></div>
+      <div class="quick-rows pitfalls support-channels">
+        <a class="quick-row slide-jump" href="#p1" data-show-slide="1"><span class="quick-n">1</span><div><h3>Read this installation guide again</h3><p>Return to the first slide and carefully check every installation step before asking for help.</p></div></a>
+        <a class="quick-row slide-jump" href="https://github.com/copilot/app/launch?open=ghapp%3A%2F%2Frepo%2Froyshil%2Fobs-backgroundremoval" target="_blank" rel="noopener noreferrer"><span class="quick-n">2</span><div><h3>Ask GitHub Copilot for technical support</h3><p>Open this repository with GitHub Copilot App, then ask your preferred agent or model for help. A personal GitHub account may be eligible for GitHub Copilot Free.</p></div></a>
+        <a class="quick-row slide-jump" href="https://github.com/royshil/obs-backgroundremoval/discussions" target="_blank" rel="noopener noreferrer"><span class="quick-n">3</span><div><h3>Ask anything in GitHub Discussions</h3><p>Questions of any kind are welcome in GitHub Discussions.</p></div></a>
+        <a class="quick-row slide-jump" href="https://github.com/royshil/obs-backgroundremoval/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer"><span class="quick-n">4</span><div><h3>Read CONTRIBUTING.md before contributing</h3><p>Read CONTRIBUTING.md carefully. Contributing includes creating an issue, commenting on an issue, and submitting a pull request. Stars, ratings, sponsorships, and cheerful messages are also appreciated.</p></div></a>
+      </div>
+    </section>
+  </div></main>
+  <nav id="edge-nav" aria-label="Navigate slides"><button class="previous" type="button" data-direction="previous" aria-label="Previous slide">&lt;</button><button class="next" type="button" data-direction="next" aria-label="Next slide">&gt;</button></nav>
+  <nav id="controls" aria-label="Choose a slide">
+    <label for="go-1">1</label><label for="go-2">2</label><label for="go-3">3</label>
+  </nav>
+  <script>
+    (() => {
+      "use strict";
+      const radios = [...document.querySelectorAll('input[name="slide"]')];
+
+      function currentIndex() {
+        return Math.max(0, radios.findIndex((radio) => radio.checked));
+      }
+
+      function remember(index) {
+        history.replaceState(null, "", `#p${index + 1}`);
+      }
+
+      function show(index, updateLocation = true) {
+        const safeIndex = Math.max(0, Math.min(radios.length - 1, index));
+        radios[safeIndex].checked = true;
+        if (updateLocation) remember(safeIndex);
+      }
+
+      const savedSlide = location.hash.match(/^#p(\d+)$/);
+      if (savedSlide) show(Number(savedSlide[1]) - 1);
+
+      radios.forEach((radio, index) => {
+        radio.addEventListener("change", () => {
+          if (radio.checked) remember(index);
+        });
+      });
+
+      document.querySelectorAll("[data-copy]").forEach((button) => {
+        button.addEventListener("click", () => {
+          navigator.clipboard.writeText(button.dataset.copy).catch(() => {});
+        });
+      });
+
+      document.querySelector('[data-direction="previous"]').addEventListener("click", () => show(currentIndex() - 1));
+      document.querySelector('[data-direction="next"]').addEventListener("click", () => show(currentIndex() + 1));
+
+      document.querySelectorAll("[data-show-slide]").forEach((link) => {
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          show(Number(link.dataset.showSlide) - 1);
+        });
+      });
+
+      addEventListener("keydown", (event) => {
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
+        const index = currentIndex();
+
+        if (event.key === "ArrowRight" || event.key === " ") {
+          event.preventDefault();
+          show(index + 1);
+        } else if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          show(index - 1);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

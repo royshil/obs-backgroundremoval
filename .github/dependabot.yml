@@ -11,11 +11,3 @@ updates:
       interval: weekly
     exclude-paths:
       - ".github/workflows/*.lock.yml"
-
-  - package-ecosystem: npm
-    directory: /pages
-    schedule:
-      interval: weekly
-    ignore:
-      - dependency-name: "@types/node"
-        versions: ["*"]

@@ -17,9 +17,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  BUILD_PATH: pages
-
 jobs:
   build:
     name: Build Pages
@@ -39,40 +36,22 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: ${{ env.BUILD_PATH }}/.node-version
-          cache: npm
-          cache-dependency-path: ${{ env.BUILD_PATH }}/package-lock.json
+          node-version: 24
 
       - name: Setup Pages
-        id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-      - name: Install dependencies
+      - name: Build site
         shell: bash
-        working-directory: ${{ env.BUILD_PATH }}
-        run: npm ci
-
-      - name: Build with Astro
-        shell: bash
-        working-directory: ${{ env.BUILD_PATH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SITE: ${{ steps.pages.outputs.origin }}
-          BASE: ${{ steps.pages.outputs.base_path }}
-          PRODUCTION_BASE_URL: ${{ steps.pages.outputs.base_url }}
-        run: |
-          set -euo pipefail
-          npx astro build --site "$SITE" --base "$BASE"
-          node scripts/add-sri.mjs "$PRODUCTION_BASE_URL" dist
-          node scripts/add-csp-hashes.mjs dist
-          node scripts/generate-provenance.mjs "$PRODUCTION_BASE_URL" dist provenance.json
-          mv provenance.json dist/provenance.json
+        run: node docs/BUILD.mjs site
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pages-build
-          path: ${{ env.BUILD_PATH }}/dist
+          path: docs/dist
           if-no-files-found: error
 
   deploy:
@@ -85,7 +64,6 @@ jobs:
     timeout-minutes: 10
 
     permissions:
-      attestations: write
       contents: read
       id-token: write
       pages: write
@@ -100,19 +78,6 @@ jobs:
         with:
           name: pages-build
           path: dist
-
-      # Establish chain of trust by attesting the provenance of the build artifact.
-      - name: Attest site provenance
-        id: attest
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: dist/provenance.json
-
-      - name: Copy attestation bundle
-        env:
-          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
-        shell: bash
-        run: cp "$BUNDLE_PATH" dist/provenance.attestation.json
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

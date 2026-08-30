@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="global.css" type="text/css">
+
+  <title>How to use OBS Background Removal</title>
+</head>
+
+<body>
+  <main class="white-box">
+    <h1>How to Use OBS Background Removal</h1>
+
+    <ol>
+      <li><strong>Start OBS Studio.</strong></li>
+
+      <li>
+        <strong>Add a Source:</strong><br>
+        Add a video capture source (such as your webcam), or any source that provides
+        an image (Video, Image, Media, Browser, Screen Capture, etc.).
+        <p><img src="addAVideoCaptureSource.jpg" alt="Add a Video Capture Source" width="400"></p>
+      </li>
+
+      <li>
+        <strong>Open Filters:</strong><br>
+        Right-click your source and select <em>Filters</em>.
+        <p><img src="captureFilters.jpg" alt="Capture Filters" width="400"></p>
+      </li>
+
+      <li>
+        <strong>Add the Background Removal Filter:</strong><br>
+        Under <em>Effect Filters</em>, click the <em>+</em> button and select
+        <strong>Background Removal</strong>.
+        <p><img src="addBackgroundRemoval.jpg" alt="Add Background Removal" width="400"></p>
+        <em>If you don't see the filter, the installation may have failed or your
+        OBS version may not be compatible.</em>
+      </li>
+
+      <li>
+        <strong>Adjust Filter Settings:</strong><br>
+        Tweak the filter settings to get the best result.
+        <p><img src="filterSettings.jpg" alt="Filter Settings" width="400"></p>
+        <p>
+          For advanced options, click <em>Show Advanced Settings</em>:
+          <img src="filterSettingsAdvanced.jpg" alt="Filter Settings Advanced" width="400">
+        </p>
+      </li>
+    </ol>
+
+    <h2>Tips for Best Results</h2>
+
+    <ul>
+      <li>Use a good camera and ensure your lighting is bright and even.</li>
+
+      <li>
+        <strong>Mediapipe model:</strong> Fastest, but lower accuracy. Set the threshold
+        low (e.g., <code>0.05</code>) to capture your whole portrait.
+      </li>
+
+      <li>
+        <strong>Robust Video Matting (RVM) model:</strong> Highest accuracy and least
+        flickering, but slower.
+      </li>
+
+      <li>
+        <strong>TCMonoDepth:</strong> Depth estimation model for portrait segmentation
+        or "Depth of Field" blur. See the <a href="https://youtu.be/jC3EKSpNjQk"
+        target="_blank" rel="noopener noreferrer">tutorial/preview</a>.
+      </li>
+
+      <li>
+        <strong>RMBG model:</strong> General background removal for any object, not
+        just humans. See the <a href="https://youtu.be/N74VCDCToX8"
+        target="_blank" rel="noopener noreferrer">tutorial/preview</a>.
+      </li>
+    </ul>
+
+    <p>
+      Watch our tutorial video <a href="https://youtu.be/veqNEsMqEE0"
+      target="_blank" rel="noopener noreferrer">here</a>.
+    </p>
+
+    <p>All set!</p>
+
+    <nav><a href="index.html">Back to Top</a></nav>
+  </main>
+</body>
+</html>

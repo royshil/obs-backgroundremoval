@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
+SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><link rel="icon" href="favicon.ico" /><link rel="stylesheet" href="global.css" type="text/css" />
+
+<title>Install on Arch Linux</title>
+
+</head><body><main class="white-box">
+
+<h1>Building and installing on Arch Linux</h1>
+
+<pre><code>
+sudo pacman -Syu --needed base-devel cmake curl git ninja obs-studio onnxruntime opencv
+git clone https://github.com/royshil/obs-backgroundremoval.git
+cd obs-backgroundremoval
+cmake -S . -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build --config RelWithDebInfo --parallel
+sudo cmake --install build --config RelWithDebInfo --prefix /usr
+</code></pre>
+
+<nav><a href="index.html">Back to Top</a></nav>
+
+</main></body>
+</html>
