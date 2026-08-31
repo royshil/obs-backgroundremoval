@@ -13,6 +13,10 @@ on:
         description: Attests artifacts.
         required: true
         type: boolean
+      release-build:
+        description: Builds a release.
+        required: true
+        type: boolean
       runs-on:
         description: GitHub Actions runner label.
         required: true
@@ -33,6 +37,8 @@ jobs:
   build:
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 180
+
+    environment: ${{ inputs.release-build && 'release-windows' || null }}
 
     outputs:
       ZIP_ARTIFACT_NAME: ${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}
