@@ -58,6 +58,7 @@ jobs:
       id-token: write
     with:
       attest-artifacts: true
+      release-build: ${{ inputs.release-build || false }}
       runs-on: windows-2025-vs2026
 
   build-macos-arm64:
@@ -70,7 +71,7 @@ jobs:
       id-token: write
     with:
       attest-artifacts: true
-      notarize: ${{ inputs.release-build || false }}
+      release-build: ${{ inputs.release-build || false }}
       x86_64: false
       TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
@@ -84,7 +85,7 @@ jobs:
       id-token: write
     with:
       attest-artifacts: true
-      notarize: ${{ inputs.release-build || false }}
+      release-build: ${{ inputs.release-build || false }}
       x86_64: true
       TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
@@ -98,6 +99,7 @@ jobs:
     with:
       attest-artifacts: true
       arm64: false
+      release-build: ${{ inputs.release-build || false }}
 
   build-debian-arm64:
     uses: ./.github/workflows/build-debian.yml
@@ -109,6 +111,7 @@ jobs:
     with:
       attest-artifacts: true
       arm64: true
+      release-build: ${{ inputs.release-build || false }}
 
   build-ubuntu-amd64:
     uses: ./.github/workflows/build-ubuntu.yml
@@ -120,6 +123,7 @@ jobs:
     with:
       attest-artifacts: true
       arm64: false
+      release-build: ${{ inputs.release-build || false }}
 
   build-ubuntu-arm64:
     uses: ./.github/workflows/build-ubuntu.yml
@@ -131,8 +135,11 @@ jobs:
     with:
       attest-artifacts: true
       arm64: true
+      release-build: ${{ inputs.release-build || false }}
 
   build-arch:
     uses: ./.github/workflows/build-arch.yml
     permissions:
       contents: read
+    with:
+      release-build: ${{ inputs.release-build || false }}

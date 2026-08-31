@@ -14,12 +14,18 @@ on:
         required: false
         type: string
         default: archlinux:base-devel
+      release-build:
+        description: Builds a release.
+        required: true
+        type: boolean
 
 jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     container: ${{ inputs.image }}
+
+    environment: ${{ inputs.release-build && 'release-linux' || null }}
 
     steps:
       - name: Prepare runner image (Arch)

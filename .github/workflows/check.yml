@@ -79,7 +79,7 @@ jobs:
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: bin/check reuse
 
-  accept-check:
+  accept-check-ci:
     if: always()
     needs:
       - check-clang-format
@@ -90,9 +90,7 @@ jobs:
     permissions: {}
     steps:
       - name: Check workflow results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          [[ '${{ needs.check-clang-format.result }}' == 'success' ]] &&
-          [[ '${{ needs.check-gersemi.result }}' == 'success' ]] &&
-          [[ '${{ needs.check-reuse.result }}' == 'success' ]] &&
-          printf 'OK\n'
+        run: jq -e 'all(.[]; .result == "success")' <<< "${NEEDS:?}"

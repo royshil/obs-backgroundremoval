@@ -17,6 +17,10 @@ on:
         description: Builds for arm64.
         required: true
         type: boolean
+      release-build:
+        description: Builds a release.
+        required: true
+        type: boolean
       PACKAGE_VERSION_SUFFIX_RESOLUTE:
         description: Version suffix for resolute.
         required: false
@@ -37,6 +41,8 @@ jobs:
   resolute:
     runs-on: ${{ inputs.arm64 && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 180
+
+    environment: ${{ inputs.release-build && 'release-linux' || null }}
 
     outputs:
       DEB_ARTIFACT_NAME: ${{ steps.artifact-names.outputs.DEB_ARTIFACT_NAME }}

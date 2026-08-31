@@ -22,6 +22,7 @@ jobs:
       contents: read
     with:
       attest-artifacts: false
+      release-build: false
       runs-on: windows-2025-vs2026
 
   build-macos-arm64:
@@ -30,7 +31,7 @@ jobs:
       contents: read
     with:
       attest-artifacts: false
-      notarize: false
+      release-build: false
       x86_64: false
       TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
@@ -40,7 +41,7 @@ jobs:
       contents: read
     with:
       attest-artifacts: false
-      notarize: false
+      release-build: false
       x86_64: true
       TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
@@ -51,6 +52,7 @@ jobs:
     with:
       attest-artifacts: false
       arm64: false
+      release-build: false
 
   build-debian-arm64:
     uses: ./.github/workflows/build-debian.yml
@@ -59,6 +61,7 @@ jobs:
     with:
       attest-artifacts: false
       arm64: true
+      release-build: false
 
   build-ubuntu-amd64:
     uses: ./.github/workflows/build-ubuntu.yml
@@ -67,6 +70,7 @@ jobs:
     with:
       attest-artifacts: false
       arm64: false
+      release-build: false
 
   build-ubuntu-arm64:
     uses: ./.github/workflows/build-ubuntu.yml
@@ -75,8 +79,32 @@ jobs:
     with:
       attest-artifacts: false
       arm64: true
+      release-build: false
 
   build-arch:
     uses: ./.github/workflows/build-arch.yml
     permissions:
       contents: read
+    with:
+      release-build: false
+
+  accept-pr-check:
+    if: always()
+    needs:
+      - build-arch
+      - build-debian-amd64
+      - build-debian-arm64
+      - build-macos-arm64
+      - build-macos-x86_64
+      - build-ubuntu-amd64
+      - build-ubuntu-arm64
+      - build-windows-x64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Check workflow results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: jq -e 'all(.[]; .result == "success")' <<< "${NEEDS:?}"

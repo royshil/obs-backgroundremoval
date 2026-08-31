@@ -17,6 +17,10 @@ on:
         description: Builds for arm64.
         required: true
         type: boolean
+      release-build:
+        description: Builds a release.
+        required: true
+        type: boolean
       PACKAGE_VERSION_SUFFIX_FORKY:
         description: Version suffix for forky.
         required: false
@@ -38,6 +42,8 @@ jobs:
     runs-on: ${{ inputs.arm64 && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 180
     container: debian:forky-20260803
+
+    environment: ${{ inputs.release-build && 'release-linux' || null }}
 
     outputs:
       DEB_ARTIFACT_NAME: ${{ steps.package.outputs.DEB_ARTIFACT_NAME }}
