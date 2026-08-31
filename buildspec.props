@@ -8,7 +8,6 @@ PLUGIN_EMAIL=roy.shil@gmail.com
 PLUGIN_BUNDLE_ID=com.royshilkrot.obs-backgroundremoval
 PLUGIN_LATEST_VERSION_URL=https://royshil.github.io/obs-backgroundremoval/metadata/latest-version.txt
 
-onnxruntime_reduced_ops_config=src/required_operators.config
 osx_deployment_target=13.0
 windows_sdk_version=10.0.26100
 

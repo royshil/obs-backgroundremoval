@@ -259,17 +259,6 @@ jobs:
         run: |
           "${CCACHE_COMMAND:?}" --zero-stats
 
-      - name: Generate reduced operators for onnxruntime (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          REDUCED_OPS_CONFIG_PATH: ${{ steps.buildspec.outputs.onnxruntime_reduced_ops_config }}
-        run: |
-          /usr/bin/python3 -m pip install --user -r requirements-build.txt
-          /usr/bin/python3 vendor/onnxruntime/tools/ci_build/reduce_op_kernels.py \
-            "${REDUCED_OPS_CONFIG_PATH:?}" \
-            --cmake_build_dir build_ort \
-            --is_extended_minimal_build_or_higher
-
       - name: Configure onnxruntime (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
@@ -307,7 +296,6 @@ jobs:
             -Donnxruntime_BUILD_SHARED_LIB=OFF \
             -Donnxruntime_BUILD_UNIT_TESTS=OFF \
             -Donnxruntime_DISABLE_RTTI=OFF \
-            -Donnxruntime_REDUCED_OPS_BUILD=ON \
             -Donnxruntime_RUN_ONNX_TESTS=OFF \
             -Donnxruntime_USE_COREML=ON \
             -Donnxruntime_USE_VCPKG=ON
