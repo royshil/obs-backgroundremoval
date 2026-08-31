@@ -1,0 +1,52 @@
+#!/bin/sh
+
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+set -eu
+
+check_clang_format()
+{
+	if [ "$(uname -s)" = "Darwin" ]; then
+		xcrun clang-format --version
+		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' |
+			xargs -0 -n 20 xcrun clang-format --dry-run --Werror
+	else
+		clang-format-21 --version
+		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' |
+			xargs -0 -n 20 clang-format-21 --dry-run --Werror
+	fi
+}
+
+check_gersemi()
+{
+	git ls-files -z CMakeLists.txt '*.cmake' |
+		xargs -0 -n 1 sh -c 'gersemi --config .gersemirc --check - < "$1"' sh
+}
+
+check_reuse()
+{
+	reuse --no-multiprocessing lint
+}
+
+case "${1:-all}" in
+all)
+	check_clang_format
+	check_gersemi
+	check_reuse
+	;;
+clang-format)
+	check_clang_format
+	;;
+gersemi)
+	check_gersemi
+	;;
+reuse)
+	check_reuse
+	;;
+*)
+	printf 'Usage: %s [all|clang-format|gersemi|reuse]\n' "$0" >&2
+	exit 2
+	;;
+esac

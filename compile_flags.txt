@@ -1,0 +1,22 @@
+-Isrc
+-Ibuild/RelWithDebInfo/include
+-Ibuild
+-I.deps/obs-deps/include
+-Iobs_installed/Frameworks/libobs.framework/Headers
+-Iobs_installed/include/obs
+-I.deps/obs-deps-qt6/include
+-I.deps/obs-deps-qt6/lib/QtCore.framework/Headers
+-I.deps/obs-deps-qt6/lib/QtGui.framework/Headers
+-I.deps/obs-deps-qt6/lib/QtWidgets.framework/Headers
+-I.deps/obs-deps-qt6/mkspecs/macx-clang
+-F.deps/obs-deps-qt6/lib
+-Fobs_installed/Frameworks
+-DSIMDE_ENABLE_OPENMP
+-DHAVE_OBSCONFIG_H
+-DQT_CORE_LIB
+-DQT_GUI_LIB
+-DQT_WIDGETS_LIB
+-DPLUGIN_NAME_STR="obs-backgroundremoval"
+-DPLUGIN_VERSION_STR="1.4.1"
+-DPLUGIN_LATEST_VERSION_URL="https://royshil.github.io/obs-backgroundremoval/metadata/latest-version.txt"
+-DOBS_LOG_HEADER="[obs-backgroundremoval] "

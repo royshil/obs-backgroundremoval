@@ -54,8 +54,6 @@ env:
   HOMEBREW_NO_AUTO_UPDATE: '1'
   HOMEBREW_NO_ENV_HINTS: '1'
   HOMEBREW_NO_INSTALL_CLEANUP: '1'
-  # https://github.com/kaito-tokyo/vcpkg-obs-kaito-tokyo
-  VCPKG_BINARY_SOURCES: clear;http,https://vcpkg-obs.kaito.tokyo/{sha},read
 
 jobs:
   tahoe:
@@ -70,10 +68,7 @@ jobs:
       CCACHE_ORT_DIR: .ccache_ort
       CMAKE_OSX_ARCHITECTURES: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
       DEVELOPER_DIR: ${{ inputs.TAHOE_DEVELOPER_DIR }}
-      VCPKG_BINARY_SOURCES: clear;http,https://vcpkg-obs.kaito.tokyo/{sha},read
-      VCPKG_ORT_TARGET_TRIPLET: ${{ inputs.x86_64 && 'x64-osx-obs-ort' || 'arm64-osx-obs-ort' }}
       VCPKG_ROOT: ${{ github.workspace }}/vendor/vcpkg
-      VCPKG_TARGET_TRIPLET: ${{ inputs.x86_64 && 'x64-osx-obs' || 'arm64-osx-obs' }}
 
     steps:
       - name: Print macOS version
@@ -89,21 +84,21 @@ jobs:
           printf 'XCODE_VERSION=%s\n' "$(xcodebuild -version | awk 'NR == 1 { print $2 }')" | tee -a "${GITHUB_OUTPUT:?}"
           printf 'XCODE_BUILD_VERSION=%s\n' "$(xcodebuild -version | awk 'NR == 2 { print $3 }')" | tee -a "${GITHUB_OUTPUT:?}"
 
-      - name: Install pkgconf (macOS)
-        id: pkgconf
+      - name: Initialize JOB_TEMP (macOS)
+        id: job-temp
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
-          brew install pkgconf
-          printf 'PKGCONF_BINDIR=%s\n' "$(brew --prefix pkgconf)/bin" >>"${GITHUB_OUTPUT:?}"
+          JOB_TEMP="$(mktemp -d -t "${GITHUB_JOB:?}-${GITHUB_RUN_ID:?}.XXXXXXX")"
+          printf 'JOB_TEMP=%s\n' "${JOB_TEMP:?}" >>"${GITHUB_OUTPUT:?}"
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: true
 
-      - name: Checkout submodules
+      - name: Checkout submodules (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg vendor/onnxruntime
+        run: git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg
 
       - name: Load buildspec.props and VERSION
         id: buildspec
@@ -205,145 +200,12 @@ jobs:
         run: |
           "${CMAKE_COMMAND:?}" --install build_obs --component Development --config Release --prefix obs_installed
 
-      - name: Install vcpkg dependencies (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          PKGCONF_BINDIR: ${{ steps.pkgconf.outputs.PKGCONF_BINDIR }}
-        run: |
-          ENVS=(
-            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
-            HOME="${HOME:?}"
-            PATH="${PKGCONF_BINDIR:?}:/usr/bin:/bin"
-            VCPKG_BINARY_SOURCES="${VCPKG_BINARY_SOURCES:?}"
-            VCPKG_ROOT="${VCPKG_ROOT:?}"
-          )
-
-          /usr/bin/env -i "${ENVS[@]}" "${VCPKG_ROOT:?}/vcpkg" install --triplet="${VCPKG_TARGET_TRIPLET:?}"
-
-      - name: Install vcpkg_ort dependencies (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          PKGCONF_BINDIR: ${{ steps.pkgconf.outputs.PKGCONF_BINDIR }}
-        run: |
-          ENVS=(
-            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
-            HOME="${HOME:?}"
-            PATH="${PKGCONF_BINDIR:?}:/usr/bin:/bin"
-            VCPKG_BINARY_SOURCES="${VCPKG_BINARY_SOURCES:?}"
-            VCPKG_ROOT="${VCPKG_ROOT:?}"
-          )
-
-          /usr/bin/env -i "${ENVS[@]}" \
-            "${VCPKG_ROOT:?}/vcpkg" install \
-            --triplet="${VCPKG_ORT_TARGET_TRIPLET:?}" \
-            --overlay-triplets="${GITHUB_WORKSPACE:?}/vcpkg-triplets" \
-            --x-feature=coreml-ep \
-            --x-install-root="${GITHUB_WORKSPACE:?}/vcpkg_ort_installed" \
-            --x-manifest-root="${GITHUB_WORKSPACE:?}/vendor/onnxruntime/cmake"
-
-      - name: Restore ccache_ort (macOS)
-        id: ccache_ort
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.CCACHE_ORT_DIR }}
-          key: ccache_ort-v2-${{ runner.os }}-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}-${{ steps.macos-version.outputs.MACOS_PRODUCT_VERSION }}-${{ steps.xcode-version.outputs.XCODE_VERSION }}-${{ steps.xcode-version.outputs.XCODE_BUILD_VERSION }}-${{ steps.setup-buildspec-deps.outputs.CCACHE_VERSION }}-${{ steps.buildspec.outputs.osx_deployment_target }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            ccache_ort-v2-${{ runner.os }}-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}-${{ steps.macos-version.outputs.MACOS_PRODUCT_VERSION }}-${{ steps.xcode-version.outputs.XCODE_VERSION }}-${{ steps.xcode-version.outputs.XCODE_BUILD_VERSION }}-${{ steps.setup-buildspec-deps.outputs.CCACHE_VERSION }}-${{ steps.buildspec.outputs.osx_deployment_target }}-${{ github.run_id }}-
-            ccache_ort-v2-${{ runner.os }}-${{ inputs.x86_64 && 'x86_64' || 'arm64' }}-${{ steps.macos-version.outputs.MACOS_PRODUCT_VERSION }}-${{ steps.xcode-version.outputs.XCODE_VERSION }}-${{ steps.xcode-version.outputs.XCODE_BUILD_VERSION }}-${{ steps.setup-buildspec-deps.outputs.CCACHE_VERSION }}-${{ steps.buildspec.outputs.osx_deployment_target }}-
-
-      - name: Reset ccache_ort stats
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CCACHE_COMMAND: ${{ steps.setup-buildspec-deps.outputs.CCACHE_COMMAND }}
-          CCACHE_DIR: ${{ github.workspace }}/${{ env.CCACHE_ORT_DIR }}
-        run: |
-          "${CCACHE_COMMAND:?}" --zero-stats
-
-      - name: Configure onnxruntime (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CCACHE_COMMAND: ${{ steps.setup-buildspec-deps.outputs.CCACHE_COMMAND }}
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
-          CMAKE_OSX_DEPLOYMENT_TARGET: ${{ steps.buildspec.outputs.osx_deployment_target }}
-          NINJA_COMMAND: ${{ steps.vcpkg-tools.outputs.NINJA_COMMAND }}
-          PKGCONF_BINDIR: ${{ steps.pkgconf.outputs.PKGCONF_BINDIR }}
-        run: |
-          ENVS=(
-            CCACHE_BASEDIR="${GITHUB_WORKSPACE:?}"
-            CCACHE_DIR="${GITHUB_WORKSPACE:?}/${CCACHE_ORT_DIR:?}"
-            CCACHE_SLOPPINESS=include_file_mtime,time_macros
-            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
-            HOME="${HOME:?}"
-            PATH="${PKGCONF_BINDIR:?}:${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
-          )
-
-          /usr/bin/env -i "${ENVS[@]}" \
-            "${CMAKE_COMMAND:?}" -S vendor/onnxruntime/cmake -B build_ort -G Ninja \
-            --compile-no-warning-as-error \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER_LAUNCHER=${CCACHE_COMMAND:?} \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=${CCACHE_COMMAND:?} \
-            -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
-            -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-            -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT:?}/scripts/buildsystems/vcpkg.cmake" \
-            -DPython_EXECUTABLE="/usr/bin/python3" \
-            -DVCPKG_INSTALLED_DIR="${GITHUB_WORKSPACE:?}/vcpkg_ort_installed" \
-            -DVCPKG_MANIFEST_INSTALL=OFF \
-            -DVCPKG_OVERLAY_TRIPLETS="${GITHUB_WORKSPACE:?}/vcpkg-triplets" \
-            -DVCPKG_TARGET_TRIPLET="${VCPKG_ORT_TARGET_TRIPLET:?}" \
-            -Donnxruntime_BUILD_SHARED_LIB=OFF \
-            -Donnxruntime_BUILD_UNIT_TESTS=OFF \
-            -Donnxruntime_DISABLE_RTTI=OFF \
-            -Donnxruntime_RUN_ONNX_TESTS=OFF \
-            -Donnxruntime_USE_COREML=ON \
-            -Donnxruntime_USE_VCPKG=ON
-
-      - name: Build onnxruntime (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
-          NINJA_COMMAND: ${{ steps.vcpkg-tools.outputs.NINJA_COMMAND }}
-        run: |
-          ENVS=(
-            CCACHE_BASEDIR="${GITHUB_WORKSPACE:?}"
-            CCACHE_DIR="${GITHUB_WORKSPACE:?}/${CCACHE_ORT_DIR:?}"
-            CCACHE_SLOPPINESS=include_file_mtime,time_macros
-            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
-            HOME="${HOME:?}"
-            PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
-          )
-
-          /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND:?}" --build build_ort --config Release --parallel
-
-      - name: Install onnxruntime (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
-        run: |
-          "${CMAKE_COMMAND:?}" --install build_ort --prefix ort_installed
-
-      - name: Save ccache_ort
-        if: success() && steps.ccache_ort.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.CCACHE_ORT_DIR }}
-          key: ${{ steps.ccache_ort.outputs.cache-primary-key }}
-
-      - name: Show ccache_ort stats
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CCACHE_COMMAND: ${{ steps.setup-buildspec-deps.outputs.CCACHE_COMMAND }}
-          CCACHE_DIR: ${{ github.workspace }}/${{ env.CCACHE_ORT_DIR }}
-        run: '"${CCACHE_COMMAND:?}" --show-stats | tee -a "${GITHUB_STEP_SUMMARY:?}"'
-
       - name: Configure (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
           CMAKE_OSX_DEPLOYMENT_TARGET: ${{ steps.buildspec.outputs.osx_deployment_target }}
-          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }};${{ github.workspace }}/obs_installed;${{ github.workspace }}/obs_installed/Frameworks;${{ github.workspace }}/vcpkg_ort_installed/${{ env.VCPKG_ORT_TARGET_TRIPLET }};${{ github.workspace }}/ort_installed;${{ github.workspace }}/vcpkg_installed/${{ env.VCPKG_TARGET_TRIPLET }}
+          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }};${{ github.workspace }}/obs_installed;${{ github.workspace }}/obs_installed/Frameworks
         run: |
           ENVS=(
             DEVELOPER_DIR="${DEVELOPER_DIR:?}"
@@ -424,6 +286,7 @@ jobs:
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           ARCH: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
+          BUILD_PREFIX: ${{ github.workspace }}/build_prefix
           CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
           MACOS_SIGNING_APPLICATION_IDENTITY: ${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}
           MACOS_SIGNING_INSTALLER_IDENTITY: ${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}
@@ -434,17 +297,17 @@ jobs:
 
           mkdir -p build_pkg
 
-          "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix build_prefix --strip
+          "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix "${BUILD_PREFIX:?}" --strip
 
           codesign \
             --force \
             --sign "${MACOS_SIGNING_APPLICATION_IDENTITY:?}" \
             --options runtime \
             --timestamp \
-            'build_prefix/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin'
+            "${BUILD_PREFIX:?}/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin"
 
           pkgbuild \
-            --root build_prefix \
+            --root "${BUILD_PREFIX:?}" \
             --identifier "${PLUGIN_BUNDLE_ID:?}" \
             --version "${PLUGIN_VERSION:?}" \
             --install-location / \
@@ -495,6 +358,7 @@ jobs:
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           ARCH: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
+          BUILD_PREFIX: ${{ github.workspace }}/build_prefix
           CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
           PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.PLUGIN_BUNDLE_ID }}
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
@@ -503,16 +367,15 @@ jobs:
 
           mkdir -p build_pkg
 
-          "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix build_prefix --strip
-
+          "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix "${BUILD_PREFIX:?}" --strip
           codesign \
             --force \
             --sign - \
             --options runtime \
-            'build_prefix/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin'
+            "${BUILD_PREFIX:?}/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin"
 
           pkgbuild \
-            --root build_prefix \
+            --root "${BUILD_PREFIX:?}" \
             --identifier "${PLUGIN_BUNDLE_ID:?}" \
             --version "${PLUGIN_VERSION:?}" \
             --install-location / \
