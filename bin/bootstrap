@@ -33,7 +33,6 @@ ubuntu_resolute() {
     file \
     git \
     libcurl4-openssl-dev \
-    libncnn-dev \
     libobs-dev \
     libopencv-dev \
     ninja-build \

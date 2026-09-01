@@ -62,7 +62,6 @@ jobs:
             file \
             git \
             libcurl4-openssl-dev \
-            libncnn-dev \
             libobs-dev \
             libopencv-dev \
             qt6-base-dev
@@ -71,6 +70,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Checkout ncnn submodule (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: git submodule update --init --filter=blob:none vendor/ncnn
 
       - name: Print artifact names (Ubuntu)
         id: artifact-names

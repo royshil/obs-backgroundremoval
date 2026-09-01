@@ -16,7 +16,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   file \
   git \
   libcurl4-openssl-dev \
-  libncnn-dev \
   libobs-dev \
   libopencv-dev \
   ninja-build \
