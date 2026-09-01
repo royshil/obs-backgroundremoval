@@ -17,11 +17,6 @@ on:
         description: Builds and notarizes a release.
         required: true
         type: boolean
-      x86_64:
-        description: Builds for x86_64.
-        required: true
-        type: boolean
-        default: false
       TAHOE_DEVELOPER_DIR:
         description: Xcode developer directory for Tahoe.
         required: true
@@ -67,10 +62,9 @@ jobs:
       PKG_ARTIFACT_NAME: ${{ steps.package-signed.outputs.PKG_ARTIFACT_NAME || steps.package-unsigned.outputs.PKG_ARTIFACT_NAME }}
 
     env:
-      CCACHE_ORT_DIR: .ccache_ort
-      CMAKE_OSX_ARCHITECTURES: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
+      CMAKE_COMMAND: /opt/homebrew/bin/cmake
+      CTEST_COMMAND: /opt/homebrew/bin/ctest
       DEVELOPER_DIR: ${{ inputs.TAHOE_DEVELOPER_DIR }}
-      VCPKG_ROOT: ${{ github.workspace }}/vendor/vcpkg
 
     steps:
       - name: Print macOS version
@@ -86,12 +80,9 @@ jobs:
           printf 'XCODE_VERSION=%s\n' "$(xcodebuild -version | awk 'NR == 1 { print $2 }')" | tee -a "${GITHUB_OUTPUT:?}"
           printf 'XCODE_BUILD_VERSION=%s\n' "$(xcodebuild -version | awk 'NR == 2 { print $3 }')" | tee -a "${GITHUB_OUTPUT:?}"
 
-      - name: Initialize JOB_TEMP (macOS)
-        id: job-temp
+      - name: Install OBS Studio (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          JOB_TEMP="$(mktemp -d -t "${GITHUB_JOB:?}-${GITHUB_RUN_ID:?}.XXXXXXX")"
-          printf 'JOB_TEMP=%s\n' "${JOB_TEMP:?}" >>"${GITHUB_OUTPUT:?}"
+        run: brew install --cask obs && xattr -dr com.apple.quarantine /Applications/OBS.app
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,7 +91,7 @@ jobs:
 
       - name: Checkout submodules (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg
+        run: git submodule update --init --filter=blob:none vendor/obs-studio
 
       - name: Load buildspec.props and VERSION
         id: buildspec
@@ -114,149 +105,63 @@ jobs:
           "PLUGIN_VERSION=$PLUGIN_VERSION"
           Add-Content -Value "PLUGIN_VERSION=$PLUGIN_VERSION" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
-      # BEGIN: Set up toolchains
-
-      - name: Run bootstrap-vcpkg.sh
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          ENVS=(
-            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
-            HOME="${HOME:?}"
-            PATH=/usr/bin:/bin
-            VCPKG_ROOT="${VCPKG_ROOT:?}"
-          )
-          /usr/bin/env -i "${ENVS[@]}" "${VCPKG_ROOT:?}/bootstrap-vcpkg.sh" -disableMetrics
-
-      - name: Fetch vcpkg tools (macOS)
-        id: vcpkg-tools
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          ENVS=(
-            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
-            HOME="${HOME:?}"
-            PATH=/usr/bin:/bin
-            VCPKG_ROOT="${VCPKG_ROOT:?}"
-          )
-
-          CMAKE_COMMAND="$(/usr/bin/env -i "${ENVS[@]}" "${VCPKG_ROOT:?}/vcpkg" fetch cmake | tail -n1)"
-          NINJA_COMMAND="$(/usr/bin/env -i "${ENVS[@]}" "${VCPKG_ROOT:?}/vcpkg" fetch ninja | tail -n1)"
-
-          printf 'CMAKE_COMMAND=%s\n' "${CMAKE_COMMAND:?}" | tee -a "${GITHUB_OUTPUT:?}"
-          printf 'NINJA_COMMAND=%s\n' "${NINJA_COMMAND:?}" | tee -a "${GITHUB_OUTPUT:?}"
-
       - name: Set up buildspec dependencies (macOS)
         id: setup-buildspec-deps
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
         run: |
           "${CMAKE_COMMAND:?}" -P scripts/download-deps.cmake
-
-      # END: Set up toolchains
-
-      - name: Configure obs-studio (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
-          CMAKE_OSX_DEPLOYMENT_TARGET: ${{ steps.buildspec.outputs.osx_deployment_target }}
-          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }}
-          OBS_VERSION_OVERRIDE: ${{ steps.buildspec.outputs.obs_studio_git_tag }}
-        run: |
-          ENVS=(
-            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
-            HOME="${HOME:?}"
-            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
-          )
-
-          /usr/bin/env -i "${ENVS[@]}" \
-            "${CMAKE_COMMAND:?}" \
-            -S "${GITHUB_WORKSPACE:?}/vendor/obs-studio" \
-            -B "${GITHUB_WORKSPACE:?}/build_obs" \
-            -G Xcode \
-            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE:?}/obs_installed" \
-            -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:?}" \
-            -DENABLE_FRONTEND=OFF \
-            -DENABLE_PLUGINS=OFF \
-            -DOBS_CMAKE_VERSION=3.0.0 \
-            -DOBS_VERSION_OVERRIDE="${OBS_VERSION_OVERRIDE:?}"
-
-      - name: Build obs-studio (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
-        run: |
-          ENVS=(
-            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
-            HOME="${HOME:?}"
-            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
-          )
-
-          /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND:?}" --build build_obs --target obs-frontend-api --config Release --parallel
-
-      - name: Install obs-studio (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
-        run: |
-          "${CMAKE_COMMAND:?}" --install build_obs --component Development --config Release --prefix obs_installed
 
       - name: Configure (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
           CMAKE_OSX_DEPLOYMENT_TARGET: ${{ steps.buildspec.outputs.osx_deployment_target }}
-          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }};${{ github.workspace }}/obs_installed;${{ github.workspace }}/obs_installed/Frameworks
+          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }}
         run: |
           ENVS=(
             DEVELOPER_DIR="${DEVELOPER_DIR:?}"
             GITHUB_RUN_ID="${GITHUB_RUN_ID:?}"
             HOME="${HOME:?}"
-            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
+            PATH="${PATH:?}"
           )
 
           /usr/bin/env -i "${ENVS[@]}" \
             "${CMAKE_COMMAND:?}" -S . -B build -G Xcode \
-            -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
+            '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' \
             -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
             -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:?}"
 
       - name: Build (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
         run: |
           ENVS=(
             DEVELOPER_DIR="${DEVELOPER_DIR:?}"
             HOME="${HOME:?}"
-            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
+            PATH="${PATH:?}"
           )
 
           /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND:?}" --build build --config RelWithDebInfo --parallel
 
       - name: Test (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
         run: |
           ENVS=(
             DEVELOPER_DIR="${DEVELOPER_DIR:?}"
+            DYLD_FRAMEWORK_PATH=/Applications/OBS.app/Contents/Frameworks
+            DYLD_LIBRARY_PATH=/Applications/OBS.app/Contents/Frameworks
             HOME="${HOME:?}"
-            PATH="${CMAKE_COMMAND%/*}:/usr/bin:/bin"
+            PATH="${PATH:?}"
           )
 
-          /usr/bin/env -i "${ENVS[@]}" "${CMAKE_COMMAND%/*}/ctest" \
+          /usr/bin/env -i "${ENVS[@]}" "${CTEST_COMMAND:?}" \
             --test-dir build --build-config RelWithDebInfo --output-on-failure
 
       - name: Archive dSYM (macOS)
         id: archive-dsym
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          ARCH: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
-          DSYM_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos-${ARCH:?}.plugin.dSYM.tar.xz"
+          DSYM_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos.plugin.dSYM.tar.xz"
           dsymutil build/RelWithDebInfo/obs-backgroundremoval.plugin/Contents/MacOS/obs-backgroundremoval -o obs-backgroundremoval.plugin.dSYM
           COPYFILE_DISABLE=1 tar -cJf "${DSYM_ARTIFACT_NAME:?}" --no-mac-metadata --no-xattrs obs-backgroundremoval.plugin.dSYM
           printf 'DSYM_ARTIFACT_NAME=%s\n' "${DSYM_ARTIFACT_NAME:?}" | tee -a "${GITHUB_OUTPUT:?}"
@@ -287,15 +192,13 @@ jobs:
         if: inputs.release-build
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          ARCH: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
           BUILD_PREFIX: ${{ github.workspace }}/build_prefix
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
           MACOS_SIGNING_APPLICATION_IDENTITY: ${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}
           MACOS_SIGNING_INSTALLER_IDENTITY: ${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}
           PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.PLUGIN_BUNDLE_ID }}
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
-          PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos-${ARCH:?}.pkg"
+          PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos.pkg"
 
           mkdir -p build_pkg
 
@@ -353,17 +256,16 @@ jobs:
         if: ${{ !inputs.release-build }}
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          ARCH: ${{ inputs.x86_64 && 'x86_64' || 'arm64' }}
           BUILD_PREFIX: ${{ github.workspace }}/build_prefix
-          CMAKE_COMMAND: ${{ steps.vcpkg-tools.outputs.CMAKE_COMMAND }}
           PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.PLUGIN_BUNDLE_ID }}
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
-          PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos-${ARCH:?}.unsigned.pkg"
+          PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos.unsigned.pkg"
 
           mkdir -p build_pkg
 
           "${CMAKE_COMMAND:?}" --install build --config RelWithDebInfo --prefix "${BUILD_PREFIX:?}" --strip
+
           codesign \
             --force \
             --sign - \
@@ -399,7 +301,6 @@ jobs:
           if-no-files-found: error
 
   test-tahoe:
-    if: ${{ !inputs.x86_64 }}
     needs: tahoe
     runs-on: macos-26
     timeout-minutes: 30
@@ -410,11 +311,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install scenario test dependencies (macOS)
+      - name: Install OBS Studio (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          brew install --cask obs
-          xattr -dr com.apple.quarantine /Applications/OBS.app
+        run: brew install --cask obs && xattr -dr com.apple.quarantine /Applications/OBS.app
 
       - name: Download PKG artifact (macOS)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -442,6 +341,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: scenario-test-results-macos-arm64
+          name: scenario-test-results-macos
           path: ${{ runner.temp }}/${{ github.job }}/build_test_reports
           if-no-files-found: warn

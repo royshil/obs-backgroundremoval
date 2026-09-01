@@ -75,6 +75,10 @@ if(MSVC)
   )
 elseif(APPLE)
   set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
+  target_compile_options(
+    BuildOptions
+    INTERFACE -fno-omit-frame-pointer -fstack-protector-strong -Wall -Wextra -Werror
+  )
 elseif(UNIX)
   target_compile_definitions(BuildOptions INTERFACE SIMDE_ENABLE_OPENMP)
   target_compile_options(
@@ -136,8 +140,46 @@ endfunction()
 ### Package dependencies
 find_package(PkgConfig QUIET)
 
-find_package(libobs REQUIRED)
-find_package(obs-frontend-api REQUIRED)
+if(APPLE)
+  add_library(OBS::libobs INTERFACE IMPORTED)
+  set_target_properties(
+    OBS::libobs
+    PROPERTIES
+      INTERFACE_COMPILE_DEFINITIONS "SIMDE_ENABLE_OPENMP;ENABLE_HEVC"
+      INTERFACE_COMPILE_OPTIONS "-fopenmp-simd"
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/libobs"
+      INTERFACE_LINK_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-macos/lib/libobs.tbd"
+  )
+
+  add_library(OBS::obs-frontend-api INTERFACE IMPORTED)
+  set_target_properties(
+    OBS::obs-frontend-api
+    PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/UI/obs-frontend-api"
+      INTERFACE_LINK_LIBRARIES
+        "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-macos/lib/obs-frontend-api.tbd;OBS::libobs"
+  )
+elseif(WIN32)
+  add_library(OBS::libobs INTERFACE IMPORTED)
+  set_target_properties(
+    OBS::libobs
+    PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/libobs"
+      INTERFACE_LINK_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-windows/lib/obs.lib"
+  )
+
+  add_library(OBS::obs-frontend-api INTERFACE IMPORTED)
+  set_target_properties(
+    OBS::obs-frontend-api
+    PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/UI/obs-frontend-api"
+      INTERFACE_LINK_LIBRARIES
+        "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-windows/lib/obs-frontend-api.lib;OBS::libobs"
+  )
+else()
+  find_package(libobs REQUIRED)
+  find_package(obs-frontend-api REQUIRED)
+endif()
 
 block()
   find_package(Qt6 COMPONENTS Widgets REQUIRED)

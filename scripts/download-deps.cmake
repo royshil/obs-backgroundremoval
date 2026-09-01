@@ -64,28 +64,10 @@ if(WIN32)
   set_output(CCACHE_COMMAND "${CMAKE_SOURCE_DIR}/.deps/ccache/ccache-${CCACHE_VERSION}-windows-x86_64/ccache.exe")
   set_output(CCACHE_VERSION "${CCACHE_VERSION}")
 elseif(APPLE)
-  if(ccache_macos_url MATCHES "-([0-9]+\.[0-9]+\.[0-9]+)-")
-    set(CCACHE_VERSION "${CMAKE_MATCH_1}")
-  else()
-    message(FATAL_ERROR "Failed to extract ccache version")
-  endif()
-
-  file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/.deps" "${CMAKE_SOURCE_DIR}/vendor/obs-studio/.deps")
-
-  download_dep(obs-deps "${prebuilt_macos_url}" "${prebuilt_macos_sha256}")
-  file(
-    WRITE "${CMAKE_SOURCE_DIR}/vendor/obs-studio/.deps/.dependency_prebuilt_universal.sha256"
-    "${prebuilt_macos_sha256}"
-  )
-  set_output(OBS_DEPS_PREFIX "${CMAKE_SOURCE_DIR}/.deps/obs-deps")
+  file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/.deps")
 
   download_dep(obs-deps-qt6 "${qt6_macos_url}" "${qt6_macos_sha256}")
-  file(WRITE "${CMAKE_SOURCE_DIR}/vendor/obs-studio/.deps/.dependency_qt6_universal.sha256" "${qt6_macos_sha256}")
   set_output(OBS_DEPS_QT6_PREFIX "${CMAKE_SOURCE_DIR}/.deps/obs-deps-qt6")
-
-  download_dep(ccache "${ccache_macos_url}" "${ccache_macos_sha256}")
-  set_output(CCACHE_COMMAND "${CMAKE_SOURCE_DIR}/.deps/ccache/ccache-${CCACHE_VERSION}-darwin/ccache")
-  set_output(CCACHE_VERSION "${CCACHE_VERSION}")
 else()
   message(FATAL_ERROR "Platform not supported")
 endif()

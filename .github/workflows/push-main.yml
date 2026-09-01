@@ -21,14 +21,10 @@ on:
         value: ${{ jobs.build-windows-x64.outputs.zip-artifact }}
       WINDOWS_X64_PDB_ARTIFACT:
         value: ${{ jobs.build-windows-x64.outputs.pdb-artifact }}
-      MACOS_ARM64_DSYM_ARTIFACT:
-        value: ${{ jobs.build-macos-arm64.outputs.dsym-artifact }}
-      MACOS_ARM64_PKG_ARTIFACT:
-        value: ${{ jobs.build-macos-arm64.outputs.pkg-artifact }}
-      MACOS_X86_64_DSYM_ARTIFACT:
-        value: ${{ jobs.build-macos-x86_64.outputs.dsym-artifact }}
-      MACOS_X86_64_PKG_ARTIFACT:
-        value: ${{ jobs.build-macos-x86_64.outputs.pkg-artifact }}
+      MACOS_DSYM_ARTIFACT:
+        value: ${{ jobs.build-macos.outputs.dsym-artifact }}
+      MACOS_PKG_ARTIFACT:
+        value: ${{ jobs.build-macos.outputs.pkg-artifact }}
       DEBIAN_FORKY_AMD64_DEB_ARTIFACT:
         value: ${{ jobs.build-debian-amd64.outputs.forky-deb-artifact }}
       DEBIAN_FORKY_AMD64_DDEB_ARTIFACT:
@@ -61,7 +57,7 @@ jobs:
       release-build: ${{ inputs.release-build || false }}
       runs-on: windows-2025-vs2026
 
-  build-macos-arm64:
+  build-macos:
     uses: ./.github/workflows/build-macos.yml
     secrets: inherit
     permissions:
@@ -72,21 +68,6 @@ jobs:
     with:
       attest-artifacts: true
       release-build: ${{ inputs.release-build || false }}
-      x86_64: false
-      TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
-
-  build-macos-x86_64:
-    uses: ./.github/workflows/build-macos.yml
-    secrets: inherit
-    permissions:
-      artifact-metadata: write
-      attestations: write
-      contents: read
-      id-token: write
-    with:
-      attest-artifacts: true
-      release-build: ${{ inputs.release-build || false }}
-      x86_64: true
       TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
   build-debian-amd64:

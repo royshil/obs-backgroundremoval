@@ -1,0 +1,52 @@
+--- !tapi-tbd
+tbd-version:     4
+targets:         [ x86_64-macos, arm64-macos ]
+flags:           [ not_app_extension_safe ]
+install-name:    '@rpath/obs-frontend-api.dylib'
+current-version: 29
+exports:
+  - targets:         [ x86_64-macos, arm64-macos ]
+    symbols:         [ _obs_frontend_add_dock, _obs_frontend_add_event_callback, 
+                       _obs_frontend_add_preload_callback, _obs_frontend_add_save_callback, 
+                       _obs_frontend_add_scene_collection, _obs_frontend_add_tools_menu_item, 
+                       _obs_frontend_add_tools_menu_qaction, _obs_frontend_add_undo_redo_action, 
+                       _obs_frontend_create_profile, _obs_frontend_defer_save_begin, 
+                       _obs_frontend_defer_save_end, _obs_frontend_delete_profile, 
+                       _obs_frontend_duplicate_profile, _obs_frontend_get_current_preview_scene, 
+                       _obs_frontend_get_current_profile, _obs_frontend_get_current_profile_path, 
+                       _obs_frontend_get_current_record_output_path, _obs_frontend_get_current_scene, 
+                       _obs_frontend_get_current_scene_collection, _obs_frontend_get_current_transition, 
+                       _obs_frontend_get_global_config, _obs_frontend_get_last_recording, 
+                       _obs_frontend_get_last_replay, _obs_frontend_get_last_screenshot, 
+                       _obs_frontend_get_locale_string, _obs_frontend_get_main_window, 
+                       _obs_frontend_get_main_window_handle, _obs_frontend_get_profile_config, 
+                       _obs_frontend_get_profiles, _obs_frontend_get_recording_output, 
+                       _obs_frontend_get_replay_buffer_output, _obs_frontend_get_scene_collections, 
+                       _obs_frontend_get_scene_names, _obs_frontend_get_scenes, _obs_frontend_get_streaming_output, 
+                       _obs_frontend_get_streaming_service, _obs_frontend_get_system_tray, 
+                       _obs_frontend_get_tbar_position, _obs_frontend_get_transition_duration, 
+                       _obs_frontend_get_transitions, _obs_frontend_get_virtualcam_output, 
+                       _obs_frontend_is_theme_dark, _obs_frontend_open_projector, 
+                       _obs_frontend_open_sceneitem_edit_transform, _obs_frontend_open_source_filters, 
+                       _obs_frontend_open_source_interaction, _obs_frontend_open_source_properties, 
+                       _obs_frontend_pop_ui_translation, _obs_frontend_preview_enabled, 
+                       _obs_frontend_preview_program_mode_active, _obs_frontend_preview_program_trigger_transition, 
+                       _obs_frontend_push_ui_translation, _obs_frontend_recording_active, 
+                       _obs_frontend_recording_pause, _obs_frontend_recording_paused, 
+                       _obs_frontend_recording_split_file, _obs_frontend_recording_start, 
+                       _obs_frontend_recording_stop, _obs_frontend_release_tbar, 
+                       _obs_frontend_remove_event_callback, _obs_frontend_remove_preload_callback, 
+                       _obs_frontend_remove_save_callback, _obs_frontend_replay_buffer_active, 
+                       _obs_frontend_replay_buffer_save, _obs_frontend_replay_buffer_start, 
+                       _obs_frontend_replay_buffer_stop, _obs_frontend_reset_video, 
+                       _obs_frontend_save, _obs_frontend_save_streaming_service, 
+                       _obs_frontend_set_current_preview_scene, _obs_frontend_set_current_profile, 
+                       _obs_frontend_set_current_scene, _obs_frontend_set_current_scene_collection, 
+                       _obs_frontend_set_current_transition, _obs_frontend_set_preview_enabled, 
+                       _obs_frontend_set_preview_program_mode, _obs_frontend_set_streaming_service, 
+                       _obs_frontend_set_tbar_position, _obs_frontend_set_transition_duration, 
+                       _obs_frontend_start_virtualcam, _obs_frontend_stop_virtualcam, 
+                       _obs_frontend_streaming_active, _obs_frontend_streaming_start, 
+                       _obs_frontend_streaming_stop, _obs_frontend_take_screenshot, 
+                       _obs_frontend_take_source_screenshot, _obs_frontend_virtualcam_active ]
+...

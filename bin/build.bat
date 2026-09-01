@@ -99,21 +99,6 @@ echo == Install vcpkg_ort dependencies ==
 
 "%VCPKG_COMMAND%" install --vcpkg-root "%VCPKG_ROOT%" --triplet x64-windows-static-md-obs-ort --host-triplet "%VCPKG_HOST_TRIPLET%" --overlay-triplets "%CD%\vcpkg-triplets" --x-install-root vcpkg_ort_installed --x-manifest-root vendor\onnxruntime\cmake || (echo ERROR: ONNX Runtime vcpkg dependency installation failed. & endlocal & exit /b 1)
 
-echo == Build OBS sources ==
-
-"%CMAKE_COMMAND%" --fresh -S vendor\obs-studio -B build_obs -G "Visual Studio 18 2026" -A x64 ^
-	"-DCMAKE_BUILD_TYPE=Release" ^
-	"-DCMAKE_INSTALL_PREFIX=%CD%\obs_installed" ^
-	"-DCMAKE_PREFIX_PATH=%OBS_DEPS_PREFIX%;%OBS_DEPS_QT6_PREFIX%" ^
-	"-DCMAKE_SYSTEM_VERSION=%buildspec_windows_sdk_version%" ^
-	"-DENABLE_FRONTEND=OFF" ^
-	"-DENABLE_PLUGINS=OFF" ^
-	"-DOBS_CMAKE_VERSION=3.0.0" ^
-	"-DOBS_VERSION_OVERRIDE=%buildspec_obs_studio_git_tag%" || (echo ERROR: OBS Studio configuration failed. & endlocal & exit /b 1)
-
-"%CMAKE_COMMAND%" --build build_obs --target obs-frontend-api --config Release --parallel || (echo ERROR: OBS Studio build failed. & endlocal & exit /b 1)
-"%CMAKE_COMMAND%" --install build_obs --component Development --config Release --prefix obs_installed || (echo ERROR: OBS Studio installation failed. & endlocal & exit /b 1)
-
 echo == Build ONNX Runtime ==
 
 set "CCACHE_DIR=%CD%\.ccache_ort"
@@ -150,7 +135,7 @@ set "CCACHE_BASEDIR="
 
 echo == Build Plugin ==
 
-set "CMAKE_PREFIX_PATH=%OBS_DEPS_PREFIX%;%OBS_DEPS_QT6_PREFIX%;%CD%\obs_installed;%CD%\vcpkg_ort_installed\x64-windows-static-md-obs-ort;%CD%\ort_installed;%CD%\vcpkg_installed\x64-windows-static-md-obs"
+set "CMAKE_PREFIX_PATH=%OBS_DEPS_PREFIX%;%OBS_DEPS_QT6_PREFIX%;%CD%\vcpkg_ort_installed\x64-windows-static-md-obs-ort;%CD%\ort_installed;%CD%\vcpkg_installed\x64-windows-static-md-obs"
 
 "%CMAKE_COMMAND%" --fresh -S . -B build -G Ninja ^
 	"-DCMAKE_BUILD_TYPE=RelWithDebInfo" ^

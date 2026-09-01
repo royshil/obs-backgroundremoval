@@ -44,7 +44,7 @@ ubuntu_resolute() {
 }
 
 macos() {
-  :
+  brew install cmake
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
