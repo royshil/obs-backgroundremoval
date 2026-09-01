@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 If:
-  PathMatch: .*\.(cpp|cc|cxx|hpp|hh|hxx|h)$
+  PathMatch: .*\.(cpp|cc|cxx|hpp|hh|hxx)$
 CompileFlags:
   Add:
     - -std=c++20

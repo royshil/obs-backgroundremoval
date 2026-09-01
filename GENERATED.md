@@ -13,6 +13,5 @@ SPDX-License-Identifier: Apache-2.0
 
 ## List of generated contents
 
-- [.github/workflows/dependencies-vcpkg.lock.yml](.github/workflows/dependencies-vcpkg.lock.yml)
 - [.github/workflows/validate-pr.lock.yml](.github/workflows/validate-pr.lock.yml)
 - [tests/Scenarios/2000-about-dialog-on-startup.spec.md](tests/Scenarios/2000-about-dialog-on-startup.spec.md)

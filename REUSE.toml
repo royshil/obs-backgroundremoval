@@ -8,11 +8,11 @@ SPDX-License-Identifier = "LicenseRef-Not-Copyrightable"
 [[annotations]]
 path = [
   ".python-version",
+  "**/*.upstream",
   "CMakePresets.json",
   "compile_flags.txt",
   "scripts/windows/*",
-  "vcpkg-configuration.json",
-  "vcpkg.json",
+  "vendor/*/.gitattributes",
   "VERSION",
 ]
 SPDX-FileCopyrightText = "2026 Kaito Udagawa <umireon@kaito.tokyo>"

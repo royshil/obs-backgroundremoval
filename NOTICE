@@ -9,6 +9,10 @@ the MIT License.
 This product includes software developed by the OpenCV project
 (https://opencv.org/), licensed under the Apache License 2.0.
 
+This product includes software developed by the Simd project
+(https://github.com/ermig1979/Simd), Copyright (C) Ihar Yermalayeu and
+contributors, licensed under the MIT License.
+
 This product includes software developed by the curl project
 (https://curl.se/), Copyright (C) Daniel Stenberg and contributors, licensed
 under the curl license.

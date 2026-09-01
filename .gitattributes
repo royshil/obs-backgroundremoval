@@ -5,6 +5,12 @@
 *.bat text eol=crlf
 *.lib binary linguist-generated=true
 *.tbd linguist-generated=true merge=ours
-.github/workflows/*.lock.yml linguist-generated=true merge=ours
-docs/download-trends.svg linguist-generated=true merge=ours
-docs/star-history.svg linguist-generated=true merge=ours
+
+/.github/workflows/*.lock.yml linguist-generated=true merge=ours
+/docs/download-trends.svg linguist-generated=true merge=ours
+/docs/star-history.svg linguist-generated=true merge=ours
+/vendor/cpp-httplib/** linguist-vendored
+/vendor/cpp-httplib/httplib.h -text
+/vendor/cpp-httplib/LICENSE -text
+/vendor/Simd/LICENSE -text
+/vendor/Simd/src/** linguist-vendored

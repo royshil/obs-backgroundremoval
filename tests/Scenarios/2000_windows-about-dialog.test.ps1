@@ -385,7 +385,7 @@ $cases['ST-2000.7 notification save failure'] = {
             throw 'update.ini changed despite the expected save failure.'
         }
     }
-    Assert-Log $log '[obs-backgroundremoval] Failed to save update config'
+    Assert-Log $log '[obs-backgroundremoval] Failed to save the update notification setting to update.ini'
 }
 $cases['ST-2000.8 update state cannot be opened'] = {
     Remove-Item -LiteralPath $UpdateConfig -Force -ErrorAction SilentlyContinue
@@ -395,7 +395,7 @@ $cases['ST-2000.8 update state cannot be opened'] = {
             $log = Run-ObsPhase "about-dialog-on-startup-update-open-failure-$attempt" {
                 param($process) Assert-AboutAbsent $process
             }
-            Assert-Log $log '[obs-backgroundremoval] Failed to open update config'
+            Assert-Log $log 'Failed to open update config'
         }
     } finally { Remove-Item -LiteralPath $UpdateConfig -Recurse -Force }
 }
@@ -407,7 +407,7 @@ $cases['ST-2000.9 current version cannot be recorded'] = {
             $log = Run-ObsPhase "about-dialog-on-startup-update-save-failure-$attempt" {
                 param($process) Assert-AboutAbsent $process
             }
-            Assert-Log $log '[obs-backgroundremoval] Failed to save update config'
+            Assert-Log $log 'Failed to save update config'
         }
     } finally { Set-ItemProperty -LiteralPath $UpdateConfig -Name IsReadOnly -Value $false }
     Wait-ForUpdateConfig -Description 'retain version=0.0.0' -ConditionScript {
@@ -424,7 +424,7 @@ $cases['ST-2000.10 unwritable stale temporary file'] = {
             $log = Run-ObsPhase "about-dialog-on-startup-unwritable-temporary-file-$attempt" {
                 param($process) Assert-AboutAbsent $process
             }
-            Assert-Log $log '[obs-backgroundremoval] Failed to save update config'
+            Assert-Log $log 'Failed to save update config'
         }
     } finally { $lock.Dispose(); Remove-Item -LiteralPath $UpdateTemp -Force }
 }
@@ -436,7 +436,7 @@ $cases['ST-2000.11-ST-2000.12 temporary directory and recovery'] = {
             $log = Run-ObsPhase "about-dialog-on-startup-temporary-directory-$attempt" {
                 param($process) Assert-AboutAbsent $process
             }
-            Assert-Log $log '[obs-backgroundremoval] Failed to save update config'
+            Assert-Log $log 'Failed to save update config'
         }
     } finally { Remove-Item -LiteralPath $UpdateTemp -Recurse -Force }
     Run-ObsPhase 'about-dialog-on-startup-storage-recovered' {

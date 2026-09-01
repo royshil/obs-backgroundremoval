@@ -29,10 +29,6 @@ on:
         description: PDB artifact for Windows.
         value: ${{ jobs.build.outputs.PDB_ARTIFACT_NAME }}
 
-env:
-  # https://github.com/kaito-tokyo/vcpkg-obs-kaito-tokyo
-  VCPKG_BINARY_SOURCES: clear;http,https://vcpkg-obs.kaito.tokyo/{sha},read
-
 jobs:
   build:
     runs-on: ${{ inputs.runs-on }}
@@ -43,13 +39,6 @@ jobs:
     outputs:
       ZIP_ARTIFACT_NAME: ${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}
       PDB_ARTIFACT_NAME: ${{ steps.package-pdb.outputs.PDB_ARTIFACT_NAME }}
-
-    env:
-      CCACHE_ORT_DIR: .ccache_ort
-      VCPKG_FORCE_DOWNLOADED_BINARIES: '1'
-      VCPKG_ORT_TARGET_TRIPLET: x64-windows-static-md-obs-ort
-      VCPKG_ROOT: ${{ github.workspace }}/vendor/vcpkg
-      VCPKG_TARGET_TRIPLET: x64-windows-static-md-obs
 
     steps:
       - name: Enable Windows long paths
@@ -68,10 +57,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: true
-
-      - name: Checkout submodules
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg vendor/onnxruntime
+          submodules: recursive
 
       - name: Load buildspec.props and VERSION
         id: buildspec
@@ -86,209 +72,26 @@ jobs:
           "PLUGIN_VERSION=$PLUGIN_VERSION"
           Add-Content -Value "PLUGIN_VERSION=$PLUGIN_VERSION" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
-      # BEGIN: Set up toolchains
-
-      - name: Run bootstrap-vcpkg.bat
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $BOOTSTRAP_VCPKG_BAT = Join-Path $env:VCPKG_ROOT 'bootstrap-vcpkg.bat'
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-
-          & $BOOTSTRAP_VCPKG_BAT -disableMetrics
-
       - name: Set up buildspec dependencies (Windows)
         id: setup-buildspec-deps
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-
-          cmake -P scripts/download-deps.cmake
-
-      - name: Set up Python
-        id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.9'
-
-      # END: Set up toolchains
-
-      - name: Install vcpkg dependencies (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-
-          $env:VCPKG_DISABLE_METRICS = '1'
-          $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
-          & $VCPKG_COMMAND install --triplet $env:VCPKG_TARGET_TRIPLET
-
-      - name: Install vcpkg_ort dependencies (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-
-          $env:VCPKG_DISABLE_METRICS = '1'
-          $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
-          & $VCPKG_COMMAND install `
-            --triplet $env:VCPKG_ORT_TARGET_TRIPLET `
-            --overlay-triplets (Join-Path $env:GITHUB_WORKSPACE 'vcpkg-triplets') `
-            --x-install-root (Join-Path $env:GITHUB_WORKSPACE 'vcpkg_ort_installed') `
-            --x-manifest-root (Join-Path $env:GITHUB_WORKSPACE 'vendor' 'onnxruntime' 'cmake')
-
-      - name: Restore ccache_ort (Windows)
-        id: ccache-ort
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.CCACHE_ORT_DIR }}
-          key: ccache_ort-v2-${{ runner.os }}-x64-${{ steps.windows-build.outputs.WINDOWS_BUILD_VERSION }}-${{ steps.setup-buildspec-deps.outputs.CCACHE_VERSION }}-${{ steps.buildspec.outputs.windows_sdk_version }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            ccache_ort-v2-${{ runner.os }}-x64-${{ steps.windows-build.outputs.WINDOWS_BUILD_VERSION }}-${{ steps.setup-buildspec-deps.outputs.CCACHE_VERSION }}-${{ steps.buildspec.outputs.windows_sdk_version }}-${{ github.run_id }}-
-            ccache_ort-v2-${{ runner.os }}-x64-${{ steps.windows-build.outputs.WINDOWS_BUILD_VERSION }}-${{ steps.setup-buildspec-deps.outputs.CCACHE_VERSION }}-${{ steps.buildspec.outputs.windows_sdk_version }}-
-
-      - name: Reset ccache_ort stats
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        env:
-          CCACHE_COMMAND: ${{ steps.setup-buildspec-deps.outputs.CCACHE_COMMAND }}
-        run: |
-          & $env:CCACHE_COMMAND --zero-stats
-
-      - name: Configure ONNX Runtime (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        env:
-          CCACHE_COMMAND: ${{ steps.setup-buildspec-deps.outputs.CCACHE_COMMAND }}
-          CMAKE_SYSTEM_VERSION: ${{ steps.buildspec.outputs.windows_sdk_version }}
-          PYTHON_COMMAND: ${{ steps.setup-python.outputs.python-path }}
-        run: |
-          $CMAKE_TOOLCHAIN_FILE = Join-Path $env:VCPKG_ROOT 'scripts' 'buildsystems' 'vcpkg.cmake'
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          $env:VCPKG_DISABLE_METRICS = '1'
-          $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
-          $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
-          $NINJA_BINDIR = & $VCPKG_COMMAND fetch ninja | Select-Object -Last 1 | Split-Path -Parent
-
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-          $env:Path = "$CMAKE_BINDIR;$NINJA_BINDIR;$env:Path"
-
-          $env:CCACHE_BASEDIR = $env:GITHUB_WORKSPACE
-          $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE $env:CCACHE_ORT_DIR
-          $env:CCACHE_SLOPPINESS = 'include_file_mtime,time_macros'
-          cmake -S vendor/onnxruntime/cmake -B build_ort -G Ninja --compile-no-warning-as-error `
-            "-DCMAKE_BUILD_TYPE=Release" `
-            "-DCMAKE_C_COMPILER_LAUNCHER=$env:CCACHE_COMMAND" `
-            "-DCMAKE_CXX_COMPILER_LAUNCHER=$env:CCACHE_COMMAND" `
-            "-DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON" `
-            "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" `
-            "-DCMAKE_SYSTEM_VERSION=$env:CMAKE_SYSTEM_VERSION" `
-            "-DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE" `
-            "-DPython_EXECUTABLE=$env:PYTHON_COMMAND" `
-            "-DVCPKG_INSTALLED_DIR=$(Join-Path $env:GITHUB_WORKSPACE 'vcpkg_ort_installed')" `
-            "-DVCPKG_MANIFEST_INSTALL=OFF" `
-            "-DVCPKG_OVERLAY_TRIPLETS=$(Join-Path $env:GITHUB_WORKSPACE 'vcpkg-triplets')" `
-            "-DVCPKG_TARGET_TRIPLET=$env:VCPKG_ORT_TARGET_TRIPLET" `
-            "-Donnxruntime_BUILD_SHARED_LIB=OFF" `
-            "-Donnxruntime_BUILD_UNIT_TESTS=OFF" `
-            "-Donnxruntime_DISABLE_RTTI=OFF" `
-            "-Donnxruntime_RUN_ONNX_TESTS=OFF" `
-            "-Donnxruntime_USE_VCPKG=ON"
-
-      - name: Build ONNX Runtime (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          $env:VCPKG_DISABLE_METRICS = '1'
-          $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
-          $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
-          $NINJA_BINDIR = & $VCPKG_COMMAND fetch ninja | Select-Object -Last 1 | Split-Path -Parent
-
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-          $env:Path = "$CMAKE_BINDIR;$NINJA_BINDIR;$env:Path"
-
-          $env:CCACHE_BASEDIR = $env:GITHUB_WORKSPACE
-          $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE $env:CCACHE_ORT_DIR
-          $env:CCACHE_SLOPPINESS = 'include_file_mtime,time_macros'
-          cmake --build build_ort --config Release --parallel
-
-      - name: Install ONNX Runtime (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          $env:VCPKG_DISABLE_METRICS = '1'
-          $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
-          $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
-          $env:Path = "$CMAKE_BINDIR;$env:Path"
-
-          cmake --install build_ort --config Release --prefix ort_installed
-
-      - name: Save ccache_ort
-        if: success() && steps.ccache-ort.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.CCACHE_ORT_DIR }}
-          key: ${{ steps.ccache-ort.outputs.cache-primary-key }}
-
-      - name: Show ccache_ort stats
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        env:
-          CCACHE_COMMAND: ${{ steps.setup-buildspec-deps.outputs.CCACHE_COMMAND }}
-        run: |
-          & $env:CCACHE_COMMAND --show-stats | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+        run: cmake -P scripts/download-deps.cmake
 
       - name: Configure (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         env:
-          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }};${{ github.workspace }}\vcpkg_ort_installed\${{ env.VCPKG_ORT_TARGET_TRIPLET }};${{ github.workspace }}\ort_installed;${{ github.workspace }}\vcpkg_installed\${{ env.VCPKG_TARGET_TRIPLET }}
+          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }}
           CMAKE_SYSTEM_VERSION: ${{ steps.buildspec.outputs.windows_sdk_version }}
         run: |
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          $env:VCPKG_DISABLE_METRICS = '1'
-          $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
-          $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
-          $NINJA_BINDIR = & $VCPKG_COMMAND fetch ninja | Select-Object -Last 1 | Split-Path -Parent
-
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-          $env:Path = "$CMAKE_BINDIR;$NINJA_BINDIR;$env:Path"
-
-          cmake -S . -B build -G Ninja `
-            "-DCMAKE_BUILD_TYPE=RelWithDebInfo" `
+          $env:Path = 'C:\Program Files\CMake\bin;C:\Program Files\Git\cmd;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
+          cmake -S . -B build -G 'Visual Studio 18 2026' -A x64 `
             "-DCMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH" `
             "-DCMAKE_SYSTEM_VERSION=$env:CMAKE_SYSTEM_VERSION"
 
       - name: Build (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          $env:VCPKG_DISABLE_METRICS = '1'
-          $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
-          $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
-          $NINJA_BINDIR = & $VCPKG_COMMAND fetch ninja | Select-Object -Last 1 | Split-Path -Parent
-
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-          $env:Path = "$CMAKE_BINDIR;$NINJA_BINDIR;$env:Path"
-
+          $env:Path = 'C:\Program Files\CMake\bin;C:\Program Files\Git\cmd;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
           cmake --build build --config RelWithDebInfo --parallel
 
       - name: Package ZIP artifact (Windows)
@@ -298,12 +101,6 @@ jobs:
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
           $ZIP_ARTIFACT_NAME = "obs-backgroundremoval-$($env:PLUGIN_VERSION)-windows-x64.zip"
-          $VCPKG_COMMAND = Join-Path $env:VCPKG_ROOT 'vcpkg.exe'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          $env:VCPKG_DISABLE_METRICS = '1'
-          $env:VCPKG_FORCE_DOWNLOADED_BINARIES = '1'
-          $CMAKE_BINDIR = & $VCPKG_COMMAND fetch cmake | Select-Object -Last 1 | Split-Path -Parent
-          $env:Path = "$CMAKE_BINDIR;$env:Path"
 
           cmake --install build --config RelWithDebInfo --prefix build_package/obs-studio/plugins
           Copy-Item -Path 'docs\windows\INSTALL.html' -Destination build_package -Force
@@ -381,26 +178,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install OBS Studio (Windows)
+        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        run: winget install --id OBSProject.OBSStudio --exact --silent --accept-package-agreements --accept-source-agreements
+
       - name: Install scenario test dependencies (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
-          $buildspec = Get-Content -LiteralPath buildspec.props -Raw | ConvertFrom-StringData
-          $archive = Join-Path $env:RUNNER_TEMP 'obs-studio-windows-x64.zip'
-          $destination = Join-Path $env:RUNNER_TEMP 'obs-studio-windows-x64'
-          Invoke-WebRequest -Uri $buildspec.obs_studio_windows_x64_url -OutFile $archive
-          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
-          if ($actualHash -ne $buildspec.obs_studio_windows_x64_sha256) {
-            throw "OBS Studio archive hash mismatch: $actualHash"
-          }
-          Expand-Archive -LiteralPath $archive -DestinationPath $destination
-
-          $obsExecutable = Get-ChildItem -LiteralPath $destination -Filter obs64.exe -File -Recurse |
-            Where-Object { $_.FullName -match '[\\/]bin[\\/]64bit[\\/]obs64\.exe$' } |
-            Select-Object -First 1
-          if (-not $obsExecutable) {
-            throw 'obs64.exe was not found in the official OBS Studio archive.'
-          }
-          Add-Content -LiteralPath $env:GITHUB_ENV -Value "GUI_SCENARIO_OBS_EXECUTABLE=$($obsExecutable.FullName)" -Encoding utf8
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value 'GUI_SCENARIO_OBS_EXECUTABLE=C:\Program Files\obs-studio\bin\64bit\obs64.exe' -Encoding utf8
 
       - name: Download ZIP artifact (Windows)
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
