@@ -116,45 +116,6 @@ jobs:
 
       # END: Set up toolchains
 
-      - name: Configure OBS Studio (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        env:
-          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }}
-          CMAKE_SYSTEM_VERSION: ${{ steps.buildspec.outputs.windows_sdk_version }}
-          OBS_VERSION_OVERRIDE: ${{ steps.buildspec.outputs.obs_studio_git_tag }}
-        run: |
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-
-          cmake -S vendor/obs-studio -B build_obs -G 'Visual Studio 18 2026' -A x64 `
-            "-DCMAKE_BUILD_TYPE=Release" `
-            "-DCMAKE_INSTALL_PREFIX=$(Join-Path $env:GITHUB_WORKSPACE 'obs_installed')" `
-            "-DCMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH" `
-            "-DCMAKE_SYSTEM_VERSION=$env:CMAKE_SYSTEM_VERSION" `
-            "-DENABLE_FRONTEND=OFF" `
-            "-DENABLE_PLUGINS=OFF" `
-            "-DOBS_CMAKE_VERSION=3.0.0" `
-            "-DOBS_VERSION_OVERRIDE=$env:OBS_VERSION_OVERRIDE"
-
-      - name: Build OBS Studio (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-
-          cmake --build build_obs --target obs-frontend-api --config Release --parallel
-
-      - name: Install OBS Studio (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-
-          cmake --install build_obs --component Development --config Release --prefix obs_installed
-
       - name: Install vcpkg dependencies (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
@@ -293,7 +254,7 @@ jobs:
       - name: Configure (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         env:
-          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }};${{ github.workspace }}\obs_installed;${{ github.workspace }}\vcpkg_ort_installed\${{ env.VCPKG_ORT_TARGET_TRIPLET }};${{ github.workspace }}\ort_installed;${{ github.workspace }}\vcpkg_installed\${{ env.VCPKG_TARGET_TRIPLET }}
+          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }};${{ github.workspace }}\vcpkg_ort_installed\${{ env.VCPKG_ORT_TARGET_TRIPLET }};${{ github.workspace }}\ort_installed;${{ github.workspace }}\vcpkg_installed\${{ env.VCPKG_TARGET_TRIPLET }}
           CMAKE_SYSTEM_VERSION: ${{ steps.buildspec.outputs.windows_sdk_version }}
         run: |
           $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'

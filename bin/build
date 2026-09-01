@@ -32,86 +32,22 @@ arch() {
 }
 
 macos() {
-  : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
-  export PLUGIN_BUILD_DIR
-
-  : "${CMAKE_OSX_DEPLOYMENT_TARGET:=13.0}"
-  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
-  export CMAKE_OSX_DEPLOYMENT_TARGET VCPKG_BINARY_SOURCES VCPKG_ROOT
-
-  if [[ "${X86_64+set}" != 'set' ]] && [[ "$(uname -m)" == 'x86_64' ]]; then
-    X86_64=1
-  fi
-  export X86_64
-
-  if [[ "${X86_64:-0}" == '0' ]]; then
-    : "${CMAKE_OSX_ARCHITECTURES:=arm64}"
-  else
-    : "${CMAKE_OSX_ARCHITECTURES:=x86_64}"
-  fi
-  export CMAKE_OSX_ARCHITECTURES
-
-  local obs_studio_git_tag
-  eval "$(awk '/^obs_studio_git_tag=/ { print }' buildspec.props)"
-
-  CMAKE_COMMAND="$(PATH=/usr/bin:/bin "${VCPKG_ROOT:?}/vcpkg" fetch cmake | tail -n1)"
-  export CMAKE_COMMAND
-  printf "INFO: cmake found at %s\n" "${CMAKE_COMMAND:?}" >&2
-
-  NINJA_COMMAND="$(PATH=/usr/bin:/bin "${VCPKG_ROOT:?}/vcpkg" fetch ninja | tail -n1)"
-  export NINJA_COMMAND
-  printf "INFO: ninja found at %s\n" "${NINJA_COMMAND:?}" >&2
-
-  export PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:/usr/bin:/bin"
-  printf 'INFO: PATH set to %s\n' "$PATH" >&2
-
-  "${VCPKG_ROOT:?}/vcpkg" install --triplet="${VCPKG_TARGET_TRIPLET:-arm64-osx-obs}" --x-install-root="${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_installed"
-  printf "INFO: vcpkg dependencies were installed at %q\n" "${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_installed" >&2
-
-  cmake \
-    -S "${PLUGIN_BUILD_DIR:-${PWD:?}}/vendor/obs-studio" \
-    -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_obs" \
-    -G "Xcode" \
-    -DCMAKE_INSTALL_PREFIX="${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed" \
-    -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-    -DCMAKE_PREFIX_PATH="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps;${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6" \
-    -DENABLE_FRONTEND=OFF \
-    -DENABLE_PLUGINS=OFF \
-    -DOBS_CMAKE_VERSION=3.0.0 \
-    -DOBS_VERSION_OVERRIDE="${obs_studio_git_tag:-32.0.0}"
-  printf "INFO: obs-studio was configured\n" >&2
-
-  cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_obs" --target obs-frontend-api --config Release --parallel
-  printf "INFO: obs-studio was built\n" >&2
-
-  cmake --install "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_obs" --component Development --config Release --prefix "${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed"
-  printf "INFO: obs-studio was installed\n" >&2
+  local osx_deployment_target
+  osx_deployment_target="$(awk -F= '$1 == "osx_deployment_target" { print $2; exit }' buildspec.props)"
 
   cmake \
     -S "${PWD:?}" \
     -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
     -G Xcode \
-    -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-    -DCMAKE_PREFIX_PATH="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps;${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed/Frameworks"
+    "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" \
+    "-DCMAKE_OSX_DEPLOYMENT_TARGET=${osx_deployment_target:?}" \
+    "-DCMAKE_PREFIX_PATH=${PWD:?}/.deps/obs-deps-qt6"
   printf "INFO: plugin was configured\n" >&2
 
   cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --config RelWithDebInfo --parallel
   printf "INFO: plugin was built\n" >&2
-
-  cmake --install "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --config RelWithDebInfo --prefix "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_prefix"
-
-  local plugin_bundle_path="${PLUGIN_BUILD_DIR:-${PWD:?}}/build_prefix/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin"
-  if ! [[ -d "${plugin_bundle_path:?}" ]]; then
-    printf "ERROR: plugin bundle was not found\n" >&2
-    exit 1
-  fi
-
-  codesign -f -s - -o runtime "${plugin_bundle_path:?}"
-
   printf 'INFO: Run the following command to install the plugin into OBS Studio:\n' >&2
-  printf "INFO: ditto --norsrc %q %q\n" "${plugin_bundle_path:?}" "$HOME/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin" >&2
+  printf "  cmake --install %q --config RelWithDebInfo --prefix ~ && codesign -f -s - -o runtime %q\n" "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" "${HOME:?}/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin" >&2
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

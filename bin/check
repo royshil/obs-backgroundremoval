@@ -22,7 +22,7 @@ check_clang_format()
 check_gersemi()
 {
 	git ls-files -z CMakeLists.txt '*.cmake' |
-		xargs -0 -n 1 sh -c 'gersemi --config .gersemirc --check - < "$1"' sh
+		xargs -0 -n 1 gersemi --config .gersemirc --check
 }
 
 check_reuse()
