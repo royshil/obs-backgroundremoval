@@ -3,6 +3,10 @@
   "dependencies": [
     "cpuinfo",
     {
+      "name": "ncnn",
+      "platform": "linux"
+    },
+    {
       "name": "opencv4",
       "default-features": false,
       "features": [

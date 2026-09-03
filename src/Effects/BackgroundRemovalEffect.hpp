@@ -8,20 +8,20 @@
 
 #include <obs.h>
 
-namespace BackgroundRemoval::Detail {
+namespace Effects {
 
-class MainEffect final {
+class BackgroundRemovalEffect final {
 public:
-	MainEffect();
-	~MainEffect() noexcept;
+	BackgroundRemovalEffect();
+	~BackgroundRemovalEffect() noexcept;
 
-	MainEffect(const MainEffect &) = delete;
-	MainEffect(MainEffect &&) = delete;
-	auto operator=(const MainEffect &) -> MainEffect & = delete;
-	auto operator=(MainEffect &&) -> MainEffect & = delete;
+	BackgroundRemovalEffect(const BackgroundRemovalEffect &) = delete;
+	BackgroundRemovalEffect(BackgroundRemovalEffect &&) = delete;
+	auto operator=(const BackgroundRemovalEffect &) -> BackgroundRemovalEffect & = delete;
+	auto operator=(BackgroundRemovalEffect &&) -> BackgroundRemovalEffect & = delete;
 
-	void drawSource(gs_texture_t *targetTexture, obs_source_t *source) const noexcept;
-	void packModelInput(gs_texture_t *targetTexture, gs_texture_t *sourceTexture) const noexcept;
+	void renderSource(gs_texture_t *targetTexture, obs_source_t *source) const noexcept;
+	void extractScaledRGBPlanes(gs_texture_t *targetTexture, gs_texture_t *sourceTexture) const noexcept;
 	void focalBlur(gs_texture_t *targetTexture, gs_texture_t *sourceTexture, gs_texture_t *focalMaskTexture,
 		       std::int64_t iteration, std::int64_t total, float focusPoint, float focusDepth) const noexcept;
 	void directDrawWithBlurredBackground(gs_texture_t *sourceTexture, gs_texture_t *alphaMaskTexture,
@@ -42,4 +42,4 @@ private:
 	gs_eparam_t *const blurFocusDepth_;
 };
 
-} // namespace BackgroundRemoval::Detail
+} // namespace Effects

@@ -38,6 +38,7 @@
       }
     }
   },
+  "postCreateCommand": "git submodule update --init --filter=blob:none vendor/ncnn",
   "postStartCommand": {
     "start-vnc": ".devcontainer/debian-forky/start-vnc.sh",
     "fix-codex-permissions": "sudo chown -R vscode:vscode /home/vscode/.codex"

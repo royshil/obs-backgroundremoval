@@ -7,8 +7,10 @@
 .venv/
 __pycache__/
 
+.ccache*/
 .venv*/
-*.pyc
+build_*/
+*_installed/
 
 /.deps/
 /.vcpkg_archives/
@@ -16,7 +18,3 @@ __pycache__/
 /docs/build/
 /docs/dist/
 /release/
-
-/.ccache*/
-/*_installed/
-/build_*/

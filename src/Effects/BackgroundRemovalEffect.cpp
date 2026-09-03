@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "MainEffect.hpp"
+#include "Effects/BackgroundRemovalEffect.hpp"
 
 #include <stdexcept>
 
-namespace BackgroundRemoval::Detail {
+namespace Effects {
 namespace {
 
 constexpr const char *backgroundRemovalEffectSource = R"effect(
@@ -58,7 +58,7 @@ float4 PSDraw(VertDataOut v_in) : TARGET
 	return image.Sample(textureSampler, v_in.uv);
 }
 
-float4 PSPackModelInput(VertDataOut v_in) : TARGET
+float4 PSExtractScaledRGBPlanes(VertDataOut v_in) : TARGET
 {
 	float packedY = v_in.uv.y * 3.0;
 	int plane = min(int(packedY), 2);
@@ -142,12 +142,12 @@ technique Draw
 	}
 }
 
-technique PackModelInput
+technique ExtractScaledRGBPlanes
 {
 	pass
 	{
 		vertex_shader = VSDefault(v_in);
-		pixel_shader = PSPackModelInput(v_in);
+		pixel_shader = PSExtractScaledRGBPlanes(v_in);
 	}
 }
 )effect";
@@ -159,7 +159,7 @@ public:
 		  previousZStencil_(gs_get_zstencil_target()),
 		  previousColorSpace_(gs_get_color_space())
 	{
-		gs_set_render_target_with_color_space(targetTexture, nullptr, GS_CS_709_EXTENDED);
+		gs_set_render_target_with_color_space(targetTexture, nullptr, GS_CS_SRGB);
 		gs_viewport_push();
 		gs_projection_push();
 		gs_matrix_push();
@@ -203,7 +203,7 @@ auto getEffectParameter(gs_effect_t *effect, const char *name) noexcept -> gs_ep
 
 } // namespace
 
-MainEffect::MainEffect()
+BackgroundRemovalEffect::BackgroundRemovalEffect()
 	: effect_(gs_effect_create(backgroundRemovalEffectSource, "background_removal.effect", nullptr)),
 	  image_(getEffectParameter(effect_, "image")),
 	  alphaMask_(getEffectParameter(effect_, "alphamask")),
@@ -227,12 +227,12 @@ MainEffect::MainEffect()
 	}
 }
 
-MainEffect::~MainEffect() noexcept
+BackgroundRemovalEffect::~BackgroundRemovalEffect() noexcept
 {
 	gs_effect_destroy(effect_);
 }
 
-void MainEffect::drawSource(gs_texture_t *targetTexture, obs_source_t *source) const noexcept
+void BackgroundRemovalEffect::renderSource(gs_texture_t *targetTexture, obs_source_t *source) const noexcept
 {
 	TextureRenderGuard renderGuard(targetTexture);
 	vec4 clearColor;
@@ -243,19 +243,20 @@ void MainEffect::drawSource(gs_texture_t *targetTexture, obs_source_t *source) c
 	}
 }
 
-void MainEffect::packModelInput(gs_texture_t *targetTexture, gs_texture_t *sourceTexture) const noexcept
+void BackgroundRemovalEffect::extractScaledRGBPlanes(gs_texture_t *targetTexture,
+						     gs_texture_t *sourceTexture) const noexcept
 {
 	TextureRenderGuard renderGuard(targetTexture);
 	gs_effect_set_texture(image_, sourceTexture);
-	while (gs_effect_loop(effect_, "PackModelInput")) {
+	while (gs_effect_loop(effect_, "ExtractScaledRGBPlanes")) {
 		gs_draw_sprite(sourceTexture, 0, gs_texture_get_width(targetTexture),
 			       gs_texture_get_height(targetTexture));
 	}
 }
 
-void MainEffect::focalBlur(gs_texture_t *targetTexture, gs_texture_t *sourceTexture, gs_texture_t *focalMaskTexture,
-			   std::int64_t iteration, std::int64_t total, float focusPoint,
-			   float focusDepth) const noexcept
+void BackgroundRemovalEffect::focalBlur(gs_texture_t *targetTexture, gs_texture_t *sourceTexture,
+					gs_texture_t *focalMaskTexture, std::int64_t iteration, std::int64_t total,
+					float focusPoint, float focusDepth) const noexcept
 {
 	TextureRenderGuard renderGuard(targetTexture);
 	gs_effect_set_texture(image_, sourceTexture);
@@ -273,8 +274,9 @@ void MainEffect::focalBlur(gs_texture_t *targetTexture, gs_texture_t *sourceText
 	}
 }
 
-void MainEffect::directDrawWithBlurredBackground(gs_texture_t *sourceTexture, gs_texture_t *alphaMaskTexture,
-						 gs_texture_t *blurredBackgroundTexture) const noexcept
+void BackgroundRemovalEffect::directDrawWithBlurredBackground(gs_texture_t *sourceTexture,
+							      gs_texture_t *alphaMaskTexture,
+							      gs_texture_t *blurredBackgroundTexture) const noexcept
 {
 	while (gs_effect_loop(effect_, "DrawWithFocalBlur")) {
 		gs_effect_set_texture(image_, sourceTexture);
@@ -284,7 +286,8 @@ void MainEffect::directDrawWithBlurredBackground(gs_texture_t *sourceTexture, gs
 	}
 }
 
-void MainEffect::directDrawWithoutBlur(gs_texture_t *sourceTexture, gs_texture_t *alphaMaskTexture) const noexcept
+void BackgroundRemovalEffect::directDrawWithoutBlur(gs_texture_t *sourceTexture,
+						    gs_texture_t *alphaMaskTexture) const noexcept
 {
 	while (gs_effect_loop(effect_, "DrawWithoutBlur")) {
 		gs_effect_set_texture(image_, sourceTexture);
@@ -293,4 +296,4 @@ void MainEffect::directDrawWithoutBlur(gs_texture_t *sourceTexture, gs_texture_t
 	}
 }
 
-} // namespace BackgroundRemoval::Detail
+} // namespace Effects

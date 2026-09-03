@@ -63,7 +63,6 @@ jobs:
             git \
             libcurl4-openssl-dev \
             libobs-dev \
-            libonnxruntime-dev \
             libopencv-dev \
             qt6-base-dev
 
@@ -71,6 +70,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Checkout ncnn submodule (Ubuntu)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: git submodule update --init --filter=blob:none vendor/ncnn
 
       - name: Print artifact names (Ubuntu)
         id: artifact-names
@@ -86,8 +89,16 @@ jobs:
 
       - name: Configure (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          ARCH: ${{ inputs.arm64 && 'arm64' || 'amd64' }}
         run: |
+          CMAKE_OPTIONS=()
+          if [[ "${ARCH:?}" == 'amd64' ]]; then
+            CMAKE_OPTIONS+=("-DENABLE_AVX2=OFF")
+          fi
+
           cmake -S "${GITHUB_WORKSPACE:?}" -B build \
+            "${CMAKE_OPTIONS[@]}" \
             "-DCMAKE_BUILD_TYPE=RelWithDebInfo" \
             "-DCMAKE_INSTALL_PREFIX=/usr" \
             "-DCPACK_GENERATOR=DEB" \
