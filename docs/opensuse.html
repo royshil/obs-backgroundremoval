@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2026 Troed Sångberg <github@troed.se>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><link rel="icon" href="favicon.ico" /><link rel="stylesheet" href="global.css" type="text/css" />
+
+<title>Install on openSUSE</title>
+
+</head><body><main class="white-box">
+
+<h1>Building and installing on openSUSE</h1>
+
+<p>Tested on openSUSE Tumbleweed.</p>
+
+<pre><code>
+sudo zypper install --no-recommends cmake ninja git \
+  gcc gcc-c++ libcurl-devel qt6-base-devel obs-studio-devel \
+  opencv-devel onnxruntime-devel simde-devel
+git clone https://github.com/royshil/obs-backgroundremoval.git
+cd obs-backgroundremoval
+cmake -S . -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build --config RelWithDebInfo --parallel
+sudo cmake --install build --config RelWithDebInfo --prefix /usr
+</code></pre>
+
+<p>If you use OBS Studio from a different source (e.g. Flatpak), adjust the
+install prefix accordingly.</p>
+
+<nav><a href="index.html">Back to Top</a></nav>
+
+</main></body>
+</html>

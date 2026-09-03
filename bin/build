@@ -31,6 +31,15 @@ arch() {
   printf '  sudo cmake --install %q --prefix /usr\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_plugin"
 }
 
+opensuse() {
+  cmake -G Ninja -S "${PWD:?}" -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build"
+
+  cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build"
+
+  printf 'Run the following command to install the plugin:\n'
+  printf '  sudo cmake --install %q --prefix /usr\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/build"
+}
+
 macos() {
   local osx_deployment_target
   osx_deployment_target="$(awk -F= '$1 == "osx_deployment_target" { print $2; exit }' buildspec.props)"
@@ -66,6 +75,8 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     "${ID:?}_${VERSION_CODENAME:?}" "$@"
   elif [[ "$ID" == 'arch' ]]; then
     arch
+  elif [[ "$ID" == 'opensuse-tumbleweed' ]]; then
+    opensuse "$@"
   else
     printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
     exit 1

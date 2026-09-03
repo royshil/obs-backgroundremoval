@@ -43,6 +43,27 @@ ubuntu_resolute() {
     zip
 }
 
+opensuse() {
+  zypper --non-interactive --no-recommends install \
+    ca-certificates \
+    cmake \
+    curl \
+    file \
+    gcc \
+    gcc-c++ \
+    git \
+    libcurl-devel \
+    ninja \
+    obs-studio-devel \
+    onnxruntime-devel \
+    opencv-devel \
+    qt6-base-devel \
+    simde-devel \
+    tar \
+    unzip \
+    zip
+}
+
 macos() {
   brew install cmake
 }
@@ -56,6 +77,8 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     macos
   elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID}_$VERSION_CODENAME" >/dev/null; then
     "${ID}_$VERSION_CODENAME"
+  elif [[ "$ID" == 'opensuse-tumbleweed' ]]; then
+    opensuse
   else
     printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
     exit 1

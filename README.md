@@ -67,6 +67,10 @@ The supported platforms are:
 
 - Debian Forky (x86_64 and arm64)
 
+Other platforms with community-tested instructions:
+
+- openSUSE Tumbleweed — see [Building on openSUSE](https://royshil.github.io/obs-backgroundremoval/opensuse.html)
+
 We plan to add building scripts for popular platforms such as Windows, Mac, and various distributions of Linux.
 
 ## Introduction
