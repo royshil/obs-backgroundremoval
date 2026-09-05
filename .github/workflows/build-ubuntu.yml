@@ -65,12 +65,14 @@ jobs:
             libobs-dev \
             libonnxruntime-dev \
             libopencv-dev \
-            qt6-base-dev
+            qt6-base-dev \
+            uuid-dev
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          submodules: recursive
 
       - name: Print artifact names (Ubuntu)
         id: artifact-names
@@ -100,7 +102,7 @@ jobs:
 
       - name: Test (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build --build-config RelWithDebInfo --output-on-failure
 
       - name: Package deb and ddeb artifacts (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}

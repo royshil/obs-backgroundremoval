@@ -10,17 +10,12 @@ if not exist "buildspec.props" (
 
 setlocal
 
-set "VCPKG_FORCE_DOWNLOADED_BINARIES=1"
-set "VCPKG_ROOT=%CD%\vendor\vcpkg"
+echo == Ensure Visual Studio toolchain ==
 
-echo == Ensure vcpkg and its toolchains ==
+git submodule update --init --filter=blob:none vendor/obs-studio || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
 
-git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg vendor/onnxruntime || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
-
-call "%VCPKG_ROOT%\bootstrap-vcpkg.bat" -disableMetrics || (echo ERROR: vcpkg bootstrap failed. & endlocal & exit /b 1)
-
-for /f "delims=" %%i in ('""%VCPKG_ROOT%\vcpkg.exe" fetch vswhere"') do set "VSWHERE_COMMAND=%%i"
-if not defined VSWHERE_COMMAND (
+set "VSWHERE_COMMAND=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE_COMMAND%" (
 	echo ERROR: Vswhere was not found. & endlocal & exit /b 1
 )
 

@@ -7,16 +7,14 @@
 macos() {
   : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
 
-  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
-
   JOB_TEMP="$(mktemp -d -t "obs-backgroundremoval-setup.XXXXXXX")"
   export JOB_TEMP
   mkdir -p "${JOB_TEMP:?}"
 
-  if ! [[ -e "${VCPKG_ROOT:?}/vcpkg" ]]; then
-    "${VCPKG_ROOT:?}/bootstrap-vcpkg.sh" -disableMetrics
-    printf 'INFO: vcpkg was bootstrapped\n' >&2
-  fi
+  command -v cmake >/dev/null || {
+    printf 'ERROR: CMake was not found. Run bin/bootstrap first.\n' >&2
+    return 1
+  }
 
   cmake -P scripts/download-deps.cmake
 }

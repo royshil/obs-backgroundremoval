@@ -70,12 +70,14 @@ jobs:
             libobs-dev \
             libonnxruntime-dev \
             libopencv-dev \
-            qt6-base-dev
+            qt6-base-dev \
+            uuid-dev
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          submodules: recursive
 
       - name: Load VERSION
         id: version
@@ -104,7 +106,7 @@ jobs:
       - name: Test (Debian)
         shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
         working-directory: /home/runner
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build --build-config RelWithDebInfo --output-on-failure
 
       - name: Package (Debian)
         shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}

@@ -301,7 +301,7 @@ class LinuxAboutDialogOnStartupTest(unittest.TestCase):
         """ST-2000.7 about-dialog-on-startup-notification-save-failure"""
         write_update_config("[update]", "version=0.0.0", "check_for_updates=false")
         log_path = run_obs_phase("about-dialog-on-startup-notification-save-failure", update_config_write_failure)
-        warning = "[obs-backgroundremoval] Failed to save update config"
+        warning = "[obs-backgroundremoval] Failed to save the update notification setting to update.ini"
         require_log(log_path, warning)
         shutil.copy2(UPDATE_CONFIG, ARTIFACTS / "update-notification-save-failure.ini")
         record_fault("about-dialog-on-startup-notification-save-failure", warning)
@@ -311,7 +311,7 @@ class LinuxAboutDialogOnStartupTest(unittest.TestCase):
         UPDATE_CONFIG.unlink(missing_ok=True)
         run_update_config_write_failures(
             "about-dialog-on-startup-update-open-failure",
-            "[obs-backgroundremoval] Failed to open update config",
+            "Failed to open update config",
         )
         self.assertFalse(UPDATE_CONFIG.exists(), "update.ini was unexpectedly created in a read-only directory")
 
@@ -320,7 +320,7 @@ class LinuxAboutDialogOnStartupTest(unittest.TestCase):
         write_update_config("[update]", "version=0.0.0")
         run_update_config_write_failures(
             "about-dialog-on-startup-update-save-failure",
-            "[obs-backgroundremoval] Failed to save update config",
+            "Failed to save update config",
         )
         self.assertIn(
             "version=0.0.0",
@@ -338,7 +338,7 @@ class LinuxAboutDialogOnStartupTest(unittest.TestCase):
             for attempt in range(1, 3):
                 phase = f"about-dialog-on-startup-unwritable-temporary-file-{attempt}"
                 log_path = run_obs_phase(phase, lambda: repeated_run(0.5))
-                warning = "[obs-backgroundremoval] Failed to save update config"
+                warning = "Failed to save update config"
                 require_log(log_path, warning)
                 record_fault(phase, warning)
         finally:
@@ -355,7 +355,7 @@ class LinuxAboutDialogOnStartupTest(unittest.TestCase):
             for attempt in range(1, 3):
                 phase = f"about-dialog-on-startup-temporary-directory-{attempt}"
                 log_path = run_obs_phase(phase, lambda: repeated_run(0.5))
-                warning = "[obs-backgroundremoval] Failed to save update config"
+                warning = "Failed to save update config"
                 require_log(log_path, warning)
                 record_fault(phase, warning)
         finally:

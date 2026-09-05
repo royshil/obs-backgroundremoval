@@ -1,12 +1,15 @@
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 #pragma once
+
+#include <httplib.h>
 
 #include <chrono>
 #include <memory>
 #include <string>
+#include <thread>
 
 namespace TestHelpers {
 
@@ -24,8 +27,9 @@ public:
 	[[nodiscard]] std::string url() const;
 
 private:
-	class Impl;
-	std::unique_ptr<Impl> impl_;
+	std::unique_ptr<httplib::Server> server_;
+	int port_ = 0;
+	std::thread worker_;
 };
 
 } // namespace TestHelpers

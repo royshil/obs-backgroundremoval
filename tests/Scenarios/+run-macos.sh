@@ -88,6 +88,7 @@ run_scenario() {
   else
     require_command cmake
     cmake --install "${build_root}/build" --config RelWithDebInfo --prefix "${workdir}"
+    codesign --sign - --force --options runtime "${plugin_root}/obs-backgroundremoval.plugin"
   fi
   plugin_bundle="${plugin_root}/obs-backgroundremoval.plugin"
   obs_executable="${OBS_EXECUTABLE:-/Applications/OBS.app/Contents/MacOS/OBS}"
