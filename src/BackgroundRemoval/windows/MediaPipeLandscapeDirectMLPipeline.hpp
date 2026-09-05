@@ -70,7 +70,7 @@ private:
 	static constexpr std::uint32_t modelHeight = 144;
 	static constexpr std::size_t modelPixelCount = static_cast<std::size_t>(modelWidth) * modelHeight;
 
-	std::unique_ptr<BaselineDmlProgram> program_;
+	std::unique_ptr<BaselineDml::BaselineDmlProgram> program_;
 	const std::uint32_t width_;
 	const std::uint32_t height_;
 	obs_source_t *const source_;

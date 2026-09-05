@@ -14,7 +14,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -25,12 +24,11 @@
 #include <DirectML.h>
 #include <wrl/client.h>
 
-namespace BackgroundRemoval {
+namespace BaselineDml {
 namespace {
 
 using Microsoft::WRL::ComPtr;
-using TensorId = std::uint32_t;
-constexpr TensorId noTensor = (std::numeric_limits<TensorId>::max)();
+constexpr TensorId noTensor = -1;
 
 void check(HRESULT result, const char *operation)
 {
@@ -121,7 +119,7 @@ auto bindingDesc(const DML_BUFFER_BINDING *binding) -> DML_BINDING_DESC
 
 class BaselineDmlProgram::Impl final {
 public:
-	explicit Impl(const BaselineDml::Graph &graph, std::span<const std::byte> weights)
+	explicit Impl(const Graph &graph, std::span<const std::byte> weights)
 	{
 		check(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice_)),
 		      "D3D12CreateDevice");
@@ -220,7 +218,7 @@ private:
 	{
 		for (std::size_t index = 0; index < storages_.size(); ++index) {
 			auto &storage = storages_[index];
-			const auto state = index == tensors_.at(inputTensor_).storage
+			const auto state = std::cmp_equal(index, tensors_.at(inputTensor_).storage)
 						   ? D3D12_RESOURCE_STATE_COPY_DEST
 						   : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 			storage.resource = createBuffer(d3dDevice_.Get(), storage.size, D3D12_HEAP_TYPE_DEFAULT, state,
@@ -230,18 +228,27 @@ private:
 					    D3D12_RESOURCE_STATE_GENERIC_READ);
 		readback_ = createBuffer(d3dDevice_.Get(), outputSize_, D3D12_HEAP_TYPE_READBACK,
 					 D3D12_RESOURCE_STATE_COPY_DEST);
-		weightUpload_ = createBuffer(d3dDevice_.Get(), weightBytes_, D3D12_HEAP_TYPE_UPLOAD,
-					     D3D12_RESOURCE_STATE_GENERIC_READ);
-		void *mapped = nullptr;
-		check(weightUpload_->Map(0, nullptr, &mapped), "Map generated weight upload buffer");
-		for (const auto &tensor : tensors_) {
-			if (tensor.weight) {
-				std::memcpy(static_cast<std::byte *>(mapped) + tensor.weightOffset,
-					    weights.data() + tensor.weightSourceOffset,
-					    tensor.weightCount * sizeof(float));
+		if (weightBytes_) {
+			weightUpload_ = createBuffer(d3dDevice_.Get(), weightBytes_, D3D12_HEAP_TYPE_UPLOAD,
+						     D3D12_RESOURCE_STATE_GENERIC_READ);
+			weight_ = createBuffer(d3dDevice_.Get(), weightBytes_, D3D12_HEAP_TYPE_DEFAULT,
+					       D3D12_RESOURCE_STATE_COPY_DEST,
+					       D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+			void *mapped = nullptr;
+			check(weightUpload_->Map(0, nullptr, &mapped), "Map generated weight upload buffer");
+			for (const auto &tensor : tensors_) {
+				if (tensor.weight) {
+					std::memcpy(static_cast<std::byte *>(mapped) + tensor.weightOffset,
+						    weights.data() + static_cast<std::size_t>(tensor.byteOffset),
+						    static_cast<std::size_t>(tensor.weightCount) * sizeof(float));
+				}
 			}
+			weightUpload_->Unmap(0, nullptr);
+			commandList_->CopyBufferRegion(weight_.Get(), 0, weightUpload_.Get(), 0, weightBytes_);
+			auto weightBarrier = transition(weight_.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+							D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			commandList_->ResourceBarrier(1, &weightBarrier);
 		}
-		weightUpload_->Unmap(0, nullptr);
 
 		std::uint64_t temporarySize = 0;
 		std::uint32_t descriptorCount = 0;
@@ -335,8 +342,7 @@ private:
 				const auto id = step.inputs[index];
 				if (id != noTensor && tensors_.at(id).weight) {
 					const auto &tensor = tensors_.at(id);
-					buffers[index] =
-						bufferBinding(weightUpload_.Get(), tensor.weightOffset, tensor.size);
+					buffers[index] = bufferBinding(weight_.Get(), tensor.weightOffset, tensor.size);
 				}
 			}
 			DML_BUFFER_ARRAY_BINDING bufferArray{static_cast<UINT>(buffers.size()), buffers.data()};
@@ -365,6 +371,7 @@ private:
 			step.initializer.Reset();
 		}
 		weightUpload_.Reset();
+		weight_.Reset();
 	}
 
 	void createExecutionTables()
@@ -440,13 +447,13 @@ private:
 	ComPtr<IDMLCommandRecorder> recorder_;
 	ComPtr<ID3D12DescriptorHeap> descriptorHeap_;
 	std::uint32_t descriptorIncrement_ = 0;
-	ComPtr<ID3D12Resource> inputUpload_, readback_, weightUpload_, temporary_;
+	ComPtr<ID3D12Resource> inputUpload_, readback_, weightUpload_, weight_, temporary_;
 	ComPtr<ID3D12Fence> fence_;
 	UniqueHandle fenceEvent_;
 	std::uint64_t fenceValue_ = 0;
 };
 
-BaselineDmlProgram::BaselineDmlProgram(const BaselineDml::Graph &graph, std::span<const std::byte> weights)
+BaselineDmlProgram::BaselineDmlProgram(const Graph &graph, std::span<const std::byte> weights)
 	: impl_(std::make_unique<Impl>(graph, weights))
 {
 }
@@ -456,4 +463,4 @@ void BaselineDmlProgram::run(std::span<const float> input, std::span<float> outp
 	impl_->run(input, output);
 }
 
-} // namespace BackgroundRemoval
+} // namespace BaselineDml

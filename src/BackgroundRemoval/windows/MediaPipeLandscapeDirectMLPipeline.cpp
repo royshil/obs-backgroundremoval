@@ -12,9 +12,11 @@
 #include <utility>
 #include <vector>
 
-namespace BackgroundRemoval {
-
+namespace BaselineDml {
 auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgram>;
+}
+
+namespace BackgroundRemoval {
 
 MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const FilterProperty &property,
 								       obs_source_t *source,
@@ -40,7 +42,7 @@ MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const Fil
 	if (!source || width == 0 || height == 0) {
 		throw std::invalid_argument("Invalid MediaPipe Landscape DirectML pipeline arguments");
 	}
-	program_ = makeMediaPipeLandscapeDmlProgram();
+	program_ = BaselineDml::makeMediaPipeLandscapeDmlProgram();
 	GsUnique::GraphicsGuard graphicsGuard;
 	try {
 		sourceTexture_ = makeUniqueTexture(width, height, GS_BGRA, GS_RENDER_TARGET);
@@ -325,7 +327,6 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 	if (!modelInputRead) {
 		blog(LOG_ERROR, OBS_LOG_HEADER "Model-input readback failed");
 		hasLastInput_ = false;
-		obs_source_skip_video_filter(source_);
 		return;
 	}
 
@@ -340,7 +341,6 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 		maskInferenceSucceeded = inferMask(textureReader);
 	}
 	if (!maskInferenceSucceeded) {
-		obs_source_skip_video_filter(source_);
 		return;
 	}
 
@@ -351,7 +351,6 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 			refineMask(refineMaskEnabled, refineMaskThreshold, refineMaskContour, refineMaskExpansion);
 	}
 	if (!maskRefinementSucceeded) {
-		obs_source_skip_video_filter(source_);
 		return;
 	}
 

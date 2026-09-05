@@ -19,20 +19,17 @@
 #include <DirectML.h>
 #include <wrl/client.h>
 
-namespace BackgroundRemoval {
+namespace BaselineDml {
 
-using TensorId = std::uint32_t;
-constexpr std::uint32_t maximumTensorRank = 4;
-
+using TensorId = std::int64_t;
 struct CompiledTensor final {
-	std::uint32_t dimensionCount = 0;
-	std::array<std::uint32_t, maximumTensorRank> sizes{};
-	std::array<std::uint32_t, maximumTensorRank> strides{};
+	std::vector<std::uint32_t> sizes;
+	std::vector<std::uint32_t> strides;
 	std::uint64_t size = 0;
-	std::uint32_t storage = 0;
+	std::int64_t storage = 0;
 	bool weight = false;
-	std::size_t weightCount = 0;
-	std::uint32_t weightSourceOffset = 0;
+	std::int64_t weightCount = 0;
+	std::int64_t byteOffset = 0;
 	std::uint64_t weightOffset = 0;
 };
 
@@ -42,7 +39,7 @@ struct CompiledStorage final {
 
 struct CompiledStep final {
 	std::vector<TensorId> inputs;
-	TensorId output = UINT32_MAX;
+	TensorId output = -1;
 	Microsoft::WRL::ComPtr<IDMLCompiledOperator> operation;
 };
 
@@ -50,18 +47,18 @@ struct CompiledDmlProgram final {
 	std::vector<CompiledTensor> tensors;
 	std::vector<CompiledStorage> storages;
 	std::vector<CompiledStep> steps;
-	TensorId inputTensor = UINT32_MAX;
-	TensorId outputTensor = UINT32_MAX;
+	TensorId inputTensor = -1;
+	TensorId outputTensor = -1;
 	std::uint64_t weightBytes = 0;
 };
 
 class BaselineDmlCompiler final {
 public:
 	explicit BaselineDmlCompiler(IDMLDevice *device) noexcept;
-	auto compile(const BaselineDml::Graph &graph, std::span<const std::byte> weights) const -> CompiledDmlProgram;
+	auto compile(const Graph &graph, std::span<const std::byte> weights) const -> CompiledDmlProgram;
 
 private:
 	IDMLDevice *device_;
 };
 
-} // namespace BackgroundRemoval
+} // namespace BaselineDml

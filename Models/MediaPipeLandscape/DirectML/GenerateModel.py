@@ -107,6 +107,53 @@ def lower_model(model: onnx.ModelProto) -> onnx.ModelProto:
     return model
 
 
+def dimensions(values: list[int]) -> str:
+    return "{" + ", ".join(f"{value}u" for value in values) + "}"
+
+
+def emit_concat(node_entries: list[str], inputs: list[int], input_shapes: list[list[int]],
+                axis: int, output_shape: list[int]) -> int:
+    if not inputs or len(inputs) != len(input_shapes):
+        raise RuntimeError("Concat requires a shape for each input and at least one input")
+    if any(len(shape) != 4 for shape in [*input_shapes, output_shape]):
+        raise RuntimeError("Concat requires rank-4 inputs and output")
+    if not -4 <= axis < 4:
+        raise RuntimeError("Concat axis is out of range")
+    axis %= 4
+    for shape in [*input_shapes, output_shape]:
+        if any(not 0 < size < 2**32 for size in shape):
+            raise RuntimeError("Concat dimensions must be positive UINT values")
+        if any(shape[d] != input_shapes[0][d] for d in range(4) if d != axis):
+            raise RuntimeError("Concat non-axis dimensions must match")
+    if sum(shape[axis] for shape in input_shapes) != output_shape[axis]:
+        raise RuntimeError("Concat output shape does not match its inputs")
+
+    left_index = inputs[0]
+    shape = list(input_shapes[0])
+    for right_index, right_shape in zip(inputs[1:], input_shapes[1:]):
+        shape[axis] += right_shape[axis]
+        node_entries.append(f"Concat{{{left_index}, {right_index}, {axis}u, {dimensions(shape)}}}")
+        left_index = len(node_entries) - 1
+    return left_index
+
+
+def emit_transpose(node_entries: list[str], input_index: int, input_shape: list[int],
+                   permutation: list[int] | None, output_shape: list[int]) -> int:
+    rank = len(input_shape)
+    if not 1 <= rank <= 4:
+        raise RuntimeError("Transpose requires rank 1 through 4")
+    if permutation is None:
+        permutation = list(reversed(range(rank)))
+    if sorted(permutation) != list(range(rank)):
+        raise RuntimeError("Transpose permutation must contain each input axis exactly once")
+    if output_shape != [input_shape[axis] for axis in permutation]:
+        raise RuntimeError("Transpose output shape does not match its permutation")
+    if rank == 1:
+        return input_index
+    node_entries.append(f"TransposeRank{rank}{{{input_index}, {dimensions(permutation)}}}")
+    return len(node_entries) - 1
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--offline", action="store_true", help="Use the cached pinned model only")
@@ -143,7 +190,6 @@ def main() -> None:
         "// clang-format off",
         "",
         '#include "DmlProgram/BaselineDmlProgram.hpp"',
-        "#include <initializer_list>",
         "#include <memory>",
         "#include <stdexcept>",
         "#ifndef NOMINMAX",
@@ -153,12 +199,10 @@ def main() -> None:
         "",
     ]
     # REUSE-IgnoreEnd
-    def dimensions(values: list[int]) -> str:
-        padded = [*values, *([0] * (4 - len(values)))]
-        return f"{{{len(values)}u, {{{', '.join(f'{value}u' for value in padded)}}}}}"
-
-    def braced(items: list[int]) -> str:
-        return "{" + ", ".join(f"{item}u" for item in items) + "}"
+    def shape_fields(values: list[int]) -> str:
+        if not 1 <= len(values) <= 4 or any(value <= 0 for value in values):
+            raise RuntimeError(f"unsupported shape: {values}")
+        return f"{len(values)}, {dimensions(values)}"
 
     weight_offsets: dict[str, int] = {}
     weight_data = bytearray()
@@ -170,199 +214,110 @@ def main() -> None:
             raise RuntimeError(f"initializer {name} is not float32")
         weight_offsets[name] = len(weight_data)
         weight_data.extend(array.astype("<f4", copy=False).tobytes(order="C"))
-    if len(weight_data) >= 2**32:
-        raise RuntimeError("weight data exceeds the BaselineDml 32-bit offset range")
+    if len(weight_data) >= 2**63:
+        raise RuntimeError("weight data exceeds the BaselineDml signed 64-bit offset range")
 
-    lines.extend(
-        [
-            "namespace BackgroundRemoval {",
-            "",
-            "namespace {",
-            "",
-            "using namespace BaselineDml;",
-            "",
-            "constexpr auto dimensions(std::initializer_list<std::uint32_t> values) noexcept -> Dimensions",
-            "{",
-            "\tDimensions result{};",
-            "\tresult.count = static_cast<std::uint32_t>(values.size());",
-            "\tstd::size_t index = 0;",
-            "\tfor (const auto value : values)",
-            "\t\tresult.values[index++] = value;",
-            "\treturn result;",
-            "}",
-            "constexpr auto node(NodeType type, Tensor output) noexcept -> Node",
-            "{",
-            "\tNode result{}; result.type = type; result.output = output; return result;",
-            "}",
-            "constexpr auto constant(Node result, std::uint32_t inputIndex, Tensor tensor) noexcept -> Node",
-            "{ result.constants[result.constantCount++] = {inputIndex, tensor}; return result; }",
-            "constexpr auto reshape(Tensor output) noexcept -> Node { return node(NodeType::reshape, output); }",
-            "constexpr auto transpose(Tensor output, std::initializer_list<std::uint32_t> permutation) noexcept -> Node",
-            "{ auto result = node(NodeType::transpose, output); result.first = dimensions(permutation); return result; }",
-            "constexpr auto add(Tensor output) noexcept -> Node { return node(NodeType::add, output); }",
-            "constexpr auto add(Tensor right, Tensor output) noexcept -> Node",
-            "{ return constant(add(output), 1u, right); }",
-            "constexpr auto multiply(Tensor output) noexcept -> Node { return node(NodeType::multiply, output); }",
-            "constexpr auto multiply(Tensor left, Tensor output) noexcept -> Node",
-            "{ return constant(multiply(output), 0u, left); }",
-            "constexpr auto clip(Tensor output, float minimum, float maximum) noexcept -> Node",
-            "{ auto result = node(NodeType::clip, output); result.minimum = minimum; result.maximum = maximum; return result; }",
-            "constexpr auto relu(Tensor output) noexcept -> Node { return node(NodeType::relu, output); }",
-            "constexpr auto sigmoid(Tensor output) noexcept -> Node { return node(NodeType::sigmoid, output); }",
-            "constexpr auto convolution(Tensor filter, Tensor bias, Tensor output, ConvolutionDirection direction,",
-            "\tstd::initializer_list<std::uint32_t> strides, std::initializer_list<std::uint32_t> dilations,",
-            "\tstd::initializer_list<std::uint32_t> startPadding, std::initializer_list<std::uint32_t> endPadding,",
-            "\tstd::uint32_t groupCount) noexcept -> Node",
-            "{ auto result = constant(node(NodeType::convolution, output), 1u, filter); if (bias.weightOffset != noIndex) result = constant(result, 2u, bias);",
-            "\tresult.direction = direction; result.first = dimensions(strides);",
-            "\tresult.second = dimensions(dilations); result.third = dimensions(startPadding); result.fourth = dimensions(endPadding);",
-            "\tresult.value = groupCount; return result; }",
-            "constexpr auto averagePool(Tensor output, std::initializer_list<std::uint32_t> strides,",
-            "\tstd::initializer_list<std::uint32_t> window, std::initializer_list<std::uint32_t> startPadding,",
-            "\tstd::initializer_list<std::uint32_t> endPadding) noexcept -> Node",
-            "{ auto result = node(NodeType::averagePool, output); result.first = dimensions(strides); result.second = dimensions(window);",
-            "\tresult.third = dimensions(startPadding); result.fourth = dimensions(endPadding); return result; }",
-            "constexpr auto gemm(Tensor right, Tensor output) noexcept -> Node",
-            "{ return constant(node(NodeType::gemm, output), 1u, right); }",
-            "constexpr auto upsample(Tensor output, std::uint32_t height, std::uint32_t width) noexcept -> Node",
-            "{ auto result = node(NodeType::upsample, output); result.first = dimensions({height, width}); return result; }",
-            "constexpr auto join(Tensor output, std::uint32_t axis) noexcept -> Node",
-            "{ auto result = node(NodeType::join, output); result.value = axis; return result; }",
-            "",
-        ]
-    )
+    lines.extend(["namespace BaselineDml {", "", "namespace {", ""])
+    value_sources: dict[str, int] = {model.graph.input[0].name: 0}
+    node_entries: list[str] = ["Input{0}"]
 
-    value_sources: dict[str, tuple[str, int]] = {}
-    input_tensors: list[str] = []
-    input_name = model.graph.input[0].name
-    value_sources[input_name] = ("input", 0)
-    input_tensors.append(f"{{{dimensions(shapes[input_name])}, noIndex}}")
-
-    def weight_tensor(name: str) -> str:
-        shape = list(initializers[name].dims) or [1]
-        return f"{{{dimensions(shape)}, {weight_offsets[name]}u}}"
-
-    node_entries: list[str] = []
-    input_edges: list[str] = []
-    intermediate_edges: list[str] = []
-    node_types = {
-        "Reshape": "reshape",
-        "Transpose": "transpose",
-        "Add": "add",
-        "Mul": "multiply",
-        "Clip": "clip",
-        "Relu": "relu",
-        "Sigmoid": "sigmoid",
-        "Conv": "convolution",
-        "ConvTranspose": "convolution",
-        "AveragePool": "averagePool",
-        "MatMul": "gemm",
-        "Resize": "upsample",
-        "Concat": "join",
-    }
+    def source(name: str) -> str:
+        if name not in value_sources:
+            if name not in weight_offsets:
+                raise RuntimeError(f"input {name} is not a constant or preceding node")
+            shape = list(initializers[name].dims) or [1]
+            node_entries.append(f"Constant{{{weight_offsets[name]}LL, {shape_fields(shape)}}}")
+            value_sources[name] = len(node_entries) - 1
+        return f"{value_sources[name]}"
 
     for node_index, node in enumerate(nodes):
-        if node.op_type not in node_types:
-            raise RuntimeError(f"unsupported node {node_index}: {node.op_type}")
         if len(node.output) != 1:
             raise RuntimeError(f"node {node_index} has {len(node.output)} outputs")
-        for input_index, name in enumerate(node.input):
-            if name not in value_sources:
-                continue
-            source_type, source_index = value_sources[name]
-            if source_type == "input":
-                input_edges.append(f"{{{source_index}u, {node_index}u, {input_index}u}}")
-            else:
-                intermediate_edges.append(f"{{{source_index}u, 0u, {node_index}u, {input_index}u}}")
-
-        output_name = node.output[0]
-        output_shape = shapes[output_name]
         attribute = attrs(node)
-        direction = "forward"
-        first = second = third = fourth = dimensions([])
-        minimum = maximum = "0.0F"
-        value = "0u"
-        if node.op_type == "Transpose":
-            permutation = list(attribute["perm"])
-            first = dimensions(permutation)
+        output_shape = shapes[node.output[0]]
+        output = shape_fields(output_shape)
+        inputs = [source(name) for index, name in enumerate(node.input)
+                  if name and index not in ignored_inputs.get(node.op_type, set())]
+        if node.op_type == "Reshape":
+            entry = f"Reshape{{{inputs[0]}, {output}}}"
+        elif node.op_type == "Transpose":
+            input_name = node.input[0]
+            input_shape = list(initializers[input_name].dims) if input_name in initializers else shapes[input_name]
+            value_sources[node.output[0]] = emit_transpose(
+                node_entries, int(inputs[0]), input_shape,
+                list(attribute["perm"]) if "perm" in attribute else None, output_shape,
+            )
+            continue
+        elif node.op_type in {"Add", "Mul"}:
+            if len(output_shape) != 4:
+                raise RuntimeError(f"{node.op_type} requires a rank-4 output")
+            entry = f"{node.op_type}Rank4{{{inputs[0]}, {inputs[1]}, {dimensions(output_shape)}}}"
+        elif node.op_type == "MatMul":
+            if len(output_shape) != 4:
+                raise RuntimeError("MatMul requires a rank-4 output")
+            entry = f"MatMulRank4{{{inputs[0]}, {inputs[1]}, {dimensions(output_shape)}}}"
         elif node.op_type == "Clip":
             minimum = float(numpy_helper.to_array(initializers[node.input[1]]).reshape(-1)[0])
             maximum = float(numpy_helper.to_array(initializers[node.input[2]]).reshape(-1)[0])
-            minimum, maximum = float_literal(minimum), float_literal(maximum)
+            entry = f"Clip{{{inputs[0]}, {float_literal(minimum)}, {float_literal(maximum)}}}"
+        elif node.op_type in {"Relu", "Sigmoid"}:
+            entry = f"{node.op_type}{{{inputs[0]}}}"
         elif node.op_type in {"Conv", "ConvTranspose"}:
             strides = list(attribute.get("strides", [1, 1]))
             dilations = list(attribute.get("dilations", [1, 1]))
             pads = list(attribute.get("pads", [0, 0, 0, 0]))
-            direction = "backward" if node.op_type == "ConvTranspose" else "forward"
-            first, second = dimensions(strides), dimensions(dilations)
-            third, fourth = dimensions(pads[:2]), dimensions(pads[2:])
-            value = f"{int(attribute.get('group', 1))}u"
+            filter_shape = list(initializers[node.input[1]].dims)
+            if (len(shapes[node.input[0]]) != 4 or len(filter_shape) != 4
+                    or len(output_shape) != 4 or len(strides) != 2
+                    or len(dilations) != 2 or len(pads) != 4):
+                raise RuntimeError(f"{node.op_type} requires two spatial dimensions")
+            kind = ("Biased" if len(inputs) > 2 else "") + node.op_type + "2d"
+            connections = ", ".join(inputs)
+            group = int(attribute.get("group", 1))
+            entry = (f"{kind}{{{connections}, "
+                     f"{dimensions(strides)}, {dimensions(dilations)}, "
+                     f"{dimensions(pads[:2])}, {dimensions(pads[2:])}, {group}u, {dimensions(output_shape)}}}")
         elif node.op_type == "AveragePool":
             kernel = list(attribute["kernel_shape"])
             strides = list(attribute.get("strides", kernel))
             pads = list(attribute.get("pads", [0, 0, 0, 0]))
-            first, second = dimensions(strides), dimensions(kernel)
-            third, fourth = dimensions(pads[:2]), dimensions(pads[2:])
+            if (len(shapes[node.input[0]]) != 4 or len(output_shape) != 4
+                    or len(kernel) != 2 or len(strides) != 2 or len(pads) != 4):
+                raise RuntimeError("AveragePool requires two spatial dimensions")
+            entry = (f"AveragePool2d{{{inputs[0]}, {dimensions(strides)}, "
+                     f"{dimensions(kernel)}, {dimensions(pads[:2])}, {dimensions(pads[2:])}, {dimensions(output_shape)}}}")
         elif node.op_type == "Resize":
-            source_shape = shapes[node.input[0]]
-            first = dimensions([output_shape[-2] // source_shape[-2], output_shape[-1] // source_shape[-1]])
+            input_shape = shapes[node.input[0]]
+            if len(input_shape) != 4 or len(output_shape) != 4:
+                raise RuntimeError("Resize requires rank-4 input and output")
+            entry = (f"ResizeRank4{{{inputs[0]}, "
+                     f"{output_shape[-2] // input_shape[-2]}u, {output_shape[-1] // input_shape[-1]}u, {dimensions(output_shape)}}}")
         elif node.op_type == "Concat":
-            value = f"{int(attribute['axis'])}u"
-
-        output_tensor = f"{{{dimensions(output_shape)}, noIndex}}"
-        constants = [(index, name) for index, name in enumerate(node.input) if name in weight_offsets and index not in ignored_inputs.get(node.op_type, set())]
-        if node.op_type == "Transpose":
-            entry = f"transpose({output_tensor}, {braced(permutation)})"
-        elif node.op_type == "Clip":
-            entry = f"clip({output_tensor}, {minimum}, {maximum})"
-        elif node.op_type in {"Conv", "ConvTranspose"}:
-            filter_tensor = weight_tensor(node.input[1])
-            bias_tensor = weight_tensor(node.input[2]) if len(node.input) > 2 and node.input[2] in weight_offsets else "{}"
-            entry = (f"convolution({filter_tensor}, {bias_tensor}, {output_tensor}, ConvolutionDirection::{direction}, {braced(strides)}, "
-                     f"{braced(dilations)}, {braced(pads[:2])}, {braced(pads[2:])}, {value})")
-        elif node.op_type == "AveragePool":
-            entry = f"averagePool({output_tensor}, {braced(strides)}, {braced(kernel)}, {braced(pads[:2])}, {braced(pads[2:])})"
-        elif node.op_type == "Resize":
-            entry = f"upsample({output_tensor}, {output_shape[-2] // source_shape[-2]}u, {output_shape[-1] // source_shape[-1]}u)"
-        elif node.op_type == "Concat":
-            entry = f"join({output_tensor}, {value})"
-        elif node.op_type == "MatMul":
-            entry = f"gemm({weight_tensor(node.input[1])}, {output_tensor})"
-        elif node.op_type in {"Add", "Mul"} and constants:
-            input_index, name = constants[0]
-            expected_index = 1 if node.op_type == "Add" else 0
-            if input_index != expected_index:
-                raise RuntimeError(f"unsupported constant position for {node.op_type}: {input_index}")
-            entry = f"{node_types[node.op_type]}({weight_tensor(name)}, {output_tensor})"
+            value_sources[node.output[0]] = emit_concat(
+                node_entries, [int(value) for value in inputs],
+                [list(initializers[name].dims) if name in initializers else shapes[name]
+                 for name in node.input],
+                int(attribute["axis"]), output_shape,
+            )
+            continue
         else:
-            entry = f"{node_types[node.op_type]}({output_tensor})"
+            raise RuntimeError(f"unsupported node {node_index}: {node.op_type}")
         node_entries.append(entry)
-        value_sources[output_name] = ("node", node_index)
-
-    output_source_type, output_source_index = value_sources[model.graph.output[0].name]
-    if output_source_type != "node":
-        raise RuntimeError("graph output is not produced by a node")
+        value_sources[node.output[0]] = len(node_entries) - 1
 
     def emit_table(type_name: str, name: str, entries: list[str]) -> None:
-        lines.append(f"constexpr {type_name} {name}[] = {{")
+        lines.append(f"const {type_name} {name}[] = {{")
         lines.extend(f"\t{entry}," for entry in entries)
         lines.extend(["};", ""])
 
-    lines.append("")
-    emit_table("Tensor", "graphInputs", input_tensors)
+    emit_table("InputSpec", "inputSpecs", [f"std::array<UINT, {len(INPUT_SHAPE)}>{dimensions(INPUT_SHAPE)}"])
     emit_table("Node", "graphNodes", node_entries)
-    emit_table("InputEdge", "graphInputEdges", input_edges)
-    emit_table("IntermediateEdge", "graphIntermediateEdges", intermediate_edges)
-    emit_table("OutputEdge", "graphOutputEdges", [f"{{{output_source_index}u, 0u, 0u}}"])
     lines.extend(
         [
-            "constexpr Graph graph{",
-            f"\t{len(input_tensors)}u, graphInputs,",
-            "\t1u,",
-            f"\t{len(node_entries)}u, graphNodes,",
-            f"\t{len(input_edges)}u, graphInputEdges,",
-            f"\t{len(intermediate_edges)}u, graphIntermediateEdges,",
-            "\t1u, graphOutputEdges,",
+            "const Graph graph{",
+            "\t1, inputSpecs,",
+            f"\t{len(node_entries)}LL, graphNodes,",
+            f"\t{value_sources[model.graph.output[0].name]},",
             "};",
             "",
             "auto weights() -> std::span<const std::byte>",
@@ -388,7 +343,7 @@ def main() -> None:
             "\treturn std::make_unique<BaselineDmlProgram>(graph, weights());",
             "}",
             "",
-            "} // namespace BackgroundRemoval",
+            "} // namespace BaselineDml",
             "// clang-format on",
             "",
         ]
