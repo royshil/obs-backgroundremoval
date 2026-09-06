@@ -68,6 +68,8 @@ int createOrtSession(filter_data *tf)
 	Ort::SessionOptions sessionOptions;
 
 	sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+	sessionOptions.AddConfigEntry("session.intra_op.allow_spinning", "0");
+	sessionOptions.AddConfigEntry("session.inter_op.allow_spinning", "0");
 	if (tf->useGPU != USEGPU_CPU) {
 		sessionOptions.DisableMemPattern();
 		sessionOptions.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
