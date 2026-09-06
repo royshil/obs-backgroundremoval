@@ -31,6 +31,7 @@ struct filter_data : public ORTModelData, public std::enable_shared_from_this<fi
 	gs_stagesurf_t *stagesurface;
 
 	cv::Mat inputBGRA;
+	std::atomic<bool> newFrameAvailable{false};
 
 	std::atomic<bool> isDisabled{false};
 
