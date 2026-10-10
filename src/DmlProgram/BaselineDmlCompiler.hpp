@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "BaselineDmlProgram.hpp"
+#include "BaselineDmlProgramRuntime.hpp"
 
 #include <array>
 #include <cstddef>

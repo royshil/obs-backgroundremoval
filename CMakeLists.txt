@@ -390,7 +390,7 @@ elseif(WIN32)
       src/BackgroundRemoval/windows/PipelineFactory.cpp
       src/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.cpp
       src/DmlProgram/BaselineDmlCompiler.cpp
-      src/DmlProgram/BaselineDmlProgram.cpp
+      src/DmlProgram/BaselineDmlProgramRuntime.cpp
       src/BackgroundRemoval/MainEffect.cpp
       src/plugin-main-windows.cpp
       src/plugin-support.c

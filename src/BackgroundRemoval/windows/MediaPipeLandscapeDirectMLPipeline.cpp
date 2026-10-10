@@ -13,7 +13,7 @@
 #include <vector>
 
 namespace BaselineDml {
-auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgram>;
+auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgramRuntime>;
 }
 
 namespace BackgroundRemoval {

@@ -6,7 +6,7 @@
 #endif
 #define DML_TARGET_VERSION 0x1000
 
-#include "BaselineDmlProgram.hpp"
+#include "BaselineDmlProgramRuntime.hpp"
 #include "DmlProgram/BaselineDmlCompiler.hpp"
 
 #include <algorithm>
@@ -26,6 +26,32 @@
 
 namespace BaselineDml {
 namespace {
+
+// Keep SDK numeric compatibility checked at the runtime boundary.
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Unknown) ==
+	      DML_TENSOR_DATA_TYPE_UNKNOWN);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Float32) ==
+	      DML_TENSOR_DATA_TYPE_FLOAT32);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Float16) ==
+	      DML_TENSOR_DATA_TYPE_FLOAT16);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt32) ==
+	      DML_TENSOR_DATA_TYPE_UINT32);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt16) ==
+	      DML_TENSOR_DATA_TYPE_UINT16);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt8) ==
+	      DML_TENSOR_DATA_TYPE_UINT8);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int32) ==
+	      DML_TENSOR_DATA_TYPE_INT32);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int16) ==
+	      DML_TENSOR_DATA_TYPE_INT16);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int8) ==
+	      DML_TENSOR_DATA_TYPE_INT8);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Float64) ==
+	      DML_TENSOR_DATA_TYPE_FLOAT64);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt64) ==
+	      DML_TENSOR_DATA_TYPE_UINT64);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int64) ==
+	      DML_TENSOR_DATA_TYPE_INT64);
 
 using Microsoft::WRL::ComPtr;
 constexpr TensorId noTensor = -1;
@@ -117,7 +143,7 @@ auto bindingDesc(const DML_BUFFER_BINDING *binding) -> DML_BINDING_DESC
 
 } // namespace
 
-class BaselineDmlProgram::Impl final {
+class BaselineDmlProgramRuntime::Impl final {
 public:
 	explicit Impl(const Graph &graph, std::span<const std::byte> weights)
 	{
@@ -453,12 +479,12 @@ private:
 	std::uint64_t fenceValue_ = 0;
 };
 
-BaselineDmlProgram::BaselineDmlProgram(const Graph &graph, std::span<const std::byte> weights)
+BaselineDmlProgramRuntime::BaselineDmlProgramRuntime(const Graph &graph, std::span<const std::byte> weights)
 	: impl_(std::make_unique<Impl>(graph, weights))
 {
 }
-BaselineDmlProgram::~BaselineDmlProgram() noexcept = default;
-void BaselineDmlProgram::run(std::span<const float> input, std::span<float> output)
+BaselineDmlProgramRuntime::~BaselineDmlProgramRuntime() noexcept = default;
+void BaselineDmlProgramRuntime::run(std::span<const float> input, std::span<float> output)
 {
 	impl_->run(input, output);
 }

@@ -88,17 +88,17 @@ class TransposeTests(unittest.TestCase):
                           mock.patch("GenerateModel.hf_hub_download", return_value="unused.onnx"),
                           mock.patch("GenerateModel.onnx.load", return_value=model),
                           mock.patch("GenerateModel.lower_model", return_value=model)):
+                        if rank != 1:
+                            with self.assertRaisesRegex(RuntimeError, "outside the pinned Landscape variants"):
+                                main()
+                            self.assertFalse(paths[0].exists())
+                            continue
                         main()
                     source = paths[0].read_text()
                 if rank == 1:
                     self.assertNotIn("TransposeRank", source)
-                    self.assertIn("Relu{1}", source)
+                    self.assertIn("Relu{DataType::Float32, 1}", source)
                     self.assertIn("3LL, graphNodes,\n\t2,", source)
-                else:
-                    axes = ", ".join(f"{axis}u" for axis in reversed(range(rank)))
-                    self.assertIn(f"TransposeRank{rank}{{1, {{{axes}}}}}", source)
-                    self.assertIn("Relu{2}", source)
-                    self.assertIn("4LL, graphNodes,\n\t3,", source)
 
 
 class ConcatTests(unittest.TestCase):
@@ -153,7 +153,7 @@ class ConcatTests(unittest.TestCase):
                     emit_concat(entries, inputs, shapes, axis, output)
                 self.assertEqual(entries, ["Input{0}", "Input{1}"])
 
-    def test_generator_connects_alias_constants_and_following_nodes(self):
+    def test_generator_rejects_concat_outside_target_variants(self):
         def value(name, channels):
             return onnx.helper.make_tensor_value_info(name, onnx.TensorProto.FLOAT, [1, channels, 144, 256])
 
@@ -171,13 +171,9 @@ class ConcatTests(unittest.TestCase):
                   mock.patch("GenerateModel.hf_hub_download", return_value="unused.onnx"),
                   mock.patch("GenerateModel.onnx.load", return_value=model),
                   mock.patch("GenerateModel.lower_model", return_value=model)):
-                main()
-            source = paths[0].read_text()
-        self.assertIn("Constant{0LL, 4, {1u, 1u, 144u, 256u}}", source)
-        self.assertIn("Concat{0, 1, 1u, {1u, 4u, 144u, 256u}}", source)
-        self.assertIn("Concat{2, 0, 1u, {1u, 7u, 144u, 256u}}", source)
-        self.assertIn("Relu{3}", source)
-        self.assertIn("5LL, graphNodes,\n\t4,", source)
+                with self.assertRaisesRegex(RuntimeError, "outside the pinned Landscape variants"):
+                    main()
+            self.assertFalse(paths[0].exists())
 
 
 class ModelTests(unittest.TestCase):

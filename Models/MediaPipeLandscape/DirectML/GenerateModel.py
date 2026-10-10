@@ -189,7 +189,7 @@ def main() -> None:
         "// SPDX-License-Identifier: GPL-3.0-or-later",
         "// clang-format off",
         "",
-        '#include "DmlProgram/BaselineDmlProgram.hpp"',
+        '#include "DmlProgram/BaselineDmlProgramRuntime.hpp"',
         "#include <memory>",
         "#include <stdexcept>",
         "#ifndef NOMINMAX",
@@ -200,7 +200,7 @@ def main() -> None:
     ]
     # REUSE-IgnoreEnd
     def shape_fields(values: list[int]) -> str:
-        if not 1 <= len(values) <= 4 or any(value <= 0 for value in values):
+        if not 1 <= len(values) <= 4 or any(not 0 < value < 2**32 for value in values):
             raise RuntimeError(f"unsupported shape: {values}")
         return f"{len(values)}, {dimensions(values)}"
 
@@ -217,7 +217,7 @@ def main() -> None:
     if len(weight_data) >= 2**63:
         raise RuntimeError("weight data exceeds the BaselineDml signed 64-bit offset range")
 
-    lines.extend(["namespace BaselineDml {", "", "namespace {", ""])
+    lines.extend(["namespace BaselineDml {", "", "namespace {", "", "using namespace ProgramDefinition;", ""])
     value_sources: dict[str, int] = {model.graph.input[0].name: 0}
     node_entries: list[str] = ["Input{0}"]
 
@@ -251,7 +251,7 @@ def main() -> None:
         elif node.op_type in {"Add", "Mul"}:
             if len(output_shape) != 4:
                 raise RuntimeError(f"{node.op_type} requires a rank-4 output")
-            entry = f"{node.op_type}Rank4{{{inputs[0]}, {inputs[1]}, {dimensions(output_shape)}}}"
+            entry = f"{node.op_type}{{{inputs[0]}, {inputs[1]}, {output}}}"
         elif node.op_type == "MatMul":
             if len(output_shape) != 4:
                 raise RuntimeError("MatMul requires a rank-4 output")
@@ -290,7 +290,7 @@ def main() -> None:
             input_shape = shapes[node.input[0]]
             if len(input_shape) != 4 or len(output_shape) != 4:
                 raise RuntimeError("Resize requires rank-4 input and output")
-            entry = (f"ResizeRank4{{{inputs[0]}, "
+            entry = (f"Resize{{{inputs[0]}, {len(output_shape)}, "
                      f"{output_shape[-2] // input_shape[-2]}u, {output_shape[-1] // input_shape[-1]}u, {dimensions(output_shape)}}}")
         elif node.op_type == "Concat":
             value_sources[node.output[0]] = emit_concat(
@@ -310,12 +310,28 @@ def main() -> None:
         lines.extend(f"\t{entry}," for entry in entries)
         lines.extend(["};", ""])
 
-    emit_table("InputSpec", "inputSpecs", [f"std::array<UINT, {len(INPUT_SHAPE)}>{dimensions(INPUT_SHAPE)}"])
-    emit_table("Node", "graphNodes", node_entries)
+    # Explicit group construction avoids ambiguous nested-variant conversions.
+    groups = {
+        "Input": "InternalNode", "Constant": "InternalNode",
+        "AveragePool2d": "Onnx11Node", "BiasedConv2d": "Onnx11Node",
+        "BiasedConvTranspose2d": "Onnx11Node",
+        "Clip": "Onnx13Node", "Resize": "Onnx13Node", "Sigmoid": "Onnx13Node",
+        "Add": "Onnx14Node", "Mul": "Onnx14Node", "Relu": "Onnx14Node",
+    }
+    if len(node_entries) > 2**31 - 1:
+        raise RuntimeError("node indices exceed the Definition Size range")
+    grouped_entries = []
+    for entry in node_entries:
+        kind = entry.split("{", 1)[0]
+        if kind not in groups:
+            raise RuntimeError(f"operator form {kind} is outside the pinned Landscape variants")
+        if kind != "Input":
+            entry = entry.replace("{", "{DataType::Float32, ", 1)
+        grouped_entries.append(f"{groups[kind]}{{{entry}}}")
+    emit_table("Node", "graphNodes", grouped_entries)
     lines.extend(
         [
             "const Graph graph{",
-            "\t1, inputSpecs,",
             f"\t{len(node_entries)}LL, graphNodes,",
             f"\t{value_sources[model.graph.output[0].name]},",
             "};",
@@ -338,9 +354,9 @@ def main() -> None:
             "",
             "} // namespace",
             "",
-            "auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgram>",
+            "auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgramRuntime>",
             "{",
-            "\treturn std::make_unique<BaselineDmlProgram>(graph, weights());",
+            "\treturn std::make_unique<BaselineDmlProgramRuntime>(graph, weights());",
             "}",
             "",
             "} // namespace BaselineDml",

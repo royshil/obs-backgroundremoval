@@ -13,6 +13,8 @@
 namespace BaselineDml {
 namespace {
 
+using namespace ProgramDefinition;
+
 using Microsoft::WRL::ComPtr;
 using Tensor = CompiledTensor;
 using Storage = CompiledStorage;
@@ -421,119 +423,103 @@ auto BaselineDmlCompiler::compile(const Graph &graph, std::span<const std::byte>
 	Builder builder(device_, weights);
 	std::vector<TensorId> values;
 	auto validateShape = [](const auto &value) {
-		require(value.shapeRank > 0 && value.shapeRank <= value.shape.size(),
+		require(value.shapeRank > 0 && std::cmp_less_equal(value.shapeRank, value.shape.size()),
 			"BaselineDml shape rank must be between 1 and 4");
-		const auto shape = std::span(value.shape).first(value.shapeRank);
+		const auto shape = std::span(value.shape).first(static_cast<std::size_t>(value.shapeRank));
 		require(std::ranges::all_of(shape, [](auto size) { return size > 0; }),
 			"BaselineDml shape dimensions must be positive");
 	};
 	bool hasInput = false;
-	auto resolve = [&](std::size_t sourceIndex) {
-		require(sourceIndex < values.size(), "BaselineDmlProgram input must reference a preceding node");
-		return values[sourceIndex];
+	auto resolve = [&](auto sourceIndex) {
+		require(std::cmp_greater_equal(sourceIndex, 0) && std::cmp_less(sourceIndex, values.size()), "BaselineDmlProgram input must reference a preceding node");
+		return values[static_cast<std::size_t>(sourceIndex)];
+	};
+	const auto compileNode = [&](const auto &node) -> TensorId {
+		using T = std::decay_t<decltype(node)>;
+		if constexpr (requires { node.dataType; })
+			require(node.dataType == DataType::Float32, "BaselineDml compiler supports Float32 only");
+		if constexpr (requires { node.shapeRank; })
+			validateShape(node);
+		if constexpr (std::is_same_v<T, Input>) {
+			require(node.inputSpecIndex >= 0 && std::cmp_less(node.inputSpecIndex, graph.inputSpecCount),
+				"BaselineDml input specification index is out of range");
+			require(!hasInput, "BaselineDmlProgram supports one Input node");
+			hasInput = true;
+			return std::visit(
+				[&](const auto &shape) {
+					require(std::ranges::all_of(shape,
+								    [](auto size) { return size > 0; }),
+						"BaselineDml input shape dimensions must be positive");
+					return builder.input(static_cast<UINT>(shape.size()),
+							     shape.data());
+				},
+				graph.inputSpecs[node.inputSpecIndex]);
+		} else if constexpr (std::is_same_v<T, Constant>) {
+			return builder.weight(static_cast<UINT>(node.shapeRank), node.shape.data(),
+					      node.byteOffset);
+		} else if constexpr (std::is_same_v<T, Add>) {
+			require(node.shapeRank == 4, "BaselineDml operator requires rank 4");
+			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
+				"BaselineDml rank-4 output shape dimensions must be positive");
+			return builder.add(resolve(node.leftIndex), resolve(node.rightIndex),
+					   static_cast<UINT>(node.shape.size()), node.shape.data());
+		} else if constexpr (std::is_same_v<T, Mul>) {
+			require(node.shapeRank == 4, "BaselineDml operator requires rank 4");
+			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
+				"BaselineDml rank-4 output shape dimensions must be positive");
+			return builder.multiply(resolve(node.leftIndex), resolve(node.rightIndex),
+						static_cast<UINT>(node.shape.size()),
+						node.shape.data());
+		} else if constexpr (std::is_same_v<T, Clip>) {
+			return builder.clip(resolve(node.inputIndex), node.minimum, node.maximum);
+		} else if constexpr (std::is_same_v<T, Relu>) {
+			return builder.relu(resolve(node.inputIndex));
+		} else if constexpr (std::is_same_v<T, Sigmoid>) {
+			return builder.sigmoid(resolve(node.inputIndex));
+		} else if constexpr (std::is_same_v<T, Conv2d> || std::is_same_v<T, BiasedConv2d> ||
+				     std::is_same_v<T, ConvTranspose2d> ||
+				     std::is_same_v<T, BiasedConvTranspose2d>) {
+			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
+				"BaselineDml Conv2d shape dimensions must be positive");
+			constexpr auto direction = (std::is_same_v<T, ConvTranspose2d> ||
+						    std::is_same_v<T, BiasedConvTranspose2d>)
+							   ? DML_CONVOLUTION_DIRECTION_BACKWARD
+							   : DML_CONVOLUTION_DIRECTION_FORWARD;
+			const auto bias = [&]() -> TensorId {
+				if constexpr (requires { node.biasIndex; })
+					return resolve(node.biasIndex);
+				else
+					return noTensor;
+			}();
+			return builder.convolution(
+				resolve(node.inputIndex), resolve(node.filterIndex), bias, direction,
+				static_cast<UINT>(node.strides.size()), node.strides.data(),
+				node.dilations.data(), node.startPadding.data(), node.endPadding.data(),
+				node.groupCount, static_cast<UINT>(node.shape.size()),
+				node.shape.data());
+		} else if constexpr (std::is_same_v<T, AveragePool2d>) {
+			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
+				"BaselineDml AveragePool2d shape dimensions must be positive");
+			return builder.averagePool(resolve(node.inputIndex),
+						   static_cast<UINT>(node.strides.size()),
+						   node.strides.data(), node.window.data(),
+						   node.startPadding.data(), node.endPadding.data(),
+						   static_cast<UINT>(node.shape.size()),
+						   node.shape.data());
+		} else if constexpr (std::is_same_v<T, Resize>) {
+			require(node.shapeRank == 4, "BaselineDml operator requires rank 4");
+			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
+				"BaselineDml rank-4 output shape dimensions must be positive");
+			return builder.upsample(resolve(node.inputIndex), node.height, node.width,
+						static_cast<UINT>(node.shape.size()),
+						node.shape.data());
+		} else {
+			static_assert(std::is_same_v<T, void>, "Missing BaselineDml node compiler");
+		}
 	};
 	for (std::int64_t index = 0; index < graph.nodeCount; ++index) {
 		const auto result = std::visit(
-			[&](const auto &node) -> TensorId {
-				using T = std::decay_t<decltype(node)>;
-				if constexpr (requires { node.shapeRank; })
-					validateShape(node);
-				if constexpr (std::is_same_v<T, Input>) {
-					require(node.inputSpecIndex < graph.inputSpecCount,
-						"BaselineDml input specification index is out of range");
-					require(!hasInput, "BaselineDmlProgram supports one Input node");
-					hasInput = true;
-					return std::visit(
-						[&](const auto &shape) {
-							require(std::ranges::all_of(shape,
-										    [](auto size) { return size > 0; }),
-								"BaselineDml input shape dimensions must be positive");
-							return builder.input(static_cast<UINT>(shape.size()),
-									     shape.data());
-						},
-						graph.inputSpecs[node.inputSpecIndex]);
-				} else if constexpr (std::is_same_v<T, Constant>) {
-					return builder.weight(static_cast<UINT>(node.shapeRank), node.shape.data(),
-							      node.byteOffset);
-				} else if constexpr (std::is_same_v<T, Reshape>) {
-					return builder.reshape(resolve(node.inputIndex),
-							       static_cast<UINT>(node.shapeRank), node.shape.data());
-				} else if constexpr (std::is_same_v<T, TransposeRank2> ||
-						     std::is_same_v<T, TransposeRank3> ||
-						     std::is_same_v<T, TransposeRank4>) {
-					return builder.transpose(resolve(node.inputIndex),
-								 static_cast<UINT>(node.permutation.size()),
-								 node.permutation.data());
-				} else if constexpr (std::is_same_v<T, AddRank4>) {
-					require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-						"BaselineDml rank-4 output shape dimensions must be positive");
-					return builder.add(resolve(node.leftIndex), resolve(node.rightIndex),
-							   static_cast<UINT>(node.shape.size()), node.shape.data());
-				} else if constexpr (std::is_same_v<T, MulRank4>) {
-					require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-						"BaselineDml rank-4 output shape dimensions must be positive");
-					return builder.multiply(resolve(node.leftIndex), resolve(node.rightIndex),
-								static_cast<UINT>(node.shape.size()),
-								node.shape.data());
-				} else if constexpr (std::is_same_v<T, Clip>) {
-					return builder.clip(resolve(node.inputIndex), node.minimum, node.maximum);
-				} else if constexpr (std::is_same_v<T, Relu>) {
-					return builder.relu(resolve(node.inputIndex));
-				} else if constexpr (std::is_same_v<T, Sigmoid>) {
-					return builder.sigmoid(resolve(node.inputIndex));
-				} else if constexpr (std::is_same_v<T, Conv2d> || std::is_same_v<T, BiasedConv2d> ||
-						     std::is_same_v<T, ConvTranspose2d> ||
-						     std::is_same_v<T, BiasedConvTranspose2d>) {
-					require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-						"BaselineDml Conv2d shape dimensions must be positive");
-					constexpr auto direction = (std::is_same_v<T, ConvTranspose2d> ||
-								    std::is_same_v<T, BiasedConvTranspose2d>)
-									   ? DML_CONVOLUTION_DIRECTION_BACKWARD
-									   : DML_CONVOLUTION_DIRECTION_FORWARD;
-					const auto bias = [&]() -> TensorId {
-						if constexpr (requires { node.biasIndex; })
-							return resolve(node.biasIndex);
-						else
-							return noTensor;
-					}();
-					return builder.convolution(
-						resolve(node.inputIndex), resolve(node.filterIndex), bias, direction,
-						static_cast<UINT>(node.strides.size()), node.strides.data(),
-						node.dilations.data(), node.startPadding.data(), node.endPadding.data(),
-						node.groupCount, static_cast<UINT>(node.shape.size()),
-						node.shape.data());
-				} else if constexpr (std::is_same_v<T, AveragePool2d>) {
-					require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-						"BaselineDml AveragePool2d shape dimensions must be positive");
-					return builder.averagePool(resolve(node.inputIndex),
-								   static_cast<UINT>(node.strides.size()),
-								   node.strides.data(), node.window.data(),
-								   node.startPadding.data(), node.endPadding.data(),
-								   static_cast<UINT>(node.shape.size()),
-								   node.shape.data());
-				} else if constexpr (std::is_same_v<T, MatMulRank4>) {
-					require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-						"BaselineDml rank-4 output shape dimensions must be positive");
-					return builder.gemm(resolve(node.leftIndex), resolve(node.rightIndex),
-							    static_cast<UINT>(node.shape.size()), node.shape.data());
-				} else if constexpr (std::is_same_v<T, ResizeRank4>) {
-					require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-						"BaselineDml rank-4 output shape dimensions must be positive");
-					return builder.upsample(resolve(node.inputIndex), node.height, node.width,
-								static_cast<UINT>(node.shape.size()),
-								node.shape.data());
-				} else if constexpr (std::is_same_v<T, Concat>) {
-					require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-						"BaselineDml rank-4 output shape dimensions must be positive");
-					require(node.axis < node.shape.size(),
-						"BaselineDml Concat axis is out of range");
-					return builder.join(resolve(node.leftIndex), resolve(node.rightIndex),
-							    node.axis, static_cast<UINT>(node.shape.size()),
-							    node.shape.data());
-				} else {
-					static_assert(std::is_same_v<T, void>, "Missing BaselineDml node compiler");
-				}
-			},
+			[&](const auto &group) -> TensorId { return std::visit(compileNode, group); },
 			graph.nodes[index]);
 		values.push_back(result);
 	}
