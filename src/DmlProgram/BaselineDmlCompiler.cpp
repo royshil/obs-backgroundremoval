@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <initializer_list>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -14,11 +15,8 @@ namespace BaselineDml {
 namespace {
 
 using namespace ProgramDefinition;
-
 using Microsoft::WRL::ComPtr;
 using Tensor = CompiledTensor;
-using Storage = CompiledStorage;
-using Step = CompiledStep;
 constexpr TensorId noTensor = -1;
 
 void require(bool condition, const char *message)
@@ -29,57 +27,115 @@ void require(bool condition, const char *message)
 
 void check(HRESULT result, const char *operation)
 {
-	if (FAILED(result)) {
+	if (FAILED(result))
 		throw std::runtime_error(std::string(operation) + " failed (HRESULT " + std::to_string(result) + ")");
+}
+
+auto typeName(DataType type) -> const char *
+{
+	switch (type) {
+	case DataType::Float32:
+		return "Float32";
+	case DataType::Float16:
+		return "Float16";
+	case DataType::UInt32:
+		return "UInt32";
+	case DataType::UInt16:
+		return "UInt16";
+	case DataType::UInt8:
+		return "UInt8";
+	case DataType::Int32:
+		return "Int32";
+	case DataType::Int16:
+		return "Int16";
+	case DataType::Int8:
+		return "Int8";
+	case DataType::Float64:
+		return "Float64";
+	case DataType::UInt64:
+		return "UInt64";
+	case DataType::Int64:
+		return "Int64";
+	default:
+		return "Unknown";
 	}
+}
+
+auto elementSize(DataType type) -> std::uint64_t
+{
+	switch (type) {
+	case DataType::UInt8:
+	case DataType::Int8:
+		return 1;
+	case DataType::Float16:
+	case DataType::UInt16:
+	case DataType::Int16:
+		return 2;
+	case DataType::Float32:
+	case DataType::UInt32:
+	case DataType::Int32:
+		return 4;
+	case DataType::Float64:
+	case DataType::UInt64:
+	case DataType::Int64:
+		return 8;
+	default:
+		throw std::runtime_error("Unknown tensor data type");
+	}
+}
+
+auto checkedAdd(std::uint64_t a, std::uint64_t b) -> std::uint64_t
+{
+	require(a <= std::numeric_limits<std::uint64_t>::max() - b, "tensor size addition overflow");
+	return a + b;
+}
+
+auto checkedMultiply(std::uint64_t a, std::uint64_t b) -> std::uint64_t
+{
+	require(!b || a <= std::numeric_limits<std::uint64_t>::max() / b, "tensor size multiplication overflow");
+	return a * b;
 }
 
 auto alignTo(std::uint64_t value, std::uint64_t alignment) -> std::uint64_t
 {
-	return (value + alignment - 1) / alignment * alignment;
+	return checkedAdd(value, alignment - 1) / alignment * alignment;
 }
 
-auto tensorSize(UINT DimensionCount, const UINT *Sizes, const UINT *Strides) -> std::uint64_t
+void setContiguousShape(Tensor &tensor, std::span<const UINT> shape)
 {
-	if (!DimensionCount) {
-		return 0;
+	require(!shape.empty() && shape.size() <= 4, "shape rank must be between 1 and 4");
+	tensor.sizes.assign(shape.begin(), shape.end());
+	tensor.strides.resize(shape.size());
+	std::uint64_t count = 1;
+	for (std::size_t index = shape.size(); index-- > 0;) {
+		require(shape[index] > 0, "shape dimensions must be positive");
+		require(count <= std::numeric_limits<UINT>::max(), "tensor stride overflow (UINT range)");
+		tensor.strides[index] = static_cast<UINT>(count);
+		count = checkedMultiply(count, shape[index]);
 	}
-	std::uint64_t lastElement = 0;
-	for (UINT index = 0; index < DimensionCount; ++index) {
-		if (!Sizes[index]) {
-			return 0;
-		}
-		lastElement += static_cast<std::uint64_t>(Sizes[index] - 1) * Strides[index];
-	}
-	return alignTo((lastElement + 1) * sizeof(float), 4);
+	require(count <= std::numeric_limits<UINT>::max(), "tensor exceeds DirectML element limit");
+	tensor.dataBytes = checkedMultiply(count, elementSize(tensor.dataType));
+	tensor.size = alignTo(tensor.dataBytes, 4);
 }
 
-void setContiguousShape(Tensor &tensor, UINT DimensionCount, const UINT *Sizes)
+auto rankedShape(const auto &value) -> std::span<const UINT>
 {
-	tensor.sizes.assign(Sizes, Sizes + DimensionCount);
-	tensor.strides.assign(DimensionCount, 0);
-	if (DimensionCount) {
-		tensor.strides[DimensionCount - 1] = 1;
-		for (UINT index = DimensionCount - 1; index > 0; --index) {
-			tensor.strides[index - 1] = tensor.strides[index] * tensor.sizes[index];
-		}
-	}
-	tensor.size = tensorSize(DimensionCount, tensor.sizes.data(), tensor.strides.data());
+	require(value.shapeRank > 0 && std::cmp_less_equal(value.shapeRank, value.shape.size()),
+		"shape rank must be between 1 and 4");
+	return std::span(value.shape).first(static_cast<std::size_t>(value.shapeRank));
 }
 
 struct TensorDescriptor final {
 	DML_BUFFER_TENSOR_DESC buffer{};
 	DML_TENSOR_DESC tensor{};
-
 	explicit TensorDescriptor(const Tensor &value)
 	{
-		buffer.DataType = DML_TENSOR_DATA_TYPE_FLOAT32;
+		buffer.DataType = static_cast<DML_TENSOR_DATA_TYPE>(value.dataType);
 		buffer.Flags = value.weight ? DML_TENSOR_FLAG_OWNED_BY_DML : DML_TENSOR_FLAG_NONE;
 		buffer.DimensionCount = static_cast<UINT>(value.sizes.size());
 		buffer.Sizes = value.sizes.data();
 		buffer.Strides = value.strides.data();
 		buffer.TotalTensorSizeInBytes = value.size;
-		buffer.GuaranteedBaseOffsetAlignment = 0;
 		tensor = {DML_TENSOR_TYPE_BUFFER, &buffer};
 	}
 };
@@ -88,327 +144,279 @@ class Builder final {
 public:
 	explicit Builder(IDMLDevice *device, std::span<const std::byte> weights) : device_(device), weights_(weights) {}
 
-	auto input(UINT DimensionCount, const UINT *Sizes) -> TensorId
+	auto input(const InputSpecItem &spec) -> TensorId
 	{
-		const auto id = createTensor(DimensionCount, Sizes);
-		input_ = id;
+		const auto id = createTensor(spec.dataType, rankedShape(spec));
+		inputTensors_.push_back(id);
 		return id;
 	}
 
-	auto weight(UINT DimensionCount, const UINT *Sizes, std::int64_t byteOffset) -> TensorId
+	auto weight(const InputSpecItem &spec) -> TensorId
 	{
-		Tensor tensor = makeTensor(DimensionCount, Sizes);
-		require(byteOffset >= 0 && std::cmp_less_equal(byteOffset, weights_.size()) &&
-				tensor.size <= weights_.size() - static_cast<std::size_t>(byteOffset),
-			"BaselineDml weight exceeds its resource");
+		Tensor tensor = makeTensor(spec.dataType, rankedShape(spec));
+		require(spec.byteOffset >= 0 && std::cmp_less_equal(spec.byteOffset, weights_.size()) &&
+				tensor.dataBytes <= weights_.size() - static_cast<std::size_t>(spec.byteOffset),
+			"weight exceeds its resource");
 		tensor.weight = true;
-		tensor.weightCount = static_cast<std::int64_t>(tensor.size / sizeof(float));
-		tensor.byteOffset = byteOffset;
+		tensor.byteOffset = spec.byteOffset;
 		tensor.weightOffset = alignTo(weightBytes_, 16);
-		weightBytes_ = tensor.weightOffset + tensor.size;
+		weightBytes_ = checkedAdd(tensor.weightOffset, tensor.size);
 		tensors_.push_back(std::move(tensor));
 		return static_cast<TensorId>(tensors_.size() - 1);
 	}
 
-	auto reshape(TensorId Input, UINT DimensionCount, const UINT *Sizes) -> TensorId
+	auto reshape(TensorId input, std::span<const UINT> shape) -> TensorId
 	{
-		Tensor tensor = tensors_.at(Input);
-		setContiguousShape(tensor, DimensionCount, Sizes);
-		if (!tensor.weight && tensor.size > storages_.at(tensor.storage).size) {
-			throw std::runtime_error("generated DirectML reshape exceeds its storage");
-		}
+		Tensor tensor = tensors_.at(input);
+		const auto bytes = tensor.dataBytes;
+		setContiguousShape(tensor, shape);
+		require(bytes == tensor.dataBytes, "reshape changes the element count");
 		tensors_.push_back(std::move(tensor));
 		return static_cast<TensorId>(tensors_.size() - 1);
 	}
 
-	auto transpose(TensorId Input, UINT DimensionCount, const UINT *Permutation) -> TensorId
+	auto binary(DataType type, TensorId a, TensorId b, std::span<const UINT> shape, bool multiply) -> TensorId
 	{
-		const auto &inputTensor = tensors_.at(Input);
-		if (DimensionCount != inputTensor.sizes.size()) {
-			throw std::runtime_error("generated DirectML transpose rank is invalid");
+		const auto padded = paddedShape(shape);
+		const auto output = createTensor(type, padded);
+		a = broadcast(a, type, padded);
+		b = broadcast(b, type, padded);
+		TensorDescriptor aDesc(tensors_.at(a)), bDesc(tensors_.at(b)), outputDesc(tensors_.at(output));
+		if (multiply) {
+			DML_ELEMENT_WISE_MULTIPLY_OPERATOR_DESC desc{&aDesc.tensor, &bDesc.tensor, &outputDesc.tensor};
+			compile(DML_OPERATOR_ELEMENT_WISE_MULTIPLY, desc, {a, b}, output);
+		} else {
+			DML_ELEMENT_WISE_ADD_OPERATOR_DESC desc{&aDesc.tensor, &bDesc.tensor, &outputDesc.tensor};
+			compile(DML_OPERATOR_ELEMENT_WISE_ADD, desc, {a, b}, output);
 		}
-		Tensor tensor = inputTensor;
-		tensor.sizes.assign(DimensionCount, 1);
-		tensor.strides.assign(DimensionCount, 0);
-		std::size_t outputIndex = 0;
-		for (UINT index = 0; index < DimensionCount; ++index) {
-			const auto inputIndex = Permutation[index];
-			if (inputIndex >= DimensionCount) {
-				throw std::runtime_error("generated DirectML transpose axis is invalid");
-			}
-			for (UINT previous = 0; previous < index; ++previous) {
-				if (Permutation[previous] == inputIndex)
-					throw std::runtime_error("generated DirectML transpose axis is duplicated");
-			}
-			tensor.sizes[outputIndex] = inputTensor.sizes[inputIndex];
-			tensor.strides[outputIndex] = inputTensor.strides[inputIndex];
-			++outputIndex;
-		}
-		tensor.size = tensorSize(DimensionCount, tensor.sizes.data(), tensor.strides.data());
-		tensors_.push_back(std::move(tensor));
-		return static_cast<TensorId>(tensors_.size() - 1);
+		return reshape(output, shape);
 	}
 
-	auto add(TensorId A, TensorId B, UINT DimensionCount, const UINT *Sizes) -> TensorId
+	auto clip(const Clip &node, TensorId input) -> TensorId
 	{
-		const auto output = createTensor(DimensionCount, Sizes);
-		A = broadcast(A, DimensionCount, Sizes);
-		B = broadcast(B, DimensionCount, Sizes);
-		TensorDescriptor aDesc(tensors_.at(A)), bDesc(tensors_.at(B)), outputDesc(tensors_.at(output));
-		DML_ELEMENT_WISE_ADD_OPERATOR_DESC description{&aDesc.tensor, &bDesc.tensor, &outputDesc.tensor};
-		compile(DML_OPERATOR_ELEMENT_WISE_ADD, description, {A, B}, output);
-		return output;
+		require(node.minimum <= node.maximum, "Clip minimum exceeds maximum");
+		const auto shape = rankedShape(node);
+		const auto padded = paddedShape(shape);
+		checkInputType(input, node.dataType);
+		input = reshape(input, padded);
+		const auto output = createTensor(node.dataType, padded);
+		TensorDescriptor inDesc(tensors_.at(input)), outDesc(tensors_.at(output));
+		DML_ELEMENT_WISE_CLIP_OPERATOR_DESC desc{};
+		desc.InputTensor = &inDesc.tensor;
+		desc.OutputTensor = &outDesc.tensor;
+		desc.Min = node.minimum;
+		desc.Max = node.maximum;
+		compile(DML_OPERATOR_ELEMENT_WISE_CLIP, desc, {input}, output);
+		return reshape(output, shape);
 	}
 
-	auto multiply(TensorId A, TensorId B, UINT DimensionCount, const UINT *Sizes) -> TensorId
-	{
-		const auto output = createTensor(DimensionCount, Sizes);
-		A = broadcast(A, DimensionCount, Sizes);
-		B = broadcast(B, DimensionCount, Sizes);
-		TensorDescriptor aDesc(tensors_.at(A)), bDesc(tensors_.at(B)), outputDesc(tensors_.at(output));
-		DML_ELEMENT_WISE_MULTIPLY_OPERATOR_DESC description{&aDesc.tensor, &bDesc.tensor, &outputDesc.tensor};
-		compile(DML_OPERATOR_ELEMENT_WISE_MULTIPLY, description, {A, B}, output);
-		return output;
-	}
-
-	auto clip(TensorId inputId, float minimum, float maximum) -> TensorId
-	{
-		const auto &input = tensors_.at(inputId);
-		const auto output = createTensor(static_cast<UINT>(input.sizes.size()), input.sizes.data());
-		TensorDescriptor inputDesc(tensors_.at(inputId)), outputDesc(tensors_.at(output));
-		DML_ELEMENT_WISE_CLIP_OPERATOR_DESC description{};
-		description.InputTensor = &inputDesc.tensor;
-		description.OutputTensor = &outputDesc.tensor;
-		description.Min = minimum;
-		description.Max = maximum;
-		compile(DML_OPERATOR_ELEMENT_WISE_CLIP, description, {inputId}, output);
-		return output;
-	}
-
-	auto relu(TensorId inputId) -> TensorId
-	{
-		return activation<DML_ACTIVATION_RELU_OPERATOR_DESC>(DML_OPERATOR_ACTIVATION_RELU, inputId);
-	}
-
-	auto sigmoid(TensorId inputId) -> TensorId
-	{
-		return activation<DML_ACTIVATION_SIGMOID_OPERATOR_DESC>(DML_OPERATOR_ACTIVATION_SIGMOID, inputId);
-	}
-
-	auto convolution(TensorId Input, TensorId Filter, TensorId Bias, DML_CONVOLUTION_DIRECTION Direction,
-			 UINT DimensionCount, const UINT *Strides, const UINT *Dilations, const UINT *StartPadding,
-			 const UINT *EndPadding, UINT GroupCount, UINT OutputDimensionCount, const UINT *OutputSizes)
+	template<typename Description>
+	auto activation(DML_OPERATOR_TYPE operation, DataType type, TensorId input, std::span<const UINT> shape)
 		-> TensorId
 	{
-		require(DimensionCount == 2 && OutputDimensionCount == 4 && tensors_.at(Input).sizes.size() == 4 &&
-				tensors_.at(Filter).sizes.size() == 4,
-			"BaselineDml Conv2d requires four-dimensional input, filter and output");
-		if (Bias != noTensor) {
-			const auto &biasTensor = tensors_.at(Bias);
-			const auto channels = biasTensor.sizes[biasTensor.sizes.size() - 1];
-			const std::array<UINT, 4> biasSizes{1, channels, 1, 1};
-			Bias = reshape(Bias, static_cast<UINT>(biasSizes.size()), biasSizes.data());
-		}
-		const auto output = createTensor(OutputDimensionCount, OutputSizes);
-		TensorDescriptor inputDesc(tensors_.at(Input)), filterDesc(tensors_.at(Filter)),
-			outputDesc(tensors_.at(output));
-		TensorDescriptor biasDesc(Bias == noTensor ? tensors_.at(Filter) : tensors_.at(Bias));
-		const std::vector<UINT> outputPadding(DimensionCount);
-		DML_CONVOLUTION_OPERATOR_DESC description{};
-		description.InputTensor = &inputDesc.tensor;
-		description.FilterTensor = &filterDesc.tensor;
-		description.BiasTensor = Bias == noTensor ? nullptr : &biasDesc.tensor;
-		description.OutputTensor = &outputDesc.tensor;
-		description.Mode = DML_CONVOLUTION_MODE_CROSS_CORRELATION;
-		description.Direction = Direction;
-		description.DimensionCount = DimensionCount;
-		description.Strides = Strides;
-		description.Dilations = Dilations;
-		description.StartPadding = StartPadding;
-		description.EndPadding = EndPadding;
-		description.OutputPadding = outputPadding.data();
-		description.GroupCount = GroupCount;
-		compile(DML_OPERATOR_CONVOLUTION, description, {Input, Filter, Bias}, output);
+		const auto padded = paddedShape(shape);
+		checkInputType(input, type);
+		input = reshape(input, padded);
+		const auto output = createTensor(type, padded);
+		TensorDescriptor inDesc(tensors_.at(input)), outDesc(tensors_.at(output));
+		Description desc{};
+		desc.InputTensor = &inDesc.tensor;
+		desc.OutputTensor = &outDesc.tensor;
+		compile(operation, desc, {input}, output);
+		return reshape(output, shape);
+	}
+
+	auto convolution(const auto &node, TensorId input, TensorId filter, TensorId bias,
+			 DML_CONVOLUTION_DIRECTION direction) -> TensorId
+	{
+		checkInputType(input, node.dataType);
+		checkInputType(filter, node.dataType);
+		checkInputType(bias, node.dataType);
+		require(tensors_.at(input).sizes.size() == 4 && tensors_.at(filter).sizes.size() == 4,
+			"Conv2d requires rank-4 input and filter");
+		require(node.groupCount > 0, "Conv2d group count must be positive");
+		for (std::size_t i = 0; i < 2; ++i)
+			require(node.strides[i] > 0 && node.dilations[i] > 0,
+				"Conv2d stride and dilation must be positive");
+		const auto &biasTensor = tensors_.at(bias);
+		require(biasTensor.sizes.size() == 1, "Conv2d bias must be rank 1");
+		const std::array<UINT, 4> biasShape{1, biasTensor.sizes[0], 1, 1};
+		bias = reshape(bias, biasShape);
+		const auto output = createTensor(node.dataType, node.shape);
+		TensorDescriptor inDesc(tensors_.at(input)), filterDesc(tensors_.at(filter)),
+			biasDesc(tensors_.at(bias)), outDesc(tensors_.at(output));
+		const std::array<UINT, 2> outputPadding{};
+		DML_CONVOLUTION_OPERATOR_DESC desc{};
+		desc.InputTensor = &inDesc.tensor;
+		desc.FilterTensor = &filterDesc.tensor;
+		desc.BiasTensor = &biasDesc.tensor;
+		desc.OutputTensor = &outDesc.tensor;
+		desc.Mode = DML_CONVOLUTION_MODE_CROSS_CORRELATION;
+		desc.Direction = direction;
+		desc.DimensionCount = 2;
+		desc.Strides = node.strides.data();
+		desc.Dilations = node.dilations.data();
+		desc.StartPadding = node.startPadding.data();
+		desc.EndPadding = node.endPadding.data();
+		desc.OutputPadding = outputPadding.data();
+		desc.GroupCount = node.groupCount;
+		compile(DML_OPERATOR_CONVOLUTION, desc, {input, filter, bias}, output);
 		return output;
 	}
 
-	auto averagePool(TensorId Input, UINT DimensionCount, const UINT *Strides, const UINT *WindowSize,
-			 const UINT *StartPadding, const UINT *EndPadding, UINT OutputDimensionCount,
-			 const UINT *OutputSizes) -> TensorId
+	auto averagePool(const AveragePool2d &node, TensorId input) -> TensorId
 	{
-		require(DimensionCount == 2 && OutputDimensionCount == 4 && tensors_.at(Input).sizes.size() == 4,
-			"BaselineDml AveragePool2d requires four-dimensional input and output");
-		const auto output = createTensor(OutputDimensionCount, OutputSizes);
-		TensorDescriptor inputDesc(tensors_.at(Input)), outputDesc(tensors_.at(output));
-		DML_AVERAGE_POOLING_OPERATOR_DESC description{};
-		description.InputTensor = &inputDesc.tensor;
-		description.OutputTensor = &outputDesc.tensor;
-		description.DimensionCount = DimensionCount;
-		description.Strides = Strides;
-		description.WindowSize = WindowSize;
-		description.StartPadding = StartPadding;
-		description.EndPadding = EndPadding;
-		description.IncludePadding = FALSE;
-		compile(DML_OPERATOR_AVERAGE_POOLING, description, {Input}, output);
+		checkInputType(input, node.dataType);
+		require(tensors_.at(input).sizes.size() == 4, "AveragePool2d requires rank-4 input");
+		for (std::size_t i = 0; i < 2; ++i)
+			require(node.strides[i] > 0 && node.window[i] > 0,
+				"AveragePool2d stride and window must be positive");
+		const auto output = createTensor(node.dataType, node.shape);
+		TensorDescriptor inDesc(tensors_.at(input)), outDesc(tensors_.at(output));
+		DML_AVERAGE_POOLING_OPERATOR_DESC desc{};
+		desc.InputTensor = &inDesc.tensor;
+		desc.OutputTensor = &outDesc.tensor;
+		desc.DimensionCount = 2;
+		desc.Strides = node.strides.data();
+		desc.WindowSize = node.window.data();
+		desc.StartPadding = node.startPadding.data();
+		desc.EndPadding = node.endPadding.data();
+		desc.IncludePadding = FALSE;
+		compile(DML_OPERATOR_AVERAGE_POOLING, desc, {input}, output);
 		return output;
 	}
 
-	auto gemm(TensorId left, TensorId right, UINT DimensionCount, const UINT *OutputSizes) -> TensorId
+	auto resize(const Resize &node, TensorId input) -> TensorId
 	{
-		const auto &leftTensor = tensors_.at(left);
-		const auto &rightTensor = tensors_.at(right);
-		const auto rows = leftTensor.sizes[leftTensor.sizes.size() - 2];
-		const auto inner = leftTensor.sizes[leftTensor.sizes.size() - 1];
-		const auto columns = rightTensor.sizes[rightTensor.sizes.size() - 1];
-		const std::array<UINT, 4> leftTensorSizes{1, 1, rows, inner};
-		const std::array<UINT, 4> rightTensorSizes{1, 1, inner, columns};
-		const std::array<UINT, 4> outputTensorSizes{1, 1, rows, columns};
-		left = reshape(left, static_cast<UINT>(leftTensorSizes.size()), leftTensorSizes.data());
-		right = reshape(right, static_cast<UINT>(rightTensorSizes.size()), rightTensorSizes.data());
-		const auto output = createTensor(static_cast<UINT>(outputTensorSizes.size()), outputTensorSizes.data());
-		TensorDescriptor leftDesc(tensors_.at(left)), rightDesc(tensors_.at(right)),
-			outputDesc(tensors_.at(output));
-		DML_GEMM_OPERATOR_DESC description{};
-		description.ATensor = &leftDesc.tensor;
-		description.BTensor = &rightDesc.tensor;
-		description.OutputTensor = &outputDesc.tensor;
-		description.TransA = DML_MATRIX_TRANSFORM_NONE;
-		description.TransB = DML_MATRIX_TRANSFORM_NONE;
-		description.Alpha = 1.0F;
-		description.Beta = 1.0F;
-		compile(DML_OPERATOR_GEMM, description, {left, right, noTensor}, output);
-		return reshape(output, DimensionCount, OutputSizes);
-	}
-
-	auto upsample(TensorId Input, UINT Height, UINT Width, UINT DimensionCount, const UINT *OutputSizes) -> TensorId
-	{
-		const auto output = createTensor(DimensionCount, OutputSizes);
-		TensorDescriptor inputDesc(tensors_.at(Input)), outputDesc(tensors_.at(output));
-		DML_UPSAMPLE_2D_OPERATOR_DESC description{};
-		description.InputTensor = &inputDesc.tensor;
-		description.OutputTensor = &outputDesc.tensor;
-		description.ScaleSize = {Width, Height};
-		description.InterpolationMode = DML_INTERPOLATION_MODE_LINEAR;
-		compile(DML_OPERATOR_UPSAMPLE_2D, description, {Input}, output);
+		checkInputType(input, node.dataType);
+		require(node.shapeRank == 4 && tensors_.at(input).sizes.size() == 4, "Resize requires rank 4");
+		require(node.height > 0 && node.width > 0, "Resize scales must be positive");
+		const auto output = createTensor(node.dataType, rankedShape(node));
+		TensorDescriptor inDesc(tensors_.at(input)), outDesc(tensors_.at(output));
+		DML_UPSAMPLE_2D_OPERATOR_DESC desc{};
+		desc.InputTensor = &inDesc.tensor;
+		desc.OutputTensor = &outDesc.tensor;
+		desc.ScaleSize = {node.width, node.height};
+		desc.InterpolationMode = DML_INTERPOLATION_MODE_LINEAR;
+		compile(DML_OPERATOR_UPSAMPLE_2D, desc, {input}, output);
 		return output;
 	}
 
-	auto join(TensorId Left, TensorId Right, UINT Axis, UINT DimensionCount, const UINT *OutputSizes) -> TensorId
+	auto finish(TensorId output) -> CompiledDmlProgram
 	{
-		const auto output = createTensor(DimensionCount, OutputSizes);
-		TensorDescriptor leftDesc(tensors_.at(Left));
-		TensorDescriptor rightDesc(tensors_.at(Right));
-		const std::array<DML_TENSOR_DESC, 2> inputDescs{leftDesc.tensor, rightDesc.tensor};
-		TensorDescriptor outputDesc(tensors_.at(output));
-		DML_JOIN_OPERATOR_DESC description{};
-		description.InputCount = static_cast<UINT>(inputDescs.size());
-		description.InputTensors = inputDescs.data();
-		description.OutputTensor = &outputDesc.tensor;
-		description.Axis = Axis;
-		compile(DML_OPERATOR_JOIN, description, {Left, Right}, output);
-		return output;
-	}
-
-	void setOutput(TensorId output) { output_ = output; }
-
-	auto tensors() -> std::vector<Tensor> & { return tensors_; }
-	auto storages() -> std::vector<Storage> & { return storages_; }
-	auto steps() -> std::vector<Step> & { return steps_; }
-	auto inputTensor() const -> TensorId { return input_; }
-	auto outputTensor() const -> TensorId { return output_; }
-	auto weightBytes() const -> std::uint64_t { return weightBytes_; }
-
-	auto finish() -> CompiledDmlProgram
-	{
-		return {std::move(tensors_), std::move(storages_), std::move(steps_), input_, output_, weightBytes_};
+		return {std::move(tensors_), std::move(storages_), std::move(steps_), std::move(inputTensors_), output,
+			weightBytes_};
 	}
 
 private:
-	auto makeTensor(UINT DimensionCount, const UINT *Sizes) const -> Tensor
+	auto makeTensor(DataType type, std::span<const UINT> shape) -> Tensor
 	{
 		Tensor tensor;
-		setContiguousShape(tensor, DimensionCount, Sizes);
+		tensor.dataType = type;
+		setContiguousShape(tensor, shape);
+		DML_FEATURE_QUERY_TENSOR_DATA_TYPE_SUPPORT query{static_cast<DML_TENSOR_DATA_TYPE>(type)};
+		DML_FEATURE_DATA_TENSOR_DATA_TYPE_SUPPORT support{};
+		check(device_->CheckFeatureSupport(DML_FEATURE_TENSOR_DATA_TYPE_SUPPORT, sizeof(query), &query,
+						   sizeof(support), &support),
+		      "CheckFeatureSupport");
+		require(support.IsSupported, "tensor data type is unsupported by the DirectML device");
 		return tensor;
 	}
 
-	auto createTensor(UINT DimensionCount, const UINT *Sizes) -> TensorId
+	auto createTensor(DataType type, std::span<const UINT> shape) -> TensorId
 	{
-		Tensor tensor = makeTensor(DimensionCount, Sizes);
-		tensor.storage = static_cast<std::int64_t>(storages_.size());
+		Tensor tensor = makeTensor(type, shape);
+		tensor.storage = static_cast<TensorId>(storages_.size());
 		storages_.push_back({tensor.size});
 		tensors_.push_back(std::move(tensor));
 		return static_cast<TensorId>(tensors_.size() - 1);
 	}
 
-	auto broadcast(TensorId Input, UINT DimensionCount, const UINT *Sizes) -> TensorId
+	void checkInputType(TensorId id, DataType type) const
 	{
-		const auto &input = tensors_.at(Input);
-		if (DimensionCount < input.sizes.size()) {
-			throw std::runtime_error("generated DirectML broadcast rank is invalid");
-		}
-		if (input.sizes.size() == DimensionCount && std::equal(input.sizes.begin(), input.sizes.end(), Sizes)) {
-			return Input;
-		}
+		require(tensors_.at(id).dataType == type,
+			"input and operator data types must match; no implicit conversion");
+	}
+
+	static auto paddedShape(std::span<const UINT> shape) -> std::array<UINT, 4>
+	{
+		require(!shape.empty() && shape.size() <= 4, "shape rank must be between 1 and 4");
+		std::array<UINT, 4> padded{1, 1, 1, 1};
+		std::copy(shape.begin(), shape.end(), padded.end() - shape.size());
+		return padded;
+	}
+
+	auto broadcast(TensorId id, DataType type, std::span<const UINT> shape) -> TensorId
+	{
+		checkInputType(id, type);
+		const auto &input = tensors_.at(id);
+		require(input.sizes.size() <= shape.size(), "broadcast rank is invalid");
 		Tensor tensor = input;
-		tensor.sizes.assign(Sizes, Sizes + DimensionCount);
-		tensor.strides.assign(DimensionCount, 0);
-		const auto offset = DimensionCount - input.sizes.size();
-		for (UINT index = 0; index < input.sizes.size(); ++index) {
-			const auto destination = offset + index;
-			if (input.sizes[index] != 1 && input.sizes[index] != tensor.sizes[destination]) {
-				throw std::runtime_error("generated DirectML broadcast is invalid");
-			}
-			tensor.strides[destination] = input.sizes[index] == 1 ? 0 : input.strides[index];
+		tensor.sizes.assign(shape.begin(), shape.end());
+		tensor.strides.assign(shape.size(), 0);
+		const auto offset = shape.size() - input.sizes.size();
+		for (std::size_t i = 0; i < input.sizes.size(); ++i) {
+			require(input.sizes[i] == 1 || input.sizes[i] == shape[offset + i],
+				"broadcast shape is invalid");
+			tensor.strides[offset + i] = input.sizes[i] == 1 ? 0 : input.strides[i];
 		}
-		tensor.size = tensorSize(DimensionCount, tensor.sizes.data(), tensor.strides.data());
+		// Broadcasting changes the logical shape, but not the underlying allocation.
 		tensors_.push_back(std::move(tensor));
 		return static_cast<TensorId>(tensors_.size() - 1);
 	}
 
 	template<typename Description>
-	void compileInputs(DML_OPERATOR_TYPE type, const Description &description, std::int64_t InputCount,
-			   const TensorId *Inputs, TensorId output)
-	{
-		DML_OPERATOR_DESC operatorDescription{type, &description};
-		ComPtr<IDMLOperator> operation;
-		check(device_->CreateOperator(&operatorDescription, IID_PPV_ARGS(&operation)),
-		      "IDMLDevice::CreateOperator");
-		Step step;
-		step.inputs.assign(Inputs, Inputs + InputCount);
-		step.output = output;
-		check(device_->CompileOperator(operation.Get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&step.operation)),
-		      "IDMLDevice::CompileOperator");
-		steps_.push_back(std::move(step));
-	}
-
-	template<typename Description>
-	void compile(DML_OPERATOR_TYPE type, const Description &description, std::initializer_list<TensorId> inputs,
+	void compile(DML_OPERATOR_TYPE type, const Description &desc, std::initializer_list<TensorId> inputs,
 		     TensorId output)
 	{
-		compileInputs(type, description, static_cast<std::int64_t>(inputs.size()), inputs.begin(), output);
-	}
-
-	template<typename Description> auto activation(DML_OPERATOR_TYPE type, TensorId inputId) -> TensorId
-	{
-		const auto &input = tensors_.at(inputId);
-		const auto output = createTensor(static_cast<UINT>(input.sizes.size()), input.sizes.data());
-		TensorDescriptor inputDesc(tensors_.at(inputId)), outputDesc(tensors_.at(output));
-		Description description{};
-		description.InputTensor = &inputDesc.tensor;
-		description.OutputTensor = &outputDesc.tensor;
-		compile(type, description, {inputId}, output);
-		return output;
+		DML_OPERATOR_DESC operatorDesc{type, &desc};
+		ComPtr<IDMLOperator> operation;
+		check(device_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operation)),
+		      "CreateOperator (operator/type support)");
+		CompiledStep step;
+		step.inputs.assign(inputs.begin(), inputs.end());
+		step.output = output;
+		check(device_->CompileOperator(operation.Get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&step.operation)),
+		      "CompileOperator");
+		steps_.push_back(std::move(step));
 	}
 
 	IDMLDevice *device_;
 	std::span<const std::byte> weights_;
 	std::vector<Tensor> tensors_;
-	std::vector<Storage> storages_;
-	std::vector<Step> steps_;
-	TensorId input_ = noTensor;
-	TensorId output_ = noTensor;
+	std::vector<CompiledStorage> storages_;
+	std::vector<CompiledStep> steps_;
+	std::vector<TensorId> inputTensors_;
 	std::uint64_t weightBytes_ = 0;
 };
+
+auto nodeName(const auto &node) -> const char *
+{
+	using T = std::decay_t<decltype(node)>;
+	if constexpr (std::is_same_v<T, InputItem>)
+		return "InputItem";
+	else if constexpr (std::is_same_v<T, Add>)
+		return "Add";
+	else if constexpr (std::is_same_v<T, Mul>)
+		return "Mul";
+	else if constexpr (std::is_same_v<T, Clip>)
+		return "Clip";
+	else if constexpr (std::is_same_v<T, Relu>)
+		return "Relu";
+	else if constexpr (std::is_same_v<T, Sigmoid>)
+		return "Sigmoid";
+	else if constexpr (std::is_same_v<T, AveragePool2d>)
+		return "AveragePool2d";
+	else if constexpr (std::is_same_v<T, Resize>)
+		return "Resize";
+	else if constexpr (std::is_same_v<T, BiasedConv2d>)
+		return "BiasedConv2d";
+	else if constexpr (std::is_same_v<T, BiasedConvTranspose2d>)
+		return "BiasedConvTranspose2d";
+	else {
+		static_assert(std::is_same_v<T, void>, "Missing node name");
+	}
+}
 
 } // namespace
 
@@ -416,116 +424,94 @@ BaselineDmlCompiler::BaselineDmlCompiler(IDMLDevice *device) noexcept : device_(
 
 auto BaselineDmlCompiler::compile(const Graph &graph, std::span<const std::byte> weights) const -> CompiledDmlProgram
 {
-	require(graph.inputSpecCount == 1 && graph.inputSpecs != nullptr,
-		"BaselineDmlProgram requires one input specification");
-	require(graph.nodeCount >= 0 && (graph.nodeCount == 0 || graph.nodes != nullptr),
-		"BaselineDmlProgram has no node table");
+	require(device_ != nullptr, "BaselineDml compiler requires a device");
+	require(graph.inputSpecCount <= static_cast<std::size_t>(std::numeric_limits<Size>::max()) &&
+			(graph.inputSpecCount == 0 || graph.inputSpecs != nullptr),
+		"invalid input specification table");
+	require(graph.nodeCount > 0 && graph.nodeCount <= std::numeric_limits<Size>::max() && graph.nodes != nullptr,
+		"invalid node table");
 	Builder builder(device_, weights);
-	std::vector<TensorId> values;
-	auto validateShape = [](const auto &value) {
-		require(value.shapeRank > 0 && std::cmp_less_equal(value.shapeRank, value.shape.size()),
-			"BaselineDml shape rank must be between 1 and 4");
-		const auto shape = std::span(value.shape).first(static_cast<std::size_t>(value.shapeRank));
-		require(std::ranges::all_of(shape, [](auto size) { return size > 0; }),
-			"BaselineDml shape dimensions must be positive");
-	};
-	bool hasInput = false;
-	auto resolve = [&](auto sourceIndex) {
-		require(std::cmp_greater_equal(sourceIndex, 0) && std::cmp_less(sourceIndex, values.size()), "BaselineDmlProgram input must reference a preceding node");
-		return values[static_cast<std::size_t>(sourceIndex)];
-	};
-	const auto compileNode = [&](const auto &node) -> TensorId {
-		using T = std::decay_t<decltype(node)>;
-		if constexpr (requires { node.dataType; })
-			require(node.dataType == DataType::Float32, "BaselineDml compiler supports Float32 only");
-		if constexpr (requires { node.shapeRank; })
-			validateShape(node);
-		if constexpr (std::is_same_v<T, Input>) {
-			require(node.inputSpecIndex >= 0 && std::cmp_less(node.inputSpecIndex, graph.inputSpecCount),
-				"BaselineDml input specification index is out of range");
-			require(!hasInput, "BaselineDmlProgram supports one Input node");
-			hasInput = true;
-			return std::visit(
-				[&](const auto &shape) {
-					require(std::ranges::all_of(shape,
-								    [](auto size) { return size > 0; }),
-						"BaselineDml input shape dimensions must be positive");
-					return builder.input(static_cast<UINT>(shape.size()),
-							     shape.data());
-				},
-				graph.inputSpecs[node.inputSpecIndex]);
-		} else if constexpr (std::is_same_v<T, Constant>) {
-			return builder.weight(static_cast<UINT>(node.shapeRank), node.shape.data(),
-					      node.byteOffset);
-		} else if constexpr (std::is_same_v<T, Add>) {
-			require(node.shapeRank == 4, "BaselineDml operator requires rank 4");
-			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-				"BaselineDml rank-4 output shape dimensions must be positive");
-			return builder.add(resolve(node.leftIndex), resolve(node.rightIndex),
-					   static_cast<UINT>(node.shape.size()), node.shape.data());
-		} else if constexpr (std::is_same_v<T, Mul>) {
-			require(node.shapeRank == 4, "BaselineDml operator requires rank 4");
-			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-				"BaselineDml rank-4 output shape dimensions must be positive");
-			return builder.multiply(resolve(node.leftIndex), resolve(node.rightIndex),
-						static_cast<UINT>(node.shape.size()),
-						node.shape.data());
-		} else if constexpr (std::is_same_v<T, Clip>) {
-			return builder.clip(resolve(node.inputIndex), node.minimum, node.maximum);
-		} else if constexpr (std::is_same_v<T, Relu>) {
-			return builder.relu(resolve(node.inputIndex));
-		} else if constexpr (std::is_same_v<T, Sigmoid>) {
-			return builder.sigmoid(resolve(node.inputIndex));
-		} else if constexpr (std::is_same_v<T, Conv2d> || std::is_same_v<T, BiasedConv2d> ||
-				     std::is_same_v<T, ConvTranspose2d> ||
-				     std::is_same_v<T, BiasedConvTranspose2d>) {
-			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-				"BaselineDml Conv2d shape dimensions must be positive");
-			constexpr auto direction = (std::is_same_v<T, ConvTranspose2d> ||
-						    std::is_same_v<T, BiasedConvTranspose2d>)
-							   ? DML_CONVOLUTION_DIRECTION_BACKWARD
-							   : DML_CONVOLUTION_DIRECTION_FORWARD;
-			const auto bias = [&]() -> TensorId {
-				if constexpr (requires { node.biasIndex; })
-					return resolve(node.biasIndex);
-				else
-					return noTensor;
-			}();
-			return builder.convolution(
-				resolve(node.inputIndex), resolve(node.filterIndex), bias, direction,
-				static_cast<UINT>(node.strides.size()), node.strides.data(),
-				node.dilations.data(), node.startPadding.data(), node.endPadding.data(),
-				node.groupCount, static_cast<UINT>(node.shape.size()),
-				node.shape.data());
-		} else if constexpr (std::is_same_v<T, AveragePool2d>) {
-			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-				"BaselineDml AveragePool2d shape dimensions must be positive");
-			return builder.averagePool(resolve(node.inputIndex),
-						   static_cast<UINT>(node.strides.size()),
-						   node.strides.data(), node.window.data(),
-						   node.startPadding.data(), node.endPadding.data(),
-						   static_cast<UINT>(node.shape.size()),
-						   node.shape.data());
-		} else if constexpr (std::is_same_v<T, Resize>) {
-			require(node.shapeRank == 4, "BaselineDml operator requires rank 4");
-			require(std::ranges::all_of(node.shape, [](auto size) { return size > 0; }),
-				"BaselineDml rank-4 output shape dimensions must be positive");
-			return builder.upsample(resolve(node.inputIndex), node.height, node.width,
-						static_cast<UINT>(node.shape.size()),
-						node.shape.data());
-		} else {
-			static_assert(std::is_same_v<T, void>, "Missing BaselineDml node compiler");
+	std::vector<TensorId> specs;
+	for (std::size_t index = 0; index < graph.inputSpecCount; ++index) {
+		const auto &spec = graph.inputSpecs[index];
+		try {
+			switch (spec.itemType) {
+			case ItemType::RuntimeInput:
+				specs.push_back(builder.input(spec));
+				break;
+			case ItemType::Weight:
+				specs.push_back(builder.weight(spec));
+				break;
+			default:
+				throw std::runtime_error("invalid input item type");
+			}
+		} catch (const std::exception &error) {
+			throw std::runtime_error("BaselineDml input specification " + std::to_string(index) + " (" +
+						 typeName(spec.dataType) + "): " + error.what());
 		}
+	}
+	std::vector<TensorId> values;
+	auto resolve = [&](auto index) -> TensorId {
+		require(std::cmp_greater_equal(index, 0) && std::cmp_less(index, values.size()),
+			"input must reference a preceding node");
+		return values[static_cast<std::size_t>(index)];
 	};
 	for (std::int64_t index = 0; index < graph.nodeCount; ++index) {
-		const auto result = std::visit(
-			[&](const auto &group) -> TensorId { return std::visit(compileNode, group); },
-			graph.nodes[index]);
-		values.push_back(result);
+		auto compileNode = [&](const auto &node) -> TensorId {
+			using T = std::decay_t<decltype(node)>;
+			try {
+				if constexpr (std::is_same_v<T, InputItem>) {
+					require(node.inputSpecIndex >= 0 &&
+							std::cmp_less(node.inputSpecIndex, specs.size()),
+						"input specification index is out of range");
+					return specs[static_cast<std::size_t>(node.inputSpecIndex)];
+				} else if constexpr (std::is_same_v<T, Add> || std::is_same_v<T, Mul>) {
+					return builder.binary(node.dataType, resolve(node.leftIndex),
+							      resolve(node.rightIndex), rankedShape(node),
+							      std::is_same_v<T, Mul>);
+				} else if constexpr (std::is_same_v<T, Clip>) {
+					return builder.clip(node, resolve(node.inputIndex));
+				} else if constexpr (std::is_same_v<T, Relu>) {
+					return builder.activation<DML_ACTIVATION_RELU_OPERATOR_DESC>(
+						DML_OPERATOR_ACTIVATION_RELU, node.dataType, resolve(node.inputIndex),
+						rankedShape(node));
+				} else if constexpr (std::is_same_v<T, Sigmoid>) {
+					return builder.activation<DML_ACTIVATION_SIGMOID_OPERATOR_DESC>(
+						DML_OPERATOR_ACTIVATION_SIGMOID, node.dataType,
+						resolve(node.inputIndex), rankedShape(node));
+				} else if constexpr (std::is_same_v<T, AveragePool2d>) {
+					return builder.averagePool(node, resolve(node.inputIndex));
+				} else if constexpr (std::is_same_v<T, Resize>) {
+					return builder.resize(node, resolve(node.inputIndex));
+				} else if constexpr (std::is_same_v<T, BiasedConv2d> ||
+						     std::is_same_v<T, BiasedConvTranspose2d>) {
+					constexpr auto direction = std::is_same_v<T, BiasedConv2d>
+									   ? DML_CONVOLUTION_DIRECTION_FORWARD
+									   : DML_CONVOLUTION_DIRECTION_BACKWARD;
+					return builder.convolution(node, resolve(node.inputIndex),
+								   resolve(node.filterIndex), resolve(node.biasIndex),
+								   direction);
+				} else {
+					static_assert(std::is_same_v<T, void>, "Missing node compiler");
+				}
+			} catch (const std::exception &error) {
+				std::string context =
+					"BaselineDml node " + std::to_string(index) + " " + nodeName(node);
+				if constexpr (requires { node.dataType; })
+					context += std::string(" (") + typeName(node.dataType) + ")";
+				throw std::runtime_error(context + ": " + error.what());
+			}
+		};
+		values.push_back(std::visit(
+			[&](const auto &group) -> TensorId {
+				if constexpr (std::is_same_v<std::decay_t<decltype(group)>, InputItem>)
+					return compileNode(group);
+				else
+					return std::visit(compileNode, group);
+			},
+			graph.nodes[index]));
 	}
-	require(hasInput, "BaselineDmlProgram requires an Input node");
-	builder.setOutput(resolve(graph.outputIndex));
-	return builder.finish();
+	return builder.finish(resolve(graph.outputIndex));
 }
 
 } // namespace BaselineDml

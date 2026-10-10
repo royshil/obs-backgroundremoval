@@ -71,6 +71,8 @@ struct AveragePool2d final {
 struct Clip final {
 	DataType dataType;
 	Size inputIndex;
+	Size shapeRank;
+	std::array<UINT, 4> shape;
 	float minimum;
 	float maximum;
 };
@@ -160,6 +162,8 @@ struct Mul final {
 struct Relu final {
 	DataType dataType;
 	Size inputIndex;
+	Size shapeRank;
+	std::array<UINT, 4> shape;
 };
 
 struct Reshape final {
@@ -181,6 +185,8 @@ struct Resize final {
 struct Sigmoid final {
 	DataType dataType;
 	Size inputIndex;
+	Size shapeRank;
+	std::array<UINT, 4> shape;
 };
 
 struct Transpose final {

@@ -23,12 +23,13 @@ namespace BaselineDml {
 
 using TensorId = std::int64_t;
 struct CompiledTensor final {
+	ProgramDefinition::DataType dataType = ProgramDefinition::DataType::Unknown;
 	std::vector<std::uint32_t> sizes;
 	std::vector<std::uint32_t> strides;
 	std::uint64_t size = 0;
+	std::uint64_t dataBytes = 0;
 	std::int64_t storage = 0;
 	bool weight = false;
-	std::int64_t weightCount = 0;
 	std::int64_t byteOffset = 0;
 	std::uint64_t weightOffset = 0;
 };
@@ -47,7 +48,7 @@ struct CompiledDmlProgram final {
 	std::vector<CompiledTensor> tensors;
 	std::vector<CompiledStorage> storages;
 	std::vector<CompiledStep> steps;
-	TensorId inputTensor = -1;
+	std::vector<TensorId> inputTensors;
 	TensorId outputTensor = -1;
 	std::uint64_t weightBytes = 0;
 };

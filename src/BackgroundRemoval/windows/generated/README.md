@@ -13,10 +13,24 @@ Models under `data/models` belong to the legacy Linux path and are not used here
 Generated artifacts must be verified by a project maintainer and committed to the repository. The C++ file contains
 the immutable `BaselineDml` graph for DirectML feature level 1.0 and byte offsets into
 the raw float32 weight file. The RC file embeds those weights into the plugin DLL as
-`RCDATA`. Fixed weights are operator arguments rather than graph inputs.
+`RCDATA`. The `InputSpecItem` table describes both runtime inputs and fixed weights;
+`InputItem` nodes reference this table. Weights are bound during operator initialization
+and are not arguments to `run`.
 `BaselineDmlCompiler` validates the resource bounds and graph edges, orders its nodes,
 and converts it into compiled DirectML operators.
 Normal builds consume this verified file and do not regenerate it.
+
+The runtime accepts an array of read-only byte spans, ordered by `RuntimeInput`
+entries in the specification table, and one writable output byte span. Every runtime
+input must be supplied, even if no node uses it. Repeated `InputItem` references reuse
+the same tensor. Spans and weight offsets use packed element bytes; the runtime adds
+DirectML buffer padding and aligns GPU weight bindings separately.
+
+Tensor sizes use the declared `DataType`. Unknown types, unsupported device types,
+and invalid operator/type combinations are rejected without implicit conversion or
+CPU fallback. The current `Node` variants are the supported operator set; live
+Constant, Reshape, Transpose, Concat, MatMul, and unbiased convolution nodes are
+rejected by the generator.
 
 The input is contiguous RGB float32 NCHW `[1, 3, 144, 256]` (three planes), and
 the output is float32 foreground alpha `[1, 1, 144, 256]`. The generator fixes
@@ -38,6 +52,11 @@ Install `Models/MediaPipeLandscape/DirectML/requirements-test.txt`, then run
 `python Models/MediaPipeLandscape/DirectML/test_generate_model.py` after downloading
 the model to check the input/output contract and numerical equivalence of the lowering.
 ONNX Runtime is used only as a CPU test oracle, not by the plugin or its build.
+
+Windows CTest also runs `DmlProgramTest` for multiple inputs, shared specifications,
+packed weights, Float16 and integer arithmetic, and invalid definitions. Tests that
+require an unavailable DirectML device, or integer Add unsupported by the device,
+are reported as skipped rather than passed.
 
 After generation, a project maintainer must inspect and verify the contents.
 Commit the verified file in the same change as the generator or source-model

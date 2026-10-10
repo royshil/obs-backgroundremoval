@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -34,24 +35,16 @@ static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::
 	      DML_TENSOR_DATA_TYPE_FLOAT32);
 static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Float16) ==
 	      DML_TENSOR_DATA_TYPE_FLOAT16);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt32) ==
-	      DML_TENSOR_DATA_TYPE_UINT32);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt16) ==
-	      DML_TENSOR_DATA_TYPE_UINT16);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt8) ==
-	      DML_TENSOR_DATA_TYPE_UINT8);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int32) ==
-	      DML_TENSOR_DATA_TYPE_INT32);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int16) ==
-	      DML_TENSOR_DATA_TYPE_INT16);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int8) ==
-	      DML_TENSOR_DATA_TYPE_INT8);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt32) == DML_TENSOR_DATA_TYPE_UINT32);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt16) == DML_TENSOR_DATA_TYPE_UINT16);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt8) == DML_TENSOR_DATA_TYPE_UINT8);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int32) == DML_TENSOR_DATA_TYPE_INT32);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int16) == DML_TENSOR_DATA_TYPE_INT16);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int8) == DML_TENSOR_DATA_TYPE_INT8);
 static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Float64) ==
 	      DML_TENSOR_DATA_TYPE_FLOAT64);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt64) ==
-	      DML_TENSOR_DATA_TYPE_UINT64);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int64) ==
-	      DML_TENSOR_DATA_TYPE_INT64);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt64) == DML_TENSOR_DATA_TYPE_UINT64);
+static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int64) == DML_TENSOR_DATA_TYPE_INT64);
 
 using Microsoft::WRL::ComPtr;
 constexpr TensorId noTensor = -1;
@@ -181,10 +174,10 @@ public:
 			step.operation = std::move(compiledStep.operation);
 			steps_.push_back(std::move(step));
 		}
-		inputTensor_ = compiled.inputTensor;
+		inputTensors_ = std::move(compiled.inputTensors);
 		outputTensor_ = compiled.outputTensor;
-		inputSize_ = tensors_.at(inputTensor_).size;
-		outputSize_ = tensors_.at(outputTensor_).size;
+
+		outputSize_ = tensors_.at(outputTensor_).dataBytes;
 		weightBytes_ = compiled.weightBytes;
 		allocateResources(weights);
 		initializeOperators();
@@ -193,22 +186,37 @@ public:
 
 	~Impl() noexcept = default;
 
-	void run(std::span<const float> input, std::span<float> output)
+	void run(std::span<const std::span<const std::byte>> inputs, std::span<std::byte> output)
 	{
-		if (input.size_bytes() != inputSize_ || output.size_bytes() != outputSize_) {
-			throw std::invalid_argument("Baseline DirectML tensor size mismatch");
+		if (inputs.size() != inputTensors_.size())
+			throw std::invalid_argument("Baseline DirectML input count mismatch");
+		if (output.size() != outputSize_)
+			throw std::invalid_argument("Baseline DirectML output byte size mismatch");
+		for (std::size_t index = 0; index < inputs.size(); ++index) {
+			if (inputs[index].size() != tensors_.at(inputTensors_[index]).dataBytes)
+				throw std::invalid_argument("Baseline DirectML input " + std::to_string(index) +
+							    " byte size mismatch");
 		}
-		void *mapped = nullptr;
-		check(inputUpload_->Map(0, nullptr, &mapped), "Map input upload buffer");
-		std::memcpy(mapped, input.data(), inputSize_);
-		inputUpload_->Unmap(0, nullptr);
-
+		// Validate every span before mapping or submitting any GPU work.
+		for (std::size_t index = 0; index < inputs.size(); ++index) {
+			const auto &tensor = tensors_.at(inputTensors_[index]);
+			void *mapped = nullptr;
+			const D3D12_RANGE noRead{0, 0};
+			check(inputUploads_[index]->Map(0, &noRead, &mapped), "Map input upload buffer");
+			std::memset(mapped, 0, static_cast<std::size_t>(tensor.size));
+			std::memcpy(mapped, inputs[index].data(), inputs[index].size());
+			inputUploads_[index]->Unmap(0, nullptr);
+		}
 		resetCommands();
-		auto *inputResource = resource(inputTensor_);
-		commandList_->CopyBufferRegion(inputResource, 0, inputUpload_.Get(), 0, inputSize_);
-		auto inputBarrier = transition(inputResource, D3D12_RESOURCE_STATE_COPY_DEST,
-					       D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		commandList_->ResourceBarrier(1, &inputBarrier);
+		for (std::size_t index = 0; index < inputs.size(); ++index) {
+			const auto id = inputTensors_[index];
+			auto *inputResource = resource(id);
+			commandList_->CopyBufferRegion(inputResource, 0, inputUploads_[index].Get(), 0,
+						       tensors_.at(id).size);
+			const auto barrier = transition(inputResource, D3D12_RESOURCE_STATE_COPY_DEST,
+							D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			commandList_->ResourceBarrier(1, &barrier);
+		}
 		ID3D12DescriptorHeap *heaps[] = {descriptorHeap_.Get()};
 		commandList_->SetDescriptorHeaps(1, heaps);
 		for (auto &step : steps_) {
@@ -218,40 +226,56 @@ public:
 			commandList_->ResourceBarrier(1, &barrier);
 		}
 		auto *outputResource = resource(outputTensor_);
+		const auto &outputTensor = tensors_.at(outputTensor_);
 		auto outputBarrier = transition(outputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 						D3D12_RESOURCE_STATE_COPY_SOURCE);
 		commandList_->ResourceBarrier(1, &outputBarrier);
-		commandList_->CopyBufferRegion(readback_.Get(), 0, outputResource, 0, outputSize_);
-		std::array resetBarriers{
-			transition(inputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-				   D3D12_RESOURCE_STATE_COPY_DEST),
-			transition(outputResource, D3D12_RESOURCE_STATE_COPY_SOURCE,
-				   D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-		};
-		commandList_->ResourceBarrier(static_cast<UINT>(resetBarriers.size()), resetBarriers.data());
+		commandList_->CopyBufferRegion(readback_.Get(), 0, outputResource,
+					       outputTensor.weight ? outputTensor.weightOffset : 0, outputSize_);
+		outputBarrier = transition(outputResource, D3D12_RESOURCE_STATE_COPY_SOURCE,
+					   D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		commandList_->ResourceBarrier(1, &outputBarrier);
+		// Restore separately so a pass-through output may alias a runtime input.
+		for (const auto id : inputTensors_) {
+			const auto barrier = transition(resource(id), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+							D3D12_RESOURCE_STATE_COPY_DEST);
+			commandList_->ResourceBarrier(1, &barrier);
+		}
 		executeAndWait();
-
-		D3D12_RANGE readRange{0, outputSize_};
+		void *mapped = nullptr;
+		const D3D12_RANGE readRange{0, static_cast<SIZE_T>(outputSize_)};
 		check(readback_->Map(0, &readRange, &mapped), "Map output readback buffer");
-		std::memcpy(output.data(), mapped, outputSize_);
-		readback_->Unmap(0, nullptr);
+		std::memcpy(output.data(), mapped, output.size());
+		const D3D12_RANGE noWrite{0, 0};
+		readback_->Unmap(0, &noWrite);
 	}
 
 private:
-	auto resource(TensorId id) -> ID3D12Resource * { return storages_.at(tensors_.at(id).storage).resource.Get(); }
+	auto resource(TensorId id) -> ID3D12Resource *
+	{
+		const auto &tensor = tensors_.at(id);
+		return tensor.weight ? weight_.Get() : storages_.at(tensor.storage).resource.Get();
+	}
 
 	void allocateResources(std::span<const std::byte> weights)
 	{
 		for (std::size_t index = 0; index < storages_.size(); ++index) {
 			auto &storage = storages_[index];
-			const auto state = std::cmp_equal(index, tensors_.at(inputTensor_).storage)
-						   ? D3D12_RESOURCE_STATE_COPY_DEST
-						   : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+			const auto state =
+				std::ranges::any_of(inputTensors_,
+						    [&](TensorId id) {
+							    return std::cmp_equal(index, tensors_.at(id).storage);
+						    })
+					? D3D12_RESOURCE_STATE_COPY_DEST
+					: D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 			storage.resource = createBuffer(d3dDevice_.Get(), storage.size, D3D12_HEAP_TYPE_DEFAULT, state,
 							D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 		}
-		inputUpload_ = createBuffer(d3dDevice_.Get(), inputSize_, D3D12_HEAP_TYPE_UPLOAD,
-					    D3D12_RESOURCE_STATE_GENERIC_READ);
+		for (const auto id : inputTensors_) {
+			inputUploads_.push_back(createBuffer(d3dDevice_.Get(), tensors_.at(id).size,
+							     D3D12_HEAP_TYPE_UPLOAD,
+							     D3D12_RESOURCE_STATE_GENERIC_READ));
+		}
 		readback_ = createBuffer(d3dDevice_.Get(), outputSize_, D3D12_HEAP_TYPE_READBACK,
 					 D3D12_RESOURCE_STATE_COPY_DEST);
 		if (weightBytes_) {
@@ -262,11 +286,12 @@ private:
 					       D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 			void *mapped = nullptr;
 			check(weightUpload_->Map(0, nullptr, &mapped), "Map generated weight upload buffer");
+			std::memset(mapped, 0, static_cast<std::size_t>(weightBytes_));
 			for (const auto &tensor : tensors_) {
 				if (tensor.weight) {
 					std::memcpy(static_cast<std::byte *>(mapped) + tensor.weightOffset,
 						    weights.data() + static_cast<std::size_t>(tensor.byteOffset),
-						    static_cast<std::size_t>(tensor.weightCount) * sizeof(float));
+						    static_cast<std::size_t>(tensor.dataBytes));
 				}
 			}
 			weightUpload_->Unmap(0, nullptr);
@@ -296,11 +321,13 @@ private:
 			step.descriptorCount =
 				std::max<UINT>(1, std::max(step.operationProperties.RequiredDescriptorCount,
 							   step.initializerProperties.RequiredDescriptorCount));
+			if (step.descriptorCount > std::numeric_limits<std::uint32_t>::max() - descriptorCount)
+				throw std::runtime_error("DirectML descriptor count overflow");
 			descriptorCount += step.descriptorCount;
 		}
 		D3D12_DESCRIPTOR_HEAP_DESC heapDescription{};
 		heapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		heapDescription.NumDescriptors = descriptorCount;
+		heapDescription.NumDescriptors = std::max<UINT>(1, descriptorCount);
 		heapDescription.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		check(d3dDevice_->CreateDescriptorHeap(&heapDescription, IID_PPV_ARGS(&descriptorHeap_)),
 		      "CreateDescriptorHeap");
@@ -328,7 +355,7 @@ private:
 		if (FAILED(result)) {
 			throw std::runtime_error("CreateBindingTable failed (HRESULT " + std::to_string(result) +
 						 ", device reason " +
-						 std::to_string(d3dDevice_->GetDeviceRemovedReason()) + ")");
+						 std::to_string(dmlDevice_->GetDeviceRemovedReason()) + ")");
 		}
 		return table;
 	}
@@ -351,9 +378,6 @@ private:
 		tables.reserve(steps_.size());
 		for (std::size_t stepIndex = 0; stepIndex < steps_.size(); ++stepIndex) {
 			auto &step = steps_[stepIndex];
-			const bool hasOwnedInput = std::ranges::any_of(step.inputs, [this](TensorId id) {
-				return id != noTensor && tensors_.at(id).weight;
-			});
 			ComPtr<IDMLBindingTable> table;
 			try {
 				table = createTable(step.initializer.Get(), step.descriptorOffset,
@@ -372,11 +396,12 @@ private:
 				}
 			}
 			DML_BUFFER_ARRAY_BINDING bufferArray{static_cast<UINT>(buffers.size()), buffers.data()};
-			const DML_BINDING_DESC inputBinding =
-				hasOwnedInput ? DML_BINDING_DESC{DML_BINDING_TYPE_BUFFER_ARRAY, &bufferArray}
-					      : DML_BINDING_DESC{DML_BINDING_TYPE_NONE, nullptr};
+			const DML_BINDING_DESC inputBinding{DML_BINDING_TYPE_BUFFER_ARRAY, &bufferArray};
 			table->BindInputs(1, &inputBinding);
+			check(dmlDevice_->GetDeviceRemovedReason(),
+			      ("initializer step " + std::to_string(stepIndex) + " BindInputs").c_str());
 			bindTemporary(table.Get(), step.initializerProperties.TemporaryResourceSize);
+			check(dmlDevice_->GetDeviceRemovedReason(), "initializer BindTemporaryResource");
 			if (step.persistent) {
 				const auto buffer = bufferBinding(step.persistent.Get(), 0,
 								  step.operationProperties.PersistentResourceSize);
@@ -386,7 +411,9 @@ private:
 				const DML_BINDING_DESC binding{DML_BINDING_TYPE_NONE, nullptr};
 				table->BindOutputs(1, &binding);
 			}
+			check(dmlDevice_->GetDeviceRemovedReason(), "initializer BindOutputs");
 			recorder_->RecordDispatch(commandList_.Get(), step.initializer.Get(), table.Get());
+			check(dmlDevice_->GetDeviceRemovedReason(), "initializer RecordDispatch");
 			tables.push_back(std::move(table));
 			D3D12_RESOURCE_BARRIER barrier{};
 			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
@@ -397,7 +424,8 @@ private:
 			step.initializer.Reset();
 		}
 		weightUpload_.Reset();
-		weight_.Reset();
+		if (!tensors_.at(outputTensor_).weight)
+			weight_.Reset();
 	}
 
 	void createExecutionTables()
@@ -446,6 +474,7 @@ private:
 
 	void executeAndWait()
 	{
+		check(dmlDevice_->GetDeviceRemovedReason(), "DirectML device before command submission");
 		check(commandList_->Close(), "CommandList::Close");
 		ID3D12CommandList *lists[] = {commandList_.Get()};
 		queue_->ExecuteCommandLists(1, lists);
@@ -453,17 +482,27 @@ private:
 		check(queue_->Signal(fence_.Get(), value), "CommandQueue::Signal");
 		if (fence_->GetCompletedValue() < value) {
 			check(fence_->SetEventOnCompletion(value, fenceEvent_.get()), "Fence::SetEventOnCompletion");
-			WaitForSingleObject(fenceEvent_.get(), INFINITE);
+			for (;;) {
+				const auto result = WaitForSingleObject(fenceEvent_.get(), 1000);
+				check(dmlDevice_->GetDeviceRemovedReason(),
+				      "DirectML device removed while waiting for GPU");
+				check(d3dDevice_->GetDeviceRemovedReason(),
+				      "D3D12 device removed while waiting for GPU");
+				if (result == WAIT_OBJECT_0)
+					break;
+				if (result != WAIT_TIMEOUT)
+					throw std::runtime_error("DirectML GPU fence wait failed (result " +
+								 std::to_string(result) + ")");
+			}
 		}
 	}
 
 	std::vector<Tensor> tensors_;
 	std::vector<Storage> storages_;
 	std::vector<Step> steps_;
-	TensorId inputTensor_ = noTensor;
+	std::vector<TensorId> inputTensors_;
 	TensorId outputTensor_ = noTensor;
 	std::uint64_t weightBytes_ = 0;
-	std::uint64_t inputSize_ = 0;
 	std::uint64_t outputSize_ = 0;
 	ComPtr<ID3D12Device> d3dDevice_;
 	ComPtr<IDMLDevice> dmlDevice_;
@@ -473,7 +512,8 @@ private:
 	ComPtr<IDMLCommandRecorder> recorder_;
 	ComPtr<ID3D12DescriptorHeap> descriptorHeap_;
 	std::uint32_t descriptorIncrement_ = 0;
-	ComPtr<ID3D12Resource> inputUpload_, readback_, weightUpload_, weight_, temporary_;
+	std::vector<ComPtr<ID3D12Resource>> inputUploads_;
+	ComPtr<ID3D12Resource> readback_, weightUpload_, weight_, temporary_;
 	ComPtr<ID3D12Fence> fence_;
 	UniqueHandle fenceEvent_;
 	std::uint64_t fenceValue_ = 0;
@@ -484,9 +524,9 @@ BaselineDmlProgramRuntime::BaselineDmlProgramRuntime(const Graph &graph, std::sp
 {
 }
 BaselineDmlProgramRuntime::~BaselineDmlProgramRuntime() noexcept = default;
-void BaselineDmlProgramRuntime::run(std::span<const float> input, std::span<float> output)
+void BaselineDmlProgramRuntime::run(std::span<const std::span<const std::byte>> inputs, std::span<std::byte> output)
 {
-	impl_->run(input, output);
+	impl_->run(inputs, output);
 }
 
 } // namespace BaselineDml

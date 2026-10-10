@@ -4,9 +4,7 @@
 """Regression checks against the cached, pinned model (no network access)."""
 
 import ast
-import itertools
 import pathlib
-import re
 import subprocess
 import sys
 import tempfile
@@ -20,160 +18,106 @@ import onnxruntime as ort
 
 from GenerateModel import (
     INPUT_SHAPE, OUTPUT_SHAPE, MODEL_FILENAME, MODEL_REPOSITORY, MODEL_REVISION,
-    emit_concat, emit_transpose, lower_model, main,
+    lower_model, main,
 )
 
 
-class TransposeTests(unittest.TestCase):
-    def test_rank_specific_permutations(self):
-        for rank in (2, 3, 4):
-            shape = list(range(2, rank + 2))
-            for permutation in itertools.permutations(range(rank)):
-                with self.subTest(rank=rank, permutation=permutation):
-                    entries = ["Input{0}"]
-                    output = [shape[axis] for axis in permutation]
-                    self.assertEqual(emit_transpose(entries, 0, shape, list(permutation), output), 1)
-                    axes = ", ".join(f"{axis}u" for axis in permutation)
-                    self.assertEqual(entries[1], f"TransposeRank{rank}{{0, {{{axes}}}}}")
-
-    def test_default_permutation_and_rank_one_alias(self):
-        for rank in (1, 2, 3, 4):
-            shape = list(range(2, rank + 2))
-            entries = ["Input{0}"]
-            result = emit_transpose(entries, 0, shape, None, shape[::-1])
-            self.assertEqual(result, 0 if rank == 1 else 1)
-            if rank == 1:
-                self.assertEqual(entries, ["Input{0}"])
-            else:
-                axes = ", ".join(f"{axis}u" for axis in reversed(range(rank)))
-                self.assertEqual(entries[1], f"TransposeRank{rank}{{0, {{{axes}}}}}")
-        entries = ["Input{0}"]
-        self.assertEqual(emit_transpose(entries, 0, [3], [0], [3]), 0)
-        self.assertEqual(entries, ["Input{0}"])
-
-    def test_invalid_transpose_is_rejected(self):
-        cases = [
-            ([], None, []),
-            ([1] * 5, None, [1] * 5),
-            ([2, 3], [0, 0], [2, 2]),
-            ([2, 3], [0], [2]),
-            ([2, 3], [-1, 0], [3, 2]),
-            ([2, 3], [0, 2], [2, 3]),
-            ([2, 3], [1, 0], [2, 3]),
-        ]
-        for shape, permutation, output in cases:
-            with self.subTest(shape=shape, permutation=permutation):
-                entries = ["Input{0}"]
-                with self.assertRaises(RuntimeError):
-                    emit_transpose(entries, 0, shape, permutation, output)
-                self.assertEqual(entries, ["Input{0}"])
-
-    def test_generator_connects_constant_transpose_and_following_node(self):
-        for rank in (1, 2, 3, 4):
-            with self.subTest(rank=rank):
-                shape = list(range(2, rank + 2))
-                def value(name, sizes):
-                    return onnx.helper.make_tensor_value_info(name, onnx.TensorProto.FLOAT, sizes)
-
-                model = onnx.helper.make_model(onnx.helper.make_graph(
-                    [onnx.helper.make_node("Transpose", ["weight"], ["transposed"]),
-                     onnx.helper.make_node("Relu", ["transposed"], ["out"])],
-                    "transpose", [value("x", INPUT_SHAPE)], [value("out", shape[::-1])],
-                    initializer=[onnx.numpy_helper.from_array(np.ones(shape, dtype=np.float32), "weight")],
-                    value_info=[value("transposed", shape[::-1])],
-                ))
-                with tempfile.TemporaryDirectory() as directory:
-                    paths = [pathlib.Path(directory) / name for name in ("graph.cpp", "graph.rc", "weights.bin")]
-                    with (mock.patch("sys.argv", ["GenerateModel.py", "--offline", *map(str, paths)]),
-                          mock.patch("GenerateModel.hf_hub_download", return_value="unused.onnx"),
-                          mock.patch("GenerateModel.onnx.load", return_value=model),
-                          mock.patch("GenerateModel.lower_model", return_value=model)):
-                        if rank != 1:
-                            with self.assertRaisesRegex(RuntimeError, "outside the pinned Landscape variants"):
-                                main()
-                            self.assertFalse(paths[0].exists())
-                            continue
-                        main()
-                    source = paths[0].read_text()
-                if rank == 1:
-                    self.assertNotIn("TransposeRank", source)
-                    self.assertIn("Relu{DataType::Float32, 1}", source)
-                    self.assertIn("3LL, graphNodes,\n\t2,", source)
-
-
-class ConcatTests(unittest.TestCase):
-    def test_single_input_is_an_alias(self):
-        entries = ["Input{0}"]
-        self.assertEqual(emit_concat(entries, [0], [[1, 2, 3, 4]], 1, [1, 2, 3, 4]), 0)
-        self.assertEqual(entries, ["Input{0}"])
-
-    def test_binary_and_variadic_preserve_values_and_shapes(self):
-        for count in (2, 3, 5):
-            for axis in range(-4, 4):
-                with self.subTest(count=count, axis=axis):
-                    shapes = [[1, 2, 3, 4] for _ in range(count)]
-                    for index, shape in enumerate(shapes):
-                        shape[axis] = index + 1
-                    values = [np.full(shape, index, dtype=np.float32)
-                              for index, shape in enumerate(shapes)]
-                    expected = np.concatenate(values, axis=axis)
-                    entries = [f"Input{{{index}}}" for index in range(count)]
-                    result = emit_concat(entries, list(range(count)), shapes, axis, list(expected.shape))
-                    self.assertEqual(len(entries), 2 * count - 1)
-                    self.assertEqual(result, len(entries) - 1)
-                    for entry in entries[count:]:
-                        match = re.fullmatch(r"Concat\{(\d+), (\d+), (\d+)u, \{([\d u,]+)\}\}", entry)
-                        self.assertIsNotNone(match)
-                        left, right, normalized_axis = map(int, match.group(1, 2, 3))
-                        self.assertLess(left, len(values))
-                        self.assertLess(right, len(values))
-                        value = np.concatenate([values[left], values[right]], axis=normalized_axis)
-                        shape = tuple(int(size.strip().removesuffix("u"))
-                                      for size in match.group(4).split(","))
-                        self.assertEqual(value.shape, shape)
-                        values.append(value)
-                    np.testing.assert_array_equal(values[result], expected)
-
-    def test_invalid_concat_is_rejected_without_emitting_nodes(self):
-        cases = [
-            ([], [], 0, [1, 2, 3, 4]),
-            ([0], [], 0, [1, 2, 3, 4]),
-            ([0], [[1, 2, 3]], 0, [1, 2, 3, 4]),
-            ([0], [[1, 2, 3, 4]], 4, [1, 2, 3, 4]),
-            ([0], [[1, 2, 3, 4]], -5, [1, 2, 3, 4]),
-            ([0, 1], [[1, 2, 3, 4], [1, 2, 5, 4]], 1, [1, 4, 3, 4]),
-            ([0], [[1, 2, 3, 4]], 1, [1, 3, 3, 4]),
-            ([0], [[1, 0, 3, 4]], 1, [1, 0, 3, 4]),
-            ([0, 1], [[1, 2**31, 3, 4]] * 2, 1, [1, 2**32, 3, 4]),
-        ]
-        for inputs, shapes, axis, output in cases:
-            with self.subTest(inputs=inputs, shapes=shapes, axis=axis):
-                entries = ["Input{0}", "Input{1}"]
-                with self.assertRaises(RuntimeError):
-                    emit_concat(entries, inputs, shapes, axis, output)
-                self.assertEqual(entries, ["Input{0}", "Input{1}"])
-
-    def test_generator_rejects_concat_outside_target_variants(self):
-        def value(name, channels):
-            return onnx.helper.make_tensor_value_info(name, onnx.TensorProto.FLOAT, [1, channels, 144, 256])
-
-        model = onnx.helper.make_model(onnx.helper.make_graph(
-            [onnx.helper.make_node("Concat", ["x"], ["alias"], axis=1),
-             onnx.helper.make_node("Concat", ["alias", "weight", "x"], ["joined"], axis=-3),
-             onnx.helper.make_node("Relu", ["joined"], ["out"])],
-            "concat", [value("x", 3)], [value("out", 7)],
-            initializer=[onnx.numpy_helper.from_array(np.ones((1, 1, 144, 256), dtype=np.float32), "weight")],
-            value_info=[value("alias", 3), value("joined", 7)],
-        ))
+class GeneratorTests(unittest.TestCase):
+    def generate(self, model):
         with tempfile.TemporaryDirectory() as directory:
             paths = [pathlib.Path(directory) / name for name in ("graph.cpp", "graph.rc", "weights.bin")]
             with (mock.patch("sys.argv", ["GenerateModel.py", "--offline", *map(str, paths)]),
                   mock.patch("GenerateModel.hf_hub_download", return_value="unused.onnx"),
                   mock.patch("GenerateModel.onnx.load", return_value=model),
                   mock.patch("GenerateModel.lower_model", return_value=model)):
-                with self.assertRaisesRegex(RuntimeError, "outside the pinned Landscape variants"):
-                    main()
-            self.assertFalse(paths[0].exists())
+                main()
+            return paths[0].read_text(), paths[2].read_bytes()
+
+    def value(self, name, element_type=onnx.TensorProto.FLOAT, shape=(1, 1, 1, 3)):
+        return onnx.helper.make_tensor_value_info(name, element_type, shape)
+
+    def test_multiple_inputs_and_shared_weight(self):
+        model = onnx.helper.make_model(onnx.helper.make_graph(
+            [onnx.helper.make_node("Add", ["b", "w"], ["first"]),
+             onnx.helper.make_node("Add", ["a", "w"], ["second"]),
+             onnx.helper.make_node("Mul", ["first", "second"], ["out"])],
+            "multiple", [self.value("a"), self.value("b")], [self.value("out")],
+            initializer=[onnx.numpy_helper.from_array(np.ones((1, 1, 1, 3), dtype=np.float32), "w")],
+            value_info=[self.value("first"), self.value("second")],
+        ))
+        source, weights = self.generate(model)
+        self.assertEqual(source.count("ItemType::RuntimeInput"), 2)
+        self.assertEqual(source.count("ItemType::Weight"), 1)
+        self.assertEqual(source.count("InputItem{2}"), 1)
+        self.assertIn("Add{DataType::Float32, 1, 2, 4, {1u, 1u, 1u, 3u}}", source)
+        self.assertIn("Add{DataType::Float32, 0, 2, 4, {1u, 1u, 1u, 3u}}", source)
+        self.assertIn("3, inputSpecs,", source)
+        self.assertEqual(weights, np.ones(3, dtype="<f4").tobytes())
+
+    def test_all_defined_types_preserve_packed_weight_bytes(self):
+        for tensor_type, numpy_type, name in (
+            (onnx.TensorProto.FLOAT, "<f4", "Float32"),
+            (onnx.TensorProto.FLOAT16, "<f2", "Float16"),
+            (onnx.TensorProto.DOUBLE, "<f8", "Float64"),
+            (onnx.TensorProto.INT8, "i1", "Int8"),
+            (onnx.TensorProto.UINT8, "u1", "UInt8"),
+            (onnx.TensorProto.INT16, "<i2", "Int16"),
+            (onnx.TensorProto.UINT16, "<u2", "UInt16"),
+            (onnx.TensorProto.INT32, "<i4", "Int32"),
+            (onnx.TensorProto.UINT32, "<u4", "UInt32"),
+            (onnx.TensorProto.INT64, "<i8", "Int64"),
+            (onnx.TensorProto.UINT64, "<u8", "UInt64"),
+        ):
+            with self.subTest(data_type=name):
+                array = np.array([1, 2, 3], dtype=numpy_type).reshape(1, 1, 1, 3)
+                model = onnx.helper.make_model(onnx.helper.make_graph(
+                    [onnx.helper.make_node("Add", ["x", "w"], ["out"])], "typed",
+                    [self.value("x", tensor_type)], [self.value("out", tensor_type)],
+                    initializer=[onnx.numpy_helper.from_array(array, "w")],
+                ))
+                source, weights = self.generate(model)
+                self.assertIn(f"Add{{DataType::{name},", source)
+                self.assertIn(f"DataType::{name}, ItemType::Weight", source)
+                self.assertEqual(weights, array.tobytes())
+
+    def test_mixed_weight_offsets_have_no_gpu_padding(self):
+        a = np.array([1, 2, 3], dtype=np.uint8).reshape(1, 1, 1, 3)
+        b = np.array([4, 5, 6], dtype=np.float64).reshape(1, 1, 1, 3)
+        model = onnx.helper.make_model(onnx.helper.make_graph(
+            [onnx.helper.make_node("Add", ["x", "a"], ["unused"]),
+             onnx.helper.make_node("Relu", ["b"], ["out"])], "mixed",
+            [self.value("x", onnx.TensorProto.UINT8)], [self.value("out", onnx.TensorProto.DOUBLE)],
+            initializer=[onnx.numpy_helper.from_array(a, "a"), onnx.numpy_helper.from_array(b, "b")],
+            value_info=[self.value("unused", onnx.TensorProto.UINT8)],
+        ))
+        source, weights = self.generate(model)
+        self.assertIn("DataType::Float64, ItemType::Weight, 4, {1u, 1u, 1u, 3u}, 3LL", source)
+        self.assertEqual(weights, a.tobytes() + b.tobytes())
+
+    def test_unsupported_operators_rejected_before_writing(self):
+        for operation in ("Constant", "Reshape", "Transpose", "Concat", "MatMul"):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
+                model = onnx.helper.make_model(onnx.helper.make_graph(
+                    [onnx.helper.make_node(operation, ["x"], ["out"])], operation,
+                    [self.value("x")], [self.value("out")],
+                ))
+                paths = [pathlib.Path(directory) / name for name in ("graph.cpp", "graph.rc", "weights.bin")]
+                with (mock.patch("sys.argv", ["GenerateModel.py", "--offline", *map(str, paths)]),
+                      mock.patch("GenerateModel.hf_hub_download", return_value="unused.onnx"),
+                      mock.patch("GenerateModel.onnx.load", return_value=model),
+                      mock.patch("GenerateModel.lower_model", return_value=model)):
+                    with self.assertRaisesRegex(RuntimeError, "outside the pinned Landscape variants"):
+                        main()
+                self.assertFalse(any(path.exists() for path in paths))
+
+    def test_unknown_type_and_invalid_shape_are_rejected(self):
+        for tensor_type, shape in ((onnx.TensorProto.BOOL, (1,)), (onnx.TensorProto.FLOAT, (1, 0))):
+            model = onnx.helper.make_model(onnx.helper.make_graph(
+                [onnx.helper.make_node("Relu", ["x"], ["out"])], "invalid",
+                [self.value("x", tensor_type, shape)], [self.value("out", tensor_type, shape)],
+            ))
+            with self.assertRaises(RuntimeError):
+                self.generate(model)
 
 
 class ModelTests(unittest.TestCase):

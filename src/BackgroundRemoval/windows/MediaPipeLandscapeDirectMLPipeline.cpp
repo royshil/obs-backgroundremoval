@@ -94,7 +94,8 @@ auto MediaPipeLandscapeDirectMLPipeline::processImage(const std::uint8_t *inputD
 					    source, modelWidth * sizeof(float));
 			}
 		}
-		program_->run(modelInput_, modelOutput_);
+		const std::array inputs{std::as_bytes(std::span<const float>(modelInput_))};
+		program_->run(inputs, std::as_writable_bytes(std::span<float>(modelOutput_)));
 		for (std::size_t index = 0; index < modelPixelCount; ++index) {
 			output[index] = static_cast<std::uint8_t>(
 				std::clamp((1.0F - modelOutput_[index]) * 255.0F, 0.0F, 255.0F));

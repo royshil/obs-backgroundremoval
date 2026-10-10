@@ -17,3 +17,6 @@ endfunction()
 
 add_subdirectory(UI)
 add_subdirectory(UpdateConfig)
+if(WIN32)
+  add_subdirectory(DmlProgram)
+endif()

@@ -111,47 +111,26 @@ def dimensions(values: list[int]) -> str:
     return "{" + ", ".join(f"{value}u" for value in values) + "}"
 
 
-def emit_concat(node_entries: list[str], inputs: list[int], input_shapes: list[list[int]],
-                axis: int, output_shape: list[int]) -> int:
-    if not inputs or len(inputs) != len(input_shapes):
-        raise RuntimeError("Concat requires a shape for each input and at least one input")
-    if any(len(shape) != 4 for shape in [*input_shapes, output_shape]):
-        raise RuntimeError("Concat requires rank-4 inputs and output")
-    if not -4 <= axis < 4:
-        raise RuntimeError("Concat axis is out of range")
-    axis %= 4
-    for shape in [*input_shapes, output_shape]:
-        if any(not 0 < size < 2**32 for size in shape):
-            raise RuntimeError("Concat dimensions must be positive UINT values")
-        if any(shape[d] != input_shapes[0][d] for d in range(4) if d != axis):
-            raise RuntimeError("Concat non-axis dimensions must match")
-    if sum(shape[axis] for shape in input_shapes) != output_shape[axis]:
-        raise RuntimeError("Concat output shape does not match its inputs")
-
-    left_index = inputs[0]
-    shape = list(input_shapes[0])
-    for right_index, right_shape in zip(inputs[1:], input_shapes[1:]):
-        shape[axis] += right_shape[axis]
-        node_entries.append(f"Concat{{{left_index}, {right_index}, {axis}u, {dimensions(shape)}}}")
-        left_index = len(node_entries) - 1
-    return left_index
+DATA_TYPES = {
+    onnx.TensorProto.FLOAT: "Float32", onnx.TensorProto.FLOAT16: "Float16",
+    onnx.TensorProto.UINT32: "UInt32", onnx.TensorProto.UINT16: "UInt16",
+    onnx.TensorProto.UINT8: "UInt8", onnx.TensorProto.INT32: "Int32",
+    onnx.TensorProto.INT16: "Int16", onnx.TensorProto.INT8: "Int8",
+    onnx.TensorProto.DOUBLE: "Float64", onnx.TensorProto.UINT64: "UInt64",
+    onnx.TensorProto.INT64: "Int64",
+}
+GROUPS = {
+    "AveragePool2d": "Onnx11Node", "BiasedConv2d": "Onnx11Node",
+    "BiasedConvTranspose2d": "Onnx11Node",
+    "Clip": "Onnx13Node", "Resize": "Onnx13Node", "Sigmoid": "Onnx13Node",
+    "Add": "Onnx14Node", "Mul": "Onnx14Node", "Relu": "Onnx14Node",
+}
 
 
-def emit_transpose(node_entries: list[str], input_index: int, input_shape: list[int],
-                   permutation: list[int] | None, output_shape: list[int]) -> int:
-    rank = len(input_shape)
-    if not 1 <= rank <= 4:
-        raise RuntimeError("Transpose requires rank 1 through 4")
-    if permutation is None:
-        permutation = list(reversed(range(rank)))
-    if sorted(permutation) != list(range(rank)):
-        raise RuntimeError("Transpose permutation must contain each input axis exactly once")
-    if output_shape != [input_shape[axis] for axis in permutation]:
-        raise RuntimeError("Transpose output shape does not match its permutation")
-    if rank == 1:
-        return input_index
-    node_entries.append(f"TransposeRank{rank}{{{input_index}, {dimensions(permutation)}}}")
-    return len(node_entries) - 1
+def data_type(element_type: int) -> str:
+    if element_type not in DATA_TYPES:
+        raise RuntimeError(f"unsupported tensor data type: {element_type}")
+    return "DataType::" + DATA_TYPES[element_type]
 
 
 def main() -> None:
@@ -173,7 +152,15 @@ def main() -> None:
     }
     initializers = {item.name: item for item in model.graph.initializer}
     nodes = list(model.graph.node)
-    ignored_inputs = {"Reshape": {1}, "Clip": {1, 2}, "Resize": {1, 2, 3}}
+    ignored_inputs = {"Clip": {1, 2}, "Resize": {1, 2, 3}}
+    allowed = {"Add", "Mul", "Relu", "Clip", "Resize", "Sigmoid", "AveragePool", "Conv", "ConvTranspose"}
+    for index, node in enumerate(nodes):
+        if node.op_type not in allowed:
+            raise RuntimeError(f"node {index}: operator {node.op_type} is outside the pinned Landscape variants")
+    types = {
+        value.name: data_type(value.type.tensor_type.elem_type)
+        for value in [*model.graph.input, *model.graph.value_info, *model.graph.output]
+    }
     used_initializers = {
         name
         for node in nodes
@@ -204,31 +191,42 @@ def main() -> None:
             raise RuntimeError(f"unsupported shape: {values}")
         return f"{len(values)}, {dimensions(values)}"
 
-    weight_offsets: dict[str, int] = {}
+    spec_entries = []
+    spec_indices = {}
+    runtime_inputs = [value for value in model.graph.input if value.name not in initializers]
+    for value in runtime_inputs:
+        spec_indices[value.name] = len(spec_entries)
+        spec_entries.append(f"{{{types[value.name]}, ItemType::RuntimeInput, {shape_fields(shapes[value.name])}, 0LL}}")
     weight_data = bytearray()
     for name, initializer in initializers.items():
         if name not in used_initializers:
             continue
         array = numpy_helper.to_array(initializer)
-        if array.dtype != np.float32:
-            raise RuntimeError(f"initializer {name} is not float32")
-        weight_offsets[name] = len(weight_data)
-        weight_data.extend(array.astype("<f4", copy=False).tobytes(order="C"))
+        dtype = data_type(initializer.data_type)
+        # Preserve packed little-endian elements; GPU allocation padding belongs to the runtime.
+        offset = len(weight_data)
+        weight_data.extend(array.astype(array.dtype.newbyteorder("<"), copy=False).tobytes(order="C"))
+        spec_indices[name] = len(spec_entries)
+        spec_entries.append(f"{{{dtype}, ItemType::Weight, {shape_fields(list(initializer.dims) or [1])}, {offset}LL}}")
     if len(weight_data) >= 2**63:
         raise RuntimeError("weight data exceeds the BaselineDml signed 64-bit offset range")
+    if not spec_entries or len(spec_entries) > 2**31 - 1:
+        raise RuntimeError("input specification count is outside the Definition Size range")
 
     lines.extend(["namespace BaselineDml {", "", "namespace {", "", "using namespace ProgramDefinition;", ""])
-    value_sources: dict[str, int] = {model.graph.input[0].name: 0}
-    node_entries: list[str] = ["Input{0}"]
+    value_sources = {}
+    node_entries = []
+    for value in runtime_inputs:
+        value_sources[value.name] = len(node_entries)
+        node_entries.append(f"InputItem{{{spec_indices[value.name]}}}")
 
     def source(name: str) -> str:
         if name not in value_sources:
-            if name not in weight_offsets:
+            if name not in spec_indices:
                 raise RuntimeError(f"input {name} is not a constant or preceding node")
-            shape = list(initializers[name].dims) or [1]
-            node_entries.append(f"Constant{{{weight_offsets[name]}LL, {shape_fields(shape)}}}")
+            node_entries.append(f"InputItem{{{spec_indices[name]}}}")
             value_sources[name] = len(node_entries) - 1
-        return f"{value_sources[name]}"
+        return str(value_sources[name])
 
     for node_index, node in enumerate(nodes):
         if len(node.output) != 1:
@@ -238,30 +236,14 @@ def main() -> None:
         output = shape_fields(output_shape)
         inputs = [source(name) for index, name in enumerate(node.input)
                   if name and index not in ignored_inputs.get(node.op_type, set())]
-        if node.op_type == "Reshape":
-            entry = f"Reshape{{{inputs[0]}, {output}}}"
-        elif node.op_type == "Transpose":
-            input_name = node.input[0]
-            input_shape = list(initializers[input_name].dims) if input_name in initializers else shapes[input_name]
-            value_sources[node.output[0]] = emit_transpose(
-                node_entries, int(inputs[0]), input_shape,
-                list(attribute["perm"]) if "perm" in attribute else None, output_shape,
-            )
-            continue
-        elif node.op_type in {"Add", "Mul"}:
-            if len(output_shape) != 4:
-                raise RuntimeError(f"{node.op_type} requires a rank-4 output")
+        if node.op_type in {"Add", "Mul"}:
             entry = f"{node.op_type}{{{inputs[0]}, {inputs[1]}, {output}}}"
-        elif node.op_type == "MatMul":
-            if len(output_shape) != 4:
-                raise RuntimeError("MatMul requires a rank-4 output")
-            entry = f"MatMulRank4{{{inputs[0]}, {inputs[1]}, {dimensions(output_shape)}}}"
         elif node.op_type == "Clip":
             minimum = float(numpy_helper.to_array(initializers[node.input[1]]).reshape(-1)[0])
             maximum = float(numpy_helper.to_array(initializers[node.input[2]]).reshape(-1)[0])
-            entry = f"Clip{{{inputs[0]}, {float_literal(minimum)}, {float_literal(maximum)}}}"
+            entry = f"Clip{{{inputs[0]}, {output}, {float_literal(minimum)}, {float_literal(maximum)}}}"
         elif node.op_type in {"Relu", "Sigmoid"}:
-            entry = f"{node.op_type}{{{inputs[0]}}}"
+            entry = f"{node.op_type}{{{inputs[0]}, {output}}}"
         elif node.op_type in {"Conv", "ConvTranspose"}:
             strides = list(attribute.get("strides", [1, 1]))
             dilations = list(attribute.get("dilations", [1, 1]))
@@ -271,7 +253,9 @@ def main() -> None:
                     or len(output_shape) != 4 or len(strides) != 2
                     or len(dilations) != 2 or len(pads) != 4):
                 raise RuntimeError(f"{node.op_type} requires two spatial dimensions")
-            kind = ("Biased" if len(inputs) > 2 else "") + node.op_type + "2d"
+            if len(inputs) != 3:
+                raise RuntimeError(f"node {node_index}: unbiased {node.op_type} is outside the pinned Landscape variants")
+            kind = "Biased" + node.op_type + "2d"
             connections = ", ".join(inputs)
             group = int(attribute.get("group", 1))
             entry = (f"{kind}{{{connections}, "
@@ -292,16 +276,12 @@ def main() -> None:
                 raise RuntimeError("Resize requires rank-4 input and output")
             entry = (f"Resize{{{inputs[0]}, {len(output_shape)}, "
                      f"{output_shape[-2] // input_shape[-2]}u, {output_shape[-1] // input_shape[-1]}u, {dimensions(output_shape)}}}")
-        elif node.op_type == "Concat":
-            value_sources[node.output[0]] = emit_concat(
-                node_entries, [int(value) for value in inputs],
-                [list(initializers[name].dims) if name in initializers else shapes[name]
-                 for name in node.input],
-                int(attribute["axis"]), output_shape,
-            )
-            continue
         else:
             raise RuntimeError(f"unsupported node {node_index}: {node.op_type}")
+        kind = entry.split("{", 1)[0]
+        dtype = types[node.output[0]]
+        entry = entry.replace("{", "{" + dtype + ", ", 1)
+        entry = f"{GROUPS[kind]}{{{entry}}}"
         node_entries.append(entry)
         value_sources[node.output[0]] = len(node_entries) - 1
 
@@ -310,28 +290,14 @@ def main() -> None:
         lines.extend(f"\t{entry}," for entry in entries)
         lines.extend(["};", ""])
 
-    # Explicit group construction avoids ambiguous nested-variant conversions.
-    groups = {
-        "Input": "InternalNode", "Constant": "InternalNode",
-        "AveragePool2d": "Onnx11Node", "BiasedConv2d": "Onnx11Node",
-        "BiasedConvTranspose2d": "Onnx11Node",
-        "Clip": "Onnx13Node", "Resize": "Onnx13Node", "Sigmoid": "Onnx13Node",
-        "Add": "Onnx14Node", "Mul": "Onnx14Node", "Relu": "Onnx14Node",
-    }
     if len(node_entries) > 2**31 - 1:
         raise RuntimeError("node indices exceed the Definition Size range")
-    grouped_entries = []
-    for entry in node_entries:
-        kind = entry.split("{", 1)[0]
-        if kind not in groups:
-            raise RuntimeError(f"operator form {kind} is outside the pinned Landscape variants")
-        if kind != "Input":
-            entry = entry.replace("{", "{DataType::Float32, ", 1)
-        grouped_entries.append(f"{groups[kind]}{{{entry}}}")
-    emit_table("Node", "graphNodes", grouped_entries)
+    emit_table("InputSpecItem", "inputSpecs", spec_entries)
+    emit_table("Node", "graphNodes", node_entries)
     lines.extend(
         [
             "const Graph graph{",
+            f"\t{len(spec_entries)}, inputSpecs,",
             f"\t{len(node_entries)}LL, graphNodes,",
             f"\t{value_sources[model.graph.output[0].name]},",
             "};",
