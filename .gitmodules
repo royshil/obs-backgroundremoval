@@ -5,3 +5,6 @@
 [submodule "vendor/obs-studio"]
 	path = vendor/obs-studio
 	url = https://github.com/obsproject/obs-studio.git
+[submodule "vendor/nanopb"]
+	path = vendor/nanopb
+	url = https://github.com/nanopb/nanopb.git
