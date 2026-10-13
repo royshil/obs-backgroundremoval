@@ -9,6 +9,7 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <vector>
@@ -408,5 +409,34 @@ TEST_CASE("MediaPipeLandscape")
 			}
 		}
 	}
+}
+
+// Opt-in timing experiment; intentionally not registered with CTest.
+TEST_CASE("MediaPipeLandscapeTiming")
+{
+	using Clock = std::chrono::steady_clock;
+	const auto started = Clock::now();
+	auto runtime = makeMediaPipeLandscapeDmlProgram();
+	const double initialization = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+	const auto input = portraitInput();
+	std::vector<float> output(144 * 256);
+	const std::array inputs{std::as_bytes(std::span(input))};
+	for (int i = 0; i < 10; ++i)
+		runtime->run(inputs, std::as_writable_bytes(std::span(output)));
+	std::vector<double> samples;
+	double sum = 0;
+	for (int i = 0; i < 200; ++i) {
+		const auto before = Clock::now();
+		runtime->run(inputs, std::as_writable_bytes(std::span(output)));
+		const double milliseconds = std::chrono::duration<double, std::milli>(Clock::now() - before).count();
+		samples.push_back(milliseconds);
+		sum += milliseconds;
+	}
+	std::sort(samples.begin(), samples.end());
+	REQUIRE(std::all_of(output.begin(), output.end(), [](float value) { return std::isfinite(value); }));
+	std::cout << "DML_TIMING initialization_ms=" << initialization << ",samples=" << samples.size()
+		  << ",mean_ms=" << sum / samples.size() << ",median_ms=" << (samples[99] + samples[100]) / 2
+		  << ",p95_ms=" << samples[189] << ",min_ms=" << samples.front() << ",max_ms=" << samples.back()
+		  << std::endl;
 }
 #endif

@@ -107,3 +107,19 @@ rejects that declaration.
 The development-only diagnostic and machine-readable report are saved locally
 as `build/VerifyLandscapeIr.py` and `build/landscape-ir-comparison.json`.
 They introduce no Python dependency into the C++ tests or ordinary build.
+
+## Optional runtime timing
+
+`WinMlComparison --test-case=MediaPipeLandscapeTiming` measures the production
+DML runtime with the portrait input, including upload, dispatch, synchronization
+and readback. It records initialization separately, warms up 10 times, and
+measures 200 runs, reporting mean, median, p95, minimum and maximum wall time.
+It forces inference every iteration without the OBS pipeline's similarity skip.
+It is deliberately not registered with CTest; timings are not correctness gates.
+
+On 2026-10-14 with OBS running concurrently on Intel UHD 630, initialization
+took 72.255 seconds. Runtime mean was 54.787 ms, median 51.308 ms, p95 83.426 ms,
+minimum 17.746 ms and maximum 169.311 ms. Because this launches a second DML
+runtime alongside OBS, GPU contention and scheduling are included; these are
+not measurements of latency inside the running OBS filter or idle-GPU capacity.
+The raw result is `build/dml-model-timing.txt`.
