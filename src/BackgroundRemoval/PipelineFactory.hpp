@@ -16,6 +16,11 @@ struct FilterProperty;
 class IRenderingPipeline;
 class MainEffect;
 
+#ifdef _WIN32
+auto createRenderingPipeline(const FilterProperty &property, obs_source_t *source, std::uint32_t width,
+			     std::uint32_t height) -> std::shared_ptr<IRenderingPipeline>;
+#endif
+
 auto createRenderingPipeline(const FilterProperty &property, obs_source_t *source, MainEffect &backgroundRemovalEffect,
 			     std::uint32_t width, std::uint32_t height) -> std::shared_ptr<IRenderingPipeline>;
 

@@ -123,3 +123,112 @@ minimum 17.746 ms and maximum 169.311 ms. Because this launches a second DML
 runtime alongside OBS, GPU contention and scheduling are included; these are
 not measurements of latency inside the running OBS filter or idle-GPU capacity.
 The raw result is `build/dml-model-timing.txt`.
+
+## OBS luminance gate and GPU-input inference
+
+The Windows Landscape Pipeline owns its input/reference BGRA textures and R8
+luminance-difference render target/staging surface. It draws the absolute
+Rec.709-weighted RGB difference, maps the R8 image synchronously and sums rows
+using their pitch. The normalized mean absolute difference controls inference;
+no separate gate object owns this policy. The initial reference is black and
+its corresponding mask is all background. Mask refinement settings do not
+force inference. Only successful inference and mask refinement advance the
+reference image and retained model output.
+
+The Pipeline sends BGRA input to MediaPipeLandscapeDirectMLEngine only when
+inference is required. The Engine owns input transfer, RGB-plane packing,
+DirectML submission and output readback. CPU mask refinement and final rendering
+remain in the Pipeline.
+
+`GpuImageInferenceTest.MainEffectLumaAbsDiff` tests the shared effect separately.
+`LandscapeRenderingInitialization` also renders a portrait through an OBS input
+source and filter. It compares the current-frame alpha against the model
+reference, exercises unchanged-input settings updates, and checks restoration
+of the render target, color space and viewport.
+
+## Model-owned asynchronous DirectML engine
+
+The facade obtains OBS's native D3D11 texture and descriptor. The private Impl
+owns the generated Runtime, shared D3D11/D3D12 texture, RGB packing shader,
+command list, fences and output readback. The shared texture has the input's
+DXGI resource format; SRV creation selects its typed interpretation. BGRA and
+RGBA inputs are tested. RGB packing happens after copying, discards alpha,
+and produces Float32 R/G/B planes without sRGB conversion. Unsupported
+conversion formats are rejected before command submission.
+
+The caller provides an active OBS graphics context for construction, submission,
+result retrieval and destruction. All calls are serialized; there is one
+outstanding submission and no worker thread.
+
+- `runAsync(inputTexture)` submits the D3D11 copy, input-ready signal/flush,
+  D3D12 queue wait, conversion, inference, readback copy and completion signal.
+  It does not wait on the CPU. Resource preparation and command recording occur
+  before submission; compiled operators and command lists are reused. The RGB-plane buffer starts
+  in COPY_SOURCE and returns to that state on each execution; recording occurs
+  only once, after the first input fixes the native format.
+- `runAsync` returns `RunResult::NeedsRecreation` without submitting work when
+  the native format changes after the first input. Pipeline owns Engine
+  replacement and retries the current input; Engine never rebuilds itself.
+  Successful submission returns `RunResult::Submitted`. Invalid inputs and
+  D3D failures remain exceptions.
+- `isDone()` checks the submitted completion value without flushing or blocking.
+  Before submission and after result retrieval it returns false.
+- `getResult(outputSpan)` accepts only a completed submission and the correct
+  output size. It maps/copies/unmaps without waiting and releases the submission
+  for reuse. A second submission before retrieval is rejected even when complete.
+- `blockCpuUntilInferenceCompletes()` is explicit CPU blocking for the
+  current submission. It returns immediately if already complete. No work is an
+  error. Normal submissions never invoke it internally.
+
+Pipeline submits after the existing image-difference decision, prepares settings
+and draws the current output source while GPU work proceeds, then polls before
+CPU mask refinement. Only if incomplete at that deadline does it explicitly
+block. It always uses that frame's result; no previous-frame substitution is
+introduced. Settings-only updates still refine retained output without forcing
+inference. Its local render-state restoration also runs on early returns.
+
+Submission failures make the Engine unusable; destruction drains queued work
+before releasing resources. The per-frame consumed fence has been removed.
+Completion waiting is needed only at the output deadline or during destruction.
+`InferenceReadiness.CompletedBeforeDeadline` and SDK TraceLogging activities expose
+the split in WPR. Function-wide activities use their C++ function names; named
+regions include `Pipeline.IndependentRendering`, `Pipeline.GpuOutputWait`,
+`MPLDEngine.Copy11To12` and `Pipeline.RefineMask`. Start/Stop events share an
+ActivityID and use keyword 0x1 and verbose level 5. Measure duration from the
+paired event timestamps; the old ScopeId/DurationMs payload is removed.
+The provider is registered at plugin load and unregistered at unload. Test and
+benchmark executables register and unregister it in main.
+
+MediaPipeLandscapeDirectMLEngineTest compares BGRA and RGBA portrait
+inputs in separate Engines with a fixed format per Engine against the Runtime CPU-input path (max absolute error below 2e-5).
+A test-only shared fence holds the producer queue to deterministically verify
+nonblocking submission, unfinished-result rejection and double-submission
+rejection. It also checks idle/completed/consumed states, invalid inputs/output
+sizes, reuse, format-change detection, owner replacement and destruction with an unread result.
+
+## Waiting-placement benchmark
+
+BgraLandscapeBenchmark compares `immediate-wait` and `deferred-wait` on the same
+Engine, input and work, with alternate order, 20 warmups and 100 samples per
+scenario. Both include the R8 gate, BGRA GPU inference, a 1280x720 source draw,
+CPU Float32-to-U8 mask conversion and resize, alpha upload and final composition
+submission. Refinement is disabled, as in the benchmark's default settings.
+The immediate path retrieves output before the source draw; the deferred path
+retrieves it after. Both validate current-frame output against the CPU-input
+Runtime. CSV includes submission, independent work, deadline waiting, result
+retrieval, refinement, drawing and the wait-required flag. Report mean, median
+and p95, as well as the completion-before-deadline ratio.
+
+These are CPU-side fixture frame timings, not live OBS camera/scene timings.
+Final composition is submitted but its GPU completion is not part of the frame
+CPU duration. The fixture cannot demonstrate overlap with unrelated scene work.
+A historical `bgra-engine` versus `cpu-upload` benchmark excluded source drawing
+and mask processing; do not compare its total directly with this benchmark.
+
+On Intel UHD 630, the 2026-10-15 run measured mean fixture inference frames of
+10.442 ms with immediate waiting and 10.414 ms with deferred waiting. Mean
+explicit wait was 7.658 versus 7.564 ms; both needed waiting in 100/100 samples.
+Submission averaged 0.137 ms. The independent draw was too short to hide the
+inference latency. This verifies the execution structure, not a meaningful
+speedup. Logs, raw samples and statistics are saved in
+`build/async-performance-20261015`.

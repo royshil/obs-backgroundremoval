@@ -1,3 +1,4 @@
+#include "TraceLoggingProvider.hpp"
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -203,7 +204,7 @@ void compareOperator(const std::string &name)
 }
 } // namespace
 
-int main(int argc, char **argv)
+int testMain(int argc, char **argv)
 {
 	winrt::init_apartment();
 	doctest::Context context(argc, argv);
@@ -320,14 +321,14 @@ LearningModel landscapeModel()
 	return LearningModel::LoadFromStream(RandomAccessStreamReference::CreateFromStream(stream));
 }
 } // namespace
-namespace BaselineDml {
-auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgramRuntime>;
+namespace BackgroundRemoval::Generated {
+auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDml::BaselineDmlProgramRuntime>;
 }
 
 TEST_CASE("MediaPipeLandscape")
 {
 	constexpr size_t pixels = 144 * 256;
-	static auto runtime = makeMediaPipeLandscapeDmlProgram();
+	static auto runtime = BackgroundRemoval::Generated::makeMediaPipeLandscapeDmlProgram();
 	const auto model = landscapeModel();
 	for (const auto kind : {LearningModelDeviceKind::Cpu, LearningModelDeviceKind::DirectXHighPerformance}) {
 		const char *backend = kind == LearningModelDeviceKind::Cpu ? "CPU" : "GPU";
@@ -416,7 +417,7 @@ TEST_CASE("MediaPipeLandscapeTiming")
 {
 	using Clock = std::chrono::steady_clock;
 	const auto started = Clock::now();
-	auto runtime = makeMediaPipeLandscapeDmlProgram();
+	auto runtime = BackgroundRemoval::Generated::makeMediaPipeLandscapeDmlProgram();
 	const double initialization = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
 	const auto input = portraitInput();
 	std::vector<float> output(144 * 256);
@@ -440,3 +441,17 @@ TEST_CASE("MediaPipeLandscapeTiming")
 		  << std::endl;
 }
 #endif
+
+int main(int argc, char **argv)
+{
+	if (TraceLoggingRegister(provider) != ERROR_SUCCESS)
+		return 1;
+	try {
+		const int result = testMain(argc, argv);
+		TraceLoggingUnregister(provider);
+		return result;
+	} catch (...) {
+		TraceLoggingUnregister(provider);
+		throw;
+	}
+}

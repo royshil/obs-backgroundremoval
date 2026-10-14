@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
       <BufferSize Value="64" />
       <Buffers Value="64" />
     </EventCollector>
-    <EventProvider Id="BackgroundRemovalProvider" Name="50ec32f6-bd87-4b42-930c-89d9d7ed42b3" Level="5">
+    <EventProvider Id="BackgroundRemovalProvider" Name="57797101-3691-5b3e-e0d4-f643a2082873" Level="5">
       <Keywords><Keyword Value="0x1" /></Keywords>
     </EventProvider>
     <Profile Id="BackgroundRemoval.Verbose.File" Name="BackgroundRemoval" Description="DirectML and background removal timing" LoggingMode="File" DetailLevel="Verbose">

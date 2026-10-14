@@ -1,3 +1,4 @@
+#include "TraceLoggingProvider.hpp"
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -252,7 +253,7 @@ int testFloat16Arithmetic()
 	return 0;
 }
 
-int main(int argc, char **argv)
+int testMain(int argc, char **argv)
 {
 	ComPtr<ID3D12Device> d3d;
 	const auto d3dResult = D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3d));
@@ -282,5 +283,19 @@ int main(int argc, char **argv)
 	} catch (const std::exception &error) {
 		std::cerr << error.what() << '\n';
 		return 1;
+	}
+}
+
+int main(int argc, char **argv)
+{
+	if (TraceLoggingRegister(provider) != ERROR_SUCCESS)
+		return 1;
+	try {
+		const int result = testMain(argc, argv);
+		TraceLoggingUnregister(provider);
+		return result;
+	} catch (...) {
+		TraceLoggingUnregister(provider);
+		throw;
 	}
 }

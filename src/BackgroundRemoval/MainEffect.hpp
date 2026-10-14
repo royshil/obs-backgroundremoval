@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 
 #include <obs.h>
 
@@ -13,6 +14,7 @@ namespace BackgroundRemoval {
 class MainEffect final {
 public:
 	MainEffect();
+	MainEffect(std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> effect);
 	~MainEffect() noexcept;
 
 	MainEffect(const MainEffect &) = delete;
@@ -20,7 +22,13 @@ public:
 	auto operator=(const MainEffect &) -> MainEffect & = delete;
 	auto operator=(MainEffect &&) -> MainEffect & = delete;
 
+	void destroy() noexcept { effect_.reset(); }
+
+	void copy(gs_texture_t *targetTexture, gs_texture_t *sourceTexture) const noexcept;
 	void renderSource(gs_texture_t *targetTexture, obs_source_t *source) const noexcept;
+	void lumaAbsDiff(gs_texture_t *targetTexture, gs_texture_t *leftTexture,
+			 gs_texture_t *rightTexture) const noexcept;
+
 	void extractScaledRGBPlanes(gs_texture_t *targetTexture, gs_texture_t *sourceTexture) const noexcept;
 	void focalBlur(gs_texture_t *targetTexture, gs_texture_t *sourceTexture, gs_texture_t *focalMaskTexture,
 		       std::int64_t iteration, std::int64_t total, float focusPoint, float focusDepth) const noexcept;
@@ -28,9 +36,12 @@ public:
 					     gs_texture_t *blurredBackgroundTexture) const noexcept;
 	void directDrawWithoutBlur(gs_texture_t *sourceTexture, gs_texture_t *alphaMaskTexture) const noexcept;
 
+	static auto create() -> std::unique_ptr<MainEffect>;
+
 private:
-	gs_effect_t *const effect_;
+	std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> effect_;
 	gs_eparam_t *const image_;
+	gs_eparam_t *const image1_;
 	gs_eparam_t *const alphaMask_;
 	gs_eparam_t *const blurredBackground_;
 	gs_eparam_t *const focalMask_;

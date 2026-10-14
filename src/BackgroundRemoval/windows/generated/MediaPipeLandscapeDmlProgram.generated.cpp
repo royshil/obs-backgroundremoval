@@ -7,14 +7,16 @@
 
 // clang-format off
 
-#include "DmlProgram/BaselineDmlProgramRuntime.hpp"
 #include <memory>
 
-namespace BaselineDml {
+#include "DmlProgram/BaselineDmlProgramRuntime.hpp"
+
+namespace BackgroundRemoval::Generated {
 
 namespace {
 
-using namespace ProgramDefinition;
+using namespace BaselineDml;
+using namespace BaselineDml::ProgramDefinition;
 
 constexpr InputSpecItem inputSpecs[] = {
 	{DataType::Float32, ItemType::RuntimeInput, 4, {1u, 3u, 144u, 256u}, 0LL},
@@ -27087,6 +27089,6 @@ auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgramRun
 	return std::make_unique<BaselineDmlProgramRuntime>(graph, weights());
 }
 
-} // namespace BaselineDml
+} // namespace BackgroundRemoval::Generated
 
 // clang-format on

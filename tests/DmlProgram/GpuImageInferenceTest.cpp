@@ -1,10 +1,13 @@
+#include "BackgroundRemoval/PipelineFactory.hpp"
+#include "TraceLoggingProvider.hpp"
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
-#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline/GpuImageInference.hpp"
+#include "DmlProgram/BaselineDmlProgramRuntime.hpp"
 #include "ObsBridgeUtils/TextureReader.hpp"
 #include "BackgroundRemoval/Operators.hpp"
+#include "BackgroundRemoval/MainEffect.hpp"
 #include <d3d12.h>
 #include <d3d12sdklayers.h>
 #include <wrl/client.h>
@@ -20,17 +23,17 @@
 #include <vector>
 
 #ifdef GPU_LANDSCAPE_MODEL
+#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.hpp"
 #include <wincodec.h>
 #include <winrt/base.h>
-namespace BaselineDml {
-auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgramRuntime>;
+namespace BackgroundRemoval::Generated {
+auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDml::BaselineDmlProgramRuntime>;
 }
 #endif
 
 namespace {
 using Microsoft::WRL::ComPtr;
 namespace PD = BaselineDml::ProgramDefinition;
-bool profileGpu = false;
 struct Graphics {
 	graphics_t *context = nullptr;
 	Graphics()
@@ -74,119 +77,73 @@ void checkDebugErrors(ID3D12Device *device)
 }
 
 #ifdef GPU_LANDSCAPE_MODEL
-auto portraitInput() -> std::vector<float>
-{
-	ComPtr<IWICImagingFactory> factory;
-	winrt::check_hresult(
-		CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)));
-	ComPtr<IWICBitmapDecoder> decoder;
-	winrt::check_hresult(factory->CreateDecoderFromFilename(winrt::to_hstring(LANDSCAPE_PORTRAIT).c_str(), nullptr,
-								GENERIC_READ, WICDecodeMetadataCacheOnLoad, &decoder));
-	ComPtr<IWICBitmapFrameDecode> frame;
-	winrt::check_hresult(decoder->GetFrame(0, &frame));
-	ComPtr<IWICBitmapScaler> scaler;
-	winrt::check_hresult(factory->CreateBitmapScaler(&scaler));
-	winrt::check_hresult(scaler->Initialize(frame.Get(), 256, 144, WICBitmapInterpolationModeLinear));
-	ComPtr<IWICFormatConverter> converter;
-	winrt::check_hresult(factory->CreateFormatConverter(&converter));
-	winrt::check_hresult(converter->Initialize(scaler.Get(), GUID_WICPixelFormat24bppRGB, WICBitmapDitherTypeNone,
-						   nullptr, 0, WICBitmapPaletteTypeCustom));
-	std::vector<std::uint8_t> rgb(256 * 144 * 3);
-	winrt::check_hresult(converter->CopyPixels(nullptr, 256 * 3, static_cast<UINT>(rgb.size()), rgb.data()));
-	std::vector<float> input(rgb.size());
-	for (std::size_t i = 0; i < 256 * 144; ++i)
-		for (std::size_t c = 0; c < 3; ++c)
-			input[c * 256 * 144 + i] = rgb[3 * i + c] / 255.0F;
-	return input;
-}
-void cpuRun(BaselineDml::BaselineDmlProgramRuntime &runtime, const std::vector<float> &input,
-	    std::vector<float> &output)
-{
-	const std::array spans{std::as_bytes(std::span(input))};
-	runtime.run(spans, std::as_writable_bytes(std::span(output)));
-}
-auto milliseconds(std::chrono::steady_clock::time_point start) -> double
-{
-	return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-}
-void stats(const char *scenario, const char *method, std::vector<double> values)
-{
-	const auto mean = std::accumulate(values.begin(), values.end(), 0.0) / values.size();
-	std::sort(values.begin(), values.end());
-	std::cout << scenario << ' ' << method << " mean=" << mean << " median=" << values[values.size() / 2]
-		  << " p95=" << values[(values.size() * 95 + 99) / 100 - 1] << " ms\n";
-}
 #endif
 } // namespace
 
-TEST_CASE("GpuImageGate")
+TEST_CASE("MainEffectLumaAbsDiff")
 {
 	Graphics graphics;
-	for (const auto [width, height] : {std::pair{17U, 19U}, std::pair{256U, 432U}}) {
-		CAPTURE(width);
-		CAPTURE(height);
-		const std::array<std::uint32_t, 4> shape{1, 1, height, width};
-		const PD::InputSpecItem spec{PD::DataType::Float32, PD::ItemType::RuntimeInput, 4, shape, 0};
-		const PD::Node nodes[]{PD::InputItem{0}, PD::Onnx14Node{PD::Relu{PD::DataType::Float32, 0, 4, shape}}};
-		BaselineDml::BaselineDmlProgramRuntime runtime({1, &spec, 2, nodes, 1}, {});
-		BackgroundRemoval::MediaPipeLandscapeDirectML::D3D12TextureReader reader(
-			runtime.device(), runtime.queue(), width, height);
-		BackgroundRemoval::MediaPipeLandscapeDirectML::GpuImageInference inference(runtime, width, height);
-		std::vector<float> baseline(width * height, 0.25F), output(baseline.size(), -1);
-		auto original = texture(baseline, width, height);
-		CHECK_THROWS_AS(inference.commitReference(), std::logic_error);
-		REQUIRE(inference.run(reader, original.get(), 40, false, output)); // First frame forces inference.
-		REQUIRE(output == baseline);
-		inference.commitReference();
-		std::fill(output.begin(), output.end(), -1.0F);
-		CHECK_FALSE(inference.run(reader, original.get(), 40, false, output));
-		CHECK(std::all_of(output.begin(), output.end(), [](float x) { return x == -1; }));
-		CHECK_THROWS_AS(inference.commitReference(), std::logic_error);
-		for (const float delta : {0.002F, 0.009F, 0.02F}) {
-			CAPTURE(delta);
-			std::vector<float> changed(baseline.size(), 0.25F + delta);
-			auto input = texture(changed, width, height);
-			const bool inferred = inference.run(reader, input.get(), 40, false, output);
-			CHECK(inferred == (delta > 0.01F));
-			if (inferred) {
-				CHECK(output == changed);
-				inference.commitReference();
-				CHECK_FALSE(inference.run(reader, input.get(), 40, false, output));
-			}
+	auto effect = BackgroundRemoval::MainEffect::create();
+	REQUIRE(effect);
+	for (const auto [w, h] : {std::pair{17U, 19U}, std::pair{256U, 144U}}) {
+		CAPTURE(w);
+		CAPTURE(h);
+		std::vector<uint8_t> pixels(size_t(w) * h * 4, 0);
+		for (size_t i = 0; i < pixels.size(); i += 4) {
+			pixels[i] = 255;
+			pixels[i + 3] = 255;
 		}
-		// Reusing a list must still evaluate new pixels, and a threshold change
-		// must update the recorded root constants.
-		auto nearbyPixels = baseline;
-		for (auto &value : nearbyPixels)
-			value += 0.025F;
-		auto nearTexture = texture(nearbyPixels, width, height);
-		CHECK_FALSE(inference.run(reader, nearTexture.get(), 30, false, output));
-		CHECK_FALSE(inference.run(reader, nearTexture.get(), 30, false, output));
-		REQUIRE(inference.run(reader, nearTexture.get(), 50, false, output));
-		CHECK(output == nearbyPixels);
-		// A successful GPU dispatch alone does not commit a failed CPU refinement.
-		REQUIRE(inference.run(reader, original.get(), 40, true, output));
-		REQUIRE(inference.run(reader, original.get(), 40, false, output));
-		inference.commitReference();
-		// Changes in each RGB plane participate in the gate.
-		for (std::size_t channel = 0; channel < 3; ++channel) {
-			auto changed = baseline;
-			for (std::size_t i = channel * changed.size() / 3; i < (channel + 1) * changed.size() / 3; ++i)
-				changed[i] += 0.1F;
-			auto input = texture(changed, width, height);
-			REQUIRE(inference.run(reader, input.get(), 40, false, output));
-			CHECK(output == changed);
+		const auto *data = pixels.data();
+		ObsBridgeUtils::UniqueTexturePtr red(gs_texture_create(w, h, GS_RGBA, 1, &data, 0));
+		REQUIRE(red);
+		auto current = ObsBridgeUtils::makeUniqueTexture(w, h, GS_BGRA, GS_RENDER_TARGET);
+		auto reference = ObsBridgeUtils::makeUniqueTexture(w, h, GS_BGRA, GS_RENDER_TARGET);
+		auto diff = ObsBridgeUtils::makeUniqueTexture(w, h, GS_R8, GS_RENDER_TARGET);
+		auto staging = ObsBridgeUtils::makeUniqueStagesurf(w, h, GS_R8);
+		REQUIRE(current);
+		REQUIRE(reference);
+		REQUIRE(diff);
+		REQUIRE(staging);
+		effect->copy(reference.get(), red.get());
+		effect->copy(current.get(), red.get());
+		auto *saved = gs_get_render_target();
+		auto color = gs_get_color_space();
+		auto read = [&] {
+			effect->lumaAbsDiff(diff.get(), reference.get(), current.get());
+			CHECK(gs_get_render_target() == saved);
+			CHECK(gs_get_color_space() == color);
+			gs_stage_texture(staging.get(), diff.get());
+			uint8_t *mapped = nullptr;
+			uint32_t pitch = 0;
+			if (!gs_stagesurface_map(staging.get(), &mapped, &pitch))
+				throw std::runtime_error("Map test luminance image");
+			struct Unmap {
+				gs_stagesurf_t *s;
+				~Unmap() { gs_stagesurface_unmap(s); }
+			} unmap{staging.get()};
+			REQUIRE(mapped);
+			REQUIRE(pitch >= w);
+			uint64_t total = 0;
+			for (unsigned y = 0; y < h; ++y)
+				for (unsigned x = 0; x < w; ++x)
+					total += mapped[size_t(y) * pitch + x];
+			return double(total) / (255.0 * w * h);
+		};
+		CHECK(read() == 0);
+		for (size_t i = 0; i < pixels.size(); i += 4) {
+			pixels[i] = 0;
+			pixels[i + 1] = 255;
 		}
-		auto invalid = baseline;
-		invalid.back() = std::numeric_limits<float>::quiet_NaN();
-		auto nanInput = texture(invalid, width, height);
-		CHECK_THROWS_AS(inference.run(reader, nanInput.get(), 40, true, output), std::runtime_error);
-		REQUIRE(inference.run(reader, original.get(), 40, true, output));
-		CHECK(output == baseline);
-		inference.commitReference();
-		CHECK_THROWS_AS(inference.run(reader, original.get(), 40, false, std::span<float>(output.data(), 1)),
-				std::invalid_argument);
-		checkDebugErrors(runtime.device());
+		data = pixels.data();
+		ObsBridgeUtils::UniqueTexturePtr green(gs_texture_create(w, h, GS_RGBA, 1, &data, 0));
+		REQUIRE(green);
+		effect->copy(current.get(), green.get());
+		CHECK(read() == doctest::Approx(0.7152 - 0.2126).epsilon(0.01));
+		// Only an accepted inference swaps the reference; repeated comparisons keep it.
+		CHECK(read() == doctest::Approx(0.7152 - 0.2126).epsilon(0.01));
+		std::swap(reference, current);
+		effect->copy(current.get(), green.get());
+		CHECK(read() == 0);
 	}
 }
 
@@ -280,125 +237,258 @@ TEST_CASE("PredicatedDirectML")
 }
 
 #ifdef GPU_LANDSCAPE_MODEL
-TEST_CASE("GpuLandscape")
+namespace BackgroundRemoval::PipelineTest {
+auto portraitInput() -> std::vector<float>
 {
-	Graphics graphics;
-	auto runtime = BaselineDml::makeMediaPipeLandscapeDmlProgram();
-	BackgroundRemoval::MediaPipeLandscapeDirectML::D3D12TextureReader reader(runtime->device(), runtime->queue(),
-										 256, 432);
-	BackgroundRemoval::MediaPipeLandscapeDirectML::GpuImageInference inference(*runtime, 256, 432);
-	auto input = portraitInput();
-	std::vector<float> expected(256 * 144), output(expected.size());
-	cpuRun(*runtime, input, expected);
-	auto image = texture(input, 256, 432);
-	REQUIRE(inference.run(reader, image.get(), 40, false, output));
-	double maxError = 0;
-	REQUIRE(std::all_of(output.begin(), output.end(), [](float value) { return std::isfinite(value); }));
-	for (std::size_t i = 0; i < output.size(); ++i) {
-		maxError = std::max(maxError, std::abs(static_cast<double>(output[i]) - expected[i]));
-	}
-	std::cout << "Portrait GPU-input/CPU-input DirectML max error=" << maxError << '\n';
-	CHECK(maxError < 2e-5);
-	inference.commitReference();
-	const auto previous = output;
-	for (int i = 0; i < 5; ++i)
-		CHECK_FALSE(inference.run(reader, image.get(), 40, false, output));
-	CHECK(output == previous);
-	for (auto &x : input)
-		x = 1 - x;
-	image = texture(input, 256, 432);
-	REQUIRE(inference.run(reader, image.get(), 40, false, output));
-	cpuRun(*runtime, input, expected);
-	REQUIRE(std::all_of(output.begin(), output.end(), [](float value) { return std::isfinite(value); }));
-	maxError = 0;
-	for (std::size_t i = 0; i < output.size(); ++i)
-		maxError = std::max(maxError, std::abs(static_cast<double>(output[i]) - expected[i]));
-	CHECK(maxError < 2e-5);
-	inference.commitReference();
-	CHECK_FALSE(inference.run(reader, image.get(), 40, false, output));
-	checkDebugErrors(runtime->device());
+	ComPtr<IWICImagingFactory> factory;
+	winrt::check_hresult(
+		CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)));
+	ComPtr<IWICBitmapDecoder> decoder;
+	winrt::check_hresult(factory->CreateDecoderFromFilename(winrt::to_hstring(LANDSCAPE_PORTRAIT).c_str(), nullptr,
+								GENERIC_READ, WICDecodeMetadataCacheOnLoad, &decoder));
+	ComPtr<IWICBitmapFrameDecode> frame;
+	winrt::check_hresult(decoder->GetFrame(0, &frame));
+	ComPtr<IWICBitmapScaler> scaler;
+	winrt::check_hresult(factory->CreateBitmapScaler(&scaler));
+	winrt::check_hresult(scaler->Initialize(frame.Get(), 256, 144, WICBitmapInterpolationModeLinear));
+	ComPtr<IWICFormatConverter> converter;
+	winrt::check_hresult(factory->CreateFormatConverter(&converter));
+	winrt::check_hresult(converter->Initialize(scaler.Get(), GUID_WICPixelFormat24bppRGB, WICBitmapDitherTypeNone,
+						   nullptr, 0, WICBitmapPaletteTypeCustom));
+	std::vector<std::uint8_t> rgb(256 * 144 * 3);
+	winrt::check_hresult(converter->CopyPixels(nullptr, 256 * 3, static_cast<UINT>(rgb.size()), rgb.data()));
+	std::vector<float> input(rgb.size());
+	for (std::size_t i = 0; i < 256 * 144; ++i)
+		for (std::size_t c = 0; c < 3; ++c)
+			input[c * 256 * 144 + i] = rgb[3 * i + c] / 255.0F;
+	return input;
 }
 
-TEST_CASE("GpuLandscapePerformance" * doctest::skip())
+struct SourceData {
+	gs_texture_t *image_ = nullptr;
+	MediaPipeLandscapeDirectMLPipeline *pipeline_ = nullptr;
+};
+auto name(void *) -> const char *
 {
-	Graphics graphics;
-	auto runtime = BaselineDml::makeMediaPipeLandscapeDmlProgram();
-	BackgroundRemoval::MediaPipeLandscapeDirectML::D3D12TextureReader reader(runtime->device(), runtime->queue(),
-										 256, 432);
-	BackgroundRemoval::MediaPipeLandscapeDirectML::GpuImageInference inference(*runtime, 256, 432);
-	if (profileGpu)
-		inference.enableProfiling();
-	ObsBridgeUtils::TextureReader cpuReader(256, 432, GS_R32F);
-	Operators::PsnrF32 psnr;
-	const auto baseline = portraitInput();
-	auto changed = baseline;
-	for (auto &x : changed)
-		x = 1 - x;
-	auto original = texture(baseline, 256, 432), different = texture(changed, 256, 432);
-	std::vector<float> output(256 * 144);
-	REQUIRE(inference.run(reader, original.get(), 40, true, output));
-	inference.commitReference();
-	std::ofstream csv("gpu-landscape-benchmark.csv");
-	REQUIRE(csv.good());
-	csv << "scenario,iteration,method,total_ms,inferred,capture_cpu_ms,record_cpu_ms,submit_cpu_ms,wait_cpu_ms,readback_cpu_ms,pack_gpu_ms,gate_gpu_ms,model_gpu_ms,packet_gpu_ms\n"
-	    << std::setprecision(10);
-	for (const bool change : {false, true}) {
-		const char *scenario = change ? "inference-required" : "inference-skipped";
-		std::vector<double> cpuTimes, gpuTimes;
-		for (int iteration = -20; iteration < 100; ++iteration) {
-			for (int order = 0; order < 2; ++order) {
-				const bool gpu = (iteration + order) % 2 == 0;
-				auto *image = change ? different.get() : original.get();
-				const auto start = std::chrono::steady_clock::now();
-				bool inferred;
-				if (gpu)
-					inferred = inference.run(reader, image, 40, false, output);
-				else {
-					REQUIRE(cpuReader.read(image));
-					const auto &bytes = cpuReader.getBuffer();
-					const auto *pixels = reinterpret_cast<const float *>(bytes.data());
-					inferred = psnr.calculate(pixels, {256, 432, cpuReader.getBufferLinesize()},
-								  baseline.data(), {256, 432, 1024}) <= 40;
-					if (inferred) {
-						const std::array spans{std::span<const std::byte>(
-							reinterpret_cast<const std::byte *>(pixels), bytes.size())};
-						runtime->run(spans, std::as_writable_bytes(std::span(output)));
-					}
-				}
-				const auto duration = milliseconds(start);
-				REQUIRE(inferred == change);
-				if (iteration >= 0) {
-					(gpu ? gpuTimes : cpuTimes).push_back(duration);
-					csv << scenario << ',' << iteration << ',' << (gpu ? "gpu" : "cpu") << ','
-					    << duration << ',' << inferred;
-					const auto timing =
-						gpu ? inference.lastTimings()
-						    : BackgroundRemoval::MediaPipeLandscapeDirectML::GpuImageTimings{};
-					csv << ',' << timing.captureCpuMs << ',' << timing.recordCpuMs << ','
-					    << timing.submitCpuMs << ',' << timing.waitCpuMs << ','
-					    << timing.readbackCpuMs << ',' << timing.packGpuMs << ','
-					    << timing.gateGpuMs << ',' << timing.modelGpuMs << ',' << timing.packetGpuMs
-					    << '\n';
-				}
-			}
-			Sleep(10);
-		}
-		stats(scenario, "cpu", cpuTimes);
-		stats(scenario, "gpu", gpuTimes);
-	}
+	return "DirectML Pipeline fixture";
 }
+SourceData *inputData = nullptr;
+SourceData *filterData = nullptr;
+auto create(obs_data_t *, obs_source_t *source) -> void *
+{
+	auto *data = new SourceData;
+	if (std::strcmp(obs_source_get_id(source), "dml-pipeline-test-input") == 0)
+		inputData = data;
+	else
+		filterData = data;
+	return data;
+}
+void destroy(void *data)
+{
+	delete static_cast<SourceData *>(data);
+}
+auto width(void *) -> uint32_t
+{
+	return 256;
+}
+auto height(void *) -> uint32_t
+{
+	return 144;
+}
+auto colorSpace(void *, size_t, const gs_color_space *) -> gs_color_space
+{
+	return GS_CS_709_EXTENDED;
+}
+void renderSource(void *data, gs_effect_t *)
+{
+	if (gs_get_effect())
+		obs_source_draw(static_cast<SourceData *>(data)->image_, 0, 0, 256, 144, false);
+}
+void renderFilter(void *data, gs_effect_t *effect)
+{
+	static_cast<SourceData *>(data)->pipeline_->videoRender(effect);
+}
+} // namespace BackgroundRemoval::PipelineTest
 #endif
 
-int main(int argc, char **argv)
+#ifdef GPU_LANDSCAPE_MODEL
+TEST_CASE("LandscapeRenderingInitialization")
+{
+	struct ObsSession {
+		ObsSession()
+		{
+			if (!obs_startup("en-US", nullptr, nullptr))
+				throw std::runtime_error("OBS startup failed");
+		}
+		~ObsSession() { obs_shutdown(); }
+	} session;
+	obs_add_data_path(OBS_TEST_BIN_DIR "/../../data/libobs/");
+	obs_video_info video{};
+	video.graphics_module = OBS_TEST_BIN_DIR "/libobs-d3d11.dll";
+	video.fps_num = 30;
+	video.fps_den = 1;
+	video.base_width = video.output_width = 256;
+	video.base_height = video.output_height = 144;
+	video.output_format = VIDEO_FORMAT_RGBA;
+	video.colorspace = VIDEO_CS_709;
+	video.range = VIDEO_RANGE_FULL;
+	REQUIRE(obs_reset_video(&video) == OBS_VIDEO_SUCCESS);
+	// video_tick creates the pipeline without an active graphics context.
+	{
+		std::unique_ptr<obs_source_t, void (*)(obs_source_t *)> source{
+			obs_source_create_private("scene", "Pipeline factory test", nullptr), obs_source_release};
+		REQUIRE(source);
+		BackgroundRemoval::FilterProperty property{};
+		property.pipelineId = BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline::kPipelineId;
+		auto pipeline = BackgroundRemoval::createRenderingPipeline(property, source.get(), 256, 144);
+		REQUIRE(pipeline);
+		CHECK(pipeline->getWidth() == 256);
+		CHECK(pipeline->getHeight() == 144);
+	}
+	obs_enter_graphics();
+	struct LeaveGraphics {
+		~LeaveGraphics() { obs_leave_graphics(); }
+	} graphics;
+	auto *scene = obs_source_create_private("scene", "Landscape initialization test", nullptr);
+	REQUIRE(scene);
+	struct ReleaseSource {
+		obs_source_t *value;
+		~ReleaseSource() { obs_source_release(value); }
+	} source{scene};
+	auto *previousTarget = gs_get_render_target();
+	auto previousSpace = gs_get_color_space();
+	BackgroundRemoval::FilterProperty property{};
+	{
+		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, scene, 256, 144);
+		CHECK(pipeline.getWidth() == 256);
+		CHECK(pipeline.getHeight() == 144);
+		CHECK(gs_get_render_target() == previousTarget);
+		CHECK(gs_get_color_space() == previousSpace);
+	}
+	using namespace BackgroundRemoval::PipelineTest;
+	obs_source_info inputInfo{};
+	inputInfo.id = "dml-pipeline-test-input";
+	inputInfo.type = OBS_SOURCE_TYPE_INPUT;
+	inputInfo.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
+	inputInfo.get_name = name;
+	inputInfo.create = create;
+	inputInfo.destroy = destroy;
+	inputInfo.get_width = width;
+	inputInfo.get_height = height;
+	inputInfo.video_render = renderSource;
+	inputInfo.video_get_color_space = colorSpace;
+	obs_register_source(&inputInfo);
+	obs_source_info filterInfo{};
+	filterInfo.id = "dml-pipeline-test-filter";
+	filterInfo.type = OBS_SOURCE_TYPE_FILTER;
+	filterInfo.output_flags = OBS_SOURCE_VIDEO;
+	filterInfo.get_name = name;
+	filterInfo.create = create;
+	filterInfo.destroy = destroy;
+	filterInfo.video_render = renderFilter;
+	filterInfo.video_get_color_space = colorSpace;
+	obs_register_source(&filterInfo);
+	std::unique_ptr<obs_source_t, void (*)(obs_source_t *)> inputSource{
+		obs_source_create_private(inputInfo.id, "Input", nullptr), obs_source_release};
+	std::unique_ptr<obs_source_t, void (*)(obs_source_t *)> filter{
+		obs_source_create_private(filterInfo.id, "Filter", nullptr), obs_source_release};
+	REQUIRE(inputSource);
+	REQUIRE(filter);
+	obs_source_filter_add(inputSource.get(), filter.get());
+
+	auto input = portraitInput();
+	std::vector<uint8_t> pixels(256 * 144 * 4, 255);
+	for (size_t i = 0; i < 256 * 144; ++i)
+		for (size_t c = 0; c < 3; ++c)
+			pixels[4 * i + 2 - c] = uint8_t(std::round(input[c * 256 * 144 + i] * 255));
+	const auto *bytes = pixels.data();
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> image{
+		gs_texture_create(256, 144, GS_BGRA, 1, &bytes, 0), gs_texture_destroy};
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> destination{
+		gs_texture_create(256, 144, GS_BGRA, 1, nullptr, GS_RENDER_TARGET), gs_texture_destroy};
+	std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)> readback{gs_stagesurface_create(256, 144, GS_BGRA),
+									     gs_stagesurface_destroy};
+	REQUIRE(image);
+	REQUIRE(destination);
+	REQUIRE(readback);
+	inputData->image_ = image.get();
+	auto runtime = BackgroundRemoval::Generated::makeMediaPipeLandscapeDmlProgram();
+	std::vector<float> expected(256 * 144);
+	const std::array inputs{std::as_bytes(std::span(input))};
+	runtime->run(inputs, std::as_writable_bytes(std::span(expected)));
+	property.imageSimilarityThreshold = 40;
+	{
+		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, filter.get(), 256, 144);
+		filterData->pipeline_ = &pipeline;
+		for (int frame = 0; frame < 4; ++frame) {
+			if (frame == 3) {
+				for (auto &value : input)
+					value = 1 - value;
+				for (size_t i = 0; i < 256 * 144; ++i)
+					for (size_t c = 0; c < 3; ++c)
+						pixels[4 * i + 2 - c] =
+							uint8_t(std::round(input[c * 256 * 144 + i] * 255));
+				const auto *inverted = pixels.data();
+				image.reset(gs_texture_create(256, 144, GS_BGRA, 1, &inverted, 0));
+				REQUIRE(image);
+				inputData->image_ = image.get();
+				runtime->run(inputs, std::as_writable_bytes(std::span(expected)));
+			}
+			// Settings change must affect refinement without forcing a new inference.
+			property.refineMaskEnabled = frame == 1;
+			property.refineMaskThreshold = 0.5;
+			pipeline.update(property);
+			gs_set_render_target_with_color_space(destination.get(), nullptr, GS_CS_709_EXTENDED);
+			gs_set_viewport(0, 0, 256, 144);
+			gs_ortho(0, 256, 0, 144, -100, 100);
+			gs_matrix_identity();
+			gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+			obs_source_video_render(inputSource.get());
+			CHECK(gs_get_render_target() == destination.get());
+			CHECK(gs_get_color_space() == GS_CS_709_EXTENDED);
+			gs_rect viewport{};
+			gs_get_viewport(&viewport);
+			CHECK(viewport.cx == 256);
+			CHECK(viewport.cy == 144);
+			gs_stage_texture(readback.get(), destination.get());
+			uint8_t *mapped = nullptr;
+			uint32_t pitch = 0;
+			REQUIRE(gs_stagesurface_map(readback.get(), &mapped, &pitch));
+			if (frame != 1) {
+				double maxError = 0;
+				for (size_t i = 0; i < expected.size(); ++i) {
+					const auto expectedAlpha =
+						255 - uint8_t(std::clamp((1 - expected[i]) * 255.0F, 0.0F, 255.0F));
+					maxError = std::max(
+						maxError,
+						std::abs(double(mapped[(i / 256) * pitch + (i % 256) * 4 + 3]) -
+							 expectedAlpha));
+				}
+				CHECK(maxError <= 2);
+			}
+			gs_stagesurface_unmap(readback.get());
+		}
+		// Early return must preserve the caller's render target as well.
+		obs_source_set_enabled(filter.get(), false);
+		pipeline.videoRender(nullptr);
+		CHECK(gs_get_render_target() == destination.get());
+		obs_source_set_enabled(filter.get(), true);
+	}
+	gs_set_render_target_with_color_space(previousTarget, nullptr, previousSpace);
+
+	CHECK(gs_get_render_target() == previousTarget);
+}
+
+#endif
+
+int testMain(int argc, char **argv)
 {
 	// Enable the standard validation layer when installed. Timing is measured
 	// separately with --benchmark-no-debug to avoid instrumentation overhead.
 	bool debug = true;
 	std::vector<char *> arguments{argv[0]};
 	for (int i = 1; i < argc; ++i) {
-		if (std::string(argv[i]) == "--profile-gpu")
-			profileGpu = true;
-		else if (std::string(argv[i]) == "--benchmark-no-debug")
+		if (std::string(argv[i]) == "--benchmark-no-debug")
 			debug = false;
 		else
 			arguments.push_back(argv[i]);
@@ -407,7 +497,7 @@ int main(int argc, char **argv)
 	if (debug && SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&validation))))
 		validation->EnableDebugLayer();
 #ifdef GPU_LANDSCAPE_MODEL
-	winrt::init_apartment();
+	winrt::init_apartment(winrt::apartment_type::single_threaded);
 #endif
 	doctest::Context context(static_cast<int>(arguments.size()), arguments.data());
 	const int result = context.run();
@@ -415,4 +505,18 @@ int main(int argc, char **argv)
 	winrt::uninit_apartment();
 #endif
 	return result;
+}
+
+int main(int argc, char **argv)
+{
+	if (TraceLoggingRegister(provider) != ERROR_SUCCESS)
+		return 1;
+	try {
+		const int result = testMain(argc, argv);
+		TraceLoggingUnregister(provider);
+		return result;
+	} catch (...) {
+		TraceLoggingUnregister(provider);
+		throw;
+	}
 }

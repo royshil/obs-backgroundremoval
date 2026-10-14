@@ -8,7 +8,7 @@
 
 #define DML_TARGET_VERSION 0x1000
 
-#include "PerformanceTrace.hpp"
+#include "TraceLoggingProvider.hpp"
 #include "BaselineDmlProgramRuntime.hpp"
 #include "DmlProgram/BaselineDmlCompiler.hpp"
 
@@ -146,7 +146,8 @@ class BaselineDmlProgramRuntime::Impl final {
 public:
 	explicit Impl(const Graph &graph, std::span<const std::byte> weights)
 	{
-		PerformanceTrace::Scope initialization("Runtime.Initialize");
+		TraceLoggingThreadActivity<provider, 0x1> initialization;
+		TraceLoggingWriteStart(initialization, "Runtime.Initialize");
 		check(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice_)),
 		      "D3D12CreateDevice");
 		check(DMLCreateDevice(d3dDevice_.Get(), DML_CREATE_DEVICE_FLAG_NONE, IID_PPV_ARGS(&dmlDevice_)),
@@ -168,7 +169,8 @@ public:
 
 		BaselineDmlCompiler compiler(dmlDevice_.Get());
 		auto compiled = [&] {
-			PerformanceTrace::Scope scope("Runtime.Compile");
+			TraceLoggingThreadActivity<provider, 0x1> scope;
+			TraceLoggingWriteStart(scope, "Runtime.Compile");
 			return compiler.compile(graph, weights);
 		}();
 		tensors_ = std::move(compiled.tensors);
@@ -199,7 +201,7 @@ public:
 
 	void run(std::span<const std::span<const std::byte>> inputs, std::span<std::byte> output)
 	{
-		PerformanceTrace::Scope execution("Runtime.Run");
+		TraceLoggingFunction(provider, TraceLoggingKeyword(0x1));
 		if (inputs.size() != inputTensors_.size())
 			throw std::invalid_argument("Baseline DirectML input count mismatch");
 		if (output.size() != outputSize_)
@@ -219,7 +221,8 @@ public:
 			inputUploads_ = std::move(uploads);
 		}
 		// Validate every span before mapping or submitting any GPU work.
-		PerformanceTrace::Scope upload("Runtime.UploadCpuCopy");
+		TraceLoggingThreadActivity<provider, 0x1> upload;
+		TraceLoggingWriteStart(upload, "Runtime.UploadCpuCopy");
 		for (std::size_t index = 0; index < inputs.size(); ++index) {
 			const auto &tensor = tensors_.at(inputTensors_[index]);
 			void *mapped = nullptr;
@@ -229,8 +232,9 @@ public:
 			std::memcpy(mapped, inputs[index].data(), inputs[index].size());
 			inputUploads_[index]->Unmap(0, nullptr);
 		}
-		upload.finish();
-		PerformanceTrace::Scope recording("Runtime.RecordCommands");
+		TraceLoggingWriteStop(upload, "Runtime.UploadCpuCopy");
+		TraceLoggingThreadActivity<provider, 0x1> recording;
+		TraceLoggingWriteStart(recording, "Runtime.RecordCommands");
 		resetCommands();
 		for (std::size_t index = 0; index < inputs.size(); ++index) {
 			const auto id = inputTensors_[index];
@@ -265,9 +269,10 @@ public:
 							D3D12_RESOURCE_STATE_COPY_DEST);
 			commandList_->ResourceBarrier(1, &barrier);
 		}
-		recording.finish();
+		TraceLoggingWriteStop(recording, "Runtime.RecordCommands");
 		executeAndWait();
-		PerformanceTrace::Scope readback("Runtime.ReadbackCpuCopy");
+		TraceLoggingThreadActivity<provider, 0x1> readback;
+		TraceLoggingWriteStart(readback, "Runtime.ReadbackCpuCopy");
 		void *mapped = nullptr;
 		const D3D12_RANGE readRange{0, static_cast<SIZE_T>(outputSize_)};
 		check(readback_->Map(0, &readRange, &mapped), "Map output readback buffer");
@@ -293,7 +298,7 @@ public:
 	void recordGpuRun(ID3D12GraphicsCommandList *commands, std::span<const GpuInput> inputs,
 			  ID3D12Resource *predicate, ID3D12Resource *output, std::uint64_t outputOffset)
 	{
-		if (!commands || !predicate || !output || inputs.size() != inputTensors_.size())
+		if (!commands || !output || inputs.size() != inputTensors_.size())
 			throw std::invalid_argument("Invalid DirectML GPU submission");
 		auto validateBuffer = [&](ID3D12Resource *buffer, std::uint64_t offset, std::uint64_t bytes) {
 			if (!buffer)
@@ -309,7 +314,8 @@ public:
 		check(commands->GetDevice(IID_PPV_ARGS(&commandDevice)), "Get command list device");
 		if (commandDevice.Get() != d3dDevice_.Get())
 			throw std::invalid_argument("DirectML command list device mismatch");
-		validateBuffer(predicate, 0, 8);
+		if (predicate)
+			validateBuffer(predicate, 0, 8);
 		validateBuffer(output, outputOffset, outputSize_);
 		D3D12_HEAP_PROPERTIES heap{};
 		D3D12_HEAP_FLAGS heapFlags{};
@@ -472,7 +478,8 @@ private:
 
 	void initializeOperators()
 	{
-		PerformanceTrace::Scope scope("Runtime.InitializeOperators");
+		TraceLoggingThreadActivity<provider, 0x1> scope;
+		TraceLoggingWriteStart(scope, "Runtime.InitializeOperators");
 		ID3D12DescriptorHeap *heaps[] = {descriptorHeap_.Get()};
 		commandList_->SetDescriptorHeaps(1, heaps);
 		std::vector<ComPtr<IDMLBindingTable>> tables;
@@ -587,7 +594,8 @@ private:
 
 	void executeAndWait()
 	{
-		PerformanceTrace::Scope submit("Runtime.SubmitAndWait");
+		TraceLoggingThreadActivity<provider, 0x1> submit;
+		TraceLoggingWriteStart(submit, "Runtime.SubmitAndWait");
 		check(dmlDevice_->GetDeviceRemovedReason(), "DirectML device before command submission");
 		check(commandList_->Close(), "CommandList::Close");
 		ID3D12CommandList *lists[] = {commandList_.Get()};
@@ -595,7 +603,8 @@ private:
 		const std::uint64_t value = ++fenceValue_;
 		check(queue_->Signal(fence_.Get(), value), "CommandQueue::Signal");
 		if (fence_->GetCompletedValue() < value) {
-			PerformanceTrace::Scope wait("Runtime.FenceWait");
+			TraceLoggingThreadActivity<provider, 0x1> wait;
+			TraceLoggingWriteStart(wait, "Runtime.FenceWait");
 			check(fence_->SetEventOnCompletion(value, fenceEvent_.get()), "Fence::SetEventOnCompletion");
 			for (;;) {
 				const auto result = WaitForSingleObject(fenceEvent_.get(), 1000);

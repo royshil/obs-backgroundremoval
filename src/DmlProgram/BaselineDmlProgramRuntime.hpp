@@ -61,7 +61,7 @@ public:
 	auto inputInfo(std::size_t index) const -> RuntimeTensorInfo;
 	auto outputInfo() const noexcept -> RuntimeTensorInfo;
 
-	// Inputs are padded GPU buffers in COPY_SOURCE; predicate is an eight-byte
+	// Inputs are padded GPU buffers in COPY_SOURCE; predicate, when non-null, is an eight-byte
 	// value in PREDICATION. Output is a READBACK buffer in COPY_DEST. This only
 	// records work: the caller submits and waits. A zero predicate leaves the
 	// output readback unchanged. Input resources remain in COPY_SOURCE.

@@ -17,7 +17,6 @@
 namespace BackgroundRemoval {
 
 class IRenderingPipeline;
-class MainEffect;
 
 class FilterContext final {
 public:
@@ -58,7 +57,6 @@ private:
 	obs_source_t *const source_;
 	std::optional<FilterProperty> pendingFilterProperty_;
 	FilterProperty currentFilterProperty_{};
-	std::unique_ptr<MainEffect> backgroundRemovalEffect_;
 	mutable std::mutex renderingPipelineMutex_;
 	std::shared_ptr<IRenderingPipeline> renderingPipeline_;
 	std::atomic<long long> heldPipelineId_{};

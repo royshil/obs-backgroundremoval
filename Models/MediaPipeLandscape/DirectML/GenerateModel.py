@@ -1,4 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """Generate the immutable DirectML 1.0 graph for MediaPipe Selfie Segmenter."""
@@ -32,14 +33,16 @@ CPP_TEMPLATE = Template("""\
 
 // clang-format off
 
-#include "DmlProgram/BaselineDmlProgramRuntime.hpp"
 #include <memory>
 
-namespace BaselineDml {
+#include "DmlProgram/BaselineDmlProgramRuntime.hpp"
+
+namespace BackgroundRemoval::Generated {
 
 namespace {
 
-using namespace ProgramDefinition;
+using namespace BaselineDml;
+using namespace BaselineDml::ProgramDefinition;
 
 $input_specs
 
@@ -70,7 +73,7 @@ auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgramRun
 \treturn std::make_unique<BaselineDmlProgramRuntime>(graph, weights());
 }
 
-} // namespace BaselineDml
+} // namespace BackgroundRemoval::Generated
 
 // clang-format on
 """)

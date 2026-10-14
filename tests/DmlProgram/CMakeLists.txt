@@ -6,7 +6,7 @@ add_executable(
   DmlProgramTest.cpp
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
-  "${PLUGIN_SOURCE_DIR}/DmlProgram/PerformanceTrace.cpp"
+  "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp"
 )
 target_include_directories(DmlProgramTest PRIVATE "${PLUGIN_SOURCE_DIR}")
 target_link_libraries(DmlProgramTest PRIVATE d3d12 directml advapi32)
@@ -25,7 +25,7 @@ set(MEDIAPIPE_LANDSCAPE_ONNX
 add_executable(WinMlComparison WinMlComparison.cpp
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
-  "${PLUGIN_SOURCE_DIR}/DmlProgram/PerformanceTrace.cpp")
+  "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp")
 target_include_directories(WinMlComparison PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
 target_link_libraries(WinMlComparison PRIVATE d3d12 directml windowsapp advapi32 test_onnx_nanopb)
 
@@ -57,33 +57,62 @@ set(OBS_TEST_BIN_DIR "$ENV{ProgramFiles}/obs-studio/bin/64bit" CACHE PATH "Insta
 
 if(EXISTS "${OBS_TEST_BIN_DIR}/obs.dll" AND EXISTS "${OBS_TEST_BIN_DIR}/libobs-d3d11.dll")
   add_executable(GpuImageInferenceTest GpuImageInferenceTest.cpp
-    "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline/D3D12TextureReader.cpp"
     "${PLUGIN_SOURCE_DIR}/ObsBridgeUtils/TextureReader.cpp"
     "${PLUGIN_SOURCE_DIR}/ObsBridgeUtils/GsUnique.cpp"
-    "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline/GpuImageInference.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/Operators.cpp"
+    "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/Operators.cpp"
+    "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MainEffect.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/AlignedBuffer.cpp"
     "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
     "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
-    "${PLUGIN_SOURCE_DIR}/DmlProgram/PerformanceTrace.cpp")
+    "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp")
   target_include_directories(GpuImageInferenceTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
   target_compile_definitions(GpuImageInferenceTest PRIVATE OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}")
   target_link_libraries(GpuImageInferenceTest PRIVATE OBS::libobs d3d11 d3d12 dxgi d3dcompiler directml advapi32 Simd::BaseVendored)
   add_test(NAME GpuImageInferenceTest.PredicatedDirectML COMMAND GpuImageInferenceTest --test-case=PredicatedDirectML)
   set_tests_properties(GpuImageInferenceTest.PredicatedDirectML PROPERTIES TIMEOUT 60
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
-  add_test(NAME GpuImageInferenceTest.GpuImageGate COMMAND GpuImageInferenceTest --test-case=GpuImageGate)
-  set_tests_properties(GpuImageInferenceTest.GpuImageGate PROPERTIES TIMEOUT 120
+  add_test(NAME GpuImageInferenceTest.MainEffectLumaAbsDiff COMMAND GpuImageInferenceTest --test-case=MainEffectLumaAbsDiff)
+  set_tests_properties(GpuImageInferenceTest.MainEffectLumaAbsDiff PROPERTIES TIMEOUT 120
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
   if(EXISTS "${MEDIAPIPE_LANDSCAPE_ONNX}")
+    add_executable(MediaPipeLandscapeDirectMLEngineTest MediaPipeLandscapeDirectMLEngineTest.cpp
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.cpp"
+      "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
+      "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
+      "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp"
+      "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp")
+    target_include_directories(MediaPipeLandscapeDirectMLEngineTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
+    target_compile_definitions(MediaPipeLandscapeDirectMLEngineTest PRIVATE OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}"
+      LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/Scenarios/0000-portrait-umireon.jpg")
+    target_link_libraries(MediaPipeLandscapeDirectMLEngineTest PRIVATE OBS::libobs d3d11 d3d12 dxgi d3dcompiler directml advapi32 windowsapp windowscodecs ole32)
+    add_test(NAME MediaPipeLandscapeDirectMLEngineTest.LandscapeEngineBgraInput COMMAND MediaPipeLandscapeDirectMLEngineTest)
+    set_tests_properties(MediaPipeLandscapeDirectMLEngineTest.LandscapeEngineBgraInput PROPERTIES TIMEOUT 120
+      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
+    add_executable(BgraLandscapeBenchmark BgraLandscapeBenchmark.cpp
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/Operators.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/Operators.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/AlignedBuffer.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.cpp"
+      "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
+      "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
+      "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp"
+      "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp")
+    target_include_directories(BgraLandscapeBenchmark PRIVATE "${PLUGIN_SOURCE_DIR}")
+    target_compile_definitions(BgraLandscapeBenchmark PRIVATE OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}"
+      LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/Scenarios/0000-portrait-umireon.jpg")
+    target_link_libraries(BgraLandscapeBenchmark PRIVATE Simd::BaseVendored OBS::libobs d3d11 d3d12 dxgi d3dcompiler directml advapi32 windowsapp windowscodecs ole32)
     target_sources(GpuImageInferenceTest PRIVATE
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/PipelineFactory.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.cpp"
       "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp")
     target_include_directories(GpuImageInferenceTest PRIVATE "${LANDSCAPE_GENERATED}")
-    target_compile_definitions(GpuImageInferenceTest PRIVATE GPU_LANDSCAPE_MODEL
+    target_compile_definitions(GpuImageInferenceTest PRIVATE GPU_LANDSCAPE_MODEL OBS_LOG_HEADER="[GPU-Test] "
       LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/Scenarios/0000-portrait-umireon.jpg")
     target_link_libraries(GpuImageInferenceTest PRIVATE windowsapp windowscodecs ole32)
-    add_test(NAME GpuImageInferenceTest.GpuLandscape COMMAND GpuImageInferenceTest --test-case=GpuLandscape)
-    set_tests_properties(GpuImageInferenceTest.GpuLandscape PROPERTIES TIMEOUT 600
+    add_test(NAME GpuImageInferenceTest.LandscapeRenderingInitialization COMMAND GpuImageInferenceTest --test-case=LandscapeRenderingInitialization)
+    set_tests_properties(GpuImageInferenceTest.LandscapeRenderingInitialization PROPERTIES TIMEOUT 120
       ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
   endif()
 endif()

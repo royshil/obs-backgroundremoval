@@ -12,26 +12,19 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <tuple>
 #include <vector>
-
-#include "DmlProgram/BaselineDmlProgramRuntime.hpp"
-
-#include <ObsBridgeUtils/GsUnique.hpp>
 
 namespace BackgroundRemoval {
 
-class MainEffect;
-namespace MediaPipeLandscapeDirectML {
-class D3D12TextureReader;
-class GpuImageInference;
-} // namespace MediaPipeLandscapeDirectML
+class MediaPipeLandscapeDirectMLEngine;
 
 class MediaPipeLandscapeDirectMLPipeline : public IRenderingPipeline {
 public:
 	static constexpr std::int32_t kPipelineId = 62828;
 
-	MediaPipeLandscapeDirectMLPipeline(const FilterProperty &property, obs_source_t *source,
-					   MainEffect &backgroundRemovalEffect, std::uint32_t width,
+	MediaPipeLandscapeDirectMLPipeline(const FilterProperty &property, obs_source_t *source, std::uint32_t width,
 					   std::uint32_t height);
 	~MediaPipeLandscapeDirectMLPipeline() noexcept override;
 
@@ -57,35 +50,40 @@ public:
 	std::atomic<float> refineMaskContour_{};
 	std::atomic<std::int64_t> refineMaskExpansion_{};
 
+	static constexpr std::uint32_t kModelWidth = 256;
+	static constexpr std::uint32_t kModelHeight = 144;
+	static constexpr std::size_t kModelPixelCount = static_cast<std::size_t>(kModelWidth) * kModelHeight;
+
 private:
-	auto blurBackground(gs_texture_t *sourceTexture, gs_texture_t *alphaTexture,
-			    const std::array<gs_texture_t *, 2> &blurTextures, std::size_t iterations, float focusPoint,
-			    float focusDepth) noexcept -> gs_texture_t *;
 	auto refineMask(bool refineMaskEnabled, float refineMaskThreshold, float refineMaskContour,
 			std::int64_t refineMaskExpansion) noexcept -> bool;
 	auto refinementFailed(const char *message) noexcept -> bool;
 
-	static constexpr std::uint32_t modelWidth = 256;
-	static constexpr std::uint32_t modelHeight = 144;
-	static constexpr std::size_t modelPixelCount = static_cast<std::size_t>(modelWidth) * modelHeight;
-
-	std::unique_ptr<BaselineDml::BaselineDmlProgramRuntime> program_;
+	std::unique_ptr<MediaPipeLandscapeDirectMLEngine> engine_;
 	const std::uint32_t width_;
 	const std::uint32_t height_;
 	obs_source_t *const source_;
-	MainEffect &backgroundRemovalEffect_;
-	ObsBridgeUtils::UniqueTexturePtr sourceTexture_;
-	std::array<ObsBridgeUtils::UniqueTexturePtr, 2> blurTextures_;
-	ObsBridgeUtils::UniqueTexturePtr modelInputTexture_;
-	ObsBridgeUtils::UniqueTexturePtr alphaTexture_;
-	std::unique_ptr<MediaPipeLandscapeDirectML::D3D12TextureReader> textureReader_;
-	std::unique_ptr<MediaPipeLandscapeDirectML::GpuImageInference> gpuInference_;
+
+	// MARK: - Textures and GPU Resources
+
+	std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> effect_;
+
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> sourceTexture_;
+
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> lastInputTexture_;
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> inputTexture_;
+
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> lumaAbsDiffTexture_;
+	std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)> lumaAbsDiffStagesurf_;
+
+	std::array<std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)>, 2> blurTextures_;
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> alphaTexture_;
 	std::vector<std::uint8_t> backgroundMask_;
 	std::vector<std::uint8_t> modelMask_;
 	std::vector<std::uint8_t> smoothedMask_;
 	std::vector<float> modelOutput_;
-	bool hasLastInput_ = false;
-	std::atomic<bool> maskSettingsDirty_{true};
+	std::vector<float> pendingModelOutput_;
+	std::optional<std::tuple<bool, float, float, std::int64_t>> appliedMaskSettings_;
 	Operators::ResizeU8 resize_;
 	Operators::SmoothU8 smooth_;
 	Operators::ThresholdU8 modelThreshold_;

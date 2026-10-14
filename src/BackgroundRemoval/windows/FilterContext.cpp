@@ -13,8 +13,6 @@
 #include <stdexcept>
 #include <string>
 
-#include <ObsBridgeUtils/GsUnique.hpp>
-#include "BackgroundRemoval/MainEffect.hpp"
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 #include "MediaPipeLandscapeDirectMLPipeline.hpp"
@@ -28,17 +26,11 @@ FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : sourc
 	}
 	pendingFilterProperty_ = decodeFilterProperty(settings);
 	currentFilterProperty_ = *pendingFilterProperty_;
-
-	ObsBridgeUtils::GsUnique::GraphicsGuard graphicsGuard;
-	backgroundRemovalEffect_ = std::make_unique<MainEffect>();
 }
 
 FilterContext::~FilterContext() noexcept
 {
 	renderingPipeline_.reset();
-	ObsBridgeUtils::GsUnique::GraphicsGuard graphicsGuard;
-	backgroundRemovalEffect_.reset();
-	ObsBridgeUtils::GsUnique::drain();
 }
 
 auto FilterContext::getName(void *) noexcept -> const char *
@@ -184,8 +176,8 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 	if (requiresPipelineRecreation) {
 		const long long pipelineId = context->currentFilterProperty_.pipelineId;
 		try {
-			pipeline = createRenderingPipeline(context->currentFilterProperty_, context->source_,
-							   *context->backgroundRemovalEffect_, width, height);
+			pipeline = createRenderingPipeline(context->currentFilterProperty_, context->source_, width,
+							   height);
 		} catch (const std::exception &exception) {
 			blog(LOG_ERROR, OBS_LOG_HEADER "Failed to recreate DirectML rendering pipeline: %s",
 			     exception.what());
@@ -214,7 +206,6 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 
 void FilterContext::videoRender(void *data, gs_effect_t *effect) noexcept
 {
-	ObsBridgeUtils::GsUnique::drain();
 	auto *contextPtr = static_cast<std::shared_ptr<FilterContext> *>(data);
 	if (!contextPtr || !*contextPtr) {
 		return;

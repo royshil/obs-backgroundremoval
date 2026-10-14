@@ -2,17 +2,19 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "BackgroundRemoval/MainEffect.hpp"
+#include "MainEffect.hpp"
 
 #include <stdexcept>
 
-namespace BackgroundRemoval {
+#include <graphics/graphics.h>
+
 namespace {
 
-constexpr const char *backgroundRemovalEffectSource = R"effect(
+const char *effectString = R"EFFECT(
 uniform float4x4 ViewProj;
 
 uniform texture2d image;
+uniform texture2d image1;
 uniform texture2d alphamask;
 uniform texture2d blurredBackground;
 uniform texture2d focalmask;
@@ -48,6 +50,11 @@ VertDataOut VSDefault(VertDataIn v_in)
 	return vert_out;
 }
 
+float luma709(float3 color)
+{
+	return dot(color, float3(0.2126, 0.7152, 0.0722));
+}
+
 float4 PSTakeBlur(VertDataOut v_in) : TARGET
 {
 	return float4(blurredBackground.Sample(textureSampler, v_in.uv).rgb, 1.0);
@@ -56,6 +63,14 @@ float4 PSTakeBlur(VertDataOut v_in) : TARGET
 float4 PSDraw(VertDataOut v_in) : TARGET
 {
 	return image.Sample(textureSampler, v_in.uv);
+}
+
+float4 PSLumaAbsDiff(VertDataOut v_in) : TARGET
+{
+	float4 leftPixel = image.Sample(textureSampler, v_in.uv);
+	float4 rightPixel = image1.Sample(textureSampler, v_in.uv);
+	float value = abs(luma709(leftPixel.rgb) - luma709(rightPixel.rgb));
+	return float4(value, value, value, 1.0);
 }
 
 float4 PSExtractScaledRGBPlanes(VertDataOut v_in) : TARGET
@@ -106,6 +121,15 @@ float4 PSKawaseFocalBlur(VertDataOut v_in) : TARGET
 	return sum;
 }
 
+technique LumaAbsDiff
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader = PSLumaAbsDiff(v_in);
+	}
+}
+
 technique DrawWithFocalBlur
 {
 	pass
@@ -150,7 +174,7 @@ technique ExtractScaledRGBPlanes
 		pixel_shader = PSExtractScaledRGBPlanes(v_in);
 	}
 }
-)effect";
+)EFFECT";
 
 class TextureRenderGuard final {
 public:
@@ -159,7 +183,7 @@ public:
 		  previousZStencil_(gs_get_zstencil_target()),
 		  previousColorSpace_(gs_get_color_space())
 	{
-		gs_set_render_target_with_color_space(targetTexture, nullptr, GS_CS_SRGB);
+		gs_set_render_target_with_color_space(targetTexture, nullptr, GS_CS_709_EXTENDED);
 		gs_viewport_push();
 		gs_projection_push();
 		gs_matrix_push();
@@ -193,61 +217,98 @@ private:
 	const gs_color_space previousColorSpace_;
 };
 
-auto getEffectParameter(gs_effect_t *effect, const char *name) noexcept -> gs_eparam_t *
+auto requireNotNull(auto *value, const char *message) -> decltype(value)
 {
-	if (!effect) {
-		return nullptr;
+	if (!value) {
+		throw std::runtime_error(message);
 	}
-	return gs_effect_get_param_by_name(effect, name);
+	return value;
 }
 
 } // namespace
 
-MainEffect::MainEffect()
-	: effect_(gs_effect_create(backgroundRemovalEffectSource, "background_removal.effect", nullptr)),
-	  image_(getEffectParameter(effect_, "image")),
-	  alphaMask_(getEffectParameter(effect_, "alphamask")),
-	  blurredBackground_(getEffectParameter(effect_, "blurredBackground")),
-	  focalMask_(getEffectParameter(effect_, "focalmask")),
-	  xOffset_(getEffectParameter(effect_, "xOffset")),
-	  yOffset_(getEffectParameter(effect_, "yOffset")),
-	  blurIteration_(getEffectParameter(effect_, "blurIter")),
-	  blurTotal_(getEffectParameter(effect_, "blurTotal")),
-	  blurFocusPoint_(getEffectParameter(effect_, "blurFocusPoint")),
-	  blurFocusDepth_(getEffectParameter(effect_, "blurFocusDepth"))
-{
-	if (!effect_) {
-		throw std::runtime_error("Failed to create background removal effect");
-	}
+namespace BackgroundRemoval {
 
-	if (!image_ || !alphaMask_ || !blurredBackground_ || !focalMask_ || !xOffset_ || !yOffset_ || !blurIteration_ ||
-	    !blurTotal_ || !blurFocusPoint_ || !blurFocusDepth_) {
-		gs_effect_destroy(effect_);
-		throw std::runtime_error("Background removal effect parameter was not found");
-	}
+MainEffect::MainEffect()
+	: MainEffect(std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)>{
+		  requireNotNull(gs_effect_create(effectString, "BackgroundRemoval.effect", nullptr),
+				 "Failed to create MainEffect"),
+		  gs_effect_destroy})
+{
 }
 
-MainEffect::~MainEffect() noexcept
+MainEffect::MainEffect(std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> effect)
+	: effect_{std::move(effect)},
+	  image_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "image"),
+				"BackgroundRemoval::MainEffect::image_ is null")},
+	  image1_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "image1"),
+				 "BackgroundRemoval::MainEffect::image1_ is null")},
+	  alphaMask_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "alphamask"),
+				    "BackgroundRemoval::MainEffect::alphaMask_ is null")},
+	  blurredBackground_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "blurredBackground"),
+					    "BackgroundRemoval::MainEffect::blurredBackground_ is null")},
+	  focalMask_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "focalmask"),
+				    "BackgroundRemoval::MainEffect::focalMask_ is null")},
+	  xOffset_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "xOffset"),
+				  "BackgroundRemoval::MainEffect::xOffset_ is null")},
+	  yOffset_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "yOffset"),
+				  "BackgroundRemoval::MainEffect::yOffset_ is null")},
+	  blurIteration_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "blurIter"),
+					"BackgroundRemoval::MainEffect::blurIteration_ is null")},
+	  blurTotal_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "blurTotal"),
+				    "BackgroundRemoval::MainEffect::blurTotal_ is null")},
+	  blurFocusPoint_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "blurFocusPoint"),
+					 "BackgroundRemoval::MainEffect::blurFocusPoint_ is null")},
+	  blurFocusDepth_{requireNotNull(gs_effect_get_param_by_name(effect_.get(), "blurFocusDepth"),
+					 "BackgroundRemoval::MainEffect::blurFocusDepth_ is null")}
 {
-	gs_effect_destroy(effect_);
+}
+
+MainEffect::~MainEffect() noexcept = default;
+
+void MainEffect::copy(gs_texture_t *targetTexture, gs_texture_t *sourceTexture) const noexcept
+{
+	TextureRenderGuard renderGuard(targetTexture);
+	gs_effect_set_texture(image_, sourceTexture);
+	while (gs_effect_loop(effect_.get(), "Draw"))
+		gs_draw_sprite(nullptr, 0, gs_texture_get_width(targetTexture), gs_texture_get_height(targetTexture));
 }
 
 void MainEffect::renderSource(gs_texture_t *targetTexture, obs_source_t *source) const noexcept
 {
+	gs_effect_t *effect = effect_.get();
+	vec4 transparentColor = {0.0F, 0.0F, 0.0F, 0.0F};
+
 	TextureRenderGuard renderGuard(targetTexture);
-	vec4 clearColor;
-	vec4_zero(&clearColor);
-	gs_clear(GS_CLEAR_COLOR, &clearColor, 0.0F, 0);
-	while (gs_effect_loop(effect_, "Draw")) {
+	gs_clear(GS_CLEAR_COLOR, &transparentColor, 0.0F, 0);
+	while (gs_effect_loop(effect, "Draw")) {
 		obs_source_video_render(source);
+	}
+}
+
+void MainEffect::lumaAbsDiff(gs_texture_t *targetTexture, gs_texture_t *leftTexture,
+			     gs_texture_t *rightTexture) const noexcept
+{
+	gs_effect_t *effect = effect_.get();
+	std::uint32_t width = gs_texture_get_width(targetTexture);
+	std::uint32_t height = gs_texture_get_height(targetTexture);
+	vec4 transparentColor = {0.0F, 0.0F, 0.0F, 0.0F};
+
+	TextureRenderGuard renderGuard(targetTexture);
+	gs_clear(GS_CLEAR_COLOR, &transparentColor, 0.0F, 0);
+	while (gs_effect_loop(effect, "LumaAbsDiff")) {
+		gs_effect_set_texture(image_, leftTexture);
+		gs_effect_set_texture(image1_, rightTexture);
+		gs_draw_sprite(nullptr, 0, width, height);
 	}
 }
 
 void MainEffect::extractScaledRGBPlanes(gs_texture_t *targetTexture, gs_texture_t *sourceTexture) const noexcept
 {
+	gs_effect_t *effect = effect_.get();
 	TextureRenderGuard renderGuard(targetTexture);
 	gs_effect_set_texture(image_, sourceTexture);
-	while (gs_effect_loop(effect_, "ExtractScaledRGBPlanes")) {
+	while (gs_effect_loop(effect, "ExtractScaledRGBPlanes")) {
 		gs_draw_sprite(sourceTexture, 0, gs_texture_get_width(targetTexture),
 			       gs_texture_get_height(targetTexture));
 	}
@@ -257,6 +318,7 @@ void MainEffect::focalBlur(gs_texture_t *targetTexture, gs_texture_t *sourceText
 			   std::int64_t iteration, std::int64_t total, float focusPoint,
 			   float focusDepth) const noexcept
 {
+	gs_effect_t *effect = effect_.get();
 	TextureRenderGuard renderGuard(targetTexture);
 	gs_effect_set_texture(image_, sourceTexture);
 	gs_effect_set_texture(focalMask_, focalMaskTexture);
@@ -268,7 +330,7 @@ void MainEffect::focalBlur(gs_texture_t *targetTexture, gs_texture_t *sourceText
 	gs_effect_set_int(blurTotal_, static_cast<int>(total));
 	gs_effect_set_float(blurFocusPoint_, focusPoint);
 	gs_effect_set_float(blurFocusDepth_, focusDepth);
-	while (gs_effect_loop(effect_, "DrawFocalBlur")) {
+	while (gs_effect_loop(effect, "DrawFocalBlur")) {
 		gs_draw_sprite(sourceTexture, 0, 0, 0);
 	}
 }
@@ -276,7 +338,8 @@ void MainEffect::focalBlur(gs_texture_t *targetTexture, gs_texture_t *sourceText
 void MainEffect::directDrawWithBlurredBackground(gs_texture_t *sourceTexture, gs_texture_t *alphaMaskTexture,
 						 gs_texture_t *blurredBackgroundTexture) const noexcept
 {
-	while (gs_effect_loop(effect_, "DrawWithFocalBlur")) {
+	gs_effect_t *effect = effect_.get();
+	while (gs_effect_loop(effect, "DrawWithFocalBlur")) {
 		gs_effect_set_texture(image_, sourceTexture);
 		gs_effect_set_texture(alphaMask_, alphaMaskTexture);
 		gs_effect_set_texture(blurredBackground_, blurredBackgroundTexture);
@@ -286,10 +349,26 @@ void MainEffect::directDrawWithBlurredBackground(gs_texture_t *sourceTexture, gs
 
 void MainEffect::directDrawWithoutBlur(gs_texture_t *sourceTexture, gs_texture_t *alphaMaskTexture) const noexcept
 {
-	while (gs_effect_loop(effect_, "DrawWithoutBlur")) {
+	gs_effect_t *effect = effect_.get();
+	while (gs_effect_loop(effect, "DrawWithoutBlur")) {
 		gs_effect_set_texture(image_, sourceTexture);
 		gs_effect_set_texture(alphaMask_, alphaMaskTexture);
 		gs_draw_sprite(sourceTexture, 0, 0, 0);
+	}
+}
+
+auto MainEffect::create() -> std::unique_ptr<MainEffect>
+{
+	std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> effect{
+		gs_effect_create(effectString, "BackgroundRemoval.effect", nullptr), gs_effect_destroy};
+	if (effect) {
+		try {
+			return std::make_unique<MainEffect>(std::move(effect));
+		} catch (...) {
+			return nullptr;
+		}
+	} else {
+		return nullptr;
 	}
 }
 
