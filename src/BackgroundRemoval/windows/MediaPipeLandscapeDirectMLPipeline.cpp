@@ -2,12 +2,14 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "DmlProgram/PerformanceTrace.hpp"
 #include "MediaPipeLandscapeDirectMLPipeline.hpp"
 #include "BackgroundRemoval/MainEffect.hpp"
+#include "MediaPipeLandscapeDirectMLPipeline/GpuImageInference.hpp"
 
 #include <algorithm>
 #include <atomic>
-#include <cstring>
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -30,8 +32,6 @@ MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const Fil
 	  backgroundMask_(static_cast<std::size_t>(width) * height, 255),
 	  modelMask_(modelPixelCount),
 	  smoothedMask_(modelPixelCount),
-	  lastInput_(modelPixelCount * 3),
-	  modelInput_(modelPixelCount * 3),
 	  modelOutput_(modelPixelCount),
 	  smooth_({modelWidth, modelHeight}),
 	  modelThreshold_({modelWidth, modelHeight}),
@@ -50,12 +50,16 @@ MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const Fil
 		blurTextures_[1] = makeUniqueTexture(width, height, GS_BGRA, GS_RENDER_TARGET);
 		modelInputTexture_ = makeUniqueTexture(modelWidth, modelHeight * 3, GS_R32F, GS_RENDER_TARGET);
 		alphaTexture_ = makeUniqueTexture(width, height, GS_R8, GS_DYNAMIC);
-		textureReader_ = std::make_unique<ObsBridgeUtils::TextureReader>(modelWidth, modelHeight * 3, GS_R32F);
+		textureReader_ = std::make_unique<MediaPipeLandscapeDirectML::D3D12TextureReader>(
+			program_->device(), program_->queue(), modelWidth, modelHeight * 3);
+		gpuInference_ = std::make_unique<MediaPipeLandscapeDirectML::GpuImageInference>(*program_, modelWidth,
+												modelHeight * 3);
 		if (!sourceTexture_ || !blurTextures_[0] || !blurTextures_[1] || !modelInputTexture_ ||
 		    !alphaTexture_) {
 			throw std::runtime_error("Failed to create MediaPipe Landscape rendering textures");
 		}
 	} catch (...) {
+		gpuInference_.reset();
 		textureReader_.reset();
 		alphaTexture_.reset();
 		modelInputTexture_.reset();
@@ -70,41 +74,13 @@ MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const Fil
 MediaPipeLandscapeDirectMLPipeline::~MediaPipeLandscapeDirectMLPipeline() noexcept
 {
 	ObsBridgeUtils::GsUnique::GraphicsGuard graphicsGuard;
+	gpuInference_.reset();
 	textureReader_.reset();
 	alphaTexture_.reset();
 	modelInputTexture_.reset();
 	blurTextures_ = {};
 	sourceTexture_.reset();
 	ObsBridgeUtils::GsUnique::drain();
-}
-
-auto MediaPipeLandscapeDirectMLPipeline::processImage(const std::uint8_t *inputData, std::uint32_t linesize,
-						      std::uint8_t *output) noexcept -> bool
-{
-	if (!inputData || !output || linesize < modelWidth * sizeof(float)) {
-		return false;
-	}
-	try {
-		for (std::uint32_t channel = 0; channel < 3; ++channel) {
-			for (std::uint32_t row = 0; row < modelHeight; ++row) {
-				const auto *source = reinterpret_cast<const float *>(
-					inputData + static_cast<std::size_t>(channel * modelHeight + row) * linesize);
-				std::memcpy(modelInput_.data() +
-						    static_cast<std::size_t>(channel * modelHeight + row) * modelWidth,
-					    source, modelWidth * sizeof(float));
-			}
-		}
-		const std::array inputs{std::as_bytes(std::span<const float>(modelInput_))};
-		program_->run(inputs, std::as_writable_bytes(std::span<float>(modelOutput_)));
-		for (std::size_t index = 0; index < modelPixelCount; ++index) {
-			output[index] = static_cast<std::uint8_t>(
-				std::clamp((1.0F - modelOutput_[index]) * 255.0F, 0.0F, 255.0F));
-		}
-		return true;
-	} catch (const std::exception &exception) {
-		blog(LOG_ERROR, OBS_LOG_HEADER "MediaPipe Landscape DirectML inference failed: %s", exception.what());
-		return false;
-	}
 }
 
 void MediaPipeLandscapeDirectMLPipeline::update(const FilterProperty &property) noexcept
@@ -120,44 +96,6 @@ void MediaPipeLandscapeDirectMLPipeline::update(const FilterProperty &property) 
 	refineMaskContour_.store(static_cast<float>(property.refineMaskContour), std::memory_order_relaxed);
 	refineMaskExpansion_.store(property.refineMaskExpansion, std::memory_order_relaxed);
 	maskSettingsDirty_.store(true, std::memory_order_relaxed);
-}
-
-auto MediaPipeLandscapeDirectMLPipeline::shouldInferMask(const ObsBridgeUtils::TextureReader *textureReader,
-							 float similarityThreshold) const noexcept -> bool
-{
-	if (!hasLastInput_) {
-		return true;
-	}
-	const auto &buffer = textureReader->getBuffer();
-	const std::uint32_t linesize = textureReader->getBufferLinesize();
-	const double psnr = psnr_.calculate(reinterpret_cast<const float *>(buffer.data()),
-					    {modelWidth, modelHeight * 3, linesize}, lastInput_.data(),
-					    {modelWidth, modelHeight * 3, modelWidth * sizeof(float)});
-	return psnr <= similarityThreshold;
-}
-
-auto MediaPipeLandscapeDirectMLPipeline::inferMask(const ObsBridgeUtils::TextureReader *textureReader) noexcept -> bool
-{
-	const auto &buffer = textureReader->getBuffer();
-	const std::uint32_t linesize = textureReader->getBufferLinesize();
-	if (linesize < modelWidth * sizeof(float) ||
-	    buffer.size() < static_cast<std::size_t>(linesize) * modelHeight * 3) {
-		blog(LOG_ERROR, OBS_LOG_HEADER "MediaPipe Landscape model input has an invalid layout");
-		return false;
-	}
-
-	for (std::uint32_t row = 0; row < modelHeight * 3; ++row) {
-		std::memcpy(lastInput_.data() + static_cast<std::size_t>(row) * modelWidth,
-			    buffer.data() + static_cast<std::size_t>(row) * linesize, modelWidth * sizeof(float));
-	}
-	const bool inferenceSucceeded = processImage(buffer.data(), linesize, modelMask_.data());
-	if (!inferenceSucceeded) {
-		blog(LOG_ERROR, OBS_LOG_HEADER "MediaPipe Landscape DirectML inference failed");
-		hasLastInput_ = false;
-		return false;
-	}
-	hasLastInput_ = true;
-	return true;
 }
 
 auto MediaPipeLandscapeDirectMLPipeline::refinementFailed(const char *message) noexcept -> bool
@@ -280,14 +218,13 @@ auto MediaPipeLandscapeDirectMLPipeline::blurBackground(gs_texture_t *sourceText
 
 void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 {
-	// Skip rendering while the source is unavailable.
-	const bool sourceEnabled = obs_source_enabled(source_);
-	if (!sourceEnabled) {
+	BaselineDml::PerformanceTrace::Scope frame("Pipeline.Frame");
+	const bool filterEnabled = obs_source_enabled(source_);
+	if (!filterEnabled) {
 		obs_source_skip_video_filter(source_);
 		return;
 	}
 
-	// Snapshot all externally writable settings for this frame.
 	const bool blurBackgroundEnabled = blurBackgroundEnabled_.load(std::memory_order_relaxed);
 	const std::int64_t unsafeBlurBackgroundFactor = blurBackgroundFactor_.load(std::memory_order_relaxed);
 	const float blurFocusPoint = blurFocusPoint_.load(std::memory_order_relaxed);
@@ -298,12 +235,10 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 	const float refineMaskContour = refineMaskContour_.load(std::memory_order_relaxed);
 	const std::int64_t unsafeRefineMaskExpansion = refineMaskExpansion_.load(std::memory_order_relaxed);
 
-	// Snapshot owned rendering resources as raw pointers for this frame.
 	gs_texture_t *const sourceTexture = sourceTexture_.get();
 	gs_texture_t *const modelInputTexture = modelInputTexture_.get();
 	gs_texture_t *const alphaTexture = alphaTexture_.get();
 	const std::array<gs_texture_t *, 2> blurTextures{blurTextures_[0].get(), blurTextures_[1].get()};
-	ObsBridgeUtils::TextureReader *const textureReader = textureReader_.get();
 
 	// Bound externally writable loop counts to protect render-thread availability.
 	const std::size_t blurBackgroundIterations =
@@ -317,46 +252,54 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 		return;
 	}
 
+	BaselineDml::PerformanceTrace::Scope capture("Pipeline.CaptureAndExtract");
 	// Render the current source frame into the reusable texrender.
 	backgroundRemovalEffect_.renderSource(sourceTexture, target);
 
 	// Extract the model's scaled RGB planes from the captured source frame.
 	backgroundRemovalEffect_.extractScaledRGBPlanes(modelInputTexture, sourceTexture);
 
-	// Read the current model input texture back to CPU memory.
-	const bool modelInputRead = textureReader->read(modelInputTexture);
-	if (!modelInputRead) {
-		blog(LOG_ERROR, OBS_LOG_HEADER "Model-input readback failed");
-		hasLastInput_ = false;
-		return;
-	}
+	capture.finish();
 
-	// Determine which model operations are required for this frame.
 	const bool maskSettingsChanged = maskSettingsDirty_.exchange(false, std::memory_order_relaxed);
-	const bool requiresMaskInference = maskSettingsChanged ||
-					   shouldInferMask(textureReader, imageSimilarityThreshold);
-
-	// Infer a new model-resolution mask when the model input changed.
-	bool maskInferenceSucceeded = true;
-	if (requiresMaskInference) {
-		maskInferenceSucceeded = inferMask(textureReader);
-	}
-	if (!maskInferenceSucceeded) {
+	bool requiresMaskInference = false;
+	try {
+		requiresMaskInference = gpuInference_->run(*textureReader_, modelInputTexture, imageSimilarityThreshold,
+							   maskSettingsChanged || !hasLastInput_, modelOutput_);
+		if (requiresMaskInference) {
+			for (std::size_t index = 0; index < modelPixelCount; ++index) {
+				if (!std::isfinite(modelOutput_[index]))
+					throw std::runtime_error("Non-finite DirectML model output");
+				modelMask_[index] = static_cast<std::uint8_t>(
+					std::clamp((1.0F - modelOutput_[index]) * 255.0F, 0.0F, 255.0F));
+			}
+		}
+	} catch (const std::exception &exception) {
+		blog(LOG_ERROR, OBS_LOG_HEADER "GPU image inference failed: %s", exception.what());
+		hasLastInput_ = false;
+		obs_source_skip_video_filter(source_);
 		return;
 	}
+	BaselineDml::PerformanceTrace::inferenceDecision(requiresMaskInference);
 
 	// Refine the inferred mask into the output-resolution background mask.
 	bool maskRefinementSucceeded = true;
 	if (requiresMaskInference) {
+		BaselineDml::PerformanceTrace::Scope refine("Pipeline.RefineMask");
 		maskRefinementSucceeded =
 			refineMask(refineMaskEnabled, refineMaskThreshold, refineMaskContour, refineMaskExpansion);
 	}
 	if (!maskRefinementSucceeded) {
+		obs_source_skip_video_filter(source_);
 		return;
 	}
 
-	// Upload the CPU background mask to the GPU alpha texture.
-	gs_texture_set_image(alphaTexture, backgroundMask_.data(), width_, false);
+	// Commit the comparison baseline only after inference and refinement succeed.
+	if (requiresMaskInference) {
+		gpuInference_->commitReference();
+		hasLastInput_ = true;
+		gs_texture_set_image(alphaTexture, backgroundMask_.data(), width_, false);
+	}
 
 	// Generate the blurred background texture when background blur is enabled.
 	gs_texture_t *blurredBackgroundTexture = sourceTexture;

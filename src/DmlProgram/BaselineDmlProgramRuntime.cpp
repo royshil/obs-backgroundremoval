@@ -1,11 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+//
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+
 #define DML_TARGET_VERSION 0x1000
 
+#include "PerformanceTrace.hpp"
 #include "BaselineDmlProgramRuntime.hpp"
 #include "DmlProgram/BaselineDmlCompiler.hpp"
 
@@ -109,11 +112,14 @@ using UniqueHandle = std::unique_ptr<void, HandleCloser>;
 
 struct Step final {
 	std::vector<TensorId> inputs;
+	std::vector<TensorId> barriersBefore;
 	TensorId output = noTensor;
 	ComPtr<IDMLCompiledOperator> operation;
 	ComPtr<IDMLOperatorInitializer> initializer;
 	ComPtr<IDMLBindingTable> executionTable;
 	ComPtr<ID3D12Resource> persistent;
+	ComPtr<ID3D12Resource> temporary;
+	std::vector<D3D12_RESOURCE_BARRIER> barriers;
 	DML_BINDING_PROPERTIES operationProperties{};
 	DML_BINDING_PROPERTIES initializerProperties{};
 	std::uint32_t descriptorOffset = 0;
@@ -140,6 +146,7 @@ class BaselineDmlProgramRuntime::Impl final {
 public:
 	explicit Impl(const Graph &graph, std::span<const std::byte> weights)
 	{
+		PerformanceTrace::Scope initialization("Runtime.Initialize");
 		check(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice_)),
 		      "D3D12CreateDevice");
 		check(DMLCreateDevice(d3dDevice_.Get(), DML_CREATE_DEVICE_FLAG_NONE, IID_PPV_ARGS(&dmlDevice_)),
@@ -160,7 +167,10 @@ public:
 		}
 
 		BaselineDmlCompiler compiler(dmlDevice_.Get());
-		auto compiled = compiler.compile(graph, weights);
+		auto compiled = [&] {
+			PerformanceTrace::Scope scope("Runtime.Compile");
+			return compiler.compile(graph, weights);
+		}();
 		tensors_ = std::move(compiled.tensors);
 		storages_.reserve(compiled.storages.size());
 		for (const auto &storage : compiled.storages) {
@@ -170,6 +180,7 @@ public:
 		for (auto &compiledStep : compiled.steps) {
 			Step step;
 			step.inputs = std::move(compiledStep.inputs);
+			step.barriersBefore = std::move(compiledStep.barriersBefore);
 			step.output = compiledStep.output;
 			step.operation = std::move(compiledStep.operation);
 			steps_.push_back(std::move(step));
@@ -188,6 +199,7 @@ public:
 
 	void run(std::span<const std::span<const std::byte>> inputs, std::span<std::byte> output)
 	{
+		PerformanceTrace::Scope execution("Runtime.Run");
 		if (inputs.size() != inputTensors_.size())
 			throw std::invalid_argument("Baseline DirectML input count mismatch");
 		if (output.size() != outputSize_)
@@ -197,7 +209,17 @@ public:
 				throw std::invalid_argument("Baseline DirectML input " + std::to_string(index) +
 							    " byte size mismatch");
 		}
+		// GPU-only callers never allocate CPU input upload buffers.
+		if (inputUploads_.empty()) {
+			std::vector<ComPtr<ID3D12Resource>> uploads;
+			for (const auto id : inputTensors_)
+				uploads.push_back(createBuffer(d3dDevice_.Get(), tensors_.at(id).size,
+							       D3D12_HEAP_TYPE_UPLOAD,
+							       D3D12_RESOURCE_STATE_GENERIC_READ));
+			inputUploads_ = std::move(uploads);
+		}
 		// Validate every span before mapping or submitting any GPU work.
+		PerformanceTrace::Scope upload("Runtime.UploadCpuCopy");
 		for (std::size_t index = 0; index < inputs.size(); ++index) {
 			const auto &tensor = tensors_.at(inputTensors_[index]);
 			void *mapped = nullptr;
@@ -207,6 +229,8 @@ public:
 			std::memcpy(mapped, inputs[index].data(), inputs[index].size());
 			inputUploads_[index]->Unmap(0, nullptr);
 		}
+		upload.finish();
+		PerformanceTrace::Scope recording("Runtime.RecordCommands");
 		resetCommands();
 		for (std::size_t index = 0; index < inputs.size(); ++index) {
 			const auto id = inputTensors_[index];
@@ -220,10 +244,10 @@ public:
 		ID3D12DescriptorHeap *heaps[] = {descriptorHeap_.Get()};
 		commandList_->SetDescriptorHeaps(1, heaps);
 		for (auto &step : steps_) {
+			if (!step.barriers.empty())
+				commandList_->ResourceBarrier(static_cast<UINT>(step.barriers.size()),
+							      step.barriers.data());
 			recorder_->RecordDispatch(commandList_.Get(), step.operation.Get(), step.executionTable.Get());
-			D3D12_RESOURCE_BARRIER barrier{};
-			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-			commandList_->ResourceBarrier(1, &barrier);
 		}
 		auto *outputResource = resource(outputTensor_);
 		const auto &outputTensor = tensors_.at(outputTensor_);
@@ -241,13 +265,96 @@ public:
 							D3D12_RESOURCE_STATE_COPY_DEST);
 			commandList_->ResourceBarrier(1, &barrier);
 		}
+		recording.finish();
 		executeAndWait();
+		PerformanceTrace::Scope readback("Runtime.ReadbackCpuCopy");
 		void *mapped = nullptr;
 		const D3D12_RANGE readRange{0, static_cast<SIZE_T>(outputSize_)};
 		check(readback_->Map(0, &readRange, &mapped), "Map output readback buffer");
 		std::memcpy(output.data(), mapped, output.size());
 		const D3D12_RANGE noWrite{0, 0};
 		readback_->Unmap(0, &noWrite);
+	}
+
+	auto device() const noexcept -> ID3D12Device * { return d3dDevice_.Get(); }
+	auto queue() const noexcept -> ID3D12CommandQueue * { return queue_.Get(); }
+	auto inputCount() const noexcept -> std::size_t { return inputTensors_.size(); }
+	auto inputInfo(std::size_t index) const -> RuntimeTensorInfo
+	{
+		const auto &tensor = tensors_.at(inputTensors_.at(index));
+		return {tensor.dataType, tensor.dataBytes};
+	}
+	auto outputInfo() const noexcept -> RuntimeTensorInfo
+	{
+		const auto &tensor = tensors_[outputTensor_];
+		return {tensor.dataType, tensor.dataBytes};
+	}
+
+	void recordGpuRun(ID3D12GraphicsCommandList *commands, std::span<const GpuInput> inputs,
+			  ID3D12Resource *predicate, ID3D12Resource *output, std::uint64_t outputOffset)
+	{
+		if (!commands || !predicate || !output || inputs.size() != inputTensors_.size())
+			throw std::invalid_argument("Invalid DirectML GPU submission");
+		auto validateBuffer = [&](ID3D12Resource *buffer, std::uint64_t offset, std::uint64_t bytes) {
+			if (!buffer)
+				throw std::invalid_argument("Null DirectML GPU buffer");
+			const auto desc = buffer->GetDesc();
+			ComPtr<ID3D12Device> owner;
+			check(buffer->GetDevice(IID_PPV_ARGS(&owner)), "Get GPU buffer device");
+			if (owner.Get() != d3dDevice_.Get() || desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER ||
+			    offset > desc.Width || bytes > desc.Width - offset)
+				throw std::invalid_argument("DirectML GPU buffer device or byte range mismatch");
+		};
+		ComPtr<ID3D12Device> commandDevice;
+		check(commands->GetDevice(IID_PPV_ARGS(&commandDevice)), "Get command list device");
+		if (commandDevice.Get() != d3dDevice_.Get())
+			throw std::invalid_argument("DirectML command list device mismatch");
+		validateBuffer(predicate, 0, 8);
+		validateBuffer(output, outputOffset, outputSize_);
+		D3D12_HEAP_PROPERTIES heap{};
+		D3D12_HEAP_FLAGS heapFlags{};
+		check(output->GetHeapProperties(&heap, &heapFlags), "Get output readback heap");
+		if (heap.Type != D3D12_HEAP_TYPE_READBACK)
+			throw std::invalid_argument("GPU output must be a readback buffer");
+		for (std::size_t index = 0; index < inputs.size(); ++index) {
+			const auto &tensor = tensors_.at(inputTensors_[index]);
+			if (inputs[index].dataBytes != tensor.dataBytes)
+				throw std::invalid_argument("DirectML GPU input byte size mismatch");
+			validateBuffer(inputs[index].resource, inputs[index].offset, tensor.size);
+		}
+		commands->SetPredication(predicate, 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
+		for (std::size_t index = 0; index < inputs.size(); ++index) {
+			const auto id = inputTensors_[index];
+			commands->CopyBufferRegion(resource(id), 0, inputs[index].resource, inputs[index].offset,
+						   tensors_.at(id).size);
+			const auto barrier = transition(resource(id), D3D12_RESOURCE_STATE_COPY_DEST,
+							D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			commands->ResourceBarrier(1, &barrier);
+		}
+		ID3D12DescriptorHeap *heaps[]{descriptorHeap_.Get()};
+		commands->SetDescriptorHeaps(1, heaps);
+		for (auto &step : steps_) {
+			if (!step.barriers.empty())
+				commands->ResourceBarrier(static_cast<UINT>(step.barriers.size()),
+							  step.barriers.data());
+			recorder_->RecordDispatch(commands, step.operation.Get(), step.executionTable.Get());
+		}
+		auto *outputResource = resource(outputTensor_);
+		const auto &tensor = tensors_.at(outputTensor_);
+		auto barrier = transition(outputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+					  D3D12_RESOURCE_STATE_COPY_SOURCE);
+		commands->ResourceBarrier(1, &barrier);
+		commands->CopyBufferRegion(output, outputOffset, outputResource,
+					   tensor.weight ? tensor.weightOffset : 0, outputSize_);
+		barrier = transition(outputResource, D3D12_RESOURCE_STATE_COPY_SOURCE,
+				     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		commands->ResourceBarrier(1, &barrier);
+		for (const auto id : inputTensors_) {
+			barrier = transition(resource(id), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+					     D3D12_RESOURCE_STATE_COPY_DEST);
+			commands->ResourceBarrier(1, &barrier);
+		}
+		commands->SetPredication(nullptr, 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
 	}
 
 private:
@@ -270,11 +377,6 @@ private:
 					: D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 			storage.resource = createBuffer(d3dDevice_.Get(), storage.size, D3D12_HEAP_TYPE_DEFAULT, state,
 							D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-		}
-		for (const auto id : inputTensors_) {
-			inputUploads_.push_back(createBuffer(d3dDevice_.Get(), tensors_.at(id).size,
-							     D3D12_HEAP_TYPE_UPLOAD,
-							     D3D12_RESOURCE_STATE_GENERIC_READ));
 		}
 		readback_ = createBuffer(d3dDevice_.Get(), outputSize_, D3D12_HEAP_TYPE_READBACK,
 					 D3D12_RESOURCE_STATE_COPY_DEST);
@@ -301,7 +403,6 @@ private:
 			commandList_->ResourceBarrier(1, &weightBarrier);
 		}
 
-		std::uint64_t temporarySize = 0;
 		std::uint32_t descriptorCount = 0;
 		for (auto &step : steps_) {
 			step.operationProperties = step.operation->GetBindingProperties();
@@ -309,8 +410,12 @@ private:
 			check(dmlDevice_->CreateOperatorInitializer(1, operations, IID_PPV_ARGS(&step.initializer)),
 			      "CreateOperatorInitializer");
 			step.initializerProperties = step.initializer->GetBindingProperties();
-			temporarySize = std::max({temporarySize, step.operationProperties.TemporaryResourceSize,
-						  step.initializerProperties.TemporaryResourceSize});
+			const auto temporarySize = std::max(step.operationProperties.TemporaryResourceSize,
+							    step.initializerProperties.TemporaryResourceSize);
+			if (temporarySize)
+				step.temporary = createBuffer(d3dDevice_.Get(), temporarySize, D3D12_HEAP_TYPE_DEFAULT,
+							      D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+							      D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 			if (step.operationProperties.PersistentResourceSize) {
 				step.persistent =
 					createBuffer(d3dDevice_.Get(), step.operationProperties.PersistentResourceSize,
@@ -333,11 +438,6 @@ private:
 		      "CreateDescriptorHeap");
 		descriptorIncrement_ =
 			d3dDevice_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		if (temporarySize) {
-			temporary_ = createBuffer(d3dDevice_.Get(), temporarySize, D3D12_HEAP_TYPE_DEFAULT,
-						  D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-						  D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-		}
 	}
 
 	auto createTable(IDMLDispatchable *dispatchable, std::uint32_t descriptorOffset, UINT descriptorCount)
@@ -360,18 +460,19 @@ private:
 		return table;
 	}
 
-	void bindTemporary(IDMLBindingTable *table, std::uint64_t size)
+	void bindTemporary(IDMLBindingTable *table, ID3D12Resource *resource, std::uint64_t size)
 	{
 		if (!size) {
 			return;
 		}
-		const auto buffer = bufferBinding(temporary_.Get(), 0, size);
+		const auto buffer = bufferBinding(resource, 0, size);
 		const auto binding = bindingDesc(&buffer);
 		table->BindTemporaryResource(&binding);
 	}
 
 	void initializeOperators()
 	{
+		PerformanceTrace::Scope scope("Runtime.InitializeOperators");
 		ID3D12DescriptorHeap *heaps[] = {descriptorHeap_.Get()};
 		commandList_->SetDescriptorHeaps(1, heaps);
 		std::vector<ComPtr<IDMLBindingTable>> tables;
@@ -400,7 +501,8 @@ private:
 			table->BindInputs(1, &inputBinding);
 			check(dmlDevice_->GetDeviceRemovedReason(),
 			      ("initializer step " + std::to_string(stepIndex) + " BindInputs").c_str());
-			bindTemporary(table.Get(), step.initializerProperties.TemporaryResourceSize);
+			bindTemporary(table.Get(), step.temporary.Get(),
+				      step.initializerProperties.TemporaryResourceSize);
 			check(dmlDevice_->GetDeviceRemovedReason(), "initializer BindTemporaryResource");
 			if (step.persistent) {
 				const auto buffer = bufferBinding(step.persistent.Get(), 0,
@@ -456,7 +558,18 @@ private:
 				bufferBinding(resource(step.output), 0, tensors_.at(step.output).size);
 			const auto outputBinding = bindingDesc(&outputBuffer);
 			step.executionTable->BindOutputs(1, &outputBinding);
-			bindTemporary(step.executionTable.Get(), step.operationProperties.TemporaryResourceSize);
+			if (step.operationProperties.TemporaryResourceSize) {
+				const auto temporaryBuffer = bufferBinding(
+					step.temporary.Get(), 0, step.operationProperties.TemporaryResourceSize);
+				const auto temporaryBinding = bindingDesc(&temporaryBuffer);
+				step.executionTable->BindTemporaryResource(&temporaryBinding);
+			}
+			for (const auto id : step.barriersBefore) {
+				D3D12_RESOURCE_BARRIER barrier{};
+				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+				barrier.UAV.pResource = resource(id);
+				step.barriers.push_back(barrier);
+			}
 			if (step.persistent) {
 				const auto persistentBuffer = bufferBinding(
 					step.persistent.Get(), 0, step.operationProperties.PersistentResourceSize);
@@ -474,6 +587,7 @@ private:
 
 	void executeAndWait()
 	{
+		PerformanceTrace::Scope submit("Runtime.SubmitAndWait");
 		check(dmlDevice_->GetDeviceRemovedReason(), "DirectML device before command submission");
 		check(commandList_->Close(), "CommandList::Close");
 		ID3D12CommandList *lists[] = {commandList_.Get()};
@@ -481,6 +595,7 @@ private:
 		const std::uint64_t value = ++fenceValue_;
 		check(queue_->Signal(fence_.Get(), value), "CommandQueue::Signal");
 		if (fence_->GetCompletedValue() < value) {
+			PerformanceTrace::Scope wait("Runtime.FenceWait");
 			check(fence_->SetEventOnCompletion(value, fenceEvent_.get()), "Fence::SetEventOnCompletion");
 			for (;;) {
 				const auto result = WaitForSingleObject(fenceEvent_.get(), 1000);
@@ -513,7 +628,7 @@ private:
 	ComPtr<ID3D12DescriptorHeap> descriptorHeap_;
 	std::uint32_t descriptorIncrement_ = 0;
 	std::vector<ComPtr<ID3D12Resource>> inputUploads_;
-	ComPtr<ID3D12Resource> readback_, weightUpload_, weight_, temporary_;
+	ComPtr<ID3D12Resource> readback_, weightUpload_, weight_;
 	ComPtr<ID3D12Fence> fence_;
 	UniqueHandle fenceEvent_;
 	std::uint64_t fenceValue_ = 0;
@@ -529,4 +644,32 @@ void BaselineDmlProgramRuntime::run(std::span<const std::span<const std::byte>> 
 	impl_->run(inputs, output);
 }
 
+} // namespace BaselineDml
+
+namespace BaselineDml {
+auto BaselineDmlProgramRuntime::device() const noexcept -> ID3D12Device *
+{
+	return impl_->device();
+}
+auto BaselineDmlProgramRuntime::queue() const noexcept -> ID3D12CommandQueue *
+{
+	return impl_->queue();
+}
+auto BaselineDmlProgramRuntime::inputCount() const noexcept -> std::size_t
+{
+	return impl_->inputCount();
+}
+auto BaselineDmlProgramRuntime::inputInfo(std::size_t index) const -> RuntimeTensorInfo
+{
+	return impl_->inputInfo(index);
+}
+auto BaselineDmlProgramRuntime::outputInfo() const noexcept -> RuntimeTensorInfo
+{
+	return impl_->outputInfo();
+}
+void BaselineDmlProgramRuntime::recordGpuRun(ID3D12GraphicsCommandList *commands, std::span<const GpuInput> inputs,
+					     ID3D12Resource *predicate, ID3D12Resource *output, std::uint64_t offset)
+{
+	impl_->recordGpuRun(commands, inputs, predicate, output, offset);
+}
 } // namespace BaselineDml

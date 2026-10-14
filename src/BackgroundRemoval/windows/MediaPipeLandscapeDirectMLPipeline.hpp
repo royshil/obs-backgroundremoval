@@ -17,11 +17,14 @@
 #include "DmlProgram/BaselineDmlProgramRuntime.hpp"
 
 #include <ObsBridgeUtils/GsUnique.hpp>
-#include <ObsBridgeUtils/TextureReader.hpp>
 
 namespace BackgroundRemoval {
 
 class MainEffect;
+namespace MediaPipeLandscapeDirectML {
+class D3D12TextureReader;
+class GpuImageInference;
+} // namespace MediaPipeLandscapeDirectML
 
 class MediaPipeLandscapeDirectMLPipeline : public IRenderingPipeline {
 public:
@@ -58,13 +61,9 @@ private:
 	auto blurBackground(gs_texture_t *sourceTexture, gs_texture_t *alphaTexture,
 			    const std::array<gs_texture_t *, 2> &blurTextures, std::size_t iterations, float focusPoint,
 			    float focusDepth) noexcept -> gs_texture_t *;
-	auto shouldInferMask(const ObsBridgeUtils::TextureReader *textureReader,
-			     float similarityThreshold) const noexcept -> bool;
-	auto inferMask(const ObsBridgeUtils::TextureReader *textureReader) noexcept -> bool;
 	auto refineMask(bool refineMaskEnabled, float refineMaskThreshold, float refineMaskContour,
 			std::int64_t refineMaskExpansion) noexcept -> bool;
 	auto refinementFailed(const char *message) noexcept -> bool;
-	auto processImage(const std::uint8_t *input, std::uint32_t linesize, std::uint8_t *output) noexcept -> bool;
 
 	static constexpr std::uint32_t modelWidth = 256;
 	static constexpr std::uint32_t modelHeight = 144;
@@ -79,16 +78,14 @@ private:
 	std::array<ObsBridgeUtils::UniqueTexturePtr, 2> blurTextures_;
 	ObsBridgeUtils::UniqueTexturePtr modelInputTexture_;
 	ObsBridgeUtils::UniqueTexturePtr alphaTexture_;
-	std::unique_ptr<ObsBridgeUtils::TextureReader> textureReader_;
+	std::unique_ptr<MediaPipeLandscapeDirectML::D3D12TextureReader> textureReader_;
+	std::unique_ptr<MediaPipeLandscapeDirectML::GpuImageInference> gpuInference_;
 	std::vector<std::uint8_t> backgroundMask_;
 	std::vector<std::uint8_t> modelMask_;
 	std::vector<std::uint8_t> smoothedMask_;
-	std::vector<float> lastInput_;
-	std::vector<float> modelInput_;
 	std::vector<float> modelOutput_;
 	bool hasLastInput_ = false;
 	std::atomic<bool> maskSettingsDirty_{true};
-	Operators::PsnrF32 psnr_;
 	Operators::ResizeU8 resize_;
 	Operators::SmoothU8 smooth_;
 	Operators::ThresholdU8 modelThreshold_;

@@ -4,6 +4,7 @@
 """Regression checks against the cached, pinned model (no network access)."""
 
 import ast
+import re
 import pathlib
 import subprocess
 import sys
@@ -25,13 +26,18 @@ from GenerateModel import (
 class GeneratorTests(unittest.TestCase):
     def generate(self, model):
         with tempfile.TemporaryDirectory() as directory:
-            paths = [pathlib.Path(directory) / name for name in ("graph.cpp", "graph.rc", "weights.bin")]
+            paths = [pathlib.Path(directory) / name for name in ("graph.cpp", "weights.bin")]
             with (mock.patch("sys.argv", ["GenerateModel.py", "--offline", *map(str, paths)]),
                   mock.patch("GenerateModel.hf_hub_download", return_value="unused.onnx"),
                   mock.patch("GenerateModel.onnx.load", return_value=model),
                   mock.patch("GenerateModel.lower_model", return_value=model)):
                 main()
-            return paths[0].read_text(), paths[2].read_bytes()
+            source, weights = paths[0].read_text(), paths[1].read_bytes()
+            literal = re.search(r'constexpr char embeddedWeights\[\] =\s*(.*?);', source, re.S).group(1)
+            encoded = "".join(re.findall(r'"([^"\n]*)"', literal))
+            decoded = bytes(int(value, 16) for value in re.findall(r'\\x([0-9a-f]{2})', encoded))
+            self.assertEqual(decoded, weights)
+            return source, weights
 
     def value(self, name, element_type=onnx.TensorProto.FLOAT, shape=(1, 1, 1, 3)):
         return onnx.helper.make_tensor_value_info(name, element_type, shape)
@@ -94,6 +100,27 @@ class GeneratorTests(unittest.TestCase):
         self.assertIn("DataType::Float64, ItemType::Weight, 4, {1u, 1u, 1u, 3u}, 3LL", source)
         self.assertEqual(weights, a.tobytes() + b.tobytes())
 
+    def test_literal_boundaries_and_empty_weights(self):
+        for length in (0, 12287, 12288, 12289, 12290, 24576):
+            with self.subTest(length=length):
+                shape = (max(1, length),)
+                initializers = []
+                operation = onnx.helper.make_node("Relu", ["x"], ["out"])
+                if length:
+                    array = np.arange(length, dtype=np.uint8)
+                    initializers = [onnx.numpy_helper.from_array(array, "w")]
+                    operation = onnx.helper.make_node("Add", ["x", "w"], ["out"])
+                model = onnx.helper.make_model(onnx.helper.make_graph(
+                    [operation], "chunked", [self.value("x", onnx.TensorProto.UINT8, shape)],
+                    [self.value("out", onnx.TensorProto.UINT8, shape)], initializer=initializers,
+                ))
+                source, weights = self.generate(model)
+                self.assertEqual(len(weights), length)
+                self.assertNotIn("LoadResource", source)
+                self.assertNotIn("decodeBase64", source)
+                if not length:
+                    self.assertIn('constexpr char embeddedWeights[] =\n\t""', source)
+
     def test_unsupported_operators_rejected_before_writing(self):
         for operation in ("Constant", "Reshape", "Transpose", "Concat", "MatMul"):
             with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
@@ -101,7 +128,7 @@ class GeneratorTests(unittest.TestCase):
                     [onnx.helper.make_node(operation, ["x"], ["out"])], operation,
                     [self.value("x")], [self.value("out")],
                 ))
-                paths = [pathlib.Path(directory) / name for name in ("graph.cpp", "graph.rc", "weights.bin")]
+                paths = [pathlib.Path(directory) / name for name in ("graph.cpp", "weights.bin")]
                 with (mock.patch("sys.argv", ["GenerateModel.py", "--offline", *map(str, paths)]),
                       mock.patch("GenerateModel.hf_hub_download", return_value="unused.onnx"),
                       mock.patch("GenerateModel.onnx.load", return_value=model),
@@ -147,7 +174,6 @@ class ModelTests(unittest.TestCase):
         generated = generator.parents[3] / "src/BackgroundRemoval/windows/generated"
         names = [
             "MediaPipeLandscapeDmlProgram.generated.cpp",
-            "MediaPipeLandscapeDmlProgram.generated.rc",
             "MediaPipeLandscapeDmlProgram.weights.bin",
         ]
         with tempfile.TemporaryDirectory() as directory:

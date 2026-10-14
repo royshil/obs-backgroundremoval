@@ -373,9 +373,6 @@ if(APPLE)
 elseif(WIN32)
   set(DIRECTML_GENERATED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/BackgroundRemoval/windows/generated")
   set(DIRECTML_PROGRAM_SOURCE "${DIRECTML_GENERATED_DIR}/MediaPipeLandscapeDmlProgram.generated.cpp")
-  set(DIRECTML_PROGRAM_RESOURCE "${DIRECTML_GENERATED_DIR}/MediaPipeLandscapeDmlProgram.generated.rc")
-  set(DIRECTML_PROGRAM_WEIGHTS "${DIRECTML_GENERATED_DIR}/MediaPipeLandscapeDmlProgram.weights.bin")
-  set_property(SOURCE "${DIRECTML_PROGRAM_RESOURCE}" APPEND PROPERTY OBJECT_DEPENDS "${DIRECTML_PROGRAM_WEIGHTS}")
   target_sources(
     ${CMAKE_PROJECT_NAME}
     PRIVATE
@@ -389,19 +386,21 @@ elseif(WIN32)
       src/BackgroundRemoval/windows/FilterContext.cpp
       src/BackgroundRemoval/windows/PipelineFactory.cpp
       src/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.cpp
+      src/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline/D3D12TextureReader.cpp
+      src/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline/GpuImageInference.cpp
       src/DmlProgram/BaselineDmlCompiler.cpp
       src/DmlProgram/BaselineDmlProgramRuntime.cpp
+      src/DmlProgram/PerformanceTrace.cpp
       src/BackgroundRemoval/MainEffect.cpp
       src/plugin-main-windows.cpp
       src/plugin-support.c
       "${DIRECTML_PROGRAM_SOURCE}"
-      "${DIRECTML_PROGRAM_RESOURCE}"
   )
   target_include_directories(
     ${CMAKE_PROJECT_NAME}
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/BackgroundRemoval/windows/DirectML" "${DIRECTML_GENERATED_DIR}"
   )
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE d3d12 directml Simd::BaseVendored)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE d3d12 directml d3d11 dxgi d3dcompiler advapi32 Simd::BaseVendored)
 else()
   target_sources(
     ${CMAKE_PROJECT_NAME}
@@ -523,7 +522,7 @@ if(APPLE)
       XCODE_ATTRIBUTE_INFOPLIST_FILE ""
       XCODE_ATTRIBUTE_INFOPLIST_KEY_CFBundleDisplayName "${PLUGIN_DISPLAY_NAME}"
       XCODE_ATTRIBUTE_INFOPLIST_KEY_NSHumanReadableCopyright
-        "Copyright © 2021-2026 Roy Shilkrot; Copyright © 2023-2026 Kaito Udagawa"
+        "Copyright ﾂｩ 2021-2026 Roy Shilkrot; Copyright ﾂｩ 2023-2026 Kaito Udagawa"
   )
   set_source_files_properties(${EFFECTS_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/effects")
   set_source_files_properties(${LOCALE_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/locale")

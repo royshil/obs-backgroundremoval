@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+
+SPDX-License-Identifier: Apache-2.0
+-->
+<WindowsPerformanceRecorder Version="1.0" Author="Kaito Udagawa">
+  <Profiles>
+    <EventCollector Id="BackgroundRemovalCollector" Name="BackgroundRemoval TraceLogging">
+      <BufferSize Value="64" />
+      <Buffers Value="64" />
+    </EventCollector>
+    <EventProvider Id="BackgroundRemovalProvider" Name="50ec32f6-bd87-4b42-930c-89d9d7ed42b3" Level="5">
+      <Keywords><Keyword Value="0x1" /></Keywords>
+    </EventProvider>
+    <Profile Id="BackgroundRemoval.Verbose.File" Name="BackgroundRemoval" Description="DirectML and background removal timing" LoggingMode="File" DetailLevel="Verbose">
+      <Collectors>
+        <EventCollectorId Value="BackgroundRemovalCollector">
+          <EventProviders><EventProviderId Value="BackgroundRemovalProvider" /></EventProviders>
+        </EventCollectorId>
+      </Collectors>
+    </Profile>
+    <Profile Id="BackgroundRemoval.Light.File" Name="BackgroundRemoval" Description="DirectML and background removal timing" Base="BackgroundRemoval.Verbose.File" LoggingMode="File" DetailLevel="Light" />
+    <Profile Id="BackgroundRemoval.Verbose.Memory" Name="BackgroundRemoval" Description="DirectML and background removal timing" Base="BackgroundRemoval.Verbose.File" LoggingMode="Memory" DetailLevel="Verbose" />
+    <Profile Id="BackgroundRemoval.Light.Memory" Name="BackgroundRemoval" Description="DirectML and background removal timing" Base="BackgroundRemoval.Verbose.File" LoggingMode="Memory" DetailLevel="Light" />
+  </Profiles>
+</WindowsPerformanceRecorder>

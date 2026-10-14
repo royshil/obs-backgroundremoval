@@ -308,6 +308,8 @@ public:
 			weightBytes_};
 	}
 
+	void setBarriers(std::vector<TensorId> barriers) { steps_.back().barriersBefore = std::move(barriers); }
+
 private:
 	auto makeTensor(DataType type, std::span<const UINT> shape) -> Tensor
 	{
@@ -456,6 +458,7 @@ auto BaselineDmlCompiler::compile(const Graph &graph, std::span<const std::byte>
 			"input must reference a preceding node");
 		return values[static_cast<std::size_t>(index)];
 	};
+	std::vector<bool> pending(graph.barrierPlan ? 0 : static_cast<std::size_t>(graph.nodeCount));
 	for (std::int64_t index = 0; index < graph.nodeCount; ++index) {
 		auto compileNode = [&](const auto &node) -> TensorId {
 			using T = std::decay_t<decltype(node)>;
@@ -510,6 +513,23 @@ auto BaselineDmlCompiler::compile(const Graph &graph, std::span<const std::byte>
 					return std::visit(compileNode, group);
 			},
 			graph.nodes[index]));
+		ProgramDefinition::NodeBarrier barriers{};
+		if (graph.barrierPlan) {
+			barriers = graph.barrierPlan[index];
+			require(barriers.count <= barriers.producers.size(), "invalid barrier count");
+		} else {
+			try {
+				barriers =
+					planNodeBarrier(graph.nodes[index], static_cast<std::size_t>(index), pending);
+			} catch (const char *message) {
+				throw std::runtime_error(message);
+			}
+		}
+		std::vector<TensorId> barrierTensors;
+		for (std::size_t i = 0; i < barriers.count; ++i)
+			barrierTensors.push_back(resolve(barriers.producers[i]));
+		if (!std::holds_alternative<InputItem>(graph.nodes[index]))
+			builder.setBarriers(std::move(barrierTensors));
 	}
 	return builder.finish(resolve(graph.outputIndex));
 }

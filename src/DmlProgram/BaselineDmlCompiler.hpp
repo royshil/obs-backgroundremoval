@@ -41,6 +41,7 @@ struct CompiledStorage final {
 struct CompiledStep final {
 	std::vector<TensorId> inputs;
 	TensorId output = -1;
+	std::vector<TensorId> barriersBefore;
 	Microsoft::WRL::ComPtr<IDMLCompiledOperator> operation;
 };
 

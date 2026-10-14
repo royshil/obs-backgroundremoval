@@ -18,6 +18,16 @@ using namespace BaselineDml::ProgramDefinition;
 using Microsoft::WRL::ComPtr;
 
 namespace {
+constexpr Node barrierNodes[]{InputItem{0}, Onnx14Node{Relu{DataType::Float32, 0, 1, {4, 1, 1, 1}}},
+			      Onnx14Node{Add{DataType::Float32, 1, 1, 1, {4, 1, 1, 1}}},
+			      Onnx14Node{Mul{DataType::Float32, 1, 2, 1, {4, 1, 1, 1}}}};
+constexpr auto compileTimeBarriers = makeBarrierPlan(barrierNodes);
+static_assert(compileTimeBarriers[0].count == 0 && compileTimeBarriers[1].count == 0);
+static_assert(compileTimeBarriers[2].count == 1 && compileTimeBarriers[2].producers[0] == 1);
+static_assert(compileTimeBarriers[3].count == 1 && compileTimeBarriers[3].producers[0] == 2);
+} // namespace
+
+namespace {
 ComPtr<IDMLDevice> device;
 
 void expect(bool condition, const char *message)

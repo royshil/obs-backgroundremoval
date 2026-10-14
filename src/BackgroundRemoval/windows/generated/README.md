@@ -12,8 +12,15 @@ The MediaPipe Landscape DirectML artifacts use the same source as the CoreML gen
 Models under `data/models` belong to the legacy Linux path and are not used here.
 Generated artifacts must be verified by a project maintainer and committed to the repository. The C++ file contains
 the immutable `BaselineDml` graph for DirectML feature level 1.0 and byte offsets into
-the raw float32 weight file. The RC file embeds those weights into the plugin DLL as
-`RCDATA`. The `InputSpecItem` table describes both runtime inputs and fixed weights;
+the raw float32 weight file. The generated C++ embeds these bytes directly as
+adjacent `"\\xNN"` string literals, with 16 bytes per source line. MSVC converts
+these escapes to a single immutable byte sequence; no consteval decoding or
+additional evaluation-limit setting is needed for the weights. The terminator
+added by the string literal is excluded from the runtime span. No runtime file
+access or heap allocation is used to obtain the weights. The binary file remains
+a generation/verification artifact and is not linked.
+
+The `InputSpecItem` table describes both runtime inputs and fixed weights;
 `InputItem` nodes reference this table. Weights are bound during operator initialization
 and are not arguments to `run`.
 `BaselineDmlCompiler` validates the resource bounds and graph edges, orders its nodes,
@@ -43,7 +50,6 @@ After changing the source model or generator, regenerate the source file:
 python -m pip install -r Models/MediaPipeLandscape/DirectML/requirements.txt
 python Models/MediaPipeLandscape/DirectML/GenerateModel.py \
   src/BackgroundRemoval/windows/generated/MediaPipeLandscapeDmlProgram.generated.cpp \
-  src/BackgroundRemoval/windows/generated/MediaPipeLandscapeDmlProgram.generated.rc \
   src/BackgroundRemoval/windows/generated/MediaPipeLandscapeDmlProgram.weights.bin
 ```
 
