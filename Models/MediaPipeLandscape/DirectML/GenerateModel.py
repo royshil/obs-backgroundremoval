@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import pathlib
 from string import Template
 
@@ -111,7 +112,7 @@ def attrs(node: onnx.NodeProto) -> dict[str, object]:
     return {item.name: onnx.helper.get_attribute_value(item) for item in node.attribute}
 
 
-def lower_model(model: onnx.ModelProto) -> onnx.ModelProto:
+def lower_model(model: onnx.ModelProto, fuse_hard_swish: bool = True) -> onnx.ModelProto:
     """Specialize the pinned model and lower it to the DirectML 1.0 operator set."""
     onnx.checker.check_model(model)
     if len(model.graph.input) != 1 or len(model.graph.output) != 1:
@@ -136,6 +137,13 @@ def lower_model(model: onnx.ModelProto) -> onnx.ModelProto:
     for index, node in enumerate(model.graph.node):
         prefix = f"baseline_dml_{index}"
         if node.op_type == "HardSwish":
+            if fuse_hard_swish:
+                lowered.extend([
+                    onnx.helper.make_node("HardSigmoid", [node.input[0]], [prefix + "_gate"],
+                                          alpha=1 / 6, beta=0.5),
+                    onnx.helper.make_node("Mul", [node.input[0], prefix + "_gate"], list(node.output)),
+                ])
+                continue
             three = constant(prefix + "_three", np.full((1, 1, 1, 1), 3, dtype=np.float32))
             zero = constant(prefix + "_zero", np.array(0, dtype=np.float32))
             six = constant(prefix + "_six", np.array(6, dtype=np.float32))
@@ -201,6 +209,7 @@ DATA_TYPES = {
 GROUPS = {
     "AveragePool2d": "Onnx11Node", "BiasedConv2d": "Onnx11Node",
     "BiasedConvTranspose2d": "Onnx11Node",
+    "BiasedConv2dRelu": "FusedNode", "HardSwishGate": "FusedNode", "MPLDConvTranspose": "FusedNode",
     "Clip": "Onnx13Node", "Resize": "Onnx13Node", "Sigmoid": "Onnx13Node",
     "Add": "Onnx14Node", "Mul": "Onnx14Node", "Relu": "Onnx14Node",
 }
@@ -215,6 +224,9 @@ def data_type(element_type: int) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--offline", action="store_true", help="Use the cached pinned model only")
+    parser.add_argument("--no-mpld-conv-transpose", action="store_true", help="Use the DML ConvTranspose performance baseline")
+    parser.add_argument("--no-fuse-hard-swish", action="store_true", help="Keep four DML operations per HardSwish for benchmarking")
+    parser.add_argument("--no-fuse-conv-relu", action="store_true", help="Generate the unfused performance baseline")
     parser.add_argument("source", type=pathlib.Path)
     args = parser.parse_args()
 
@@ -222,7 +234,10 @@ def main() -> None:
         repo_id=MODEL_REPOSITORY, revision=MODEL_REVISION, filename=MODEL_FILENAME,
         local_files_only=args.offline,
     )
-    model = lower_model(onnx.load(model_path))
+    original_model = onnx.load(model_path)
+    original_nodes = {tuple(node.output): (index, node.op_type, node.name)
+                      for index, node in enumerate(original_model.graph.node)}
+    model = lower_model(original_model, not args.no_fuse_hard_swish)
     shapes = {
         value.name: [int(dimension.dim_value) for dimension in value.type.tensor_type.shape.dim]
         for value in [*model.graph.input, *model.graph.value_info, *model.graph.output]
@@ -230,7 +245,7 @@ def main() -> None:
     initializers = {item.name: item for item in model.graph.initializer}
     nodes = list(model.graph.node)
     ignored_inputs = {"Clip": {1, 2}, "Resize": {1, 2, 3}}
-    allowed = {"Add", "Mul", "Relu", "Clip", "Resize", "Sigmoid", "AveragePool", "Conv", "ConvTranspose"}
+    allowed = {"HardSigmoid", "Add", "Mul", "Relu", "Clip", "Resize", "Sigmoid", "AveragePool", "Conv", "ConvTranspose"}
     for index, node in enumerate(nodes):
         if node.op_type not in allowed:
             raise RuntimeError(f"node {index}: operator {node.op_type} is outside the pinned Landscape variants")
@@ -272,6 +287,31 @@ def main() -> None:
     if not spec_entries or len(spec_entries) > 2**31 - 1:
         raise RuntimeError("input specification count is outside the Definition Size range")
 
+    # Model-specific Conv -> Relu lowering; never change a shared/raw Conv output.
+    consumers = {}
+    for index, node in enumerate(nodes):
+        for name in node.input:
+            consumers.setdefault(name, []).append(index)
+    graph_outputs = {value.name for value in model.graph.output}
+    fused_relu = {}
+    for index, node in enumerate(nodes):
+        if node.op_type != "Conv" or len(node.output) != 1:
+            continue
+        value = node.output[0]
+        uses = consumers.get(value, [])
+        if value in graph_outputs or len(uses) != 1:
+            continue
+        relu_index = uses[0]
+        relu = nodes[relu_index]
+        if (relu_index > index and relu.op_type == "Relu" and not relu.domain
+                and list(relu.input) == [value] and len(relu.output) == 1 and not relu.attribute
+                and shapes[value] == shapes[relu.output[0]]
+                and types[value] == types[relu.output[0]]):
+            fused_relu[index] = relu_index
+    if args.no_fuse_conv_relu:
+        fused_relu.clear()
+    skipped_relu = set(fused_relu.values())
+
     value_sources = {}
     node_entries = []
     for value in runtime_inputs:
@@ -287,6 +327,8 @@ def main() -> None:
         return str(value_sources[name])
 
     for node_index, node in enumerate(nodes):
+        if node_index in skipped_relu:
+            continue
         if len(node.output) != 1:
             raise RuntimeError(f"node {node_index} has {len(node.output)} outputs")
         attribute = attrs(node)
@@ -296,6 +338,8 @@ def main() -> None:
                   if name and index not in ignored_inputs.get(node.op_type, set())]
         if node.op_type in {"Add", "Mul"}:
             entry = f"{node.op_type}{{{inputs[0]}, {inputs[1]}, {output}}}"
+        elif node.op_type == "HardSigmoid":
+            entry = f"HardSwishGate{{{inputs[0]}, {output}}}"
         elif node.op_type == "Clip":
             minimum = float(numpy_helper.to_array(initializers[node.input[1]]).reshape(-1)[0])
             maximum = float(numpy_helper.to_array(initializers[node.input[2]]).reshape(-1)[0])
@@ -313,7 +357,16 @@ def main() -> None:
                 raise RuntimeError(f"{node.op_type} requires two spatial dimensions")
             if len(inputs) != 3:
                 raise RuntimeError(f"node {node_index}: unbiased {node.op_type} is outside the pinned Landscape variants")
-            kind = "Biased" + node.op_type + "2d"
+            kind = "BiasedConv2dRelu" if node_index in fused_relu else "Biased" + node.op_type + "2d"
+            if (not args.no_mpld_conv_transpose and node.op_type == "ConvTranspose"
+                    and shapes[node.input[0]] == [1, 16, 72, 128] and filter_shape == [16, 1, 2, 2]
+                    and output_shape == [1, 1, 144, 256] and list(initializers[node.input[2]].dims) == [1]
+                    and strides == [2, 2] and dilations == [1, 1] and pads == [0, 0, 0, 0]
+                    and int(attribute.get("group", 1)) == 1
+                    and list(attribute.get("output_padding", [0, 0])) == [0, 0]
+                    and attribute.get("auto_pad", b"NOTSET") == b"NOTSET"
+                    and types[node.output[0]] == "DataType::Float32"):
+                kind = "MPLDConvTranspose"
             connections = ", ".join(inputs)
             group = int(attribute.get("group", 1))
             entry = (f"{kind}{{{connections}, "
@@ -336,10 +389,27 @@ def main() -> None:
                      f"{output_shape[-2] // input_shape[-2]}u, {output_shape[-1] // input_shape[-1]}u, {dimensions(output_shape)}}}")
         else:
             raise RuntimeError(f"unsupported node {node_index}: {node.op_type}")
+        if entry.startswith("MPLDConvTranspose{"):
+            entry = f"MPLDConvTranspose{{{connections}}}"
         kind = entry.split("{", 1)[0]
         dtype = types[node.output[0]]
         entry = entry.replace("{", "{" + dtype + ", ", 1)
         entry = f"{GROUPS[kind]}{{{entry}}}"
+        if kind == "MPLDConvTranspose":
+            origin = original_nodes[tuple(node.output)]
+            entry = (f"// Original ONNX #{origin[0]} ConvTranspose {json.dumps(origin[2])}: fixed 2x2 stride-2 projection; Sigmoid stays separate.\n\t" + entry)
+        if node.op_type == "HardSigmoid":
+            original_index = int(node.output[0].split("_")[2])
+            original = original_model.graph.node[original_index]
+            entry = (f"// Original ONNX #{original_index} HardSwish {json.dumps(original.name)}: "
+                     "Add -> Clip -> scalar Mul gate; following Mul completes HardSwish.\n\t" + entry)
+        if node_index in fused_relu:
+            relu = nodes[fused_relu[node_index]]
+            conv_origin = original_nodes[tuple(node.output)]
+            relu_origin = original_nodes[tuple(relu.output)]
+            entry = (f"// Original ONNX #{conv_origin[0]} Conv {json.dumps(conv_origin[2])} -> "
+                     f"#{relu_origin[0]} Relu {json.dumps(relu_origin[2])}\n\t" + entry)
+            value_sources[relu.output[0]] = len(node_entries)
         node_entries.append(entry)
         value_sources[node.output[0]] = len(node_entries) - 1
 

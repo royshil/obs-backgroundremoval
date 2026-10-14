@@ -444,7 +444,7 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::runAsync(ID3D11Texture2D *input, co
 		fenceValue_ = next;
 		hasSubmission_ = true;
 	}
-	
+
 	return RunResult::Submitted;
 }
 

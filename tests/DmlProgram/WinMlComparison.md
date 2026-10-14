@@ -232,3 +232,42 @@ Submission averaged 0.137 ms. The independent draw was too short to hide the
 inference latency. This verifies the execution structure, not a meaningful
 speedup. Logs, raw samples and statistics are saved in
 `build/async-performance-20261015`.
+
+## MediaPipe Conv-ReLU fusion
+
+GenerateModel.py fuses a biased Conv whose output is consumed only by one Relu,
+with matching shape and type. A Conv output exposed as a graph output or shared
+with another consumer is preserved. ConvTranspose is not fused by this pass.
+The generated FusedNode contains BiasedConv2dRelu, and its comment records both
+original ONNX node indices and names. The compiler maps this explicit type to
+DML_CONVOLUTION_OPERATOR_DESC.FusedActivation with a ReLU descriptor.
+The pinned model has 22 such pairs; the generated barrier plan is recalculated.
+
+The ConvRelu and DepthwiseConvRelu CTest cases compare the fused DML operators
+to unfused Conv/Relu ONNX models built with nanopb, using WinML CPU and GPU.
+MediaPipeLandscape compares the generated full model against the original ONNX.
+
+For a performance baseline, GenerateModel.py --no-fuse-conv-relu emits the same
+model without this fusion. Benchmark before/after builds with the same portrait,
+settings and BgraLandscapeBenchmark executable configuration. Keep each build's
+samples.csv and log in separate files. This baseline option is for experiments;
+normal regeneration enables fusion.
+
+HardSwish gate experiment: the original ONNX HardSwish is lowered to
+`HardSwishGate` (DML 1.0 HardSigmoid, alpha=1/6, beta=1/2) and Mul.
+Generated comments identify each original node. `--no-fuse-hard-swish`
+retains Add/Clip/Mul/Mul for a one-variable performance comparison.
+`HardSwishFused` compares the two-operator implementation directly with
+WinML running ONNX HardSwish, including inputs near -3 and 3.
+
+`MPLDConvTranspose` specializes the pinned Landscape final ConvTranspose:
+Float32 [1,16,72,128] input, [16,1,2,2] filter, one bias, stride 2,
+dilation 1 and zero padding/output padding. Each compute thread projects
+one input position to four distinct output pixels; Sigmoid remains a
+separate DML node. The PSO is created once and recorded in the same command
+list with the existing resource-specific barrier plan. Shader weights stay
+resident for its lifetime. No CPU round trip or additional queue submission
+is introduced. `--no-mpld-conv-transpose` selects the DML baseline.
+`MPLDConvTranspose` tests ONNX ConvTranspose through WinML CPU/GPU with
+constant, signed, boundary and corner inputs; `MPLDConvTransposeContract`
+checks rejection of a wrong input shape and a non-Float32 operator.

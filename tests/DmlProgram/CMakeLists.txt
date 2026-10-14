@@ -9,7 +9,7 @@ add_executable(
   "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp"
 )
 target_include_directories(DmlProgramTest PRIVATE "${PLUGIN_SOURCE_DIR}")
-target_link_libraries(DmlProgramTest PRIVATE d3d12 directml advapi32)
+target_link_libraries(DmlProgramTest PRIVATE d3d12 d3dcompiler directml advapi32)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/DmlProgramTest.cpp")
 discover_test_cases(DmlProgramTest.cpp DML_TEST_CASES)
 foreach(TEST_CASE IN LISTS DML_TEST_CASES)
@@ -27,9 +27,9 @@ add_executable(WinMlComparison WinMlComparison.cpp
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
   "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp")
 target_include_directories(WinMlComparison PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
-target_link_libraries(WinMlComparison PRIVATE d3d12 directml windowsapp advapi32 test_onnx_nanopb)
+target_link_libraries(WinMlComparison PRIVATE d3d12 d3dcompiler directml windowsapp advapi32 test_onnx_nanopb)
 
-foreach(OPERATOR HardSwish ReduceMean Resize Add Mul Relu Sigmoid Clip Conv DepthwiseConv ConvTranspose)
+foreach(OPERATOR MPLDConvTranspose MPLDConvTransposeContract HardSwish HardSwishFused ReduceMean Resize Add Mul Relu Sigmoid Clip Conv DepthwiseConv ConvTranspose ConvRelu DepthwiseConvRelu)
   add_test(NAME "WinMlComparison.${OPERATOR}" COMMAND WinMlComparison "--test-case=${OPERATOR}" --no-skip)
   set_tests_properties("WinMlComparison.${OPERATOR}" PROPERTIES TIMEOUT 120)
 endforeach()

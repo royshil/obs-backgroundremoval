@@ -25,6 +25,7 @@
 #include <vector>
 
 #include <d3d12.h>
+#include <d3dcompiler.h>
 #include <DirectML.h>
 #include <wrl/client.h>
 
@@ -115,6 +116,9 @@ struct Step final {
 	std::vector<TensorId> barriersBefore;
 	TensorId output = noTensor;
 	ComPtr<IDMLCompiledOperator> operation;
+	CompiledShader shader = CompiledShader::None;
+	ComPtr<ID3D12RootSignature> rootSignature;
+	ComPtr<ID3D12PipelineState> pipeline;
 	ComPtr<IDMLOperatorInitializer> initializer;
 	ComPtr<IDMLBindingTable> executionTable;
 	ComPtr<ID3D12Resource> persistent;
@@ -185,6 +189,7 @@ public:
 			step.barriersBefore = std::move(compiledStep.barriersBefore);
 			step.output = compiledStep.output;
 			step.operation = std::move(compiledStep.operation);
+			step.shader = compiledStep.shader;
 			steps_.push_back(std::move(step));
 		}
 		inputTensors_ = std::move(compiled.inputTensors);
@@ -251,7 +256,7 @@ public:
 			if (!step.barriers.empty())
 				commandList_->ResourceBarrier(static_cast<UINT>(step.barriers.size()),
 							      step.barriers.data());
-			recorder_->RecordDispatch(commandList_.Get(), step.operation.Get(), step.executionTable.Get());
+			recordStep(commandList_.Get(), step);
 		}
 		auto *outputResource = resource(outputTensor_);
 		const auto &outputTensor = tensors_.at(outputTensor_);
@@ -343,7 +348,7 @@ public:
 			if (!step.barriers.empty())
 				commands->ResourceBarrier(static_cast<UINT>(step.barriers.size()),
 							  step.barriers.data());
-			recorder_->RecordDispatch(commands, step.operation.Get(), step.executionTable.Get());
+			recordStep(commands, step);
 		}
 		auto *outputResource = resource(outputTensor_);
 		const auto &tensor = tensors_.at(outputTensor_);
@@ -411,6 +416,10 @@ private:
 
 		std::uint32_t descriptorCount = 0;
 		for (auto &step : steps_) {
+			if (step.shader != CompiledShader::None) {
+				createMPLDConvTransposePipeline(step);
+				continue;
+			}
 			step.operationProperties = step.operation->GetBindingProperties();
 			IDMLCompiledOperator *operations[] = {step.operation.Get()};
 			check(dmlDevice_->CreateOperatorInitializer(1, operations, IID_PPV_ARGS(&step.initializer)),
@@ -486,6 +495,8 @@ private:
 		tables.reserve(steps_.size());
 		for (std::size_t stepIndex = 0; stepIndex < steps_.size(); ++stepIndex) {
 			auto &step = steps_[stepIndex];
+			if (step.shader != CompiledShader::None)
+				continue;
 			ComPtr<IDMLBindingTable> table;
 			try {
 				table = createTable(step.initializer.Get(), step.descriptorOffset,
@@ -533,14 +544,84 @@ private:
 			step.initializer.Reset();
 		}
 		weightUpload_.Reset();
-		if (!tensors_.at(outputTensor_).weight)
+		if (!tensors_.at(outputTensor_).weight &&
+		    std::none_of(steps_.begin(), steps_.end(), [](const Step &step) { return step.shader != CompiledShader::None; }))
 			weight_.Reset();
+	}
+
+	void createMPLDConvTransposePipeline(Step &step)
+	{
+		static constexpr char shader[] = R"HLSL(
+RWByteAddressBuffer inputTensor : register(u0);
+RWByteAddressBuffer filterTensor : register(u1);
+RWByteAddressBuffer biasTensor : register(u2);
+RWByteAddressBuffer outputTensor : register(u3);
+[numthreads(64, 1, 1)]
+void main(uint3 thread : SV_DispatchThreadID)
+{
+    uint pixel = thread.x;
+    if (pixel >= 72 * 128) return;
+    precise float4 sum = 0;
+    [unroll] for (uint channel = 0; channel < 16; ++channel) {
+        float x = asfloat(inputTensor.Load((channel * 72 * 128 + pixel) * 4));
+        float4 w = asfloat(filterTensor.Load4(channel * 16));
+        sum = sum + x * w;
+    }
+    sum = sum + asfloat(biasTensor.Load(0));
+    uint top = ((pixel / 128) * 2 * 256 + (pixel % 128) * 2) * 4;
+    outputTensor.Store2(top, asuint(sum.xy));
+    outputTensor.Store2(top + 256 * 4, asuint(sum.zw));
+}
+)HLSL";
+		ComPtr<ID3DBlob> bytecode, errors;
+		check(D3DCompile(shader, sizeof(shader) - 1, "MPLDConvTranspose", nullptr, nullptr, "main", "cs_5_0",
+				 D3DCOMPILE_OPTIMIZATION_LEVEL3 | D3DCOMPILE_IEEE_STRICTNESS, 0, &bytecode, &errors), "Compile MPLDConvTranspose");
+		std::array<D3D12_ROOT_PARAMETER, 4> parameters{};
+		for (UINT i = 0; i < parameters.size(); ++i) {
+			parameters[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+			parameters[i].Descriptor.ShaderRegister = i;
+		}
+		D3D12_ROOT_SIGNATURE_DESC root{};
+		root.NumParameters = static_cast<UINT>(parameters.size());
+		root.pParameters = parameters.data();
+		ComPtr<ID3DBlob> serialized;
+		check(D3D12SerializeRootSignature(&root, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, &errors), "Serialize MPLDConvTranspose root signature");
+		check(d3dDevice_->CreateRootSignature(0, serialized->GetBufferPointer(), serialized->GetBufferSize(), IID_PPV_ARGS(&step.rootSignature)), "Create MPLDConvTranspose root signature");
+		D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
+		desc.pRootSignature = step.rootSignature.Get();
+		desc.CS = {bytecode->GetBufferPointer(), bytecode->GetBufferSize()};
+		check(d3dDevice_->CreateComputePipelineState(&desc, IID_PPV_ARGS(&step.pipeline)), "Create MPLDConvTranspose pipeline");
+	}
+
+	void recordStep(ID3D12GraphicsCommandList *commands, const Step &step)
+	{
+		if (step.shader == CompiledShader::None) {
+			recorder_->RecordDispatch(commands, step.operation.Get(), step.executionTable.Get());
+			return;
+		}
+		commands->SetPipelineState(step.pipeline.Get());
+		commands->SetComputeRootSignature(step.rootSignature.Get());
+		for (UINT index = 0; index < step.inputs.size(); ++index) {
+			const auto id = step.inputs[index];
+			const auto &tensor = tensors_.at(id);
+			commands->SetComputeRootUnorderedAccessView(index, resource(id)->GetGPUVirtualAddress() + (tensor.weight ? tensor.weightOffset : 0));
+		}
+		commands->SetComputeRootUnorderedAccessView(3, resource(step.output)->GetGPUVirtualAddress());
+		commands->Dispatch(72 * 128 / 64, 1, 1);
 	}
 
 	void createExecutionTables()
 	{
 		for (std::size_t stepIndex = 0; stepIndex < steps_.size(); ++stepIndex) {
 			auto &step = steps_[stepIndex];
+			for (const auto id : step.barriersBefore) {
+				D3D12_RESOURCE_BARRIER barrier{};
+				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+				barrier.UAV.pResource = resource(id);
+				step.barriers.push_back(barrier);
+			}
+			if (step.shader != CompiledShader::None)
+				continue;
 			try {
 				step.executionTable = createTable(
 					step.operation.Get(), step.descriptorOffset,
@@ -570,12 +651,6 @@ private:
 					step.temporary.Get(), 0, step.operationProperties.TemporaryResourceSize);
 				const auto temporaryBinding = bindingDesc(&temporaryBuffer);
 				step.executionTable->BindTemporaryResource(&temporaryBinding);
-			}
-			for (const auto id : step.barriersBefore) {
-				D3D12_RESOURCE_BARRIER barrier{};
-				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-				barrier.UAV.pResource = resource(id);
-				step.barriers.push_back(barrier);
 			}
 			if (step.persistent) {
 				const auto persistentBuffer = bufferBinding(

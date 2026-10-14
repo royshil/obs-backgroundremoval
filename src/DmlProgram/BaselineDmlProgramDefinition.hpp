@@ -51,6 +51,8 @@ struct InputItem final {
 	Size inputSpecIndex;
 };
 
+// MARK: - Basic ONNX Operations
+
 struct Add final {
 	DataType dataType;
 	Size leftIndex;
@@ -197,10 +199,44 @@ struct Transpose final {
 	std::array<UINT, 4> permutation;
 };
 
+// MARK: - Fused operations
+
+struct BiasedConv2dRelu final {
+	DataType dataType;
+	Size inputIndex;
+	Size filterIndex;
+	Size biasIndex;
+	std::array<UINT, 2> strides;
+	std::array<UINT, 2> dilations;
+	std::array<UINT, 2> startPadding;
+	std::array<UINT, 2> endPadding;
+	UINT groupCount;
+	std::array<UINT, 4> shape;
+};
+
+// The Add -> Clip -> scalar Mul gate of ONNX HardSwish.
+struct HardSwishGate final {
+	DataType dataType;
+	Size inputIndex;
+	Size shapeRank;
+	std::array<UINT, 4> shape;
+};
+
+// MediaPipe Landscape final [1,16,72,128] -> [1,1,144,256] projection.
+// Filter [16,1,2,2], stride 2, dilation 1, padding 0. Sigmoid stays separate.
+struct MPLDConvTranspose final {
+	DataType dataType;
+	Size inputIndex;
+	Size filterIndex;
+	Size biasIndex;
+};
+
+using FusedNode = std::variant<BiasedConv2dRelu, HardSwishGate, MPLDConvTranspose>;
+
 using Onnx11Node = std::variant<AveragePool2d, BiasedConv2d, BiasedConvTranspose2d>;
 using Onnx13Node = std::variant<Clip, Resize, Sigmoid>;
 using Onnx14Node = std::variant<Add, Mul, Relu>;
-using Node = std::variant<InputItem, Onnx11Node, Onnx13Node, Onnx14Node>;
+using Node = std::variant<InputItem, Onnx11Node, Onnx13Node, Onnx14Node, FusedNode>;
 
 // Node indices requiring resource-specific UAV ordering before this node.
 struct NodeBarrier final {

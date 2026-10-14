@@ -38,11 +38,14 @@ struct CompiledStorage final {
 	std::uint64_t size = 0;
 };
 
+enum class CompiledShader { None, MPLDConvTranspose };
+
 struct CompiledStep final {
 	std::vector<TensorId> inputs;
 	TensorId output = -1;
 	std::vector<TensorId> barriersBefore;
 	Microsoft::WRL::ComPtr<IDMLCompiledOperator> operation;
+	CompiledShader shader = CompiledShader::None;
 };
 
 struct CompiledDmlProgram final {

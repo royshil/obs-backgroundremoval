@@ -226,6 +226,36 @@ public:
 		return reshape(output, shape);
 	}
 
+	auto hardSwishGate(const HardSwishGate &node, TensorId input) -> TensorId
+	{
+		const auto shape = rankedShape(node);
+		const auto padded = paddedShape(shape);
+		checkInputType(input, node.dataType);
+		input = reshape(input, padded);
+		const auto output = createTensor(node.dataType, padded);
+		TensorDescriptor inDesc(tensors_.at(input)), outDesc(tensors_.at(output));
+		DML_ACTIVATION_HARD_SIGMOID_OPERATOR_DESC desc{&inDesc.tensor, &outDesc.tensor, 1.0F / 6.0F, 0.5F};
+		compile(DML_OPERATOR_ACTIVATION_HARD_SIGMOID, desc, {input}, output);
+		return reshape(output, shape);
+	}
+
+	auto mpldConvTranspose(const MPLDConvTranspose &node, TensorId input, TensorId filter, TensorId bias) -> TensorId
+	{
+		require(node.dataType == DataType::Float32, "MPLDConvTranspose requires Float32");
+		for (const auto id : {input, filter, bias})
+			checkInputType(id, node.dataType);
+		require(tensors_.at(input).sizes == std::vector<UINT>{1, 16, 72, 128}, "MPLDConvTranspose input shape");
+		require(tensors_.at(filter).weight && tensors_.at(filter).sizes == std::vector<UINT>{16, 1, 2, 2}, "MPLDConvTranspose filter shape");
+		require(tensors_.at(bias).weight && tensors_.at(bias).sizes == std::vector<UINT>{1}, "MPLDConvTranspose bias shape");
+		const auto output = createTensor(node.dataType, std::array<UINT, 4>{1, 1, 144, 256});
+		CompiledStep step;
+		step.inputs = {input, filter, bias};
+		step.output = output;
+		step.shader = CompiledShader::MPLDConvTranspose;
+		steps_.push_back(std::move(step));
+		return output;
+	}
+
 	auto convolution(const auto &node, TensorId input, TensorId filter, TensorId bias,
 			 DML_CONVOLUTION_DIRECTION direction) -> TensorId
 	{
@@ -260,6 +290,10 @@ public:
 		desc.EndPadding = node.endPadding.data();
 		desc.OutputPadding = outputPadding.data();
 		desc.GroupCount = node.groupCount;
+		DML_ACTIVATION_RELU_OPERATOR_DESC relu{};
+		DML_OPERATOR_DESC activation{DML_OPERATOR_ACTIVATION_RELU, &relu};
+		if constexpr (std::is_same_v<std::decay_t<decltype(node)>, BiasedConv2dRelu>)
+			desc.FusedActivation = &activation;
 		compile(DML_OPERATOR_CONVOLUTION, desc, {input, filter, bias}, output);
 		return output;
 	}
@@ -401,6 +435,10 @@ auto nodeName(const auto &node) -> const char *
 		return "Add";
 	else if constexpr (std::is_same_v<T, Mul>)
 		return "Mul";
+	else if constexpr (std::is_same_v<T, MPLDConvTranspose>)
+		return "MPLDConvTranspose";
+	else if constexpr (std::is_same_v<T, HardSwishGate>)
+		return "HardSwishGate";
 	else if constexpr (std::is_same_v<T, Clip>)
 		return "Clip";
 	else if constexpr (std::is_same_v<T, Relu>)
@@ -411,6 +449,8 @@ auto nodeName(const auto &node) -> const char *
 		return "AveragePool2d";
 	else if constexpr (std::is_same_v<T, Resize>)
 		return "Resize";
+	else if constexpr (std::is_same_v<T, BiasedConv2dRelu>)
+		return "BiasedConv2dRelu";
 	else if constexpr (std::is_same_v<T, BiasedConv2d>)
 		return "BiasedConv2d";
 	else if constexpr (std::is_same_v<T, BiasedConvTranspose2d>)
@@ -472,6 +512,10 @@ auto BaselineDmlCompiler::compile(const Graph &graph, std::span<const std::byte>
 					return builder.binary(node.dataType, resolve(node.leftIndex),
 							      resolve(node.rightIndex), rankedShape(node),
 							      std::is_same_v<T, Mul>);
+				} else if constexpr (std::is_same_v<T, MPLDConvTranspose>) {
+					return builder.mpldConvTranspose(node, resolve(node.inputIndex), resolve(node.filterIndex), resolve(node.biasIndex));
+				} else if constexpr (std::is_same_v<T, HardSwishGate>) {
+					return builder.hardSwishGate(node, resolve(node.inputIndex));
 				} else if constexpr (std::is_same_v<T, Clip>) {
 					return builder.clip(node, resolve(node.inputIndex));
 				} else if constexpr (std::is_same_v<T, Relu>) {
@@ -487,8 +531,9 @@ auto BaselineDmlCompiler::compile(const Graph &graph, std::span<const std::byte>
 				} else if constexpr (std::is_same_v<T, Resize>) {
 					return builder.resize(node, resolve(node.inputIndex));
 				} else if constexpr (std::is_same_v<T, BiasedConv2d> ||
+						     std::is_same_v<T, BiasedConv2dRelu> ||
 						     std::is_same_v<T, BiasedConvTranspose2d>) {
-					constexpr auto direction = std::is_same_v<T, BiasedConv2d>
+					constexpr auto direction = !std::is_same_v<T, BiasedConvTranspose2d>
 									   ? DML_CONVOLUTION_DIRECTION_FORWARD
 									   : DML_CONVOLUTION_DIRECTION_BACKWARD;
 					return builder.convolution(node, resolve(node.inputIndex),

@@ -25,13 +25,13 @@ using namespace BaselineDml::ProgramDefinition;
 using namespace winrt::Windows::AI::MachineLearning;
 
 namespace {
-std::vector<float> makeInput(int scenario)
+std::vector<float> makeInput(int scenario, size_t count = 24)
 {
 	const std::array<float, 12> boundary{-100, -3.00001F, -3, -2.99999F, -1, 0, 1, 2.99999F, 3, 3.00001F, 10, 100};
-	std::vector<float> values(24, 0);
+	std::vector<float> values(count, 0);
 	for (size_t i = 0; i < values.size(); ++i)
 		values[i] = scenario == 0   ? 0.25F
-			    : scenario == 1 ? float(i) - 12
+			    : scenario == 1 ? float(i % 24) - 12
 			    : scenario == 2 ? boundary[i % 12]
 					    : 0;
 	if (scenario == 3)
@@ -43,15 +43,26 @@ std::vector<float> makeInput(int scenario)
 
 void compareOperator(const std::string &name)
 {
-	const std::array<UINT, 4> shape{1, 2, 3, 4};
-	const std::array<UINT, 4> outShape = name == "ReduceMean"      ? std::array<UINT, 4>{1, 2, 1, 1}
+	const std::array<UINT, 4> shape = name == "MPLDConvTranspose" ? std::array<UINT, 4>{1, 16, 72, 128} : std::array<UINT, 4>{1, 2, 3, 4};
+	const std::array<UINT, 4> outShape = name == "MPLDConvTranspose" ? std::array<UINT, 4>{1, 1, 144, 256} : name == "ReduceMean"      ? std::array<UINT, 4>{1, 2, 1, 1}
 					     : name == "Resize"        ? std::array<UINT, 4>{1, 2, 6, 12}
 					     : name == "ConvTranspose" ? std::array<UINT, 4>{1, 2, 6, 8}
 								       : shape;
 	std::vector<InputSpecItem> specs{{DataType::Float32, ItemType::RuntimeInput, 4, shape, 0}};
 	std::vector<Node> nodes{InputItem{0}};
 	std::vector<float> weights{3.0F, 1.0F / 6.0F};
-	if (name == "HardSwish") {
+	if (name == "MPLDConvTranspose") {
+		weights.resize(65);
+		for (size_t i = 0; i < 64; ++i)
+			weights[i] = float(int(i % 7) - 3) / 16;
+		weights[64] = 0.25F;
+		specs.push_back({DataType::Float32, ItemType::Weight, 4, {16, 1, 2, 2}, 0});
+		specs.push_back({DataType::Float32, ItemType::Weight, 1, {1}, 256});
+		nodes.insert(nodes.end(), {InputItem{1}, InputItem{2}, FusedNode{MPLDConvTranspose{DataType::Float32, 0, 1, 2}}});
+	} else if (name == "HardSwishFused") {
+		nodes.push_back(FusedNode{HardSwishGate{DataType::Float32, 0, 4, shape}});
+		nodes.push_back(Onnx14Node{Mul{DataType::Float32, 0, 1, 4, shape}});
+	} else if (name == "HardSwish") {
 		specs.push_back({DataType::Float32, ItemType::Weight, 4, {1, 1, 1, 1}, 0});
 		specs.push_back({DataType::Float32, ItemType::Weight, 4, {1, 1, 1, 1}, 4});
 		nodes.insert(nodes.end(),
@@ -79,7 +90,8 @@ void compareOperator(const std::string &name)
 	} else if (name == "Clip") {
 		nodes.push_back(Onnx13Node{Clip{DataType::Float32, 0, 4, shape, 0, 6}});
 	} else {
-		const bool depthwise = name == "DepthwiseConv", transpose = name == "ConvTranspose";
+		const bool depthwise = name == "DepthwiseConv" || name == "DepthwiseConvRelu",
+			   transpose = name == "ConvTranspose";
 		const UINT kernel = transpose ? 2 : 3;
 		const std::array<UINT, 4> filter{2, depthwise ? 1u : 2u, kernel, kernel};
 		const size_t count = filter[0] * filter[1] * kernel * kernel;
@@ -104,6 +116,17 @@ void compareOperator(const std::string &name)
 									 {0, 0},
 									 1,
 									 outShape}});
+		else if (name == "ConvRelu" || name == "DepthwiseConvRelu")
+			nodes.push_back(FusedNode{BiasedConv2dRelu{DataType::Float32,
+								   0,
+								   1,
+								   2,
+								   {1, 1},
+								   {1, 1},
+								   {1, 1},
+								   {1, 1},
+								   depthwise ? 2u : 1u,
+								   outShape}});
 		else
 			nodes.push_back(Onnx11Node{BiasedConv2d{DataType::Float32,
 								0,
@@ -141,11 +164,11 @@ void compareOperator(const std::string &name)
 								    "first corner", "last corner"};
 					SUBCASE(scenarioNames[scenario])
 					{
-						const auto input = makeInput(scenario);
+						const auto input = makeInput(scenario, size_t(shape[0]) * shape[1] * shape[2] * shape[3]);
 						const LearningModelBinding binding(session);
 						binding.Bind(L"x", TensorFloat::CreateFromArray(
 									   winrt::single_threaded_vector<int64_t>(
-										   {1, 2, 3, 4}),
+										   {shape[0], shape[1], shape[2], shape[3]}),
 									   input));
 						const auto result = session.Evaluate(binding, L"comparison");
 						const auto reference = result.Outputs()
@@ -188,7 +211,7 @@ void compareOperator(const std::string &name)
 								  << ",bad=" << bad << "\n";
 							CHECK(bad == 0);
 						};
-						checkExpected(actual, "DML");
+						checkExpected(actual, name == "MPLDConvTranspose" ? "D3D12 CS" : "DML");
 					}
 				}
 
@@ -208,9 +231,17 @@ int testMain(int argc, char **argv)
 {
 	winrt::init_apartment();
 	doctest::Context context(argc, argv);
+	if (argc == 1 && GetModuleHandleW(L"WinPixGpuCapturer.dll")) {
+		context.setOption("test-case", "MediaPipeLandscape");
+	}
 	const int result = context.run();
 	winrt::uninit_apartment();
 	return result;
+}
+
+TEST_CASE("HardSwishFused")
+{
+	compareOperator("HardSwishFused");
 }
 
 TEST_CASE("HardSwish")
@@ -454,4 +485,35 @@ int main(int argc, char **argv)
 		TraceLoggingUnregister(provider);
 		throw;
 	}
+}
+
+TEST_CASE("ConvRelu")
+{
+	compareOperator("ConvRelu");
+}
+TEST_CASE("DepthwiseConvRelu")
+{
+	compareOperator("DepthwiseConvRelu");
+}
+
+TEST_CASE("MPLDConvTranspose")
+{
+	compareOperator("MPLDConvTranspose");
+}
+
+TEST_CASE("MPLDConvTransposeContract")
+{
+    std::array<InputSpecItem, 3> specs{{
+        {DataType::Float32, ItemType::RuntimeInput, 4, {1, 16, 72, 127}, 0},
+        {DataType::Float32, ItemType::Weight, 4, {16, 1, 2, 2}, 0},
+        {DataType::Float32, ItemType::Weight, 1, {1}, 256},
+    }};
+    const std::array<float, 65> weights{};
+    std::array<Node, 4> nodes{InputItem{0}, InputItem{1}, InputItem{2},
+                             FusedNode{MPLDConvTranspose{DataType::Float32, 0, 1, 2}}};
+    const Graph graph{specs.size(), specs.data(), static_cast<int64_t>(nodes.size()), nodes.data(), 3};
+    CHECK_THROWS_AS(BaselineDmlProgramRuntime(graph, std::as_bytes(std::span(weights))), std::runtime_error);
+    specs[0].shape[3] = 128;
+    nodes[3] = FusedNode{MPLDConvTranspose{DataType::Float16, 0, 1, 2}};
+    CHECK_THROWS_AS(BaselineDmlProgramRuntime(graph, std::as_bytes(std::span(weights))), std::runtime_error);
 }

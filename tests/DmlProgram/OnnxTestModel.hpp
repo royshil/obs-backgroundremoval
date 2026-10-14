@@ -115,8 +115,9 @@ inline Bytes build(const std::string &name, const std::array<uint32_t, 4> &shape
 		   const std::array<uint32_t, 4> &outputShape)
 {
 	onnx_NodeProto node = onnx_NodeProto_init_zero;
-	auto op = text(name == "DepthwiseConv" ? "Conv" : name);
-	auto inputs = text("x"), outputs = text("y");
+	const bool fused = name == "ConvRelu" || name == "DepthwiseConvRelu";
+	auto op = text(name == "MPLDConvTranspose" ? "ConvTranspose" : name == "HardSwishFused" ? "HardSwish" : name == "DepthwiseConv" || fused ? "Conv" : name);
+	auto inputs = text("x"), outputs = text(fused ? "z" : "y");
 	Fields attributes, weights;
 	if (name == "ReduceMean") {
 		attributes = {attribute("axes", {2, 3}), attribute("keepdims", {1}, true)};
@@ -136,18 +137,21 @@ inline Bytes build(const std::string &name, const std::array<uint32_t, 4> &shape
 		const std::array<float, 1> low{0}, high{6};
 		weights = {initializer<float>("minimum", {}, low, onnx_TensorProto_DataType_FLOAT),
 			   initializer<float>("maximum", {}, high, onnx_TensorProto_DataType_FLOAT)};
-	} else if (name == "Conv" || name == "DepthwiseConv" || name == "ConvTranspose") {
-		const bool depthwise = name == "DepthwiseConv", transpose = name == "ConvTranspose";
+	} else if (name == "Conv" || name == "DepthwiseConv" || name == "ConvTranspose" || name == "MPLDConvTranspose" || fused) {
+		const bool depthwise = name == "DepthwiseConv" || name == "DepthwiseConvRelu",
+			   transpose = name == "ConvTranspose" || name == "MPLDConvTranspose";
+		const int64_t inputChannels = name == "MPLDConvTranspose" ? 16 : 2;
+		const int64_t outputChannels = name == "MPLDConvTranspose" ? 1 : 2;
 		const int64_t k = transpose ? 2 : 3;
-		std::vector<float> filter(2 * (depthwise ? 1 : 2) * k * k);
+		std::vector<float> filter(inputChannels * (depthwise ? 1 : outputChannels) * k * k);
 		for (size_t i = 0; i < filter.size(); ++i)
 			filter[i] = float(int(i % 7) - 3) / 16;
-		const std::array<float, 2> bias{0.25F, -0.5F};
+		const std::vector<float> bias = outputChannels == 1 ? std::vector<float>{0.25F} : std::vector<float>{0.25F, -0.5F};
 		inputs.push_back(Bytes{'w'});
 		inputs.push_back(Bytes{'b'});
-		weights = {initializer<float>("w", {2, depthwise ? 1 : 2, k, k}, filter,
+		weights = {initializer<float>("w", {inputChannels, depthwise ? 1 : outputChannels, k, k}, filter,
 					      onnx_TensorProto_DataType_FLOAT),
-			   initializer<float>("b", {2}, bias, onnx_TensorProto_DataType_FLOAT)};
+			   initializer<float>("b", {outputChannels}, bias, onnx_TensorProto_DataType_FLOAT)};
 		attributes = {attribute("strides", transpose ? std::vector<int64_t>{2, 2} : std::vector<int64_t>{1, 1}),
 			      attribute("dilations", {1, 1}),
 			      attribute("pads", transpose ? std::vector<int64_t>{0, 0, 0, 0}
@@ -159,6 +163,14 @@ inline Bytes build(const std::string &name, const std::array<uint32_t, 4> &shape
 	bind(node.output, outputs);
 	bind(node.attribute, attributes);
 	Fields nodes{encode(onnx_NodeProto_fields, &node)}, in{valueInfo("x", shape)}, out{valueInfo("y", outputShape)};
+	if (fused) {
+		onnx_NodeProto relu = onnx_NodeProto_init_zero;
+		auto reluOp = text("Relu"), reluInput = text("z"), reluOutput = text("y");
+		bind(relu.op_type, reluOp);
+		bind(relu.input, reluInput);
+		bind(relu.output, reluOutput);
+		nodes.push_back(encode(onnx_NodeProto_fields, &relu));
+	}
 	onnx_ModelProto model = onnx_ModelProto_init_zero;
 	model.has_ir_version = true;
 	model.ir_version = 8;
