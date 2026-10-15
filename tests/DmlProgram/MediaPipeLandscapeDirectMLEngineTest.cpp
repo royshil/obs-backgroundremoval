@@ -5,6 +5,7 @@
 #include <doctest.h>
 #include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.hpp"
 #include <graphics/graphics.h>
+#include "BackgroundRemoval/windows/MaskRefinerDirect3D.hpp"
 #include <d3d11_4.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
@@ -151,6 +152,36 @@ TEST_CASE("LandscapeEngineBgraInput")
 			}
 			CAPTURE(frame);
 			CHECK(maxError < 2e-5);
+            if (frame == 0 && format == GS_BGRA) {
+                BackgroundRemoval::MediaPipeLandscapeDirectMLEngine gpuEngine(true);
+                BackgroundRemoval::MaskRefinerDirect3D refiner(gpuEngine.device(), gpuEngine.commandQueue(),
+                    producer.Get(), 256, 144, 256, 144);
+                CHECK_THROWS_AS(engine.gpuOutput(), std::logic_error);
+                CHECK_THROWS_AS(gpuEngine.releaseGpuResult(), std::logic_error);
+                CHECK(gpuEngine.runAsync(image.get()) == BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::RunResult::Submitted);
+                CHECK_THROWS_AS(gpuEngine.getResult(output), std::logic_error);
+                refiner.runAsync(gpuEngine.gpuOutput(), {});
+                refiner.blockCpuUntilComplete();
+                REQUIRE(gpuEngine.isDone());
+                gpuEngine.releaseGpuResult();
+                refiner.complete();
+                CHECK_FALSE(gpuEngine.isDone());
+                std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> mask{
+                    gs_texture_wrap_obj(refiner.outputTexture()), gs_texture_destroy};
+                REQUIRE(mask);
+                std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)> staging{
+                    gs_stagesurface_create(256, 144, GS_R8), gs_stagesurface_destroy};
+                REQUIRE(staging);
+                gs_stage_texture(staging.get(), mask.get());
+                std::uint8_t *data=nullptr;std::uint32_t stride=0;
+                REQUIRE(gs_stagesurface_map(staging.get(), &data, &stride));
+                int maximum=0;
+                for (size_t y=0;y<144;++y) for (size_t x=0;x<256;++x)
+                    maximum=std::max(maximum,std::abs(int(data[y*stride+x])-int(std::lround(std::clamp(1.f-expected[y*256+x],0.f,1.f)*255))));
+                gs_stagesurface_unmap(staging.get());
+                CHECK(maximum<=1);
+            }
+
 		}
 	}
 	const std::uint8_t pixel[4]{0, 0, 0, 255};

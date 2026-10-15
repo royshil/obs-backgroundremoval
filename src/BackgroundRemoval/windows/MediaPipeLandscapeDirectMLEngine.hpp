@@ -8,6 +8,10 @@
 #include <memory>
 #include <span>
 
+struct ID3D12Device;
+struct ID3D12CommandQueue;
+struct ID3D12Resource;
+
 struct gs_texture;
 typedef struct gs_texture gs_texture_t;
 
@@ -15,7 +19,7 @@ namespace BackgroundRemoval {
 
 class MediaPipeLandscapeDirectMLEngine final {
 public:
-	MediaPipeLandscapeDirectMLEngine();
+	explicit MediaPipeLandscapeDirectMLEngine(bool gpuOutput = false);
 	~MediaPipeLandscapeDirectMLEngine();
 
 	MediaPipeLandscapeDirectMLEngine(const MediaPipeLandscapeDirectMLEngine &) = delete;
@@ -30,6 +34,11 @@ public:
 	auto runAsync(gs_texture_t *inputTexture) -> RunResult;
 	auto isDone() const -> bool;
 	void getResult(std::span<float> output);
+	// Borrowed GPU output in COPY_DEST. Consumers must use the same device/queue.
+	auto gpuOutput() const -> ID3D12Resource *;
+	auto device() const noexcept -> ID3D12Device *;
+	auto commandQueue() const noexcept -> ID3D12CommandQueue *;
+	void releaseGpuResult();
 	// Explicit CPU blocking at the current frame's result deadline.
 	void blockCpuUntilInferenceCompletes();
 

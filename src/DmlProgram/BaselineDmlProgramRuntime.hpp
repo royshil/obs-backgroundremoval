@@ -73,7 +73,7 @@ public:
 
 
 	// Inputs are padded GPU buffers in COPY_SOURCE; predicate, when non-null, is an eight-byte
-	// value in PREDICATION. Output is a READBACK buffer in COPY_DEST. This only
+	// value in PREDICATION. Output is a DEFAULT or READBACK buffer in COPY_DEST. This only
 	// records work: the caller submits and waits. A zero predicate leaves the
 	// output readback unchanged. Input resources remain in COPY_SOURCE.
 	void recordGpuRun(ID3D12GraphicsCommandList *commands, std::span<const GpuInput> inputs,

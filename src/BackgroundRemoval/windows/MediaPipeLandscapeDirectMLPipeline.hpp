@@ -5,7 +5,7 @@
 #pragma once
 
 #include "BackgroundRemoval/IRenderingPipeline.hpp"
-#include "BackgroundRemoval/Operators.hpp"
+#include "MaskRefinerDirect3D.hpp"
 
 #include <array>
 #include <atomic>
@@ -14,7 +14,6 @@
 #include <memory>
 #include <optional>
 #include <tuple>
-#include <vector>
 
 namespace BackgroundRemoval {
 
@@ -47,7 +46,6 @@ public:
 	std::atomic<float> imageSimilarityThreshold_{};
 	std::atomic<bool> refineMaskEnabled_{};
 	std::atomic<float> refineMaskThreshold_{};
-	std::atomic<float> refineMaskContour_{};
 	std::atomic<std::int64_t> refineMaskExpansion_{};
 
 	static constexpr std::uint32_t kModelWidth = 256;
@@ -55,14 +53,17 @@ public:
 	static constexpr std::size_t kModelPixelCount = static_cast<std::size_t>(kModelWidth) * kModelHeight;
 
 private:
-	auto refineMask(bool refineMaskEnabled, float refineMaskThreshold, float refineMaskContour,
-			std::int64_t refineMaskExpansion) noexcept -> bool;
-	auto refinementFailed(const char *message) noexcept -> bool;
+	enum class FilterState { NeedsProcessing, Processing, ReadyForRendering };
 
 	std::unique_ptr<MediaPipeLandscapeDirectMLEngine> engine_;
+	std::unique_ptr<MaskRefinerDirect3D> maskRefiner_;
 	const std::uint32_t width_;
 	const std::uint32_t height_;
 	obs_source_t *const source_;
+	FilterState filterState_ = FilterState::NeedsProcessing;
+	bool frameBlurBackgroundEnabled_ = false;
+	gs_texture_t *frameBlurredTexture_ = nullptr;
+	void renderFrameResult() const noexcept;
 
 	// MARK: - Textures and GPU Resources
 
@@ -78,18 +79,7 @@ private:
 
 	std::array<std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)>, 2> blurTextures_;
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> alphaTexture_;
-	std::vector<std::uint8_t> backgroundMask_;
-	std::vector<std::uint8_t> modelMask_;
-	std::vector<std::uint8_t> smoothedMask_;
-	std::vector<float> modelOutput_;
-	std::vector<float> pendingModelOutput_;
-	std::optional<std::tuple<bool, float, float, std::int64_t>> appliedMaskSettings_;
-	Operators::ResizeU8 resize_;
-	Operators::SmoothU8 smooth_;
-	Operators::ThresholdU8 modelThreshold_;
-	Operators::ThresholdU8 outputThreshold_;
-	Operators::MorphologyU8 outputMorphology_;
-	Operators::RemoveSmallComponentsU8 removeSmallComponents_;
+	std::optional<std::tuple<bool, float, std::int64_t>> appliedMaskSettings_;
 };
 
 } // namespace BackgroundRemoval

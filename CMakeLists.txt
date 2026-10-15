@@ -387,6 +387,7 @@ elseif(WIN32)
       src/BackgroundRemoval/windows/PipelineFactory.cpp
       src/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.cpp
       src/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.cpp
+      src/BackgroundRemoval/windows/MaskRefinerDirect3D.cpp
       src/DmlProgram/BaselineDmlCompiler.cpp
       src/DmlProgram/BaselineDmlProgramRuntime.cpp
       src/TraceLoggingProvider.cpp

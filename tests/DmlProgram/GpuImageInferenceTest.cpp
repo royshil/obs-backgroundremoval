@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -278,6 +279,8 @@ auto portraitInput() -> std::vector<float>
 
 struct SourceData {
 	gs_texture_t *image_ = nullptr;
+	std::size_t renderCount_ = 0;
+	bool reenter_ = false;
 	MediaPipeLandscapeDirectMLPipeline *pipeline_ = nullptr;
 };
 auto name(void *) -> const char *
@@ -313,6 +316,12 @@ auto colorSpace(void *, size_t, const gs_color_space *) -> gs_color_space
 }
 void renderSource(void *data, gs_effect_t *)
 {
+	auto *source = static_cast<SourceData *>(data);
+	++source->renderCount_;
+	if (source->reenter_) {
+		source->reenter_ = false;
+		source->pipeline_->videoRender(nullptr);
+	}
 	if (gs_get_effect())
 		obs_source_draw(static_cast<SourceData *>(data)->image_, 0, 0, 256, 144, false);
 }
@@ -432,7 +441,9 @@ TEST_CASE("LandscapeRenderingInitialization")
 	{
 		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, filter.get(), 256, 144);
 		filterData->pipeline_ = &pipeline;
+		inputData->pipeline_ = &pipeline;
 		for (int frame = 0; frame < 4; ++frame) {
+			pipeline.videoTick(1.0F / 30);
 			if (frame == 3) {
 				for (auto &value : input)
 					value = 1 - value;
@@ -447,6 +458,8 @@ TEST_CASE("LandscapeRenderingInitialization")
 				runLandscapeReference(*runtime, input, expected);
 			}
 			// Settings change must affect refinement without forcing a new inference.
+			property.blurBackgroundEnabled = frame == 1;
+			property.blurBackgroundFactor = 2;
 			property.refineMaskEnabled = frame == 1;
 			property.refineMaskThreshold = 0.5;
 			pipeline.update(property);
@@ -455,7 +468,12 @@ TEST_CASE("LandscapeRenderingInitialization")
 			gs_ortho(0, 256, 0, 144, -100, 100);
 			gs_matrix_identity();
 			gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+			// Processing must reject reentrant renders without touching graphics state.
+			inputData->reenter_ = true;
+			const auto beforeRendering = inputData->renderCount_;
 			obs_source_video_render(inputSource.get());
+			CHECK_FALSE(inputData->reenter_);
+			CHECK(inputData->renderCount_ == beforeRendering + 2);
 			CHECK(gs_get_render_target() == destination.get());
 			CHECK(gs_get_color_space() == GS_CS_709_EXTENDED);
 			gs_rect viewport{};
@@ -478,7 +496,65 @@ TEST_CASE("LandscapeRenderingInitialization")
 				}
 				CHECK(maxError <= 2);
 			}
+			std::vector<uint8_t> firstOutput(256 * 144 * 4);
+			for (size_t y = 0; y < 144; ++y)
+				std::memcpy(firstOutput.data() + y * 256 * 4, mapped + y * pitch, 256 * 4);
 			gs_stagesurface_unmap(readback.get());
+
+			if (!std::getenv("DML_TICK_BENCHMARK")) {
+				// Settings arriving mid-tick apply on the next tick, without repeating refinement.
+				property.refineMaskEnabled = !property.refineMaskEnabled;
+				property.blurBackgroundEnabled = !property.blurBackgroundEnabled;
+				pipeline.update(property);
+				const auto captured = inputData->renderCount_;
+				for (int draw = 0; draw < 3; ++draw) {
+					obs_source_video_render(inputSource.get());
+					CHECK(inputData->renderCount_ == captured);
+					CHECK(gs_get_render_target() == destination.get());
+					CHECK(gs_get_color_space() == GS_CS_709_EXTENDED);
+					gs_stage_texture(readback.get(), destination.get());
+					REQUIRE(gs_stagesurface_map(readback.get(), &mapped, &pitch));
+					for (size_t y = 0; y < 144; ++y)
+						CHECK(std::memcmp(firstOutput.data() + y * 256 * 4, mapped + y * pitch,
+								  256 * 4) == 0);
+					gs_stagesurface_unmap(readback.get());
+				}
+				property.refineMaskEnabled = !property.refineMaskEnabled;
+				property.blurBackgroundEnabled = !property.blurBackgroundEnabled;
+				pipeline.update(property);
+			}
+		}
+		// Opt-in comparison: two renders per tick, stable input and fixed settings.
+		if (std::getenv("DML_TICK_BENCHMARK")) {
+			std::vector<double> first, repeated;
+			for (int tick = 0; tick < 70; ++tick) {
+				pipeline.videoTick(1.0F / 30);
+				const auto start = std::chrono::steady_clock::now();
+				obs_source_video_render(inputSource.get());
+				const auto middle = std::chrono::steady_clock::now();
+				obs_source_video_render(inputSource.get());
+				const auto end = std::chrono::steady_clock::now();
+				if (tick >= 10) {
+					first.push_back(
+						std::chrono::duration<double, std::milli>(middle - start).count());
+					repeated.push_back(
+						std::chrono::duration<double, std::milli>(end - middle).count());
+				}
+				// Drain outside the timing so pending final draws cannot accumulate.
+				gs_stage_texture(readback.get(), destination.get());
+				uint8_t *mapped = nullptr;
+				uint32_t pitch = 0;
+				REQUIRE(gs_stagesurface_map(readback.get(), &mapped, &pitch));
+				gs_stagesurface_unmap(readback.get());
+			}
+			for (auto *values : {&first, &repeated}) {
+				std::sort(values->begin(), values->end());
+				std::cout << "TICK_BENCH,phase=" << (values == &first ? "first" : "repeat")
+					  << ",n=" << values->size() << ",mean_ms="
+					  << std::accumulate(values->begin(), values->end(), 0.0) / values->size()
+					  << ",median_ms=" << ((*values)[29] + (*values)[30]) / 2
+					  << ",p95_ms=" << (*values)[56] << '\n';
+			}
 		}
 		// Early return must preserve the caller's render target as well.
 		obs_source_set_enabled(filter.get(), false);

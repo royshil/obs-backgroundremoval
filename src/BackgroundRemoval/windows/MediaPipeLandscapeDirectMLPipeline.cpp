@@ -225,7 +225,10 @@ namespace BackgroundRemoval {
 MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const FilterProperty &property,
 								       obs_source_t *source, std::uint32_t width,
 								       std::uint32_t height)
-	: engine_{std::make_unique<MediaPipeLandscapeDirectMLEngine>()},
+	: engine_{std::make_unique<MediaPipeLandscapeDirectMLEngine>(true)},
+	  maskRefiner_{std::make_unique<MaskRefinerDirect3D>(engine_->device(), engine_->commandQueue(),
+							     static_cast<ID3D11Device *>(gs_get_device_obj()),
+							     kModelWidth, kModelHeight, width, height)},
 	  width_(width),
 	  height_(height),
 	  source_(source),
@@ -245,19 +248,9 @@ MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const Fil
 						 "Failed to create Landscape texture"),
 			gs_texture_create_unique(width, height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET,
 						 "Failed to create Landscape texture")},
-	  alphaTexture_{gs_texture_create_unique(width, height, GS_R8, 1, nullptr, GS_DYNAMIC,
-						 "Failed to create Landscape texture")},
-	  backgroundMask_(static_cast<std::size_t>(width) * height, 255),
-	  modelMask_(kModelPixelCount),
-	  smoothedMask_(kModelPixelCount),
-	  modelOutput_(kModelPixelCount),
-	  pendingModelOutput_(kModelPixelCount),
-	  smooth_({kModelWidth, kModelHeight}),
-	  modelThreshold_({kModelWidth, kModelHeight}),
-	  outputThreshold_({width, height}),
-	  outputMorphology_({width, height})
+	  alphaTexture_{gs_texture_wrap_obj(maskRefiner_->outputTexture()), gs_texture_destroy}
 {
-	if (!source || width == 0 || height == 0) {
+	if (!source || width == 0 || height == 0 || !alphaTexture_) {
 		throw std::invalid_argument("Invalid MediaPipe Landscape DirectML pipeline arguments");
 	}
 	obs_enter_graphics();
@@ -270,7 +263,14 @@ MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const Fil
 	gs_set_render_target_with_color_space(inputTexture_.get(), nullptr, GS_CS_709_EXTENDED);
 	gs_clear(GS_CLEAR_COLOR, &black, 0, 0);
 	gs_set_render_target_with_color_space(previousTarget, previousDepth, previousSpace);
-	gs_texture_set_image(alphaTexture_.get(), backgroundMask_.data(), width_, false);
+	try {
+		maskRefiner_->runAsync(nullptr, {});
+		maskRefiner_->blockCpuUntilComplete();
+		maskRefiner_->complete();
+	} catch (...) {
+		obs_leave_graphics();
+		throw;
+	}
 	obs_leave_graphics();
 	update(property);
 }
@@ -283,8 +283,9 @@ MediaPipeLandscapeDirectMLPipeline::~MediaPipeLandscapeDirectMLPipeline() noexce
 	inputTexture_.reset();
 	lumaAbsDiffTexture_.reset();
 	lumaAbsDiffStagesurf_.reset();
-	engine_.reset();
 	alphaTexture_.reset();
+	maskRefiner_.reset();
+	engine_.reset();
 	for (auto &texture : blurTextures_)
 		texture.reset();
 	sourceTexture_.reset();
@@ -301,111 +302,13 @@ void MediaPipeLandscapeDirectMLPipeline::update(const FilterProperty &property) 
 					std::memory_order_relaxed);
 	refineMaskEnabled_.store(property.refineMaskEnabled, std::memory_order_relaxed);
 	refineMaskThreshold_.store(static_cast<float>(property.refineMaskThreshold), std::memory_order_relaxed);
-	refineMaskContour_.store(static_cast<float>(property.refineMaskContour), std::memory_order_relaxed);
 	refineMaskExpansion_.store(property.refineMaskExpansion, std::memory_order_relaxed);
 }
 
-auto MediaPipeLandscapeDirectMLPipeline::refinementFailed(const char *message) noexcept -> bool
+void MediaPipeLandscapeDirectMLPipeline::videoTick(float) noexcept
 {
-	blog(LOG_ERROR, OBS_LOG_HEADER "Background-mask refinement failed: %s", message);
-	appliedMaskSettings_.reset();
-	return false;
+	filterState_ = FilterState::NeedsProcessing;
 }
-
-auto MediaPipeLandscapeDirectMLPipeline::refineMask(bool refineMaskEnabled, float refineMaskThreshold,
-						    float refineMaskContour, std::int64_t refineMaskExpansion) noexcept
-	-> bool
-{
-	auto &mask = modelMask_;
-	auto &resizedMask = backgroundMask_;
-	const auto modelThresholdValue =
-		static_cast<std::uint8_t>((1.0F - std::clamp(refineMaskThreshold, 0.0F, 1.0F)) * 255.0F);
-
-	bool modelThresholdSucceeded = true;
-	if (refineMaskEnabled) {
-		modelThresholdSucceeded =
-			modelThreshold_.apply(mask.data(), kModelWidth, mask.data(), kModelWidth, modelThresholdValue);
-	}
-	if (!modelThresholdSucceeded) {
-		return refinementFailed("MediaPipe Landscape model-mask threshold failed");
-	}
-	bool componentFilteringSucceeded = true;
-	if (refineMaskEnabled && refineMaskContour > 0.0F && refineMaskContour < 1.0F) {
-		componentFilteringSucceeded =
-			removeSmallComponents_.apply(mask.data(), {kModelWidth, kModelHeight, kModelWidth}, mask.data(),
-						     {kModelWidth, kModelHeight, kModelWidth},
-						     static_cast<double>(kModelPixelCount) * refineMaskContour);
-	}
-	if (!componentFilteringSucceeded) {
-		return refinementFailed("MediaPipe Landscape connected-component filtering failed");
-	}
-	bool smoothingSucceeded = true;
-	if (refineMaskEnabled) {
-		smoothingSucceeded = smooth_.apply(mask.data(), kModelWidth, smoothedMask_.data(), kModelWidth);
-	}
-	if (!smoothingSucceeded) {
-		return refinementFailed("MediaPipe Landscape mask smoothing failed");
-	}
-	if (refineMaskEnabled) {
-		mask.swap(smoothedMask_);
-	}
-	const bool resizeSucceeded = resize_.apply(mask.data(), {kModelWidth, kModelHeight, kModelWidth},
-						   resizedMask.data(), {width_, height_, width_});
-	if (!resizeSucceeded) {
-		return refinementFailed("MediaPipe Landscape mask resize failed");
-	}
-	bool outputThresholdSucceeded = true;
-	if (refineMaskEnabled) {
-		outputThresholdSucceeded =
-			outputThreshold_.apply(resizedMask.data(), width_, resizedMask.data(), width_, 128);
-	}
-	if (!outputThresholdSucceeded) {
-		return refinementFailed("MediaPipe Landscape output-mask threshold failed");
-	}
-	bool erosionSetupSucceeded = true;
-	if (refineMaskEnabled && refineMaskExpansion > 0) {
-		erosionSetupSucceeded = outputMorphology_.begin(resizedMask.data(), width_);
-	}
-	if (!erosionSetupSucceeded) {
-		return refinementFailed("MediaPipe Landscape mask erosion setup failed");
-	}
-	for (std::int64_t iteration = 0; refineMaskEnabled && iteration < refineMaskExpansion; ++iteration) {
-		const bool erosionSucceeded = outputMorphology_.erode();
-		if (!erosionSucceeded) {
-			return refinementFailed("MediaPipe Landscape mask erosion failed");
-		}
-	}
-	bool erosionOutputSucceeded = true;
-	if (refineMaskEnabled && refineMaskExpansion > 0) {
-		erosionOutputSucceeded = outputMorphology_.end(resizedMask.data(), width_);
-	}
-	if (!erosionOutputSucceeded) {
-		return refinementFailed("MediaPipe Landscape mask erosion output failed");
-	}
-	bool dilationSetupSucceeded = true;
-	if (refineMaskEnabled && refineMaskExpansion < 0) {
-		dilationSetupSucceeded = outputMorphology_.begin(resizedMask.data(), width_);
-	}
-	if (!dilationSetupSucceeded) {
-		return refinementFailed("MediaPipe Landscape mask dilation setup failed");
-	}
-	for (std::int64_t iteration = 0; refineMaskEnabled && iteration > refineMaskExpansion; --iteration) {
-		const bool dilationSucceeded = outputMorphology_.dilate();
-		if (!dilationSucceeded) {
-			return refinementFailed("MediaPipe Landscape mask dilation failed");
-		}
-	}
-	bool dilationOutputSucceeded = true;
-	if (refineMaskEnabled && refineMaskExpansion < 0) {
-		dilationOutputSucceeded = outputMorphology_.end(resizedMask.data(), width_);
-	}
-	if (!dilationOutputSucceeded) {
-		return refinementFailed("MediaPipe Landscape mask dilation output failed");
-	}
-	return true;
-}
-
-void MediaPipeLandscapeDirectMLPipeline::videoTick(float) noexcept {}
 
 void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 {
@@ -422,6 +325,16 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 		return;
 	}
 
+	switch (filterState_) {
+	case FilterState::ReadyForRendering:
+		renderFrameResult();
+		return;
+	case FilterState::Processing:
+		return;
+	case FilterState::NeedsProcessing:
+		break;
+	}
+
 	const double imageSimilarityThreshold = imageSimilarityThreshold_.load(std::memory_order_relaxed);
 
 	const std::uint32_t sourceWidth = obs_source_get_width(target);
@@ -430,6 +343,8 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 		obs_source_skip_video_filter(source_);
 		return;
 	}
+
+	filterState_ = FilterState::Processing;
 
 	struct RenderStatePop {
 		gs_texture_t *rt_;
@@ -463,11 +378,20 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 	gs_effect_t *effect = effect_.get();
 	gs_eparam_t *epImage = gs_effect_get_param_by_name(effect, "image");
 	gs_eparam_t *epImage1 = gs_effect_get_param_by_name(effect, "image1");
-	gs_eparam_t *epAlphaMask = gs_effect_get_param_by_name(effect, "alphamask");
-	gs_eparam_t *epBlurredBackground = gs_effect_get_param_by_name(effect, "blurredBackground");
 
 	vec4 zero;
 	vec4_zero(&zero);
+
+	const bool blurBackgroundEnabled = blurBackgroundEnabled_.load(std::memory_order_relaxed);
+	const std::int64_t unsafeBlurBackgroundFactor = blurBackgroundFactor_.load(std::memory_order_relaxed);
+	const float blurFocusPoint = blurFocusPoint_.load(std::memory_order_relaxed);
+	const float blurFocusDepth = blurFocusDepth_.load(std::memory_order_relaxed);
+	const bool refineMaskEnabled = refineMaskEnabled_.load(std::memory_order_relaxed);
+	const float refineMaskThreshold = refineMaskThreshold_.load(std::memory_order_relaxed);
+	const std::int64_t unsafeRefineMaskExpansion = refineMaskExpansion_.load(std::memory_order_relaxed);
+
+	gs_texture_t *const sourceTexture = sourceTexture_.get();
+	const std::array<gs_texture_t *, 2> blurTextures{blurTextures_[0].get(), blurTextures_[1].get()};
 
 	gs_set_render_target_with_color_space(inputTexture_.get(), nullptr, GS_CS_709_EXTENDED);
 	gs_ortho(0.0F, static_cast<float>(sourceWidth), 0.0F, static_cast<float>(sourceHeight), -100.0F, 100.0F);
@@ -520,7 +444,19 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 		try {
 			if (engine_->runAsync(inputTexture_.get()) ==
 			    MediaPipeLandscapeDirectMLEngine::RunResult::NeedsRecreation) {
-				engine_ = std::make_unique<MediaPipeLandscapeDirectMLEngine>();
+				auto engine = std::make_unique<MediaPipeLandscapeDirectMLEngine>(true);
+				auto refiner = std::make_unique<MaskRefinerDirect3D>(
+					engine->device(), engine->commandQueue(),
+					static_cast<ID3D11Device *>(gs_get_device_obj()), kModelWidth, kModelHeight,
+					width_, height_);
+				std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> alpha{
+					gs_texture_wrap_obj(refiner->outputTexture()), gs_texture_destroy};
+				if (!alpha)
+					throw std::runtime_error("Failed to wrap shared mask texture");
+				alphaTexture_ = std::move(alpha);
+				maskRefiner_ = std::move(refiner);
+				engine_ = std::move(engine);
+				appliedMaskSettings_.reset();
 				if (engine_->runAsync(inputTexture_.get()) !=
 				    MediaPipeLandscapeDirectMLEngine::RunResult::Submitted) {
 					throw std::runtime_error("New DirectML engine did not accept its first input");
@@ -533,19 +469,6 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 	}
 	TraceLoggingWrite(provider, "InferenceDecision", TraceLoggingLevel(5), TraceLoggingKeyword(0x1),
 			  TraceLoggingBool(!skipMaskInference, "Required"));
-
-	const bool blurBackgroundEnabled = blurBackgroundEnabled_.load(std::memory_order_relaxed);
-	const std::int64_t unsafeBlurBackgroundFactor = blurBackgroundFactor_.load(std::memory_order_relaxed);
-	const float blurFocusPoint = blurFocusPoint_.load(std::memory_order_relaxed);
-	const float blurFocusDepth = blurFocusDepth_.load(std::memory_order_relaxed);
-	const bool refineMaskEnabled = refineMaskEnabled_.load(std::memory_order_relaxed);
-	const float refineMaskThreshold = refineMaskThreshold_.load(std::memory_order_relaxed);
-	const float refineMaskContour = refineMaskContour_.load(std::memory_order_relaxed);
-	const std::int64_t unsafeRefineMaskExpansion = refineMaskExpansion_.load(std::memory_order_relaxed);
-
-	gs_texture_t *const sourceTexture = sourceTexture_.get();
-	gs_texture_t *const alphaTexture = alphaTexture_.get();
-	const std::array<gs_texture_t *, 2> blurTextures{blurTextures_[0].get(), blurTextures_[1].get()};
 
 	// The current source draw is independent of the submitted model output.
 	{
@@ -561,50 +484,53 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 		}
 	}
 
-	// The current frame must use its own result. Block only at this deadline.
-	if (!skipMaskInference) {
+	// Submit dependent mask work on the model queue; wait only at the drawing deadline.
+	const auto expansion = static_cast<std::int32_t>(std::clamp<std::int64_t>(unsafeRefineMaskExpansion, -30, 30));
+	const auto maskSettings = std::tuple{refineMaskEnabled, refineMaskThreshold, std::int64_t(expansion)};
+	if (!skipMaskInference || appliedMaskSettings_ != maskSettings) {
+		bool modelResultPending = !skipMaskInference;
 		try {
-			const bool completedBeforeDeadline = engine_->isDone();
+			{
+				TraceLoggingThreadActivity<provider, 0x1> refine;
+				TraceLoggingWriteStart(refine, "Pipeline.RefineMask");
+				maskRefiner_->runAsync(skipMaskInference ? nullptr : engine_->gpuOutput(),
+						       {refineMaskEnabled, std::clamp(refineMaskThreshold, 0.0F, 1.0F),
+							expansion});
+			}
+			const bool completedBeforeDeadline = maskRefiner_->isDone();
 			TraceLoggingWrite(provider, "InferenceReadiness", TraceLoggingLevel(5),
 					  TraceLoggingKeyword(0x1),
 					  TraceLoggingBool(completedBeforeDeadline, "CompletedBeforeDeadline"));
 			if (!completedBeforeDeadline) {
-				engine_->blockCpuUntilInferenceCompletes();
+				TraceLoggingThreadActivity<provider, 0x1> waiting;
+				TraceLoggingWriteStart(waiting, "Pipeline.GpuOutputWait");
+				maskRefiner_->blockCpuUntilComplete();
 			}
-			engine_->getResult(pendingModelOutput_);
-			for (const float value : pendingModelOutput_) {
-				if (!std::isfinite(value))
-					throw std::runtime_error("Non-finite DirectML model output");
+			if (modelResultPending) {
+				engine_->releaseGpuResult();
+				modelResultPending = false;
 			}
+			maskRefiner_->complete();
+			appliedMaskSettings_ = maskSettings;
 		} catch (const std::exception &exception) {
-			blog(LOG_ERROR, OBS_LOG_HEADER "GPU image result retrieval failed: %s", exception.what());
+			// Failed validation must not leave a completed model result unconsumed.
+			if (modelResultPending) {
+				try {
+					engine_->blockCpuUntilInferenceCompletes();
+					engine_->releaseGpuResult();
+				} catch (const std::exception &cleanupError) {
+					blog(LOG_ERROR, OBS_LOG_HEADER "GPU result cleanup failed: %s",
+					     cleanupError.what());
+				}
+			}
+			blog(LOG_ERROR, OBS_LOG_HEADER "GPU mask refinement failed: %s", exception.what());
 			return;
 		}
 	}
-
-	// MARK: - Refining Mask
-
-	const std::int64_t refineMaskExpansion = std::clamp<std::int64_t>(unsafeRefineMaskExpansion, -30, 30);
-	const auto maskSettings =
-		std::tuple{refineMaskEnabled, refineMaskThreshold, refineMaskContour, refineMaskExpansion};
-	if (!skipMaskInference || appliedMaskSettings_ != maskSettings) {
-		TraceLoggingThreadActivity<provider, 0x1> refine;
-		TraceLoggingWriteStart(refine, "Pipeline.RefineMask");
-		const std::vector<float> &output = skipMaskInference ? modelOutput_ : pendingModelOutput_;
-		for (std::size_t index = 0; index < kModelPixelCount; ++index) {
-			modelMask_[index] =
-				static_cast<std::uint8_t>(std::clamp((1.0F - output[index]) * 255.0F, 0.0F, 255.0F));
-		}
-		if (!refineMask(refineMaskEnabled, refineMaskThreshold, refineMaskContour, refineMaskExpansion)) {
-			return;
-		}
-		gs_texture_set_image(alphaTexture, backgroundMask_.data(), width_, false);
-		appliedMaskSettings_ = maskSettings;
-	}
-	if (!skipMaskInference) {
+	if (!skipMaskInference)
 		std::swap(lastInputTexture_, inputTexture_);
-		modelOutput_.swap(pendingModelOutput_);
-	}
+
+	gs_texture_t *const alphaTexture = alphaTexture_.get();
 
 	gs_texture_t *blurredTexture = sourceTexture;
 	if (blurBackgroundEnabled) {
@@ -635,15 +561,29 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 		}
 	}
 
+	frameBlurBackgroundEnabled_ = blurBackgroundEnabled;
+	frameBlurredTexture_ = blurredTexture;
+	filterState_ = FilterState::ReadyForRendering;
+
 	// MARK: - Render to destination
 
 	renderStatePop();
+	renderFrameResult();
+}
 
-	if (blurBackgroundEnabled) {
+void MediaPipeLandscapeDirectMLPipeline::renderFrameResult() const noexcept
+{
+	gs_effect_t *effect = effect_.get();
+	gs_texture_t *sourceTexture = sourceTexture_.get();
+	gs_texture_t *alphaTexture = alphaTexture_.get();
+	gs_eparam_t *epImage = gs_effect_get_param_by_name(effect, "image");
+	gs_eparam_t *epAlphaMask = gs_effect_get_param_by_name(effect, "alphamask");
+	gs_eparam_t *epBlurredBackground = gs_effect_get_param_by_name(effect, "blurredBackground");
+	if (frameBlurBackgroundEnabled_) {
 		while (gs_effect_loop(effect, "DrawWithFocalBlur")) {
 			gs_effect_set_texture(epImage, sourceTexture);
 			gs_effect_set_texture(epAlphaMask, alphaTexture);
-			gs_effect_set_texture(epBlurredBackground, blurredTexture);
+			gs_effect_set_texture(epBlurredBackground, frameBlurredTexture_);
 			gs_draw_sprite(sourceTexture, 0, 0, 0);
 		}
 	} else {

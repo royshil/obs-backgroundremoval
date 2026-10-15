@@ -77,6 +77,7 @@ if(EXISTS "${OBS_TEST_BIN_DIR}/obs.dll" AND EXISTS "${OBS_TEST_BIN_DIR}/libobs-d
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
   if(EXISTS "${MEDIAPIPE_LANDSCAPE_ONNX}")
     add_executable(MediaPipeLandscapeDirectMLEngineTest MediaPipeLandscapeDirectMLEngineTest.cpp
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MaskRefinerDirect3D.cpp"
       "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.cpp"
       "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
       "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
@@ -103,6 +104,7 @@ if(EXISTS "${OBS_TEST_BIN_DIR}/obs.dll" AND EXISTS "${OBS_TEST_BIN_DIR}/libobs-d
       LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/Scenarios/0000-portrait-umireon.jpg")
     target_link_libraries(BgraLandscapeBenchmark PRIVATE Simd::BaseVendored OBS::libobs d3d11 d3d12 dxgi d3dcompiler directml advapi32 windowsapp windowscodecs ole32)
     target_sources(GpuImageInferenceTest PRIVATE
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MaskRefinerDirect3D.cpp"
       "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/PipelineFactory.cpp"
       "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.cpp"
       "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.cpp"
@@ -152,3 +154,15 @@ endif()
 
 add_test(NAME WinMlComparison.PointwiseConvTranspose COMMAND WinMlComparison --test-case=PointwiseConvTranspose)
 set_tests_properties(WinMlComparison.PointwiseConvTranspose PROPERTIES TIMEOUT 120)
+
+add_executable(MaskRefinerDirect3DTest MaskRefinerDirect3DTest.cpp
+  "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/Operators.cpp"
+  "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/Operators.cpp"
+  "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/AlignedBuffer.cpp"
+  "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MaskRefinerDirect3D.cpp"
+  "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp")
+target_include_directories(MaskRefinerDirect3DTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
+target_link_libraries(MaskRefinerDirect3DTest PRIVATE d3d11 d3d12 dxgi d3dcompiler advapi32 Simd::BaseVendored)
+add_test(NAME MaskRefinerDirect3DTest.Warp COMMAND MaskRefinerDirect3DTest)
+add_test(NAME MaskRefinerDirect3DTest.Hardware COMMAND MaskRefinerDirect3DTest --hardware)
+set_tests_properties(MaskRefinerDirect3DTest.Warp MaskRefinerDirect3DTest.Hardware PROPERTIES TIMEOUT 180)

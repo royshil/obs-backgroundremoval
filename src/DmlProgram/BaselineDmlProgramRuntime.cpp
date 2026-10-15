@@ -333,9 +333,9 @@ public:
 		validateBuffer(output, outputOffset, outputSize_);
 		D3D12_HEAP_PROPERTIES heap{};
 		D3D12_HEAP_FLAGS heapFlags{};
-		check(output->GetHeapProperties(&heap, &heapFlags), "Get output readback heap");
-		if (heap.Type != D3D12_HEAP_TYPE_READBACK)
-			throw std::invalid_argument("GPU output must be a readback buffer");
+		check(output->GetHeapProperties(&heap, &heapFlags), "Get GPU output heap");
+		if (heap.Type != D3D12_HEAP_TYPE_READBACK && heap.Type != D3D12_HEAP_TYPE_DEFAULT)
+			throw std::invalid_argument("GPU output must be a default or readback buffer");
 		for (std::size_t index = 0; index < inputs.size(); ++index) {
 			const auto &tensor = tensors_.at(inputTensors_[index]);
 			if (inputs[index].dataBytes != tensor.dataBytes)

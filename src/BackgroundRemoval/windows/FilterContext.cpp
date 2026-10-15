@@ -61,7 +61,6 @@ void FilterContext::getDefaults(obs_data_t *settings) noexcept
 	obs_data_set_default_double(settings, "v2_Model_MatteSensitivity", 35.0);
 	obs_data_set_default_bool(settings, "v2_RefineMask", true);
 	obs_data_set_default_double(settings, "v2_RefineMask_Threshold", 0.5);
-	obs_data_set_default_double(settings, "v2_RefineMask_Contour", 0.05);
 	obs_data_set_default_int(settings, "v2_RefineMask_Expansion", 0);
 	obs_data_set_default_bool(settings, "v2_BlurBg", false);
 	obs_data_set_default_int(settings, "v2_BlurBg_Factor", 4);
@@ -99,8 +98,6 @@ auto FilterContext::getProperties(void *) noexcept -> obs_properties_t *
 	obs_properties_t *const thresholdProperties = obs_properties_create();
 	obs_properties_add_float_slider(thresholdProperties, "v2_RefineMask_Threshold", obs_module_text("Threshold"),
 					0.0, 1.0, 0.025);
-	obs_properties_add_float_slider(thresholdProperties, "v2_RefineMask_Contour", obs_module_text("Contour"), 0.0,
-					1.0, 0.025);
 	obs_properties_add_int_slider(thresholdProperties, "v2_RefineMask_Expansion", obs_module_text("Expansion"), -30,
 				      30, 1);
 	obs_properties_add_group(properties, "v2_RefineMask", obs_module_text("Refine Mask"), OBS_GROUP_CHECKABLE,
@@ -128,9 +125,9 @@ void FilterContext::update(void *data, obs_data_t *settings) noexcept
 	const FilterProperty &property = *pendingFilterProperty;
 	blog(LOG_INFO,
 	     OBS_LOG_HEADER
-	     "Updating Windows settings: pipeline_id=%lld sensitivity=%.3f refine=%d threshold=%.3f contour=%.3f expansion=%lld blur=%d blur_factor=%lld focus_point=%.3f focus_depth=%.3f",
+	     "Updating Windows settings: pipeline_id=%lld sensitivity=%.3f refine=%d threshold=%.3f expansion=%lld blur=%d blur_factor=%lld focus_point=%.3f focus_depth=%.3f",
 	     property.pipelineId, property.imageSimilarityThreshold, property.refineMaskEnabled,
-	     property.refineMaskThreshold, property.refineMaskContour,
+	     property.refineMaskThreshold,
 	     static_cast<long long>(property.refineMaskExpansion), property.blurBackgroundEnabled,
 	     static_cast<long long>(property.blurBackgroundFactor), property.blurFocusPoint, property.blurFocusDepth);
 

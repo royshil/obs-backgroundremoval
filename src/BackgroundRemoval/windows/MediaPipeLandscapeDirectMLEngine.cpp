@@ -158,6 +158,7 @@ public:
 	ComPtr<ID3D11Texture2D> destination_;
 	ComPtr<ID3D11Fence> ready11_;
 	uint64_t readyValue_ = 0, fenceValue_ = 0;
+	bool gpuOutput_ = false;
 	bool hasSubmission_ = false;
 	bool unusable_ = false;
 	std::unique_ptr<void, void (*)(void *)> event_{CreateEventW(nullptr, FALSE, FALSE, nullptr), closeHandle};
@@ -166,7 +167,7 @@ public:
 	ComPtr<ID3D12DescriptorHeap> descriptors_;
 	ComPtr<ID3D12RootSignature> root_;
 	ComPtr<ID3D12PipelineState> pack_;
-	Impl(ID3D11Device *native);
+	Impl(ID3D11Device *native, bool gpuOutput);
 	auto createSharedInputTexture(const D3D11_TEXTURE2D_DESC &input) -> ComPtr<ID3D12Resource>;
 	auto openSharedInputTexture(ID3D12Resource *texture) -> ComPtr<ID3D11Texture2D>;
 
@@ -177,7 +178,8 @@ public:
 	auto runAsync(ID3D11Texture2D *input, const D3D11_TEXTURE2D_DESC &inputDesc) -> RunResult;
 };
 
-MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native)
+MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native, bool gpuOutput)
+	: gpuOutput_(gpuOutput)
 {
 	auto *d = device_.Get();
 	auto *q = queue_.Get();
@@ -220,7 +222,7 @@ MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native)
 		throw std::invalid_argument("Landscape engine tensor contract mismatch");
 	current_ = buffer(d, program_->inputInfo(0).dataBytes, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_HEAP_TYPE_DEFAULT);
 	readback_ =
-		buffer(d, program_->outputInfo().dataBytes, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_READBACK);
+		buffer(d, program_->outputInfo().dataBytes, D3D12_RESOURCE_STATE_COPY_DEST, gpuOutput_ ? D3D12_HEAP_TYPE_DEFAULT : D3D12_HEAP_TYPE_READBACK);
 	check(d->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&allocator_)),
 	      "Create engine allocator");
 	check(d->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, allocator_.Get(), nullptr,
@@ -475,7 +477,7 @@ void MediaPipeLandscapeDirectMLEngine::Impl::getResult(std::span<float> output)
 
 namespace BackgroundRemoval {
 
-MediaPipeLandscapeDirectMLEngine::MediaPipeLandscapeDirectMLEngine()
+MediaPipeLandscapeDirectMLEngine::MediaPipeLandscapeDirectMLEngine(bool gpuOutput)
 {
 	if (gs_get_device_type() != GS_DEVICE_DIRECT3D_11) {
 		throw std::invalid_argument("MediaPipeLandscapeDirectMLEngine requires the D3D11 backend");
@@ -486,7 +488,7 @@ MediaPipeLandscapeDirectMLEngine::MediaPipeLandscapeDirectMLEngine()
 		throw std::runtime_error("The D3D11 device is unavailable");
 	}
 
-	impl_ = std::make_unique<Impl>(device);
+	impl_ = std::make_unique<Impl>(device, gpuOutput);
 }
 
 MediaPipeLandscapeDirectMLEngine::~MediaPipeLandscapeDirectMLEngine() = default;
@@ -521,7 +523,21 @@ auto MediaPipeLandscapeDirectMLEngine::isDone() const -> bool
 
 void MediaPipeLandscapeDirectMLEngine::getResult(std::span<float> output)
 {
+	if (impl_->gpuOutput_) throw std::logic_error("This engine has GPU output");
 	impl_->getResult(output);
+}
+
+auto MediaPipeLandscapeDirectMLEngine::gpuOutput() const -> ID3D12Resource *
+{
+ if (!impl_->gpuOutput_) throw std::logic_error("This engine has CPU output");
+ return impl_->readback_.Get();
+}
+auto MediaPipeLandscapeDirectMLEngine::device() const noexcept -> ID3D12Device * { return impl_->device_.Get(); }
+auto MediaPipeLandscapeDirectMLEngine::commandQueue() const noexcept -> ID3D12CommandQueue * { return impl_->queue_.Get(); }
+void MediaPipeLandscapeDirectMLEngine::releaseGpuResult()
+{
+ if (!impl_->gpuOutput_ || !impl_->isDone()) throw std::logic_error("GPU result is not complete");
+ impl_->hasSubmission_ = false;
 }
 
 void MediaPipeLandscapeDirectMLEngine::blockCpuUntilInferenceCompletes()
