@@ -115,14 +115,14 @@ jobs:
             build/${{ steps.artifact-names.outputs.DDEB_ARTIFACT_NAME }}
 
       - name: Upload deb artifact (Ubuntu)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: build/${{ steps.artifact-names.outputs.DEB_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
 
       - name: Upload ddeb artifact (Ubuntu)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: build/${{ steps.artifact-names.outputs.DDEB_ARTIFACT_NAME }}
           archive: false
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload scenario test artifacts (Ubuntu)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scenario-test-results-ubuntu-resolute-${{ inputs.arm64 && 'arm64' || 'amd64' }}
           path: ${{ github.workspace }}/build_test_reports

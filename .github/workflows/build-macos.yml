@@ -173,7 +173,7 @@ jobs:
           subject-path: ${{ steps.archive-dsym.outputs.DSYM_ARTIFACT_NAME }}
 
       - name: Upload dSYM artifact (macOS)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: ${{ steps.archive-dsym.outputs.DSYM_ARTIFACT_NAME }}
           archive: false
@@ -294,7 +294,7 @@ jobs:
           subject-path: ${{ steps.package-unsigned.outputs.PKG_ARTIFACT_NAME }}
 
       - name: Upload PKG artifact (macOS)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: ${{ steps.package-signed.outputs.PKG_ARTIFACT_NAME || steps.package-unsigned.outputs.PKG_ARTIFACT_NAME }}
           archive: false
@@ -339,7 +339,7 @@ jobs:
 
       - name: Upload scenario test results (macOS)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scenario-test-results-macos
           path: ${{ runner.temp }}/${{ github.job }}/build_test_reports
