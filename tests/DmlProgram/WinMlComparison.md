@@ -260,14 +260,76 @@ retains Add/Clip/Mul/Mul for a one-variable performance comparison.
 `HardSwishFused` compares the two-operator implementation directly with
 WinML running ONNX HardSwish, including inputs near -3 and 3.
 
-`MPLDConvTranspose` specializes the pinned Landscape final ConvTranspose:
-Float32 [1,16,72,128] input, [16,1,2,2] filter, one bias, stride 2,
-dilation 1 and zero padding/output padding. Each compute thread projects
-one input position to four distinct output pixels; Sigmoid remains a
-separate DML node. The PSO is created once and recorded in the same command
-list with the existing resource-specific barrier plan. Shader weights stay
-resident for its lifetime. No CPU round trip or additional queue submission
-is introduced. `--no-mpld-conv-transpose` selects the DML baseline.
-`MPLDConvTranspose` tests ONNX ConvTranspose through WinML CPU/GPU with
-constant, signed, boundary and corner inputs; `MPLDConvTransposeContract`
-checks rejection of a wrong input shape and a non-Float32 operator.
+The generator converts the pinned final ConvTranspose into ordinary
+`BiasedConv2d` and `DepthToSpace` Nodes. The 1x1 convolution produces
+[1,4,72,128], followed by block-size-two DCR rearrangement into [1,1,144,256].
+Weights are rearranged into [4,16,1,1] and the scalar bias repeated four times
+at generation time. Each generated Node identifies the original ONNX node.
+Sigmoid remains separate. `--no-pointwise-projection` keeps the backward DML
+Convolution baseline. `PointwiseConvTranspose` tests this two-Node graph against
+WinML CPU/GPU ConvTranspose with constant, signed, boundary and corner inputs.
+
+The Landscape generator emits FP32 input specifications, weights, intermediate
+and output tensor types. The compiler uses DML_EXECUTION_FLAG_NONE. A generated
+static_assert checks that all used tensor types are FP32.
+Only the embedded byte payload uses FP16 (212808 bytes). Model initialization
+widens it to 425616 FP32 bytes before Runtime compilation/upload, then releases
+the temporary expanded vector after Runtime construction. InputSpec byte offsets
+refer to this expanded FP32 region. Generation rejects weights that do not
+round-trip through binary16 exactly. `--float32` remains a compatibility option;
+it no longer changes the generated execution precision or payload format.
+
+The engine converts texture RGB directly to FP32 planar input and copies FP32
+readback without half conversion. Full-model CPU/GPU input paths require FP32.
+The final projection remains separate from Sigmoid; generic runtime
+FP16 operator support is still covered independently by the operator tests.
+
+For PIX profiling, launch `WinMlComparison.exe` without arguments under PIX.
+It selects the normally skipped `MediaPipeLandscapePixWorkload`, which performs
+ten portrait inferences without WinML reference work on another GPU queue.
+Initialization is present in the capture and must be excluded from inference
+measurements. Explicit selection is also available with
+`--test-case=MediaPipeLandscapePixWorkload --no-skip`.
+
+## Explicit node types and input barriers
+
+Each Node declares its `dataType`. InputItem also declares the type and must
+match the referenced InputSpec. The compiler validates references, types and
+operator/device support once during compilation, without inferring output types
+or performing implicit conversion. Operators compile with `DML_EXECUTION_FLAG_NONE`.
+
+The Python generator emits `std::array<std::int32_t, 8> uavBarriers[]`, with
+one row per Node. Row i names producer Node outputs to synchronize immediately
+before Node i; -1 marks unused slots, including holes. All eight slots can be
+used. The generator rejects a row requiring more than eight entries. Reordering
+Nodes requires regenerating this table. The graph can omit the table to request
+no Node-boundary barriers; C++ never infers missing synchronization.
+
+Instructions may refer to any preceding Node, not only the current Node's inputs.
+The compiler resolves Node outputs to compiled tensors, preserving the given
+row order and duplicates. Runtime batches each boundary's UAV barriers into one
+ResourceBarrier call. A nonempty row on InputItem is retained as a barrier-only
+step at that boundary. Synchronization inside an operator implementation remains
+separate from this external schedule.
+
+`testExplicitTypesAndBarriers` checks explicit type validation and empty/missing
+tables. `testUavBarrierInstructions` checks moved synchronization, unrelated
+producers, multiple resources, all eight entries, unused slots, duplicates,
+invalid references, and InputItem/trailing boundaries, including GPU execution.
+Runtime, GPU texture input and WinML comparisons exercise the generated table.
+The full-model comparison retains the FP32 bound of 2e-5 absolute plus 2e-5
+relative error against WinML.
+
+
+The generator accepts `--uav-placement first-consumer` (the default) and
+`--uav-placement early-batched` for a controlled placement experiment. The latter
+moves each barrier to the earliest existing nonempty boundary after its producer
+and at or before its first consumer, subject to the eight-entry row limit.
+Generation validates that every required producer is synchronized exactly once
+within that interval. Nodes, weights, internal barriers and dispatch order remain
+identical. For the pinned fused Landscape model this moves Node 159's barrier
+from before Node 165 to before Node 163, alongside Node 160's barrier. Both
+schedules have 124 resource barriers at 123 boundaries. Interval scheduling gives
+a lower bound of 123 boundaries even without the row capacity constraint; with
+these immutable dedicated outputs and this dispatch order, removing further
+barriers would remove a required read-after-write dependency.

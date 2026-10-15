@@ -17,6 +17,18 @@
 #include <iterator>
 #include <numeric>
 #include <vector>
+#include <DirectXPackedVector.h>
+
+void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input, std::span<float> output)
+{
+    if (runtime.inputInfo(0).type != BaselineDml::ProgramDefinition::dtFloat32 ||
+        runtime.outputInfo().type != BaselineDml::ProgramDefinition::dtFloat32) {
+        throw std::runtime_error("Landscape requires FP32 input and output");
+    }
+    const std::array inputs{std::as_bytes(input)};
+    runtime.run(inputs, std::as_writable_bytes(output));
+}
+
 namespace BackgroundRemoval::Generated {
 auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDml::BaselineDmlProgramRuntime>;
 }
@@ -124,7 +136,7 @@ try {
 		std::vector<float> expected(output.size());
 		const auto &values = change ? invertedInput : input;
 		const std::array inputs{std::as_bytes(std::span(values))};
-		runtime->run(inputs, std::as_writable_bytes(std::span(expected)));
+		runLandscapeReference(*runtime, values, expected);
 		for (int iteration = -20; iteration < 100; ++iteration) {
 			for (int order = 0; order < 2; ++order) {
 				const int method = (iteration + order + 20) % 2;

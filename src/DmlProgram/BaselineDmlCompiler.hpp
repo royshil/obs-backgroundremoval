@@ -23,7 +23,7 @@ namespace BaselineDml {
 
 using TensorId = std::int64_t;
 struct CompiledTensor final {
-	ProgramDefinition::DataType dataType = ProgramDefinition::DataType::Unknown;
+	std::uint32_t dataType = ProgramDefinition::dtUnknown;
 	std::vector<std::uint32_t> sizes;
 	std::vector<std::uint32_t> strides;
 	std::uint64_t size = 0;
@@ -38,10 +38,11 @@ struct CompiledStorage final {
 	std::uint64_t size = 0;
 };
 
-enum class CompiledShader { None, MPLDConvTranspose };
+enum class CompiledShader { None, MPLDDepthwiseConv2dRelu };
 
 struct CompiledStep final {
 	std::vector<TensorId> inputs;
+	// -1 denotes a barrier-only step, without a GPU dispatch.
 	TensorId output = -1;
 	std::vector<TensorId> barriersBefore;
 	Microsoft::WRL::ComPtr<IDMLCompiledOperator> operation;

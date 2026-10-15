@@ -10,6 +10,9 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#ifdef DML_MODEL_DIAGNOSTICS
+#include <vector>
+#endif
 
 struct ID3D12Device;
 struct ID3D12CommandQueue;
@@ -25,11 +28,13 @@ struct Graph final {
 	std::int64_t nodeCount;
 	const ProgramDefinition::Node *nodes;
 	std::size_t outputIndex;
-	const ProgramDefinition::NodeBarrier *barrierPlan = nullptr;
+	// Row i: producer Node outputs to synchronize before executing Node i.
+	// -1 marks an unused slot. Null means no Node-boundary UAV barriers.
+	const std::array<std::int32_t, 8> *uavBarriers = nullptr;
 };
 
 struct RuntimeTensorInfo final {
-	ProgramDefinition::DataType type;
+	std::uint32_t type;
 	std::uint64_t dataBytes;
 };
 
@@ -60,6 +65,12 @@ public:
 	auto inputCount() const noexcept -> std::size_t;
 	auto inputInfo(std::size_t index) const -> RuntimeTensorInfo;
 	auto outputInfo() const noexcept -> RuntimeTensorInfo;
+#ifdef DML_MODEL_DIAGNOSTICS
+ // Test-only FLOAT32 storage-rounding experiment. Absent from production builds.
+ void configureStorageDiagnostics(std::span<const std::uint8_t> roundedSteps);
+ auto diagnosticIntermediateValues() const -> const std::vector<std::vector<float>> &;
+#endif
+
 
 	// Inputs are padded GPU buffers in COPY_SOURCE; predicate, when non-null, is an eight-byte
 	// value in PREDICATION. Output is a READBACK buffer in COPY_DEST. This only

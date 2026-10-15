@@ -34,7 +34,12 @@ CPP_TEMPLATE = Template("""\
 
 // clang-format off
 
+#include <cstring>
 #include <memory>
+#include <type_traits>
+#include <vector>
+
+#include <DirectXPackedVector.h>
 
 #include "DmlProgram/BaselineDmlProgramRuntime.hpp"
 
@@ -49,29 +54,65 @@ $input_specs
 
 $graph_nodes
 
+$uav_barriers
+
 alignas(16) constexpr char embeddedWeights[] =
 $weight_literals;
 
 static_assert(sizeof(embeddedWeights) - 1 == $weight_bytes);
+static_assert((sizeof(embeddedWeights) - 1) / sizeof(std::uint16_t) * sizeof(float) == $expanded_weight_bytes);
 
-auto weights() -> std::span<const std::byte>
+// Only the embedded payload is binary16. Runtime descriptors and uploads are FP32.
+auto weights() -> std::vector<float>
 {
-\treturn std::as_bytes(std::span(embeddedWeights, sizeof(embeddedWeights) - 1));
+\tstd::vector<float> expanded((sizeof(embeddedWeights) - 1) / sizeof(std::uint16_t));
+\tfor (std::size_t i = 0; i < expanded.size(); ++i) {
+\t\tstd::uint16_t bits;
+\t\tstd::memcpy(&bits, embeddedWeights + i * sizeof(bits), sizeof(bits));
+\t\texpanded[i] = DirectX::PackedVector::XMConvertHalfToFloat(bits);
+\t}
+\treturn expanded;
 }
 
-constexpr auto barrierPlan = makeBarrierPlan(graphNodes);
+// Python emits node-boundary UAV barriers for this fixed execution order.
+// Each operator output has dedicated storage; node-internal synchronization
+// remains the responsibility of its C++ implementation.
+static_assert([] {
+\tfor (const auto &spec : inputSpecs)
+\t\tif (spec.dataType != dtFloat32) return false;
+\tfor (const auto &node : graphNodes) {
+\t\tconst auto type = std::visit([](const auto &group) {
+\t\t\tif constexpr (std::is_same_v<std::decay_t<decltype(group)>, InputItem>)
+\t\t\t\treturn group.dataType;
+\t\t\telse
+\t\t\t\treturn std::visit([](const auto &op) { return op.dataType; }, group);
+\t\t}, node);
+\t\tif (type != dtFloat32) return false;
+\t}
+\treturn true;
+}());
 
 constexpr Graph graph{
 \t$spec_count, inputSpecs,
 \t${node_count}LL, graphNodes,
-\t$output_index, barrierPlan.data(),
+\t$output_index, uavBarriers,
 };
 
 } // namespace
 
+#ifdef DML_MODEL_DIAGNOSTICS
+auto mediaPipeLandscapeDiagnosticGraph() -> Graph { return graph; }
+auto mediaPipeLandscapeDiagnosticWeights() -> std::span<const std::byte>
+{
+\tstatic const auto expanded = weights();
+\treturn std::as_bytes(std::span(expanded));
+}
+#endif
+
 auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDmlProgramRuntime>
 {
-\treturn std::make_unique<BaselineDmlProgramRuntime>(graph, weights());
+\tconst auto expanded = weights();
+\treturn std::make_unique<BaselineDmlProgramRuntime>(graph, std::as_bytes(std::span(expanded)));
 }
 
 } // namespace BackgroundRemoval::Generated
@@ -208,9 +249,9 @@ DATA_TYPES = {
 }
 GROUPS = {
     "AveragePool2d": "Onnx11Node", "BiasedConv2d": "Onnx11Node",
-    "BiasedConvTranspose2d": "Onnx11Node",
-    "BiasedConv2dRelu": "FusedNode", "HardSwishGate": "FusedNode", "MPLDConvTranspose": "FusedNode",
-    "Clip": "Onnx13Node", "Resize": "Onnx13Node", "Sigmoid": "Onnx13Node",
+    "BiasedConvTranspose2d": "Onnx11Node", "DepthToSpace": "Onnx11Node",
+    "MPLDDepthwiseConv2dRelu": "FusedNode", "BiasedConv2dRelu": "FusedNode", "HardSwishGate": "FusedNode",
+    "ClipFloat32": "Onnx13Node", "Resize": "Onnx13Node", "Sigmoid": "Onnx13Node",
     "Add": "Onnx14Node", "Mul": "Onnx14Node", "Relu": "Onnx14Node",
 }
 
@@ -218,15 +259,19 @@ GROUPS = {
 def data_type(element_type: int) -> str:
     if element_type not in DATA_TYPES:
         raise RuntimeError(f"unsupported tensor data type: {element_type}")
-    return "DataType::" + DATA_TYPES[element_type]
+    return "dt" + DATA_TYPES[element_type]
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--offline", action="store_true", help="Use the cached pinned model only")
-    parser.add_argument("--no-mpld-conv-transpose", action="store_true", help="Use the DML ConvTranspose performance baseline")
+    parser.add_argument("--float32", action="store_true", help="Compatibility option: execution is always FP32; embedded weights remain FP16")
+    parser.add_argument("--no-mpld-depthwise-conv", action="store_true", help="Use native DML for the Node 230 depthwise Conv+ReLU baseline")
+    parser.add_argument("--no-pointwise-projection", action="store_true", help="Keep backward DML ConvTranspose instead of the fixed pointwise graph conversion")
     parser.add_argument("--no-fuse-hard-swish", action="store_true", help="Keep four DML operations per HardSwish for benchmarking")
     parser.add_argument("--no-fuse-conv-relu", action="store_true", help="Generate the unfused performance baseline")
+    parser.add_argument("--uav-placement", choices=["first-consumer", "early-batched"],
+                        default="first-consumer", help="Place output barriers at first use or an earlier existing boundary")
     parser.add_argument("source", type=pathlib.Path)
     args = parser.parse_args()
 
@@ -244,8 +289,44 @@ def main() -> None:
     }
     initializers = {item.name: item for item in model.graph.initializer}
     nodes = list(model.graph.node)
+    projection_origins = {}
+    if not args.no_pointwise_projection:
+        converted = []
+        for node in nodes:
+            attribute = attrs(node)
+            if (node.op_type == "ConvTranspose" and not node.domain and len(node.input) == 3
+                    and shapes[node.input[0]] == [1, 16, 72, 128]
+                    and list(initializers[node.input[1]].dims) == [16, 1, 2, 2]
+                    and list(initializers[node.input[2]].dims) == [1]
+                    and shapes[node.output[0]] == [1, 1, 144, 256]
+                    and list(attribute.get("strides", [1, 1])) == [2, 2]
+                    and list(attribute.get("dilations", [1, 1])) == [1, 1]
+                    and list(attribute.get("pads", [0, 0, 0, 0])) == [0, 0, 0, 0]
+                    and int(attribute.get("group", 1)) == 1
+                    and list(attribute.get("output_padding", [0, 0])) == [0, 0]
+                    and attribute.get("auto_pad", b"NOTSET") == b"NOTSET"
+                    and list(attribute.get("output_shape", [144, 256])) == [144, 256]):
+                # W'[dy*2+dx,c,0,0] = W[c,0,dy,dx]. Keep shared originals intact.
+                stem = node.output[0] + "__pointwise"
+                weight_name, bias_name = stem + "_weight", stem + "_bias"
+                if any(name in shapes or name in initializers for name in (stem, weight_name, bias_name)):
+                    raise RuntimeError("pointwise projection name collision")
+                weights = numpy_helper.to_array(initializers[node.input[1]])
+                bias = numpy_helper.to_array(initializers[node.input[2]])
+                initializers[weight_name] = numpy_helper.from_array(
+                    weights[:, 0].reshape(16, 4).T.copy().reshape(4, 16, 1, 1), weight_name)
+                initializers[bias_name] = numpy_helper.from_array(np.repeat(bias, 4), bias_name)
+                shapes[stem] = [1, 4, 72, 128]
+                projection_origins[stem] = projection_origins[node.output[0]] = original_nodes[tuple(node.output)]
+                converted.append(onnx.helper.make_node("Conv", [node.input[0], weight_name, bias_name],
+                    [stem], name=stem, kernel_shape=[1, 1]))
+                converted.append(onnx.helper.make_node("DepthToSpace", [stem], list(node.output),
+                    name=stem + "_shuffle", blocksize=2, mode="DCR"))
+            else:
+                converted.append(node)
+        nodes = converted
     ignored_inputs = {"Clip": {1, 2}, "Resize": {1, 2, 3}}
-    allowed = {"HardSigmoid", "Add", "Mul", "Relu", "Clip", "Resize", "Sigmoid", "AveragePool", "Conv", "ConvTranspose"}
+    allowed = {"HardSigmoid", "Add", "Mul", "Relu", "Clip", "Resize", "Sigmoid", "AveragePool", "Conv", "ConvTranspose", "DepthToSpace"}
     for index, node in enumerate(nodes):
         if node.op_type not in allowed:
             raise RuntimeError(f"node {index}: operator {node.op_type} is outside the pinned Landscape variants")
@@ -253,6 +334,8 @@ def main() -> None:
         value.name: data_type(value.type.tensor_type.elem_type)
         for value in [*model.graph.input, *model.graph.value_info, *model.graph.output]
     }
+    for value in projection_origins:
+        types[value] = "dtFloat32"
     used_initializers = {
         name
         for node in nodes
@@ -270,22 +353,30 @@ def main() -> None:
     runtime_inputs = [value for value in model.graph.input if value.name not in initializers]
     for value in runtime_inputs:
         spec_indices[value.name] = len(spec_entries)
-        spec_entries.append(f"{{{types[value.name]}, ItemType::RuntimeInput, {shape_fields(shapes[value.name])}, 0LL}}")
+        spec_entries.append(f"{{kRuntimeInput, {types[value.name]}, {shape_fields(shapes[value.name])}}}")
     weight_data = bytearray()
+    expanded_weight_bytes = 0
     for name, initializer in initializers.items():
         if name not in used_initializers:
             continue
         array = numpy_helper.to_array(initializer)
         dtype = data_type(initializer.data_type)
-        # Preserve packed little-endian elements; GPU allocation padding belongs to the runtime.
-        offset = len(weight_data)
-        weight_data.extend(array.astype(array.dtype.newbyteorder("<"), copy=False).tobytes(order="C"))
+        types[name] = dtype
+        if initializer.data_type != onnx.TensorProto.FLOAT:
+            raise RuntimeError(f"Landscape execution requires FP32 weights: {name}")
+        packed = array.astype("<f2")
+        if not np.isfinite(array).all() or not np.array_equal(array, packed.astype(np.float32)):
+            raise RuntimeError(f"Weight cannot be stored losslessly as FP16: {name}")
+        # InputSpec offsets describe expanded FP32 bytes, not the embedded FP16 payload.
+        offset = expanded_weight_bytes
+        expanded_weight_bytes += array.size * np.dtype("<f4").itemsize
+        weight_data.extend(packed.tobytes(order="C"))
         spec_indices[name] = len(spec_entries)
-        spec_entries.append(f"{{{dtype}, ItemType::Weight, {shape_fields(list(initializer.dims) or [1])}, {offset}LL}}")
-    if len(weight_data) >= 2**63:
+        spec_entries.append(f"{{{offset}LL, {dtype}, {shape_fields(list(initializer.dims) or [1])}}}")
+    if expanded_weight_bytes >= 2**63:
         raise RuntimeError("weight data exceeds the BaselineDml signed 64-bit offset range")
     if not spec_entries or len(spec_entries) > 2**31 - 1:
-        raise RuntimeError("input specification count is outside the Definition Size range")
+        raise RuntimeError("input specification count is outside the int32 range")
 
     # Model-specific Conv -> Relu lowering; never change a shared/raw Conv output.
     consumers = {}
@@ -314,15 +405,24 @@ def main() -> None:
 
     value_sources = {}
     node_entries = []
+    barrier_entries = []
+    node_types = []
+    pending_writes = []
     for value in runtime_inputs:
         value_sources[value.name] = len(node_entries)
-        node_entries.append(f"InputItem{{{spec_indices[value.name]}}}")
+        node_entries.append(f"InputItem{{{types[value.name]}, {spec_indices[value.name]}}}")
+        node_types.append(types[value.name])
+        pending_writes.append(False)
+        barrier_entries.append([])
 
     def source(name: str) -> str:
         if name not in value_sources:
             if name not in spec_indices:
                 raise RuntimeError(f"input {name} is not a constant or preceding node")
-            node_entries.append(f"InputItem{{{spec_indices[name]}}}")
+            node_entries.append(f"InputItem{{{types[name]}, {spec_indices[name]}}}")
+            node_types.append(types[name])
+            pending_writes.append(False)
+            barrier_entries.append([])
             value_sources[name] = len(node_entries) - 1
         return str(value_sources[name])
 
@@ -343,7 +443,7 @@ def main() -> None:
         elif node.op_type == "Clip":
             minimum = float(numpy_helper.to_array(initializers[node.input[1]]).reshape(-1)[0])
             maximum = float(numpy_helper.to_array(initializers[node.input[2]]).reshape(-1)[0])
-            entry = f"Clip{{{inputs[0]}, {output}, {float_literal(minimum)}, {float_literal(maximum)}}}"
+            entry = f"ClipFloat32{{{inputs[0]}, {output}, {float_literal(minimum)}, {float_literal(maximum)}}}"
         elif node.op_type in {"Relu", "Sigmoid"}:
             entry = f"{node.op_type}{{{inputs[0]}, {output}}}"
         elif node.op_type in {"Conv", "ConvTranspose"}:
@@ -358,20 +458,24 @@ def main() -> None:
             if len(inputs) != 3:
                 raise RuntimeError(f"node {node_index}: unbiased {node.op_type} is outside the pinned Landscape variants")
             kind = "BiasedConv2dRelu" if node_index in fused_relu else "Biased" + node.op_type + "2d"
-            if (not args.no_mpld_conv_transpose and node.op_type == "ConvTranspose"
-                    and shapes[node.input[0]] == [1, 16, 72, 128] and filter_shape == [16, 1, 2, 2]
-                    and output_shape == [1, 1, 144, 256] and list(initializers[node.input[2]].dims) == [1]
-                    and strides == [2, 2] and dilations == [1, 1] and pads == [0, 0, 0, 0]
-                    and int(attribute.get("group", 1)) == 1
-                    and list(attribute.get("output_padding", [0, 0])) == [0, 0]
+            if (not args.no_mpld_depthwise_conv and kind == "BiasedConv2dRelu"
+                    and shapes[node.input[0]] == [1, 16, 72, 128]
+                    and output_shape == [1, 16, 72, 128] and filter_shape == [16, 1, 3, 3]
+                    and list(initializers[node.input[2]].dims) == [16]
+                    and strides == [1, 1] and dilations == [1, 1] and pads == [1, 1, 1, 1]
+                    and int(attribute.get("group", 1)) == 16
                     and attribute.get("auto_pad", b"NOTSET") == b"NOTSET"
-                    and types[node.output[0]] == "DataType::Float32"):
-                kind = "MPLDConvTranspose"
+                    and types[node.output[0]] == "dtFloat32"):
+                kind = "MPLDDepthwiseConv2dRelu"
             connections = ", ".join(inputs)
             group = int(attribute.get("group", 1))
             entry = (f"{kind}{{{connections}, "
                      f"{dimensions(strides)}, {dimensions(dilations)}, "
                      f"{dimensions(pads[:2])}, {dimensions(pads[2:])}, {group}u, {dimensions(output_shape)}}}")
+        elif node.op_type == "DepthToSpace":
+            if attribute.get("mode", b"DCR") != b"DCR":
+                raise RuntimeError("DepthToSpace requires DCR order")
+            entry = f"DepthToSpace{{{inputs[0]}, {int(attribute['blocksize'])}u, {dimensions(output_shape)}}}"
         elif node.op_type == "AveragePool":
             kernel = list(attribute["kernel_shape"])
             strides = list(attribute.get("strides", kernel))
@@ -389,15 +493,39 @@ def main() -> None:
                      f"{output_shape[-2] // input_shape[-2]}u, {output_shape[-1] // input_shape[-1]}u, {dimensions(output_shape)}}}")
         else:
             raise RuntimeError(f"unsupported node {node_index}: {node.op_type}")
-        if entry.startswith("MPLDConvTranspose{"):
-            entry = f"MPLDConvTranspose{{{connections}}}"
+        if entry.startswith(("MPLDDepthwiseConv2dRelu{",)):
+            entry = entry.split("{", 1)[0] + "{" + connections + "}"
         kind = entry.split("{", 1)[0]
         dtype = types[node.output[0]]
-        entry = entry.replace("{", "{" + dtype + ", ", 1)
-        entry = f"{GROUPS[kind]}{{{entry}}}"
-        if kind == "MPLDConvTranspose":
-            origin = original_nodes[tuple(node.output)]
-            entry = (f"// Original ONNX #{origin[0]} ConvTranspose {json.dumps(origin[2])}: fixed 2x2 stride-2 projection; Sigmoid stays separate.\n\t" + entry)
+        barriers = []
+        # Inputs/weights are ordered by transfer/initialization. An operator's
+        # dedicated output needs a UAV barrier at its first consumer only.
+        # A repeated input is synchronized once, in input order.
+        for value in inputs:
+            producer = int(value)
+            if not 0 <= producer < len(node_entries):
+                raise RuntimeError(f"node {node_index}: input must reference a preceding node")
+            if node_types[producer] != dtype:
+                raise RuntimeError(f"node {node_index}: input/output data type mismatch")
+            if pending_writes[producer]:
+                barriers.append(producer)
+            pending_writes[producer] = False
+        arguments = entry.split("{", 1)[1][:-1]
+        if kind == "ClipFloat32":
+            if dtype != "dtFloat32":
+                raise RuntimeError(f"node {node_index}: ClipFloat32 requires Float32")
+            entry = f"{GROUPS[kind]}{{{kind}{{{arguments}}}}}"
+        else:
+            entry = f"{GROUPS[kind]}{{{kind}{{{dtype}, {arguments}}}}}"
+        if len(barriers) > 8:
+            raise RuntimeError(f"node {node_index}: more than eight UAV barriers")
+        barrier_entries.append(barriers)
+        node_types.append(dtype)
+        pending_writes.append(True)
+        if node.output[0] in projection_origins:
+            origin = projection_origins[node.output[0]]
+            entry = (f"// Original ONNX #{origin[0]} ConvTranspose {json.dumps(origin[2])}: "
+                     f"fixed graph conversion, {kind}; Sigmoid stays separate.\n\t" + entry)
         if node.op_type == "HardSigmoid":
             original_index = int(node.output[0].split("_")[2])
             original = original_model.graph.node[original_index]
@@ -413,16 +541,49 @@ def main() -> None:
         node_entries.append(entry)
         value_sources[node.output[0]] = len(node_entries) - 1
 
+    if len(barrier_entries) != len(node_entries):
+        raise RuntimeError("UAV barrier table does not match Node count")
     if len(node_entries) > 2**31 - 1:
-        raise RuntimeError("node indices exceed the Definition Size range")
+        raise RuntimeError("node indices exceed the int32 range")
+    # Dedicated outputs are written once. Each first-use barrier can move to
+    # any boundary after its producer and no later than that first use.
+    # Keep the baseline boundaries so early batching cannot add API calls.
+    baseline_barriers = [row.copy() for row in barrier_entries]
+    if args.uav_placement == "early-batched":
+        boundaries = [index for index, row in enumerate(baseline_barriers) if row]
+        barrier_entries = [[] for _ in node_entries]
+        for first_use, row in enumerate(baseline_barriers):
+            for producer in row:
+                boundary = next(index for index in boundaries
+                                if producer < index <= first_use and len(barrier_entries[index]) < 8)
+                barrier_entries[boundary].append(producer)
+    # Check that every baseline dependency still has exactly one barrier in
+    # its legal interval. No read-after-write dependency may be removed.
+    expected = {producer: first_use for first_use, row in enumerate(baseline_barriers) for producer in row}
+    actual = {}
+    for boundary, row in enumerate(barrier_entries):
+        for producer in row:
+            if producer in actual or not producer < boundary <= expected[producer]:
+                raise RuntimeError("invalid UAV barrier placement")
+            actual[producer] = boundary
+    if actual.keys() != expected.keys():
+        raise RuntimeError("missing UAV barrier dependency")
+    print(json.dumps({"uav_placement": args.uav_placement,
+                      "barriers": len(actual),
+                      "boundaries": sum(bool(row) for row in barrier_entries),
+                      "moved": sum(actual[producer] != first_use for producer, first_use in expected.items())}))
+    barrier_entries = ["{" + ", ".join(map(str, row + [-1] * (8 - len(row)))) + "}"
+                       for row in barrier_entries]
     source_code = CPP_TEMPLATE.substitute(
         model_repository=MODEL_REPOSITORY,
         model_revision=MODEL_REVISION,
         model_filename=MODEL_FILENAME,
         input_specs=render_table("InputSpecItem", "inputSpecs", spec_entries),
         graph_nodes=render_table("Node", "graphNodes", node_entries),
+        uav_barriers=render_table("std::array<std::int32_t, 8>", "uavBarriers", barrier_entries),
         weight_literals=render_weight_literals(weight_data),
         weight_bytes=len(weight_data),
+        expanded_weight_bytes=expanded_weight_bytes,
         spec_count=len(spec_entries),
         node_count=len(node_entries),
         output_index=value_sources[model.graph.output[0].name],

@@ -26,10 +26,10 @@ add_executable(WinMlComparison WinMlComparison.cpp
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
   "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp")
-target_include_directories(WinMlComparison PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
+target_include_directories(WinMlComparison PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest" "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(WinMlComparison PRIVATE d3d12 d3dcompiler directml windowsapp advapi32 test_onnx_nanopb)
 
-foreach(OPERATOR MPLDConvTranspose MPLDConvTransposeContract HardSwish HardSwishFused ReduceMean Resize Add Mul Relu Sigmoid Clip Conv DepthwiseConv ConvTranspose ConvRelu DepthwiseConvRelu)
+foreach(OPERATOR MPLDDepthwiseConv2dRelu MPLDDepthwiseConv2dReluContract HardSwish HardSwishFused ReduceMean Resize Add Mul Relu Sigmoid ClipFloat32 ClipFloat32Contract Conv DepthwiseConv ConvTranspose ConvRelu DepthwiseConvRelu)
   add_test(NAME "WinMlComparison.${OPERATOR}" COMMAND WinMlComparison "--test-case=${OPERATOR}" --no-skip)
   set_tests_properties("WinMlComparison.${OPERATOR}" PROPERTIES TIMEOUT 120)
 endforeach()
@@ -43,7 +43,7 @@ if(EXISTS "${MEDIAPIPE_LANDSCAPE_ONNX}")
   target_sources(WinMlComparison PRIVATE
     "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp")
   target_include_directories(WinMlComparison PRIVATE "${LANDSCAPE_GENERATED}")
-  target_compile_definitions(WinMlComparison PRIVATE MEDIAPIPE_LANDSCAPE_ONNX="${MEDIAPIPE_LANDSCAPE_ONNX}")
+  target_compile_definitions(WinMlComparison PRIVATE DML_MODEL_DIAGNOSTICS MEDIAPIPE_LANDSCAPE_ONNX="${MEDIAPIPE_LANDSCAPE_ONNX}")
   target_compile_definitions(WinMlComparison PRIVATE LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/Scenarios/0000-portrait-umireon.jpg")
   target_link_libraries(WinMlComparison PRIVATE windowscodecs ole32)
   add_test(NAME WinMlComparison.MediaPipeLandscape COMMAND WinMlComparison --test-case=MediaPipeLandscape --no-skip)
@@ -116,3 +116,39 @@ if(EXISTS "${OBS_TEST_BIN_DIR}/obs.dll" AND EXISTS "${OBS_TEST_BIN_DIR}/libobs-d
       ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
   endif()
 endif()
+
+# Isolated descriptor matrix for numeric checks and opt-in PIX inspection.
+add_executable(ConvMetaCommandProbe ConvMetaCommandProbe.cpp)
+target_link_libraries(ConvMetaCommandProbe PRIVATE d3d12 directml)
+add_test(NAME ConvMetaCommandProbe.DescriptorMatrix COMMAND ConvMetaCommandProbe)
+set_tests_properties(ConvMetaCommandProbe.DescriptorMatrix PROPERTIES TIMEOUT 180)
+
+if(EXISTS "${MEDIAPIPE_LANDSCAPE_ONNX}")
+  # Slow, opt-in tensor dumps; deliberately not part of ordinary CTest.
+  add_executable(LandscapePrecisionDump EXCLUDE_FROM_ALL LandscapePrecisionDump.cpp
+    "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
+    "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
+    "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp"
+    "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp")
+  target_include_directories(LandscapePrecisionDump PRIVATE "${PLUGIN_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
+  target_compile_definitions(LandscapePrecisionDump PRIVATE DML_MODEL_DIAGNOSTICS)
+  target_link_libraries(LandscapePrecisionDump PRIVATE d3d12 d3dcompiler directml advapi32)
+endif()
+
+if(EXISTS "${MEDIAPIPE_LANDSCAPE_ONNX}")
+  add_executable(BiasedConv2dReluBenchmark BiasedConv2dReluBenchmark.cpp
+    "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
+    "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
+    "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp"
+    "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp")
+  target_include_directories(BiasedConv2dReluBenchmark PRIVATE "${PLUGIN_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
+  target_compile_definitions(BiasedConv2dReluBenchmark PRIVATE DML_MODEL_DIAGNOSTICS)
+  target_link_libraries(BiasedConv2dReluBenchmark PRIVATE d3d12 dxgi d3dcompiler directml advapi32 windowsapp test_onnx_nanopb)
+  add_test(NAME BiasedConv2dReluBenchmark.WinML COMMAND BiasedConv2dReluBenchmark --verify --output "${CMAKE_CURRENT_BINARY_DIR}/conv-relu-verification")
+  set_tests_properties(BiasedConv2dReluBenchmark.WinML PROPERTIES TIMEOUT 300)
+  add_test(NAME BiasedConv2dReluBenchmark.WarpWinML COMMAND BiasedConv2dReluBenchmark --verify --warp --custom --output "${CMAKE_CURRENT_BINARY_DIR}/conv-relu-warp-verification")
+  set_tests_properties(BiasedConv2dReluBenchmark.WarpWinML PROPERTIES TIMEOUT 300)
+endif()
+
+add_test(NAME WinMlComparison.PointwiseConvTranspose COMMAND WinMlComparison --test-case=PointwiseConvTranspose)
+set_tests_properties(WinMlComparison.PointwiseConvTranspose PROPERTIES TIMEOUT 120)

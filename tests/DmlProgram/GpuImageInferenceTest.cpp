@@ -21,6 +21,18 @@
 #include <limits>
 #include <numeric>
 #include <vector>
+#include <DirectXPackedVector.h>
+
+void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input, std::span<float> output)
+{
+    if (runtime.inputInfo(0).type != BaselineDml::ProgramDefinition::dtFloat32 ||
+        runtime.outputInfo().type != BaselineDml::ProgramDefinition::dtFloat32) {
+        FAIL("Landscape requires FP32 input and output");
+    }
+    const std::array inputs{std::as_bytes(input)};
+    runtime.run(inputs, std::as_writable_bytes(output));
+}
+
 
 #ifdef GPU_LANDSCAPE_MODEL
 #include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.hpp"
@@ -150,8 +162,8 @@ TEST_CASE("MainEffectLumaAbsDiff")
 TEST_CASE("PredicatedDirectML")
 {
 	const std::array<std::uint32_t, 4> shape{1, 1, 1, 4};
-	const PD::InputSpecItem spec{PD::DataType::Float32, PD::ItemType::RuntimeInput, 4, shape, 0};
-	const PD::Node nodes[]{PD::InputItem{0}, PD::Onnx14Node{PD::Relu{PD::DataType::Float32, 0, 4, shape}}};
+	const PD::InputSpecItem spec{PD::kRuntimeInput, PD::dtFloat32, 4, shape};
+	const PD::Node nodes[]{PD::InputItem{PD::dtFloat32, 0}, PD::Onnx14Node{PD::Relu{PD::dtFloat32, 0, 4, shape}}};
 	BaselineDml::BaselineDmlProgramRuntime runtime({1, &spec, 2, nodes, 1}, {});
 	auto check = [](HRESULT hr) {
 		if (FAILED(hr))
@@ -415,7 +427,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 	auto runtime = BackgroundRemoval::Generated::makeMediaPipeLandscapeDmlProgram();
 	std::vector<float> expected(256 * 144);
 	const std::array inputs{std::as_bytes(std::span(input))};
-	runtime->run(inputs, std::as_writable_bytes(std::span(expected)));
+	runLandscapeReference(*runtime, input, expected);
 	property.imageSimilarityThreshold = 40;
 	{
 		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, filter.get(), 256, 144);
@@ -432,7 +444,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 				image.reset(gs_texture_create(256, 144, GS_BGRA, 1, &inverted, 0));
 				REQUIRE(image);
 				inputData->image_ = image.get();
-				runtime->run(inputs, std::as_writable_bytes(std::span(expected)));
+				runLandscapeReference(*runtime, input, expected);
 			}
 			// Settings change must affect refinement without forcing a new inference.
 			property.refineMaskEnabled = frame == 1;

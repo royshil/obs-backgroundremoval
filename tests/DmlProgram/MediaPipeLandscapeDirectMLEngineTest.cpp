@@ -15,6 +15,18 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <DirectXPackedVector.h>
+
+void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input, std::span<float> output)
+{
+    if (runtime.inputInfo(0).type != BaselineDml::ProgramDefinition::dtFloat32 ||
+        runtime.outputInfo().type != BaselineDml::ProgramDefinition::dtFloat32) {
+        FAIL("Landscape requires FP32 input and output");
+    }
+    const std::array inputs{std::as_bytes(input)};
+    runtime.run(inputs, std::as_writable_bytes(output));
+}
+
 namespace BackgroundRemoval::Generated {
 auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDml::BaselineDmlProgramRuntime>;
 }
@@ -131,7 +143,7 @@ TEST_CASE("LandscapeEngineBgraInput")
 			CHECK_FALSE(frameEngine.isDone());
 			CHECK_THROWS_AS(frameEngine.getResult(output), std::logic_error);
 			const std::array inputs{std::as_bytes(std::span(input))};
-			reference->run(inputs, std::as_writable_bytes(std::span(expected)));
+			runLandscapeReference(*reference, input, expected);
 			double maxError = 0;
 			for (size_t i = 0; i < output.size(); ++i) {
 				REQUIRE(std::isfinite(output[i]));

@@ -33,22 +33,22 @@ namespace BaselineDml {
 namespace {
 
 // Keep SDK numeric compatibility checked at the runtime boundary.
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Unknown) ==
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtUnknown) ==
 	      DML_TENSOR_DATA_TYPE_UNKNOWN);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Float32) ==
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtFloat32) ==
 	      DML_TENSOR_DATA_TYPE_FLOAT32);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Float16) ==
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtFloat16) ==
 	      DML_TENSOR_DATA_TYPE_FLOAT16);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt32) == DML_TENSOR_DATA_TYPE_UINT32);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt16) == DML_TENSOR_DATA_TYPE_UINT16);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt8) == DML_TENSOR_DATA_TYPE_UINT8);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int32) == DML_TENSOR_DATA_TYPE_INT32);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int16) == DML_TENSOR_DATA_TYPE_INT16);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int8) == DML_TENSOR_DATA_TYPE_INT8);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Float64) ==
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtUInt32) == DML_TENSOR_DATA_TYPE_UINT32);
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtUInt16) == DML_TENSOR_DATA_TYPE_UINT16);
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtUInt8) == DML_TENSOR_DATA_TYPE_UINT8);
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtInt32) == DML_TENSOR_DATA_TYPE_INT32);
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtInt16) == DML_TENSOR_DATA_TYPE_INT16);
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtInt8) == DML_TENSOR_DATA_TYPE_INT8);
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtFloat64) ==
 	      DML_TENSOR_DATA_TYPE_FLOAT64);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::UInt64) == DML_TENSOR_DATA_TYPE_UINT64);
-static_assert(static_cast<ProgramDefinition::UINT>(ProgramDefinition::DataType::Int64) == DML_TENSOR_DATA_TYPE_INT64);
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtUInt64) == DML_TENSOR_DATA_TYPE_UINT64);
+static_assert(static_cast<std::uint32_t>(ProgramDefinition::dtInt64) == DML_TENSOR_DATA_TYPE_INT64);
 
 using Microsoft::WRL::ComPtr;
 constexpr TensorId noTensor = -1;
@@ -257,7 +257,13 @@ public:
 				commandList_->ResourceBarrier(static_cast<UINT>(step.barriers.size()),
 							      step.barriers.data());
 			recordStep(commandList_.Get(), step);
+#ifdef DML_MODEL_DIAGNOSTICS
+            if (!diagnosticRoundedSteps_.empty()) roundDiagnosticStep(step, &step - steps_.data());
+#endif
 		}
+#ifdef DML_MODEL_DIAGNOSTICS
+        if (!diagnosticRoundedSteps_.empty()) recordDiagnosticCopies();
+#endif
 		auto *outputResource = resource(outputTensor_);
 		const auto &outputTensor = tensors_.at(outputTensor_);
 		auto outputBarrier = transition(outputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
@@ -276,6 +282,9 @@ public:
 		}
 		TraceLoggingWriteStop(recording, "Runtime.RecordCommands");
 		executeAndWait();
+#ifdef DML_MODEL_DIAGNOSTICS
+        if (!diagnosticRoundedSteps_.empty()) readDiagnosticCopies();
+#endif
 		TraceLoggingThreadActivity<provider, 0x1> readback;
 		TraceLoggingWriteStart(readback, "Runtime.ReadbackCpuCopy");
 		void *mapped = nullptr;
@@ -368,6 +377,9 @@ public:
 		commands->SetPredication(nullptr, 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
 	}
 
+#ifdef DML_MODEL_DIAGNOSTICS
+#include "StorageDiagnostics.inl"
+#endif
 private:
 	auto resource(TensorId id) -> ID3D12Resource *
 	{
@@ -416,8 +428,10 @@ private:
 
 		std::uint32_t descriptorCount = 0;
 		for (auto &step : steps_) {
+			if (step.output == noTensor)
+				continue;
 			if (step.shader != CompiledShader::None) {
-				createMPLDConvTransposePipeline(step);
+				createMPLDDepthwiseConv2dReluPipeline(step);
 				continue;
 			}
 			step.operationProperties = step.operation->GetBindingProperties();
@@ -495,7 +509,7 @@ private:
 		tables.reserve(steps_.size());
 		for (std::size_t stepIndex = 0; stepIndex < steps_.size(); ++stepIndex) {
 			auto &step = steps_[stepIndex];
-			if (step.shader != CompiledShader::None)
+			if (step.output == noTensor || step.shader != CompiledShader::None)
 				continue;
 			ComPtr<IDMLBindingTable> table;
 			try {
@@ -544,38 +558,70 @@ private:
 			step.initializer.Reset();
 		}
 		weightUpload_.Reset();
-		if (!tensors_.at(outputTensor_).weight &&
-		    std::none_of(steps_.begin(), steps_.end(), [](const Step &step) { return step.shader != CompiledShader::None; }))
+		const bool needsSourceWeights = std::ranges::any_of(steps_, [&](const Step &step) {
+			return step.shader != CompiledShader::None ||
+			       std::ranges::any_of(step.barriersBefore,
+						   [&](TensorId id) { return tensors_.at(id).weight; });
+		});
+		if (!tensors_.at(outputTensor_).weight && !needsSourceWeights)
 			weight_.Reset();
 	}
 
-	void createMPLDConvTransposePipeline(Step &step)
+	void createMPLDDepthwiseConv2dReluPipeline(Step &step)
 	{
 		static constexpr char shader[] = R"HLSL(
-RWByteAddressBuffer inputTensor : register(u0);
-RWByteAddressBuffer filterTensor : register(u1);
-RWByteAddressBuffer biasTensor : register(u2);
-RWByteAddressBuffer outputTensor : register(u3);
-[numthreads(64, 1, 1)]
-void main(uint3 thread : SV_DispatchThreadID)
-{
-    uint pixel = thread.x;
-    if (pixel >= 72 * 128) return;
-    precise float4 sum = 0;
-    [unroll] for (uint channel = 0; channel < 16; ++channel) {
-        float x = asfloat(inputTensor.Load((channel * 72 * 128 + pixel) * 4));
-        float4 w = asfloat(filterTensor.Load4(channel * 16));
-        sum = sum + x * w;
-    }
-    sum = sum + asfloat(biasTensor.Load(0));
-    uint top = ((pixel / 128) * 2 * 256 + (pixel % 128) * 2) * 4;
-    outputTensor.Store2(top, asuint(sum.xy));
-    outputTensor.Store2(top + 256 * 4, asuint(sum.zw));
+#define W 128
+#define H 72
+#define C 16
+#define OW 128
+#define OH 72
+#define PX 1
+#define PY 1
+#define STRIP 8
+#define THREADS 64
+
+RWByteAddressBuffer input:register(u0);RWByteAddressBuffer weights:register(u1);RWByteAddressBuffer bias:register(u2);RWByteAddressBuffer output:register(u3);
+
+// Independent vertical strips: adjacent lanes cover adjacent x coordinates.
+// Rolling rows stay thread-local; every raw load uses a clamped address.
+float3 loadRow(uint channel, uint ox, int y) {
+ float3 row;
+ [unroll]for(uint kx=0;kx<3;++kx){
+  int x=int(ox)+int(kx)-PX;
+  int cx=clamp(x,0,W-1),cy=clamp(y,0,H-1);
+  float v=asfloat(input.Load(4*((channel*H+cy)*W+cx)));
+  row[kx]=(x>=0&&x<W&&y>=0&&y<H)?v:0;
+ }
+ return row;
 }
+[numthreads(THREADS,1,1)]void main(uint3 id:SV_DispatchThreadID){
+ const uint rows=(OH+STRIP-1)/STRIP;
+ uint i=id.x;if(i>=C*rows*OW)return;
+ uint channel=i/(rows*OW),ox=i%OW,oy=((i/OW)%rows)*STRIP;
+ float3 w0,w1,w2;
+ [unroll]for(uint k=0;k<3;++k){
+  w0[k]=asfloat(weights.Load(4*(channel*9+k)));
+  w1[k]=asfloat(weights.Load(4*(channel*9+3+k)));
+  w2[k]=asfloat(weights.Load(4*(channel*9+6+k)));
+ }
+ float b=asfloat(bias.Load(4*channel));
+ float3 r0=loadRow(channel,ox,int(oy)-PY);
+ float3 r1=loadRow(channel,ox,int(oy)+1-PY);
+ [unroll]for(uint n=0;n<STRIP;++n){
+  float3 r2=loadRow(channel,ox,int(oy+n)+2-PY);
+  precise float sum=0;
+  [unroll]for(uint k0=0;k0<3;++k0)sum=sum+r0[k0]*w0[k0];
+  [unroll]for(uint k1=0;k1<3;++k1)sum=sum+r1[k1]*w1[k1];
+  [unroll]for(uint k2=0;k2<3;++k2)sum=sum+r2[k2]*w2[k2];
+  if(oy+n<OH)output.Store(4*((channel*OH+oy+n)*OW+ox),asuint(max(sum+b,0)));
+  r0=r1;r1=r2;
+ }
+}
+
 )HLSL";
 		ComPtr<ID3DBlob> bytecode, errors;
-		check(D3DCompile(shader, sizeof(shader) - 1, "MPLDConvTranspose", nullptr, nullptr, "main", "cs_5_0",
-				 D3DCOMPILE_OPTIMIZATION_LEVEL3 | D3DCOMPILE_IEEE_STRICTNESS, 0, &bytecode, &errors), "Compile MPLDConvTranspose");
+		check(D3DCompile(shader, sizeof(shader) - 1, "MPLDDepthwiseConv2dRelu", nullptr, nullptr, "main", "cs_5_0",
+			D3DCOMPILE_OPTIMIZATION_LEVEL3 | D3DCOMPILE_IEEE_STRICTNESS, 0, &bytecode, &errors), "Compile MPLDDepthwiseConv2dRelu");
 		std::array<D3D12_ROOT_PARAMETER, 4> parameters{};
 		for (UINT i = 0; i < parameters.size(); ++i) {
 			parameters[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
@@ -585,16 +631,18 @@ void main(uint3 thread : SV_DispatchThreadID)
 		root.NumParameters = static_cast<UINT>(parameters.size());
 		root.pParameters = parameters.data();
 		ComPtr<ID3DBlob> serialized;
-		check(D3D12SerializeRootSignature(&root, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, &errors), "Serialize MPLDConvTranspose root signature");
-		check(d3dDevice_->CreateRootSignature(0, serialized->GetBufferPointer(), serialized->GetBufferSize(), IID_PPV_ARGS(&step.rootSignature)), "Create MPLDConvTranspose root signature");
+		check(D3D12SerializeRootSignature(&root, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, &errors), "Serialize MPLDDepthwiseConv2dRelu root signature");
+		check(d3dDevice_->CreateRootSignature(0, serialized->GetBufferPointer(), serialized->GetBufferSize(), IID_PPV_ARGS(&step.rootSignature)), "Create MPLDDepthwiseConv2dRelu root signature");
 		D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
 		desc.pRootSignature = step.rootSignature.Get();
 		desc.CS = {bytecode->GetBufferPointer(), bytecode->GetBufferSize()};
-		check(d3dDevice_->CreateComputePipelineState(&desc, IID_PPV_ARGS(&step.pipeline)), "Create MPLDConvTranspose pipeline");
+		check(d3dDevice_->CreateComputePipelineState(&desc, IID_PPV_ARGS(&step.pipeline)), "Create MPLDDepthwiseConv2dRelu pipeline");
 	}
 
 	void recordStep(ID3D12GraphicsCommandList *commands, const Step &step)
 	{
+		if (step.output == noTensor)
+			return;
 		if (step.shader == CompiledShader::None) {
 			recorder_->RecordDispatch(commands, step.operation.Get(), step.executionTable.Get());
 			return;
@@ -607,20 +655,23 @@ void main(uint3 thread : SV_DispatchThreadID)
 			commands->SetComputeRootUnorderedAccessView(index, resource(id)->GetGPUVirtualAddress() + (tensor.weight ? tensor.weightOffset : 0));
 		}
 		commands->SetComputeRootUnorderedAccessView(3, resource(step.output)->GetGPUVirtualAddress());
-		commands->Dispatch(72 * 128 / 64, 1, 1);
+		commands->Dispatch(16 * 9 * 128 / 64, 1, 1);
 	}
 
 	void createExecutionTables()
 	{
 		for (std::size_t stepIndex = 0; stepIndex < steps_.size(); ++stepIndex) {
 			auto &step = steps_[stepIndex];
+			// Tensor IDs include explicit Node input barriers and node-internal barriers.
 			for (const auto id : step.barriersBefore) {
 				D3D12_RESOURCE_BARRIER barrier{};
 				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
 				barrier.UAV.pResource = resource(id);
+				if (!barrier.UAV.pResource)
+					throw std::runtime_error("UAV barrier target resource is unavailable");
 				step.barriers.push_back(barrier);
 			}
-			if (step.shader != CompiledShader::None)
+			if (step.output == noTensor || step.shader != CompiledShader::None)
 				continue;
 			try {
 				step.executionTable = createTable(
@@ -757,3 +808,12 @@ void BaselineDmlProgramRuntime::recordGpuRun(ID3D12GraphicsCommandList *commands
 	impl_->recordGpuRun(commands, inputs, predicate, output, offset);
 }
 } // namespace BaselineDml
+
+#ifdef DML_MODEL_DIAGNOSTICS
+namespace BaselineDml {
+void BaselineDmlProgramRuntime::configureStorageDiagnostics(std::span<const std::uint8_t> roundedSteps)
+{ impl_->configureStorageDiagnostics(roundedSteps); }
+auto BaselineDmlProgramRuntime::diagnosticIntermediateValues() const -> const std::vector<std::vector<float>> &
+{ return impl_->diagnosticIntermediateValues(); }
+}
+#endif

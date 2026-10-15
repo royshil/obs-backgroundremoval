@@ -124,6 +124,7 @@ void transition(ID3D12GraphicsCommandList *commands, ID3D12Resource *resource, D
 	commands->ResourceBarrier(1, &barrier);
 }
 constexpr char packSource[] = R"hlsl(
+
 cbuffer Settings : register(b0) { uint width; uint count; }
 Texture2D<float4> image : register(t0);
 RWStructuredBuffer<float> output : register(u0);
@@ -209,13 +210,15 @@ MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native)
 	check(d->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&ready_)), "Create input-ready fence");
 	auto readyHandle = sharedHandle(d, ready_.Get());
 	check(producer_->OpenSharedFence(readyHandle.get(), IID_PPV_ARGS(&ready11_)), "Open input-ready fence");
+	const auto inputType = program_->inputInfo(0).type;
+	const auto outputType = program_->outputInfo().type;
 	if (program_->inputCount() != 1 ||
-	    program_->inputInfo(0).type != BaselineDml::ProgramDefinition::DataType::Float32 ||
+	    inputType != BaselineDml::ProgramDefinition::dtFloat32 ||
+	    outputType != BaselineDml::ProgramDefinition::dtFloat32 ||
 	    program_->inputInfo(0).dataBytes != count_ * sizeof(float) ||
-	    program_->outputInfo().type != BaselineDml::ProgramDefinition::DataType::Float32 ||
 	    program_->outputInfo().dataBytes != width_ * height_ * sizeof(float))
 		throw std::invalid_argument("Landscape engine tensor contract mismatch");
-	current_ = buffer(d, count_ * sizeof(float), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_HEAP_TYPE_DEFAULT);
+	current_ = buffer(d, program_->inputInfo(0).dataBytes, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_HEAP_TYPE_DEFAULT);
 	readback_ =
 		buffer(d, program_->outputInfo().dataBytes, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_READBACK);
 	check(d->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&allocator_)),
@@ -450,14 +453,14 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::runAsync(ID3D11Texture2D *input, co
 
 void MediaPipeLandscapeDirectMLEngine::Impl::getResult(std::span<float> output)
 {
-	if (output.size_bytes() != program_->outputInfo().dataBytes) {
+	if (output.size() != width_ * height_) {
 		throw std::invalid_argument("Landscape output size mismatch");
 	}
 	if (!isDone()) {
 		throw std::logic_error("DirectML result is not complete");
 	}
 	TraceLoggingFunction(provider, TraceLoggingKeyword(0x1));
-	const D3D12_RANGE range{0, output.size_bytes()};
+	const D3D12_RANGE range{0, program_->outputInfo().dataBytes};
 	void *mapped = nullptr;
 	check(readback_->Map(0, &range, &mapped), "Map engine output");
 	std::memcpy(output.data(), mapped, output.size_bytes());
