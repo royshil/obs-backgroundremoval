@@ -58,7 +58,7 @@ void FilterContext::destroy(void *data) noexcept
 void FilterContext::getDefaults(obs_data_t *settings) noexcept
 {
 	obs_data_set_default_int(settings, "v2_Model_PipelineId", MediaPipeLandscapeDirectMLPipeline::kPipelineId);
-	obs_data_set_default_double(settings, "v2_Model_MatteSensitivity", 35.0);
+	obs_data_set_default_double(settings, "v2_Model_MatteSensitivity", 60.0);
 	obs_data_set_default_bool(settings, "v2_RefineMask", true);
 	obs_data_set_default_double(settings, "v2_RefineMask_Threshold", 0.5);
 	obs_data_set_default_int(settings, "v2_RefineMask_Expansion", 0);
@@ -66,6 +66,21 @@ void FilterContext::getDefaults(obs_data_t *settings) noexcept
 	obs_data_set_default_int(settings, "v2_BlurBg_Factor", 4);
 	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", 0.1);
 	obs_data_set_default_double(settings, "v2_BlurBg_FocusDepth", 0.0);
+}
+
+auto FilterContext::handleAutoSensitivityClick(obs_properties_t *, obs_property_t *, void *data) -> bool
+{
+	if (auto *contextPtr = static_cast<std::shared_ptr<FilterContext> *>(data); contextPtr && *contextPtr) {
+		std::shared_ptr<MediaPipeLandscapeDirectMLPipeline> pipeline;
+		{
+			std::lock_guard lock((*contextPtr)->renderingPipelineMutex_);
+			pipeline = std::dynamic_pointer_cast<MediaPipeLandscapeDirectMLPipeline>(
+				(*contextPtr)->renderingPipeline_);
+		}
+		return pipeline && pipeline->autoSetSensitivity();
+	} else {
+		return false;
+	}
 }
 
 auto FilterContext::getProperties(void *) noexcept -> obs_properties_t *
@@ -86,6 +101,19 @@ auto FilterContext::getProperties(void *) noexcept -> obs_properties_t *
 		},
 		nullptr);
 
+	obs_properties_t *const modelProperties = obs_properties_create();
+	obs_property_t *const model = obs_properties_add_list(modelProperties, "v2_Model_PipelineId", "Bg. Rm.",
+							      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(model, obs_module_text("MediaPipe (Landscape) - DirectML"),
+				  MediaPipeLandscapeDirectMLPipeline::kPipelineId);
+	obs_properties_add_float_slider(modelProperties, "v2_Model_MatteSensitivity", obs_module_text("Sensitivity"),
+					0.0, 100.0, 0.01);
+	obs_property_t *const autoSensitivity = obs_properties_add_button(modelProperties, "v2_Model_AutoSensitivity",
+									  obs_module_text("AutoSetSensitivity"),
+									  handleAutoSensitivityClick);
+	obs_property_set_long_description(autoSensitivity, obs_module_text("AutoSetSensitivityDescription"));
+	obs_properties_add_group(properties, "v2_Model", obs_module_text("Models"), OBS_GROUP_NORMAL, modelProperties);
+
 	obs_properties_t *const blurProperties = obs_properties_create();
 	obs_properties_add_int_slider(blurProperties, "v2_BlurBg_Factor", obs_module_text("Strength"), 0, 20, 1);
 	obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusPoint", obs_module_text("Focus point"), 0.0,
@@ -103,14 +131,6 @@ auto FilterContext::getProperties(void *) noexcept -> obs_properties_t *
 	obs_properties_add_group(properties, "v2_RefineMask", obs_module_text("Refine Mask"), OBS_GROUP_CHECKABLE,
 				 thresholdProperties);
 
-	obs_properties_t *const modelProperties = obs_properties_create();
-	obs_property_t *const model = obs_properties_add_list(modelProperties, "v2_Model_PipelineId", "Bg. Rm.",
-							      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(model, obs_module_text("MediaPipe (Landscape) - DirectML"),
-				  MediaPipeLandscapeDirectMLPipeline::kPipelineId);
-	obs_properties_add_float_slider(modelProperties, "v2_Model_MatteSensitivity", obs_module_text("Sensitivity"),
-					0.0, 100.0, 1.0);
-	obs_properties_add_group(properties, "v2_Model", obs_module_text("Models"), OBS_GROUP_NORMAL, modelProperties);
 	return properties;
 }
 
@@ -127,9 +147,9 @@ void FilterContext::update(void *data, obs_data_t *settings) noexcept
 	     OBS_LOG_HEADER
 	     "Updating Windows settings: pipeline_id=%lld sensitivity=%.3f refine=%d threshold=%.3f expansion=%lld blur=%d blur_factor=%lld focus_point=%.3f focus_depth=%.3f",
 	     property.pipelineId, property.imageSimilarityThreshold, property.refineMaskEnabled,
-	     property.refineMaskThreshold,
-	     static_cast<long long>(property.refineMaskExpansion), property.blurBackgroundEnabled,
-	     static_cast<long long>(property.blurBackgroundFactor), property.blurFocusPoint, property.blurFocusDepth);
+	     property.refineMaskThreshold, static_cast<long long>(property.refineMaskExpansion),
+	     property.blurBackgroundEnabled, static_cast<long long>(property.blurBackgroundFactor),
+	     property.blurFocusPoint, property.blurFocusDepth);
 
 	std::lock_guard lock(context->renderingPipelineMutex_);
 	context->pendingFilterProperty_.swap(pendingFilterProperty);

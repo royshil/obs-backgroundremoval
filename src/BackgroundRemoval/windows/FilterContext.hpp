@@ -44,6 +44,7 @@ public:
 		sourceInfo.video_render = videoRender;
 		return sourceInfo;
 	}
+
 	static auto getName(void *) noexcept -> const char *;
 	static auto create(obs_data_t *settings, obs_source_t *source) noexcept -> void *;
 	static void destroy(void *data) noexcept;
@@ -62,6 +63,8 @@ private:
 	std::atomic<long long> heldPipelineId_{};
 	std::atomic<std::uint32_t> heldWidth_{};
 	std::atomic<std::uint32_t> heldHeight_{};
+
+	static auto handleAutoSensitivityClick(obs_properties_t *, obs_property_t *, void *) -> bool;
 };
 
 } // namespace BackgroundRemoval

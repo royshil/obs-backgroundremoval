@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <util/platform.h>
 
 namespace {
 
@@ -292,6 +293,18 @@ MediaPipeLandscapeDirectMLPipeline::~MediaPipeLandscapeDirectMLPipeline() noexce
 	obs_leave_graphics();
 }
 
+auto MediaPipeLandscapeDirectMLPipeline::autoSetSensitivity() noexcept -> bool
+{
+	const auto sensitivity = differenceHistory_.sensitivity(os_gettime_ns());
+	if (!sensitivity)
+		return false;
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_double(settings, "v2_Model_MatteSensitivity", *sensitivity);
+	obs_source_update(source_, settings);
+	obs_data_release(settings);
+	return true;
+}
+
 void MediaPipeLandscapeDirectMLPipeline::update(const FilterProperty &property) noexcept
 {
 	blurBackgroundEnabled_.store(property.blurBackgroundEnabled, std::memory_order_relaxed);
@@ -429,9 +442,10 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 				}
 			}
 
+			const double meanDifference = double(sum) / (255.0 * kModelPixelCount);
+			differenceHistory_.record(os_gettime_ns(), meanDifference);
 			const auto sumThreshold = static_cast<std::uint64_t>(
 				std::ceil(255.0 * kModelPixelCount * std::pow(10.0, -imageSimilarityThreshold / 20.0)));
-
 			skipMaskInference = sum == 0 || sum < sumThreshold;
 		}
 
@@ -468,6 +482,7 @@ void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 		}
 	}
 	TraceLoggingWrite(provider, "InferenceDecision", TraceLoggingLevel(5), TraceLoggingKeyword(0x1),
+			  TraceLoggingFloat64(imageSimilarityThreshold, "EffectiveSensitivity"),
 			  TraceLoggingBool(!skipMaskInference, "Required"));
 
 	// The current source draw is independent of the submitted model output.

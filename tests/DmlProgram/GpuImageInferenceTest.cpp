@@ -24,16 +24,16 @@
 #include <vector>
 #include <DirectXPackedVector.h>
 
-void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input, std::span<float> output)
+void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input,
+			   std::span<float> output)
 {
-    if (runtime.inputInfo(0).type != BaselineDml::ProgramDefinition::dtFloat32 ||
-        runtime.outputInfo().type != BaselineDml::ProgramDefinition::dtFloat32) {
-        FAIL("Landscape requires FP32 input and output");
-    }
-    const std::array inputs{std::as_bytes(input)};
-    runtime.run(inputs, std::as_writable_bytes(output));
+	if (runtime.inputInfo(0).type != BaselineDml::ProgramDefinition::dtFloat32 ||
+	    runtime.outputInfo().type != BaselineDml::ProgramDefinition::dtFloat32) {
+		FAIL("Landscape requires FP32 input and output");
+	}
+	const std::array inputs{std::as_bytes(input)};
+	runtime.run(inputs, std::as_writable_bytes(output));
 }
-
 
 #ifdef GPU_LANDSCAPE_MODEL
 #include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.hpp"
@@ -379,6 +379,10 @@ TEST_CASE("LandscapeRenderingInitialization")
 	auto *previousTarget = gs_get_render_target();
 	auto previousSpace = gs_get_color_space();
 	BackgroundRemoval::FilterProperty property{};
+	std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> settings{obs_data_create(), obs_data_release};
+	property.imageSimilarityThreshold = 42.0;
+	BackgroundRemoval::encodeFilterProperty(settings.get(), property);
+	CHECK(BackgroundRemoval::decodeFilterProperty(settings.get()).imageSimilarityThreshold == 42.0);
 	{
 		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, scene, 256, 144);
 		CHECK(pipeline.getWidth() == 256);
@@ -524,6 +528,14 @@ TEST_CASE("LandscapeRenderingInitialization")
 				pipeline.update(property);
 			}
 		}
+		std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> calibrated{obs_source_get_settings(filter.get()),
+									       obs_data_release};
+		CHECK_FALSE(obs_data_has_user_value(calibrated.get(), "v2_Model_MatteSensitivity"));
+		REQUIRE(pipeline.autoSetSensitivity());
+		REQUIRE(obs_data_has_user_value(calibrated.get(), "v2_Model_MatteSensitivity"));
+		const double sensitivity = obs_data_get_double(calibrated.get(), "v2_Model_MatteSensitivity");
+		CHECK(sensitivity >= 0.0);
+		CHECK(sensitivity <= 100.0);
 		// Opt-in comparison: two renders per tick, stable input and fixed settings.
 		if (std::getenv("DML_TICK_BENCHMARK")) {
 			std::vector<double> first, repeated;

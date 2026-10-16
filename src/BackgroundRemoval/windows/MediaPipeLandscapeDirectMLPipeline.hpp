@@ -6,6 +6,7 @@
 
 #include "BackgroundRemoval/IRenderingPipeline.hpp"
 #include "MaskRefinerDirect3D.hpp"
+#include "MediaPipeLandscapeDifferenceHistory.hpp"
 
 #include <array>
 #include <atomic>
@@ -32,6 +33,7 @@ public:
 	auto operator=(const MediaPipeLandscapeDirectMLPipeline &) -> MediaPipeLandscapeDirectMLPipeline & = delete;
 	auto operator=(MediaPipeLandscapeDirectMLPipeline &&) -> MediaPipeLandscapeDirectMLPipeline & = delete;
 
+	auto autoSetSensitivity() noexcept -> bool;
 	void update(const FilterProperty &property) noexcept override;
 	void videoTick(float seconds) noexcept override;
 	void videoRender(gs_effect_t *effect) noexcept override;
@@ -60,6 +62,7 @@ private:
 	const std::uint32_t width_;
 	const std::uint32_t height_;
 	obs_source_t *const source_;
+	MediaPipeLandscapeDifferenceHistory differenceHistory_;
 	FilterState filterState_ = FilterState::NeedsProcessing;
 	bool frameBlurBackgroundEnabled_ = false;
 	gs_texture_t *frameBlurredTexture_ = nullptr;

@@ -166,3 +166,12 @@ target_link_libraries(MaskRefinerDirect3DTest PRIVATE d3d11 d3d12 dxgi d3dcompil
 add_test(NAME MaskRefinerDirect3DTest.Warp COMMAND MaskRefinerDirect3DTest)
 add_test(NAME MaskRefinerDirect3DTest.Hardware COMMAND MaskRefinerDirect3DTest --hardware)
 set_tests_properties(MaskRefinerDirect3DTest.Warp MaskRefinerDirect3DTest.Hardware PROPERTIES TIMEOUT 180)
+
+if(TARGET GpuImageInferenceTest)
+  target_sources(GpuImageInferenceTest PRIVATE "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/FilterProperty.cpp")
+endif()
+
+add_executable(MediaPipeLandscapeDifferenceHistoryTest MediaPipeLandscapeDifferenceHistoryTest.cpp)
+target_include_directories(MediaPipeLandscapeDifferenceHistoryTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
+add_test(NAME MediaPipeLandscapeDifferenceHistoryTest COMMAND MediaPipeLandscapeDifferenceHistoryTest)
+set_tests_properties(MediaPipeLandscapeDifferenceHistoryTest PROPERTIES TIMEOUT 30)
