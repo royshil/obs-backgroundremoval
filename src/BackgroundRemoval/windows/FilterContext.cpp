@@ -61,7 +61,6 @@ void FilterContext::getDefaults(obs_data_t *settings) noexcept
 	obs_data_set_default_double(settings, "v2_Model_MatteSensitivity", 60.0);
 	obs_data_set_default_bool(settings, "v2_RefineMask", true);
 	obs_data_set_default_double(settings, "v2_RefineMask_Threshold", 0.5);
-	obs_data_set_default_int(settings, "v2_RefineMask_Expansion", 0);
 	obs_data_set_default_bool(settings, "v2_BlurBg", false);
 	obs_data_set_default_int(settings, "v2_BlurBg_Factor", 4);
 	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", 0.1);
@@ -93,6 +92,7 @@ auto FilterContext::getProperties(void *) noexcept -> obs_properties_t *
 	} else {
 		aboutButtonText = obs_module_text("About this plugin");
 	}
+
 	obs_properties_add_button2(
 		properties, "v2_AboutButton", aboutButtonText,
 		[](obs_properties_t *, obs_property_t *, void *) {
@@ -126,8 +126,6 @@ auto FilterContext::getProperties(void *) noexcept -> obs_properties_t *
 	obs_properties_t *const thresholdProperties = obs_properties_create();
 	obs_properties_add_float_slider(thresholdProperties, "v2_RefineMask_Threshold", obs_module_text("Threshold"),
 					0.0, 1.0, 0.025);
-	obs_properties_add_int_slider(thresholdProperties, "v2_RefineMask_Expansion", obs_module_text("Expansion"), -30,
-				      30, 1);
 	obs_properties_add_group(properties, "v2_RefineMask", obs_module_text("Refine Mask"), OBS_GROUP_CHECKABLE,
 				 thresholdProperties);
 
@@ -145,11 +143,10 @@ void FilterContext::update(void *data, obs_data_t *settings) noexcept
 	const FilterProperty &property = *pendingFilterProperty;
 	blog(LOG_INFO,
 	     OBS_LOG_HEADER
-	     "Updating Windows settings: pipeline_id=%lld sensitivity=%.3f refine=%d threshold=%.3f expansion=%lld blur=%d blur_factor=%lld focus_point=%.3f focus_depth=%.3f",
+	     "Updating Windows settings: pipeline_id=%lld sensitivity=%.3f refine=%d threshold=%.3f blur=%d blur_factor=%lld focus_point=%.3f focus_depth=%.3f",
 	     property.pipelineId, property.imageSimilarityThreshold, property.refineMaskEnabled,
-	     property.refineMaskThreshold, static_cast<long long>(property.refineMaskExpansion),
-	     property.blurBackgroundEnabled, static_cast<long long>(property.blurBackgroundFactor),
-	     property.blurFocusPoint, property.blurFocusDepth);
+	     property.refineMaskThreshold, property.blurBackgroundEnabled,
+	     static_cast<long long>(property.blurBackgroundFactor), property.blurFocusPoint, property.blurFocusDepth);
 
 	std::lock_guard lock(context->renderingPipelineMutex_);
 	context->pendingFilterProperty_.swap(pendingFilterProperty);
@@ -174,9 +171,11 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 	}
 
 	std::optional<FilterProperty> pendingFilterProperty;
+	std::shared_ptr<IRenderingPipeline> heldPipeline;
 	{
 		std::lock_guard lock(context->renderingPipelineMutex_);
 		pendingFilterProperty.swap(context->pendingFilterProperty_);
+		heldPipeline = context->renderingPipeline_;
 	}
 	if (pendingFilterProperty) {
 		context->currentFilterProperty_ = *pendingFilterProperty;
@@ -186,7 +185,10 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 	const std::uint32_t heldHeight = context->heldHeight_.load(std::memory_order_relaxed);
 	const bool pipelineChanged = heldPipelineId != context->currentFilterProperty_.pipelineId;
 	const bool dimensionsChanged = heldWidth != width || heldHeight != height;
-	const bool requiresPipelineRecreation = pipelineChanged || dimensionsChanged;
+	const auto directMLPipeline = std::dynamic_pointer_cast<MediaPipeLandscapeDirectMLPipeline>(heldPipeline);
+	const bool pipelineRequestedRecreation = directMLPipeline && directMLPipeline->needsRecreation();
+	const bool requiresPipelineRecreation = pipelineChanged || dimensionsChanged || pipelineRequestedRecreation ||
+						!heldPipeline;
 	const bool requiresPipelineUpdate = pendingFilterProperty && !requiresPipelineRecreation;
 
 	std::shared_ptr<IRenderingPipeline> pipeline;
@@ -217,6 +219,15 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 		pipeline->update(*pendingFilterProperty);
 	}
 	if (pipeline) {
+		if (auto directML = std::dynamic_pointer_cast<MediaPipeLandscapeDirectMLPipeline>(pipeline)) {
+			obs_video_info videoInfo{};
+			if (obs_get_video_info(&videoInfo) && videoInfo.fps_den && videoInfo.fps_num) {
+				const std::uint64_t denominator = std::uint64_t(videoInfo.fps_den) * 30;
+				directML->additionalInferenceFrames_.store(
+					static_cast<std::uint32_t>((videoInfo.fps_num + denominator - 1) / denominator),
+					std::memory_order_relaxed);
+			}
+		}
 		pipeline->videoTick(seconds);
 	}
 }

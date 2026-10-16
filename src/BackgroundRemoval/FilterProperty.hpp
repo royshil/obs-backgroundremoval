@@ -14,7 +14,9 @@ struct FilterProperty {
 	bool refineMaskEnabled;
 	double refineMaskThreshold;
 	double refineMaskContour;
+#ifndef _WIN32
 	long long refineMaskExpansion;
+#endif
 	bool blurBackgroundEnabled;
 	long long blurBackgroundFactor;
 	double blurFocusPoint;

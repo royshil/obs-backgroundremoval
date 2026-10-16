@@ -1,11 +1,19 @@
-#include "TraceLoggingProvider.hpp"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <TraceLoggingProvider.h>
+
+TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
 #include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.hpp"
 #include <graphics/graphics.h>
-#include "BackgroundRemoval/windows/MaskRefinerDirect3D.hpp"
 #include <d3d11_4.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
@@ -14,18 +22,21 @@
 #include <wincodec.h>
 #include <wrl/client.h>
 #include <algorithm>
+#include <cstring>
 #include <cmath>
+#include <limits>
 #include <vector>
 #include <DirectXPackedVector.h>
 
-void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input, std::span<float> output)
+void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input,
+			   std::span<float> output)
 {
-    if (runtime.inputInfo(0).type != BaselineDml::ProgramDefinition::dtFloat32 ||
-        runtime.outputInfo().type != BaselineDml::ProgramDefinition::dtFloat32) {
-        FAIL("Landscape requires FP32 input and output");
-    }
-    const std::array inputs{std::as_bytes(input)};
-    runtime.run(inputs, std::as_writable_bytes(output));
+	if (runtime.inputInfo(0).type != BaselineDml::ProgramDefinition::dtFloat32 ||
+	    runtime.outputInfo().type != BaselineDml::ProgramDefinition::dtFloat32) {
+		FAIL("Landscape requires FP32 input and output");
+	}
+	const std::array inputs{std::as_bytes(input)};
+	runtime.run(inputs, std::as_writable_bytes(output));
 }
 
 namespace BackgroundRemoval::Generated {
@@ -58,6 +69,13 @@ auto portraitInput() -> std::vector<float>
 	return input;
 }
 
+auto completed(BackgroundRemoval::MediaPipeLandscapeDirectMLEngine &engine) -> bool
+{
+	bool done = false;
+	winrt::check_hresult(engine.isDone(done));
+	return done;
+}
+
 TEST_CASE("LandscapeEngineBgraInput")
 {
 	winrt::init_apartment();
@@ -79,9 +97,10 @@ TEST_CASE("LandscapeEngineBgraInput")
 	auto reference = BackgroundRemoval::Generated::makeMediaPipeLandscapeDmlProgram();
 	const auto portrait = portraitInput();
 	std::vector<float> output(256 * 144), expected(output.size());
-	CHECK_FALSE(engine.isDone());
-	CHECK_THROWS_AS(engine.getResult(output), std::logic_error);
-	CHECK_THROWS_AS(engine.blockCpuUntilInferenceCompletes(), std::logic_error);
+	CHECK_FALSE(engine.needsRecreation());
+	CHECK_FALSE(completed(engine));
+	CHECK(engine.getResult(output) == E_PENDING);
+	CHECK(engine.blockCpuUntilInferenceCompletes() == E_UNEXPECTED);
 
 	// Hold the producer queue so unfinished-result checks are deterministic.
 	ComPtr<ID3D11Device5> producer;
@@ -129,20 +148,20 @@ TEST_CASE("LandscapeEngineBgraInput")
 				ID3D12Fence *fence;
 				~ReleaseGate() { fence->Signal(1); }
 			} releaseGate{gate.Get()};
-			CHECK(frameEngine.runAsync(image.get()) ==
-			      BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::RunResult::Submitted);
-			CHECK_THROWS_AS(frameEngine.runAsync(image.get()), std::logic_error);
+			CHECK(frameEngine.runAsync(image.get()) == S_OK);
+			CHECK(frameEngine.runAsync(image.get()) == E_PENDING);
+			CHECK_FALSE(frameEngine.needsRecreation());
 			if (frame == 0 && format == GS_BGRA) {
-				CHECK_FALSE(frameEngine.isDone());
-				CHECK_THROWS_AS(frameEngine.getResult(output), std::logic_error);
+				CHECK_FALSE(completed(frameEngine));
+				CHECK(frameEngine.getResult(output) == E_PENDING);
 				winrt::check_hresult(gate->Signal(1));
 			}
-			frameEngine.blockCpuUntilInferenceCompletes();
-			CHECK(frameEngine.isDone());
-			CHECK_THROWS_AS(frameEngine.getResult(std::span(output).first(1)), std::invalid_argument);
-			frameEngine.getResult(output);
-			CHECK_FALSE(frameEngine.isDone());
-			CHECK_THROWS_AS(frameEngine.getResult(output), std::logic_error);
+			CHECK(frameEngine.blockCpuUntilInferenceCompletes() == S_OK);
+			CHECK(completed(frameEngine));
+			CHECK(frameEngine.getResult(std::span(output).first(1)) == E_INVALIDARG);
+			CHECK(frameEngine.getResult(output) == S_OK);
+			CHECK_FALSE(completed(frameEngine));
+			CHECK(frameEngine.getResult(output) == E_PENDING);
 			const std::array inputs{std::as_bytes(std::span(input))};
 			runLandscapeReference(*reference, input, expected);
 			double maxError = 0;
@@ -152,36 +171,51 @@ TEST_CASE("LandscapeEngineBgraInput")
 			}
 			CAPTURE(frame);
 			CHECK(maxError < 2e-5);
-            if (frame == 0 && format == GS_BGRA) {
-                BackgroundRemoval::MediaPipeLandscapeDirectMLEngine gpuEngine(true);
-                BackgroundRemoval::MaskRefinerDirect3D refiner(gpuEngine.device(), gpuEngine.commandQueue(),
-                    producer.Get(), 256, 144, 256, 144);
-                CHECK_THROWS_AS(engine.gpuOutput(), std::logic_error);
-                CHECK_THROWS_AS(gpuEngine.releaseGpuResult(), std::logic_error);
-                CHECK(gpuEngine.runAsync(image.get()) == BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::RunResult::Submitted);
-                CHECK_THROWS_AS(gpuEngine.getResult(output), std::logic_error);
-                refiner.runAsync(gpuEngine.gpuOutput(), {});
-                refiner.blockCpuUntilComplete();
-                REQUIRE(gpuEngine.isDone());
-                gpuEngine.releaseGpuResult();
-                refiner.complete();
-                CHECK_FALSE(gpuEngine.isDone());
-                std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> mask{
-                    gs_texture_wrap_obj(refiner.outputTexture()), gs_texture_destroy};
-                REQUIRE(mask);
-                std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)> staging{
-                    gs_stagesurface_create(256, 144, GS_R8), gs_stagesurface_destroy};
-                REQUIRE(staging);
-                gs_stage_texture(staging.get(), mask.get());
-                std::uint8_t *data=nullptr;std::uint32_t stride=0;
-                REQUIRE(gs_stagesurface_map(staging.get(), &data, &stride));
-                int maximum=0;
-                for (size_t y=0;y<144;++y) for (size_t x=0;x<256;++x)
-                    maximum=std::max(maximum,std::abs(int(data[y*stride+x])-int(std::lround(std::clamp(1.f-expected[y*256+x],0.f,1.f)*255))));
-                gs_stagesurface_unmap(staging.get());
-                CHECK(maximum<=1);
-            }
+			if (frame == 0 && format == GS_BGRA) {
+				BackgroundRemoval::MediaPipeLandscapeDirectMLEngine gpuEngine(
+					BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::Output::GpuMask);
+				CHECK(engine.gpuOutput() == nullptr);
+				CHECK(gpuEngine.complete() == E_PENDING);
+				winrt::check_hresult(context->Wait(gate11.Get(), 2));
+				struct ReleaseMaskGate {
+					ID3D12Fence *fence;
+					~ReleaseMaskGate() { fence->Signal(2); }
+				} releaseMaskGate{gate.Get()};
+				CHECK(gpuEngine.runAsync(image.get()) == S_OK);
+				CHECK(gpuEngine.getResult(output) == E_UNEXPECTED);
+				CHECK_FALSE(completed(gpuEngine));
+				CHECK(gpuEngine.complete() == E_PENDING);
+				winrt::check_hresult(gate->Signal(2));
 
+				CHECK(gpuEngine.blockCpuUntilSubmittedGpuWorkCompletes() == S_OK);
+				REQUIRE(completed(gpuEngine));
+				CHECK(gpuEngine.complete() == S_OK);
+				CHECK_FALSE(completed(gpuEngine));
+				std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> mask{
+					gs_texture_wrap_obj(gpuEngine.maskTexture()), gs_texture_destroy};
+				REQUIRE(mask);
+				std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)> staging{
+					gs_stagesurface_create(256, 144, GS_R8), gs_stagesurface_destroy};
+				REQUIRE(staging);
+				gs_stage_texture(staging.get(), mask.get());
+				std::uint8_t *data = nullptr;
+				std::uint32_t stride = 0;
+				REQUIRE(gs_stagesurface_map(staging.get(), &data, &stride));
+				int maximum = 0;
+				for (size_t y = 0; y < 144; ++y)
+					for (size_t x = 0; x < 256; ++x)
+						maximum = std::max(
+							maximum,
+							std::abs(int(data[y * stride + x]) -
+								 int(std::lround(std::clamp(1.f - expected[y * 256 + x],
+											    0.f, 1.f) *
+										 255))));
+				gs_stagesurface_unmap(staging.get());
+				CHECK(maximum <= 1);
+				CHECK(gpuEngine.complete() == E_PENDING);
+				// Leave inference + U8 conversion pending for destruction.
+				CHECK(gpuEngine.runAsync(image.get()) == S_OK);
+			}
 		}
 	}
 	const std::uint8_t pixel[4]{0, 0, 0, 255};
@@ -189,66 +223,124 @@ TEST_CASE("LandscapeEngineBgraInput")
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> smallImage{
 		gs_texture_create(1, 1, GS_BGRA, 1, &smallBytes, 0), gs_texture_destroy};
 	REQUIRE(smallImage);
-	CHECK_THROWS_AS(engine.runAsync(smallImage.get()), std::invalid_argument);
+	CHECK(engine.runAsync(smallImage.get()) == E_INVALIDARG);
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> wrongFormat{
 		gs_texture_create(256, 144, GS_R32F, 1, nullptr, 0), gs_texture_destroy};
 	REQUIRE(wrongFormat);
-	CHECK(engine.runAsync(wrongFormat.get()) ==
-	      BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::RunResult::NeedsRecreation);
+	CHECK(engine.runAsync(wrongFormat.get()) == E_INVALIDARG);
+	CHECK(engine.needsRecreation());
+	CHECK_FALSE(completed(engine));
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> changedFormat{
 		gs_texture_create(256, 144, GS_RGBA, 1, nullptr, 0), gs_texture_destroy};
 	REQUIRE(changedFormat);
-	CHECK(engine.runAsync(changedFormat.get()) ==
-	      BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::RunResult::NeedsRecreation);
+	CHECK(engine.runAsync(changedFormat.get()) == E_INVALIDARG);
+	CHECK(engine.needsRecreation());
 	{
 		// The owner replaces the Engine, rather than the Engine rebuilding itself.
 		auto replacement = std::make_unique<BackgroundRemoval::MediaPipeLandscapeDirectMLEngine>();
-		CHECK(replacement->runAsync(changedFormat.get()) ==
-		      BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::RunResult::Submitted);
-		replacement->blockCpuUntilInferenceCompletes();
-		replacement->getResult(output);
+		CHECK(replacement->runAsync(changedFormat.get()) == S_OK);
+		CHECK(replacement->blockCpuUntilInferenceCompletes() == S_OK);
+		CHECK(replacement->getResult(output) == S_OK);
 	}
-	CHECK_FALSE(engine.isDone());
-	CHECK_THROWS_AS(engine.runAsync(nullptr), std::invalid_argument);
+	CHECK_FALSE(completed(engine));
+	CHECK(engine.runAsync(nullptr) == E_INVALIDARG);
+	CHECK_FALSE(engine.needsRecreation());
 	// Destruction must drain a submitted result even when the caller never reads it.
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> unconsumedImage{
 		gs_texture_create(256, 144, GS_BGRA, 1, nullptr, 0), gs_texture_destroy};
 	REQUIRE(unconsumedImage);
 	// A format-contract rejection must leave the recorded commands reusable.
-	engine.runAsync(unconsumedImage.get());
-	engine.blockCpuUntilInferenceCompletes();
-	engine.getResult(output);
-	CHECK(rgbaEngine.runAsync(unconsumedImage.get()) ==
-	      BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::RunResult::NeedsRecreation);
+	CHECK(engine.runAsync(unconsumedImage.get()) == S_OK);
+	CHECK_FALSE(engine.needsRecreation());
+	CHECK(engine.blockCpuUntilInferenceCompletes() == S_OK);
+	CHECK(engine.getResult(output) == S_OK);
+	CHECK(rgbaEngine.runAsync(unconsumedImage.get()) == E_INVALIDARG);
 	{
 		BackgroundRemoval::MediaPipeLandscapeDirectMLEngine initiallyInvalid;
-		CHECK_THROWS_AS(initiallyInvalid.runAsync(wrongFormat.get()), std::invalid_argument);
-		initiallyInvalid.runAsync(unconsumedImage.get());
-		initiallyInvalid.blockCpuUntilInferenceCompletes();
-		initiallyInvalid.getResult(output);
+		CHECK(initiallyInvalid.runAsync(wrongFormat.get()) == E_INVALIDARG);
+		CHECK_FALSE(initiallyInvalid.needsRecreation());
+		CHECK(initiallyInvalid.runAsync(unconsumedImage.get()) == S_OK);
+		CHECK(initiallyInvalid.blockCpuUntilInferenceCompletes() == S_OK);
+		CHECK(initiallyInvalid.getResult(output) == S_OK);
 	}
 	{
 		BackgroundRemoval::MediaPipeLandscapeDirectMLEngine unconsumed;
-		unconsumed.runAsync(unconsumedImage.get());
+		CHECK(unconsumed.runAsync(unconsumedImage.get()) == S_OK);
+	}
+}
+
+TEST_CASE("LandscapeDelayedGate")
+{
+	winrt::init_apartment();
+	struct Apartment { ~Apartment() { winrt::uninit_apartment(); } } apartment;
+	graphics_t *graphics = nullptr;
+	REQUIRE(gs_create(&graphics, OBS_TEST_BIN_DIR "/libobs-d3d11.dll", 0) == 0);
+	struct GraphicsCleanup {
+		graphics_t *g;
+		~GraphicsCleanup() { gs_leave_context(); gs_destroy(g); }
+	} cleanup{graphics};
+	gs_enter_context(graphics);
+	BackgroundRemoval::MediaPipeLandscapeDirectMLEngine engine{BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::Output::CpuProbabilities, 256, 144, true};
+	std::vector<float> result(256 * 144), retained;
+	bool previousMotion = false;
+	uint32_t accepted = 0;
+	int referenceValue = 0;
+	for (const auto [value, shouldInfer] : std::array{std::pair{0, false}, std::pair{64, true},
+		std::pair{64, false}, std::pair{65, false}, std::pair{68, true}, std::pair{68, false}}) {
+		std::vector<uint8_t> pixels(256 * 144 * 4, uint8_t(value));
+		const auto *data = pixels.data();
+		std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> texture{
+			gs_texture_create(256, 144, GS_BGRA, 1, &data, 0), gs_texture_destroy};
+		REQUIRE(texture);
+		REQUIRE(engine.runAsync(texture.get(), false, 0.5F, 40, previousMotion) == S_OK);
+		REQUIRE(engine.blockCpuUntilSubmittedGpuWorkCompletes() == S_OK);
+		REQUIRE(engine.getResult(result) == S_OK);
+		const auto gate = engine.gateResult();
+		CHECK(gate.modelSubmitted == previousMotion);
+		accepted += shouldInfer;
+		CHECK(gate.motionDetected == shouldInfer);
+		CHECK(gate.motionCount == accepted);
+		CHECK(gate.sum == uint32_t(std::abs(value - referenceValue) * 256 * 144));
+		const auto invocations = gate.csInvocations;
+		// Gate alone = 144 row groups plus one decision group, 256 threads each.
+		CHECK(invocations == 145 * 256);
+		if (previousMotion) {
+			retained = result;
+		} else {
+			CHECK(invocations == 145 * 256);
+			if (!retained.empty())
+				CHECK(std::memcmp(result.data(), retained.data(), result.size() * sizeof(float)) == 0);
+			else
+				CHECK(std::all_of(result.begin(), result.end(), [](float v) { return v == 0; }));
+		}
+		referenceValue = value;
+		previousMotion = gate.motionDetected;
+		std::cout << "GPU gate value=" << value << " inferred=" << gate.motionDetected
+			<< " sum=" << gate.sum << " CSInvocations=" << invocations << '\n';
 	}
 }
 
 int testMain(int argc, char **argv)
 {
-	doctest::Context context(argc, argv);
+	doctest::Context context;
+	// A single-token alias also works with PIX's command-line parser.
+	if (argc == 2 && std::strcmp(argv[1], "--gpu-gate") == 0)
+		context.setOption("test-case", "LandscapeDelayedGate");
+	else
+		context.applyCommandLine(argc, argv);
 	return context.run();
 }
 
 int main(int argc, char **argv)
 {
-	if (TraceLoggingRegister(provider) != ERROR_SUCCESS)
+	if (TraceLoggingRegister(g_hProvider) != ERROR_SUCCESS)
 		return 1;
 	try {
 		const int result = testMain(argc, argv);
-		TraceLoggingUnregister(provider);
+		TraceLoggingUnregister(g_hProvider);
 		return result;
 	} catch (...) {
-		TraceLoggingUnregister(provider);
+		TraceLoggingUnregister(g_hProvider);
 		throw;
 	}
 }

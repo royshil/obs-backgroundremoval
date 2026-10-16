@@ -4,7 +4,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <windows.h>
-#include "TraceLoggingProvider.hpp"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <TraceLoggingProvider.h>
+
+TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 
 #include <mutex>
 #include <string_view>
@@ -90,7 +99,7 @@ bool obs_module_load(void)
 		~GlobalQResourceGuard() { Q_CLEANUP_RESOURCE(resources); }
 	} globalQResourceGuard;
 
-	if (const auto status = TraceLoggingRegister(provider); status != ERROR_SUCCESS) {
+	if (const auto status = TraceLoggingRegister(g_hProvider); status != ERROR_SUCCESS) {
 		blog(LOG_WARNING, OBS_LOG_HEADER "TraceLogging registration failed (%lu)", status);
 	}
 
@@ -116,6 +125,6 @@ bool obs_module_load(void)
 
 void obs_module_unload()
 {
-	TraceLoggingUnregister(provider);
+	TraceLoggingUnregister(g_hProvider);
 	blog(LOG_INFO, OBS_LOG_HEADER "plugin unloaded");
 }

@@ -2,52 +2,87 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "TraceLoggingProvider.hpp"
+#ifndef NOMINMAX
+#define NOMINMAX
+#include <cstdint>
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
+#include <windows.h>
+
 #include "MediaPipeLandscapeDirectMLPipeline.hpp"
-#include "MediaPipeLandscapeDirectMLEngine.hpp"
-#include "graphics/graphics.h"
+
+#include <TraceLoggingProvider.h>
+#include <TraceLoggingActivity.h>
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <limits>
 #include <stdexcept>
 #include <utility>
-#include <vector>
+#include <source_location>
+
+#include <graphics/graphics.h>
 #include <util/platform.h>
+
+#include "MediaPipeLandscapeDirectMLEngine.hpp"
+
+TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 
 namespace {
 
-auto gs_effect_create_unique(const char *effect_string, const char *filename, const char *message)
+using InitError = BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline::InitError;
+
+auto gs_effect_create_unique(const char *effect_string, const char *filename,
+			     std::source_location loc = std::source_location::current())
 	-> std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)>
 {
 	gs_effect_t *value = gs_effect_create(effect_string, filename, nullptr);
 	if (!value) {
-		throw std::runtime_error(message);
+		throw InitError(loc);
 	}
 	return {value, gs_effect_destroy};
 }
 
 auto gs_texture_create_unique(std::uint32_t width, std::uint32_t height, gs_color_format color_format, uint32_t levels,
-			      const uint8_t **data, uint32_t flags, const char *message)
+			      const uint8_t **data, uint32_t flags,
+			      std::source_location loc = std::source_location::current())
 	-> std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)>
 {
 	gs_texture_t *value = gs_texture_create(width, height, color_format, levels, data, flags);
 	if (!value) {
-		throw std::runtime_error(message);
+		throw InitError(loc);
 	}
 	return {value, gs_texture_destroy};
 }
 
-auto gs_stagesurface_create_unique(uint32_t width, uint32_t height, gs_color_format color_format, const char *message)
-	-> std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)>
-{
-	gs_stagesurf_t *value = gs_stagesurface_create(width, height, color_format);
-	if (!value) {
-		throw std::runtime_error(message);
+struct RenderStatePop {
+	gs_texture_t *rt_ = gs_get_render_target();
+	gs_zstencil_t *zs_ = gs_get_zstencil_target();
+	gs_color_space cs_ = gs_get_color_space();
+	bool active_ = true;
+	RenderStatePop()
+	{
+		gs_blend_state_push();
+		gs_matrix_push();
+		gs_projection_push();
+		gs_viewport_push();
 	}
-	return {value, gs_stagesurface_destroy};
-}
+	~RenderStatePop() { (*this)(); }
+	void operator()()
+	{
+		if (active_) {
+			active_ = false;
+			gs_blend_state_pop();
+			gs_matrix_pop();
+			gs_projection_pop();
+			gs_viewport_pop();
+			gs_set_render_target_with_color_space(rt_, zs_, cs_);
+		}
+	}
+};
 
 } // namespace
 
@@ -58,9 +93,8 @@ uniform float4x4 ViewProj;
 
 uniform texture2d image;
 uniform texture2d image1;
-uniform texture2d alphamask;
-uniform texture2d blurredBackground;
-uniform texture2d focalmask;
+uniform texture2d image2;
+
 
 uniform float xOffset;
 uniform float yOffset;
@@ -100,7 +134,7 @@ float luma709(float3 color)
 
 float4 PSTakeBlur(VertDataOut v_in) : TARGET
 {
-	return float4(blurredBackground.Sample(textureSampler, v_in.uv).rgb, 1.0);
+	return float4(image2.Sample(textureSampler, v_in.uv).rgb, 1.0);
 }
 
 float4 PSDraw(VertDataOut v_in) : TARGET
@@ -131,7 +165,7 @@ float4 PSAlphaMaskRGBAWithoutBlur(VertDataOut v_in) : TARGET
 	inputRGBA.rgb = max(float3(0.0, 0.0, 0.0), inputRGBA.rgb / inputRGBA.a);
 
 	float4 outputRGBA;
-	float a = (1.0 - alphamask.Sample(textureSampler, v_in.uv).r) * inputRGBA.a;
+	float a = (1.0 - image1.Sample(textureSampler, v_in.uv).r) * inputRGBA.a;
 	outputRGBA.rgb = inputRGBA.rgb * a;
 	outputRGBA.a = a;
 	return outputRGBA;
@@ -141,11 +175,11 @@ float4 PSKawaseFocalBlur(VertDataOut v_in) : TARGET
 {
 	float blurIterF = float(blurIter) / float(blurTotal);
 
-	float blurValue = focalmask.Sample(textureSampler, v_in.uv).r;
-	blurValue += focalmask.Sample(textureSampler, v_in.uv + float2(0.01, 0.01)).r;
-	blurValue += focalmask.Sample(textureSampler, v_in.uv + float2(-0.01, 0.01)).r;
-	blurValue += focalmask.Sample(textureSampler, v_in.uv + float2(0.01, -0.01)).r;
-	blurValue += focalmask.Sample(textureSampler, v_in.uv + float2(-0.01, -0.01)).r;
+	float blurValue = image1.Sample(textureSampler, v_in.uv).r;
+	blurValue += image1.Sample(textureSampler, v_in.uv + float2(0.01, 0.01)).r;
+	blurValue += image1.Sample(textureSampler, v_in.uv + float2(-0.01, 0.01)).r;
+	blurValue += image1.Sample(textureSampler, v_in.uv + float2(0.01, -0.01)).r;
+	blurValue += image1.Sample(textureSampler, v_in.uv + float2(-0.01, -0.01)).r;
 	blurValue *= 0.2;
 
 	float blurFocusDistance = clamp(abs(blurValue - blurFocusPoint), 0.0, 1.0);
@@ -226,30 +260,21 @@ namespace BackgroundRemoval {
 MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const FilterProperty &property,
 								       obs_source_t *source, std::uint32_t width,
 								       std::uint32_t height)
-	: engine_{std::make_unique<MediaPipeLandscapeDirectMLEngine>(true)},
-	  maskRefiner_{std::make_unique<MaskRefinerDirect3D>(engine_->device(), engine_->commandQueue(),
-							     static_cast<ID3D11Device *>(gs_get_device_obj()),
-							     kModelWidth, kModelHeight, width, height)},
+	: engine_{std::make_unique<MediaPipeLandscapeDirectMLEngine>(MediaPipeLandscapeDirectMLEngine::Output::GpuMask,
+								     width, height)},
 	  width_(width),
 	  height_(height),
 	  source_(source),
-	  effect_{gs_effect_create_unique(Detail::mpldEffectString, "MediaPipeLandscape.effect",
-					  "Failed to create Landscape effect")},
-	  sourceTexture_{gs_texture_create_unique(width, height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET,
-						  "Failed to create Landscape texture")},
-	  lastInputTexture_{gs_texture_create_unique(kModelWidth, kModelHeight, GS_BGRA, 1, nullptr, GS_RENDER_TARGET,
-						     "Failed to create reference image")},
-	  inputTexture_{gs_texture_create_unique(kModelWidth, kModelHeight, GS_BGRA, 1, nullptr, GS_RENDER_TARGET,
-						 "Failed to create current image")},
-	  lumaAbsDiffTexture_{gs_texture_create_unique(kModelWidth, kModelHeight, GS_R8, 1, nullptr, GS_RENDER_TARGET,
-						       "Failed to create difference texture")},
-	  lumaAbsDiffStagesurf_{gs_stagesurface_create_unique(kModelWidth, kModelHeight, GS_R8,
-							      "Failed to create difference staging surface")},
-	  blurTextures_{gs_texture_create_unique(width, height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET,
-						 "Failed to create Landscape texture"),
-			gs_texture_create_unique(width, height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET,
-						 "Failed to create Landscape texture")},
-	  alphaTexture_{gs_texture_wrap_obj(maskRefiner_->outputTexture()), gs_texture_destroy}
+	  effect_{gs_effect_create_unique(Detail::mpldEffectString, "MediaPipeLandscape.effect")},
+	  epImage_{gs_effect_get_param_by_name(effect_.get(), "image")},
+	  epImage1_{gs_effect_get_param_by_name(effect_.get(), "image1")},
+	  epImage2_{gs_effect_get_param_by_name(effect_.get(), "image2")},
+	  targetTexture_{gs_texture_create_unique(width, height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET)},
+	  inputTexture_{gs_texture_create_unique(kModelWidth, kModelHeight, GS_BGRA, 1, nullptr, GS_RENDER_TARGET)},
+	  lastInputTexture_{gs_texture_create_unique(kModelWidth, kModelHeight, GS_BGRA, 1, nullptr, GS_RENDER_TARGET)},
+	  blurTextures_{gs_texture_create_unique(width, height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET),
+			gs_texture_create_unique(width, height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET)},
+	  alphaTexture_{gs_texture_wrap_obj(engine_->maskTexture()), gs_texture_destroy}
 {
 	if (!source || width == 0 || height == 0 || !alphaTexture_) {
 		throw std::invalid_argument("Invalid MediaPipe Landscape DirectML pipeline arguments");
@@ -263,15 +288,9 @@ MediaPipeLandscapeDirectMLPipeline::MediaPipeLandscapeDirectMLPipeline(const Fil
 	gs_clear(GS_CLEAR_COLOR, &black, 0, 0);
 	gs_set_render_target_with_color_space(inputTexture_.get(), nullptr, GS_CS_709_EXTENDED);
 	gs_clear(GS_CLEAR_COLOR, &black, 0, 0);
+
 	gs_set_render_target_with_color_space(previousTarget, previousDepth, previousSpace);
-	try {
-		maskRefiner_->runAsync(nullptr, {});
-		maskRefiner_->blockCpuUntilComplete();
-		maskRefiner_->complete();
-	} catch (...) {
-		obs_leave_graphics();
-		throw;
-	}
+
 	obs_leave_graphics();
 	update(property);
 }
@@ -282,14 +301,11 @@ MediaPipeLandscapeDirectMLPipeline::~MediaPipeLandscapeDirectMLPipeline() noexce
 	effect_.reset();
 	lastInputTexture_.reset();
 	inputTexture_.reset();
-	lumaAbsDiffTexture_.reset();
-	lumaAbsDiffStagesurf_.reset();
 	alphaTexture_.reset();
-	maskRefiner_.reset();
 	engine_.reset();
 	for (auto &texture : blurTextures_)
 		texture.reset();
-	sourceTexture_.reset();
+	targetTexture_.reset();
 	obs_leave_graphics();
 }
 
@@ -315,7 +331,6 @@ void MediaPipeLandscapeDirectMLPipeline::update(const FilterProperty &property) 
 					std::memory_order_relaxed);
 	refineMaskEnabled_.store(property.refineMaskEnabled, std::memory_order_relaxed);
 	refineMaskThreshold_.store(static_cast<float>(property.refineMaskThreshold), std::memory_order_relaxed);
-	refineMaskExpansion_.store(property.refineMaskExpansion, std::memory_order_relaxed);
 }
 
 void MediaPipeLandscapeDirectMLPipeline::videoTick(float) noexcept
@@ -323,289 +338,216 @@ void MediaPipeLandscapeDirectMLPipeline::videoTick(float) noexcept
 	filterState_ = FilterState::NeedsProcessing;
 }
 
+auto MediaPipeLandscapeDirectMLPipeline::needsRecreation() const noexcept -> bool
+{
+	return needsRecreation_;
+}
+
 void MediaPipeLandscapeDirectMLPipeline::videoRender(gs_effect_t *) noexcept
 {
-	TraceLoggingFunction(provider, TraceLoggingKeyword(0x1));
+	vec4 zero;
+	vec4_zero(&zero);
 
-	if (const bool filterEnabled = obs_source_enabled(source_); !filterEnabled) {
-		obs_source_skip_video_filter(source_);
+	gs_effect_t *const effect = effect_.get();
+	gs_eparam_t *const epImage = epImage_;
+	gs_eparam_t *const epImage1 = epImage1_;
+	gs_eparam_t *const epImage2 = epImage2_;
+
+	assert(effect);
+	assert(epImage);
+	assert(epImage1);
+	assert(epImage2);
+
+	gs_texture_t *const targetTexture = targetTexture_.get();
+	gs_texture_t *const inputTexture = inputTexture_.get();
+	gs_texture_t *const alphaTexture = alphaTexture_.get();
+
+	TraceLoggingFunction(g_hProvider, TraceLoggingKeyword(0x1));
+
+	obs_source_t *const source = source_;
+	if (!source || !obs_source_enabled(source)) {
+		obs_source_skip_video_filter(source);
 		return;
 	}
 
-	obs_source_t *const target = obs_filter_get_target(source_);
+	obs_source_t *const target = obs_filter_get_target(source);
 	if (!target) {
-		obs_source_skip_video_filter(source_);
+		obs_source_skip_video_filter(source);
 		return;
 	}
-
-	switch (filterState_) {
-	case FilterState::ReadyForRendering:
-		renderFrameResult();
-		return;
-	case FilterState::Processing:
-		return;
-	case FilterState::NeedsProcessing:
-		break;
-	}
-
-	const double imageSimilarityThreshold = imageSimilarityThreshold_.load(std::memory_order_relaxed);
 
 	const std::uint32_t sourceWidth = obs_source_get_width(target);
 	const std::uint32_t sourceHeight = obs_source_get_height(target);
 	if (sourceWidth == 0 || sourceHeight == 0) {
-		obs_source_skip_video_filter(source_);
+		obs_source_skip_video_filter(source);
 		return;
 	}
+	const float sourceWidthF = static_cast<float>(sourceWidth);
+	const float sourceHeightF = static_cast<float>(sourceHeight);
 
-	filterState_ = FilterState::Processing;
-
-	struct RenderStatePop {
-		gs_texture_t *rt_;
-		gs_zstencil_t *zs_;
-		gs_color_space cs_;
-		bool active_ = true;
-		~RenderStatePop() { (*this)(); }
-		void operator()()
-		{
-			if (!active_)
-				return;
-			active_ = false;
-			gs_blend_state_pop();
-			gs_matrix_pop();
-			gs_projection_pop();
-			gs_viewport_pop();
-			gs_set_render_target_with_color_space(rt_, zs_, cs_);
-		}
-	} renderStatePop{gs_get_render_target(), gs_get_zstencil_target(), gs_get_color_space()};
-
-	gs_viewport_push();
-	gs_projection_push();
-	gs_matrix_push();
-	gs_blend_state_push();
-
-	gs_matrix_identity();
-	gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
-
-	// MARK: - Inference Gating
-
-	gs_effect_t *effect = effect_.get();
-	gs_eparam_t *epImage = gs_effect_get_param_by_name(effect, "image");
-	gs_eparam_t *epImage1 = gs_effect_get_param_by_name(effect, "image1");
-
-	vec4 zero;
-	vec4_zero(&zero);
-
+	const double imageSimilarityThreshold = imageSimilarityThreshold_.load(std::memory_order_relaxed);
 	const bool blurBackgroundEnabled = blurBackgroundEnabled_.load(std::memory_order_relaxed);
-	const std::int64_t unsafeBlurBackgroundFactor = blurBackgroundFactor_.load(std::memory_order_relaxed);
+	const auto blurIterations =
+		std::clamp<std::int64_t>(blurBackgroundFactor_.load(std::memory_order_relaxed), 0, 30);
 	const float blurFocusPoint = blurFocusPoint_.load(std::memory_order_relaxed);
 	const float blurFocusDepth = blurFocusDepth_.load(std::memory_order_relaxed);
 	const bool refineMaskEnabled = refineMaskEnabled_.load(std::memory_order_relaxed);
 	const float refineMaskThreshold = refineMaskThreshold_.load(std::memory_order_relaxed);
-	const std::int64_t unsafeRefineMaskExpansion = refineMaskExpansion_.load(std::memory_order_relaxed);
+	const auto maskSettings = std::tuple{refineMaskEnabled, refineMaskThreshold};
 
-	gs_texture_t *const sourceTexture = sourceTexture_.get();
-	const std::array<gs_texture_t *, 2> blurTextures{blurTextures_[0].get(), blurTextures_[1].get()};
+	const bool willGenerateMask = filterState_ == FilterState::NeedsProcessing && !needsRecreation_;
 
-	gs_set_render_target_with_color_space(inputTexture_.get(), nullptr, GS_CS_709_EXTENDED);
-	gs_ortho(0.0F, static_cast<float>(sourceWidth), 0.0F, static_cast<float>(sourceHeight), -100.0F, 100.0F);
-	gs_set_viewport(0, 0, static_cast<int>(gs_texture_get_width(inputTexture_.get())),
-			static_cast<int>(gs_texture_get_height(inputTexture_.get())));
-	gs_clear(GS_CLEAR_COLOR, &zero, 0.0F, 0);
+	bool willInferMask = false;
+	bool willRecreateEngine = false;
+	bool willBlurBackground = filterState_ == FilterState::NeedsProcessing && blurBackgroundEnabled &&
+				  blurIterations > 0;
+
+	if (filterState_ == FilterState::Processing) {
+		return;
+	}
+
+	if (filterState_ == FilterState::NeedsProcessing) {
+		filterState_ = FilterState::Processing;
+	}
+
+	RenderStatePop renderStatePop;
+	gs_matrix_identity();
+	gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+
+	gs_set_render_target_with_color_space(targetTexture, nullptr, GS_CS_709_EXTENDED);
+	gs_ortho(0, sourceWidthF, 0, sourceHeightF, -100, 100);
+	gs_set_viewport(0, 0, width_, height_);
+	gs_clear(GS_CLEAR_COLOR, &zero, 0, 0);
 	while (gs_effect_loop(effect, "Draw")) {
 		obs_source_video_render(target);
 	}
 
-	gs_set_render_target_with_color_space(lumaAbsDiffTexture_.get(), nullptr, GS_CS_709_EXTENDED);
-	gs_ortho(0.0F, kModelWidth, 0.0F, kModelHeight, -100.0F, 100.0F);
-	gs_set_viewport(0, 0, kModelWidth, kModelHeight);
-	gs_clear(GS_CLEAR_COLOR, &zero, 0.0F, 0);
-	while (gs_effect_loop(effect, "LumaAbsDiff")) {
-		gs_effect_set_texture(epImage, lastInputTexture_.get());
-		gs_effect_set_texture(epImage1, inputTexture_.get());
-		gs_draw_sprite(lumaAbsDiffTexture_.get(), 0, 0, 0);
-	}
-
-	gs_stage_texture(lumaAbsDiffStagesurf_.get(), lumaAbsDiffTexture_.get());
-	bool skipMaskInference = false;
-	std::uint8_t *data = nullptr;
-	std::uint32_t linesize = 0;
-	if (gs_stagesurface_map(lumaAbsDiffStagesurf_.get(), &data, &linesize)) {
-		if (data && linesize >= kModelWidth) {
-			std::uint64_t sum = 0;
-			static_assert(std::numeric_limits<decltype(sum)>::max() >=
-				      std::uint64_t{kModelWidth} * std::uint64_t{kModelHeight} * 255);
-
-			for (std::uint32_t y = 0; y < kModelHeight; ++y) {
-				const std::uint8_t *row = data + std::size_t(y) * linesize;
-				for (std::uint32_t x = 0; x < kModelWidth; ++x) {
-					sum += row[x];
-				}
-			}
-
-			const double meanDifference = double(sum) / (255.0 * kModelPixelCount);
-			differenceHistory_.record(os_gettime_ns(), meanDifference);
-			const auto sumThreshold = static_cast<std::uint64_t>(
-				std::ceil(255.0 * kModelPixelCount * std::pow(10.0, -imageSimilarityThreshold / 20.0)));
-			skipMaskInference = sum == 0 || sum < sumThreshold;
-		}
-
-		gs_stagesurface_unmap(lumaAbsDiffStagesurf_.get());
-	}
-
-	// MARK: - Running Inference
-
-	if (!skipMaskInference) {
-		try {
-			if (engine_->runAsync(inputTexture_.get()) ==
-			    MediaPipeLandscapeDirectMLEngine::RunResult::NeedsRecreation) {
-				auto engine = std::make_unique<MediaPipeLandscapeDirectMLEngine>(true);
-				auto refiner = std::make_unique<MaskRefinerDirect3D>(
-					engine->device(), engine->commandQueue(),
-					static_cast<ID3D11Device *>(gs_get_device_obj()), kModelWidth, kModelHeight,
-					width_, height_);
-				std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> alpha{
-					gs_texture_wrap_obj(refiner->outputTexture()), gs_texture_destroy};
-				if (!alpha)
-					throw std::runtime_error("Failed to wrap shared mask texture");
-				alphaTexture_ = std::move(alpha);
-				maskRefiner_ = std::move(refiner);
-				engine_ = std::move(engine);
-				appliedMaskSettings_.reset();
-				if (engine_->runAsync(inputTexture_.get()) !=
-				    MediaPipeLandscapeDirectMLEngine::RunResult::Submitted) {
-					throw std::runtime_error("New DirectML engine did not accept its first input");
-				}
-			}
-		} catch (const std::exception &exception) {
-			blog(LOG_ERROR, OBS_LOG_HEADER "GPU image inference failed: %s", exception.what());
-			return;
-		}
-	}
-	TraceLoggingWrite(provider, "InferenceDecision", TraceLoggingLevel(5), TraceLoggingKeyword(0x1),
-			  TraceLoggingFloat64(imageSimilarityThreshold, "EffectiveSensitivity"),
-			  TraceLoggingBool(!skipMaskInference, "Required"));
-
-	// The current source draw is independent of the submitted model output.
-	{
-		TraceLoggingThreadActivity<provider, 0x1> independent;
-		TraceLoggingWriteStart(independent, "Pipeline.IndependentRendering");
-		gs_set_render_target_with_color_space(sourceTexture, nullptr, GS_CS_709_EXTENDED);
-		gs_ortho(0.0F, static_cast<float>(sourceWidth), 0.0F, static_cast<float>(sourceHeight), -100.0F,
-			 100.0F);
-		gs_set_viewport(0, 0, static_cast<int>(width_), static_cast<int>(height_));
-		gs_clear(GS_CLEAR_COLOR, &zero, 0.0F, 0);
+	if (willGenerateMask && inputTexture) {
+		TraceLoggingThreadActivity<g_hProvider, 0x1> trace;
+		TraceLoggingWriteStart(trace, "MPLDPipeline.RendersInputTexture");
+		gs_set_render_target_with_color_space(inputTexture, nullptr, GS_CS_709_EXTENDED);
+		gs_ortho(0, kModelWidth, 0, kModelHeight, -100, 100);
+		gs_set_viewport(0, 0, kModelWidth, kModelHeight);
+		gs_clear(GS_CLEAR_COLOR, &zero, 0, 0);
 		while (gs_effect_loop(effect, "Draw")) {
-			obs_source_video_render(target);
+			gs_effect_set_texture(epImage, targetTexture);
+			gs_draw_sprite(nullptr, 0, kModelWidth, kModelHeight);
 		}
 	}
 
-	// Submit dependent mask work on the model queue; wait only at the drawing deadline.
-	const auto expansion = static_cast<std::int32_t>(std::clamp<std::int64_t>(unsafeRefineMaskExpansion, -30, 30));
-	const auto maskSettings = std::tuple{refineMaskEnabled, refineMaskThreshold, std::int64_t(expansion)};
-	if (!skipMaskInference || appliedMaskSettings_ != maskSettings) {
-		bool modelResultPending = !skipMaskInference;
-		try {
-			{
-				TraceLoggingThreadActivity<provider, 0x1> refine;
-				TraceLoggingWriteStart(refine, "Pipeline.RefineMask");
-				maskRefiner_->runAsync(skipMaskInference ? nullptr : engine_->gpuOutput(),
-						       {refineMaskEnabled, std::clamp(refineMaskThreshold, 0.0F, 1.0F),
-							expansion});
+	if (willGenerateMask && gateSubmissionPending_ && engine_) {
+		bool done = false;
+		if (HRESULT hr = engine_->isDone(done); FAILED(hr)) {
+			blog(LOG_ERROR, OBS_LOG_HEADER "MPLDPipeline.GateCompletionError: %ld", hr);
+		} else if (done) {
+			if (HRESULT hr = engine_->complete(); FAILED(hr)) {
+				blog(LOG_ERROR, OBS_LOG_HEADER "MPLDPipeline.CompleteGateError: %ld", hr);
+			} else {
+				gateSubmissionPending_ = false;
+				gateResultAvailable_ = true;
 			}
-			const bool completedBeforeDeadline = maskRefiner_->isDone();
-			TraceLoggingWrite(provider, "InferenceReadiness", TraceLoggingLevel(5),
-					  TraceLoggingKeyword(0x1),
-					  TraceLoggingBool(completedBeforeDeadline, "CompletedBeforeDeadline"));
-			if (!completedBeforeDeadline) {
-				TraceLoggingThreadActivity<provider, 0x1> waiting;
-				TraceLoggingWriteStart(waiting, "Pipeline.GpuOutputWait");
-				maskRefiner_->blockCpuUntilComplete();
+		}
+	}
+	if (willGenerateMask && gateResultAvailable_ && engine_) {
+		const auto gate = engine_->gateResult();
+		differenceHistory_.record(os_gettime_ns(), double(gate.sum) / kModelInputMaximumSum);
+		if (gate.motionDetected)
+			remainingInferenceFrames_ = 1 + additionalInferenceFrames_.load(std::memory_order_relaxed);
+		gateResultAvailable_ = false;
+	}
+	willInferMask = willGenerateMask && !gateSubmissionPending_ && remainingInferenceFrames_ > 0;
+	const bool willCompleteMask = willInferMask ||
+		(willGenerateMask && appliedMaskSettings_ && *appliedMaskSettings_ != maskSettings);
+	if (willGenerateMask && !gateSubmissionPending_) {
+		bool skip = false;
+		if (!engine_ || !alphaTexture || !inputTexture) {
+			blog(LOG_ERROR, OBS_LOG_HEADER "MPLDPipeline.InfersMaskNullError");
+			skip = true;
+		}
+		if (!skip) {
+			if (HRESULT hr = engine_->runAsync(inputTexture, refineMaskEnabled,
+				std::clamp(refineMaskThreshold, 0.0F, 1.0F), imageSimilarityThreshold, willInferMask); FAILED(hr)) {
+				blog(LOG_ERROR, OBS_LOG_HEADER "MPLDPipeline.RunsInferenceError: %ld", hr);
+				willRecreateEngine = engine_->needsRecreation();
+				skip = true;
 			}
-			if (modelResultPending) {
-				engine_->releaseGpuResult();
-				modelResultPending = false;
+		}
+		if (!skip && !willCompleteMask) {
+			gateSubmissionPending_ = true;
+		}
+		if (!skip && willCompleteMask) {
+			TraceLoggingThreadActivity<g_hProvider, 0x1> waiting;
+			TraceLoggingWriteStart(waiting, "Pipeline.GpuOutputWait");
+			if (HRESULT hr = engine_->blockCpuUntilSubmittedGpuWorkCompletes(); FAILED(hr)) {
+				blog(LOG_ERROR, OBS_LOG_HEADER "MPLDPipeline.WaitInferenceError: %ld", hr);
+				skip = true;
 			}
-			maskRefiner_->complete();
+		}
+		if (!skip && willCompleteMask) {
+			if (HRESULT hr = engine_->complete(); FAILED(hr)) {
+				blog(LOG_ERROR, OBS_LOG_HEADER "MPLDPipeline.CompleteInferenceError: %ld", hr);
+				skip = true;
+			}
+		}
+		if (!skip && willCompleteMask) {
+			gateResultAvailable_ = true;
 			appliedMaskSettings_ = maskSettings;
-		} catch (const std::exception &exception) {
-			// Failed validation must not leave a completed model result unconsumed.
-			if (modelResultPending) {
-				try {
-					engine_->blockCpuUntilInferenceCompletes();
-					engine_->releaseGpuResult();
-				} catch (const std::exception &cleanupError) {
-					blog(LOG_ERROR, OBS_LOG_HEADER "GPU result cleanup failed: %s",
-					     cleanupError.what());
-				}
+			if (willInferMask) {
+				--remainingInferenceFrames_;
+				std::swap(lastInputTexture_, inputTexture_);
 			}
-			blog(LOG_ERROR, OBS_LOG_HEADER "GPU mask refinement failed: %s", exception.what());
+		}
+	}
+	if (willRecreateEngine) {
+		needsRecreation_ = true;
+	}
+	TraceLoggingWrite(g_hProvider, "InferenceDecision", TraceLoggingLevel(5), TraceLoggingKeyword(0x1),
+			  TraceLoggingFloat64(imageSimilarityThreshold, "EffectiveSensitivity"),
+			  TraceLoggingBool(willInferMask, "Required"));
+
+	gs_texture_t *blurredBackgroundTexture = targetTexture;
+	for (std::int64_t iteration = 0;
+	     willBlurBackground && targetTexture && alphaTexture && iteration < blurIterations; ++iteration) {
+		gs_ortho(0, static_cast<float>(width_), 0, static_cast<float>(height_), -100, 100);
+		gs_set_viewport(0, 0, width_, height_);
+		auto *destination = blurTextures_[iteration % blurTextures_.size()].get();
+		if (!destination) {
+			blog(LOG_ERROR, OBS_LOG_HEADER "MPLDPipeline.BlursBackgroundNullError: destination");
 			return;
 		}
-	}
-	if (!skipMaskInference)
-		std::swap(lastInputTexture_, inputTexture_);
-
-	gs_texture_t *const alphaTexture = alphaTexture_.get();
-
-	gs_texture_t *blurredTexture = sourceTexture;
-	if (blurBackgroundEnabled) {
-		const auto iterations = std::clamp<std::int64_t>(unsafeBlurBackgroundFactor, 0, 30);
-		gs_ortho(0.0F, static_cast<float>(width_), 0.0F, static_cast<float>(height_), -100.0F, 100.0F);
-		gs_set_viewport(0, 0, static_cast<int>(width_), static_cast<int>(height_));
-		for (std::int64_t iteration = 0; iteration < iterations; ++iteration) {
-			gs_texture_t *destination = blurTextures[iteration % blurTextures.size()];
-			gs_set_render_target_with_color_space(destination, nullptr, GS_CS_709_EXTENDED);
-			while (gs_effect_loop(effect, "DrawFocalBlur")) {
-				gs_effect_set_texture(epImage, blurredTexture);
-				gs_effect_set_texture(gs_effect_get_param_by_name(effect, "focalmask"), alphaTexture);
-				gs_effect_set_float(gs_effect_get_param_by_name(effect, "xOffset"),
-						    (static_cast<float>(iteration) + 0.5F) / width_);
-				gs_effect_set_float(gs_effect_get_param_by_name(effect, "yOffset"),
-						    (static_cast<float>(iteration) + 0.5F) / height_);
-				gs_effect_set_int(gs_effect_get_param_by_name(effect, "blurIter"),
-						  static_cast<int>(iteration));
-				gs_effect_set_int(gs_effect_get_param_by_name(effect, "blurTotal"),
-						  static_cast<int>(iterations));
-				gs_effect_set_float(gs_effect_get_param_by_name(effect, "blurFocusPoint"),
-						    blurFocusPoint);
-				gs_effect_set_float(gs_effect_get_param_by_name(effect, "blurFocusDepth"),
-						    blurFocusDepth);
-				gs_draw_sprite(nullptr, 0, width_, height_);
-			}
-			blurredTexture = destination;
+		gs_set_render_target_with_color_space(destination, nullptr, GS_CS_709_EXTENDED);
+		while (gs_effect_loop(effect, "DrawFocalBlur")) {
+			gs_effect_set_texture(epImage, blurredBackgroundTexture);
+			gs_effect_set_texture(epImage1, alphaTexture);
+			gs_effect_set_float(gs_effect_get_param_by_name(effect, "xOffset"),
+					    (static_cast<float>(iteration) + .5F) / width_);
+			gs_effect_set_float(gs_effect_get_param_by_name(effect, "yOffset"),
+					    (static_cast<float>(iteration) + .5F) / height_);
+			gs_effect_set_int(gs_effect_get_param_by_name(effect, "blurIter"), static_cast<int>(iteration));
+			gs_effect_set_int(gs_effect_get_param_by_name(effect, "blurTotal"),
+					  static_cast<int>(blurIterations));
+			gs_effect_set_float(gs_effect_get_param_by_name(effect, "blurFocusPoint"), blurFocusPoint);
+			gs_effect_set_float(gs_effect_get_param_by_name(effect, "blurFocusDepth"), blurFocusDepth);
+			gs_draw_sprite(nullptr, 0, width_, height_);
 		}
+		blurredBackgroundTexture = destination;
 	}
 
-	frameBlurBackgroundEnabled_ = blurBackgroundEnabled;
-	frameBlurredTexture_ = blurredTexture;
-	filterState_ = FilterState::ReadyForRendering;
-
-	// MARK: - Render to destination
+	if (filterState_ == FilterState::Processing) {
+		frameBlurBackgroundEnabled_ = blurBackgroundEnabled;
+		frameBlurredTexture_ = blurredBackgroundTexture;
+		filterState_ = FilterState::ReadyForRendering;
+	}
 
 	renderStatePop();
-	renderFrameResult();
-}
-
-void MediaPipeLandscapeDirectMLPipeline::renderFrameResult() const noexcept
-{
-	gs_effect_t *effect = effect_.get();
-	gs_texture_t *sourceTexture = sourceTexture_.get();
-	gs_texture_t *alphaTexture = alphaTexture_.get();
-	gs_eparam_t *epImage = gs_effect_get_param_by_name(effect, "image");
-	gs_eparam_t *epAlphaMask = gs_effect_get_param_by_name(effect, "alphamask");
-	gs_eparam_t *epBlurredBackground = gs_effect_get_param_by_name(effect, "blurredBackground");
-	if (frameBlurBackgroundEnabled_) {
-		while (gs_effect_loop(effect, "DrawWithFocalBlur")) {
-			gs_effect_set_texture(epImage, sourceTexture);
-			gs_effect_set_texture(epAlphaMask, alphaTexture);
-			gs_effect_set_texture(epBlurredBackground, frameBlurredTexture_);
-			gs_draw_sprite(sourceTexture, 0, 0, 0);
-		}
-	} else {
-		while (gs_effect_loop(effect, "DrawWithoutBlur")) {
-			gs_effect_set_texture(epImage, sourceTexture);
-			gs_effect_set_texture(epAlphaMask, alphaTexture);
-			gs_draw_sprite(sourceTexture, 0, 0, 0);
+	if (filterState_ == FilterState::ReadyForRendering) {
+		const char *technique = frameBlurBackgroundEnabled_ && frameBlurredTexture_ ? "DrawWithFocalBlur"
+											    : "DrawWithoutBlur";
+		while (gs_effect_loop(effect, technique)) {
+			gs_effect_set_texture(epImage, targetTexture);
+			gs_effect_set_texture(epImage1, alphaTexture);
+			gs_effect_set_texture(epImage2, frameBlurredTexture_);
+			gs_draw_sprite(nullptr, 0, width_, height_);
 		}
 	}
 }

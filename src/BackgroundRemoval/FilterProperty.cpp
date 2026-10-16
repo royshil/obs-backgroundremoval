@@ -17,7 +17,9 @@ auto decodeFilterProperty(obs_data_t *settings) noexcept -> FilterProperty
 		.refineMaskEnabled = obs_data_get_bool(settings, "v2_RefineMask"),
 		.refineMaskThreshold = obs_data_get_double(settings, "v2_RefineMask_Threshold"),
 		.refineMaskContour = obs_data_get_double(settings, "v2_RefineMask_Contour"),
+#ifndef _WIN32
 		.refineMaskExpansion = obs_data_get_int(settings, "v2_RefineMask_Expansion"),
+#endif
 		.blurBackgroundEnabled = obs_data_get_bool(settings, "v2_BlurBg"),
 		.blurBackgroundFactor = obs_data_get_int(settings, "v2_BlurBg_Factor"),
 		.blurFocusPoint = obs_data_get_double(settings, "v2_BlurBg_FocusPoint"),
@@ -35,7 +37,9 @@ void encodeFilterProperty(obs_data_t *settings, const FilterProperty &property) 
 	obs_data_set_bool(settings, "v2_RefineMask", property.refineMaskEnabled);
 	obs_data_set_double(settings, "v2_RefineMask_Threshold", property.refineMaskThreshold);
 	obs_data_set_double(settings, "v2_RefineMask_Contour", property.refineMaskContour);
+#ifndef _WIN32
 	obs_data_set_int(settings, "v2_RefineMask_Expansion", property.refineMaskExpansion);
+#endif
 	obs_data_set_bool(settings, "v2_BlurBg", property.blurBackgroundEnabled);
 	obs_data_set_int(settings, "v2_BlurBg_Factor", property.blurBackgroundFactor);
 	obs_data_set_double(settings, "v2_BlurBg_FocusPoint", property.blurFocusPoint);

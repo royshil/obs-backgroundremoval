@@ -484,7 +484,7 @@ int probeDirectMlTypes()
 				}
 	return 0;
 }
-int run()
+int run(bool predication = false)
 {
 	ComPtr<ID3D12Device> device;
 	check(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
@@ -530,13 +530,22 @@ int run()
 	std::ofstream manifest("probe-cases.csv");
 	manifest.exceptions(std::ios::badbit | std::ios::failbit);
 	manifest << "case,shape,type,flags,layout,alignment,owned,expected,repetitions\n";
+	std::ofstream predicateResults;
+	if (predication) {
+		predicateResults.open("predication-results.csv");
+		predicateResults.exceptions(std::ios::badbit | std::ios::failbit);
+		predicateResults << "flags,predicate,expected,actual,all_match\n";
+	}
 	unsigned caseIndex = 0;
+	unsigned predicationMismatches = 0;
 	for (unsigned modelShape = 0; modelShape < 2; ++modelShape)
 		for (bool half : {false, true})
 			for (unsigned flags : {0u, 1u, 2u})
 				for (bool nhwc : {false, true})
 					for (UINT alignment : {0u, 16u})
 						for (bool owned : {true, false}) {
+							if (predication && (modelShape || half || flags == 1 || nhwc || alignment || !owned))
+								continue;
 							if (flags == 2 && (nhwc || alignment || !owned))
 								continue;
 							UINT channels = modelShape ? 128 : 8,
@@ -691,6 +700,58 @@ int run()
 									      output.buffer.TotalTensorSizeInBytes};
 							DML_BINDING_DESC obd{DML_BINDING_TYPE_BUFFER, &ob};
 							table->BindOutputs(1, &obd);
+							if (predication) {
+								const auto bytes = output.buffer.TotalTensorSizeInBytes;
+								auto sentinel = buffer(device.Get(), bytes, D3D12_HEAP_TYPE_UPLOAD,
+										       D3D12_RESOURCE_STATE_GENERIC_READ);
+								auto predicate = buffer(device.Get(), 8, D3D12_HEAP_TYPE_UPLOAD,
+										        D3D12_RESOURCE_STATE_GENERIC_READ);
+								void *mapped = nullptr;
+								check(sentinel->Map(0, nullptr, &mapped));
+								std::fill_n(static_cast<float *>(mapped), bytes / 4, -123.0F);
+								sentinel->Unmap(0, nullptr);
+								for (const UINT64 decision : {0ULL, 1ULL, 0ULL, 1ULL}) {
+									check(predicate->Map(0, nullptr, &mapped));
+									std::memcpy(mapped, &decision, 8);
+									predicate->Unmap(0, nullptr);
+									begin();
+									D3D12_RESOURCE_BARRIER b{};
+									b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+									b.Transition = {out.Get(), D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+										D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_DEST};
+									commands->ResourceBarrier(1, &b);
+									commands->CopyBufferRegion(out.Get(), 0, sentinel.Get(), 0, bytes);
+									std::swap(b.Transition.StateBefore, b.Transition.StateAfter);
+									commands->ResourceBarrier(1, &b);
+									commands->SetDescriptorHeaps(1, heaps);
+									commands->SetPredication(predicate.Get(), 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
+									recorder->RecordDispatch(commands.Get(), compiled.Get(), table.Get());
+									commands->SetPredication(nullptr, 0, D3D12_PREDICATION_OP_EQUAL_ZERO);
+									b.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+									b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+									commands->ResourceBarrier(1, &b);
+									// Unconditional readback: a skipped copy cannot hide an executed Conv.
+									commands->CopyBufferRegion(readback.Get(), 0, out.Get(), 0, bytes);
+									std::swap(b.Transition.StateBefore, b.Transition.StateAfter);
+									commands->ResourceBarrier(1, &b);
+									submit();
+									check(readback->Map(0, nullptr, &mapped));
+									const float expected = decision ? channels * .125F + .125F : -123.0F;
+									const float actual = static_cast<float *>(mapped)[0];
+									bool matches = true;
+									for (UINT64 i = 0; i < bytes / 4; ++i)
+										matches &= static_cast<float *>(mapped)[i] == expected;
+									readback->Unmap(0, nullptr);
+									std::cout << "flags=" << flags << ",predicate=" << decision
+										  << ",expected=" << expected << ",actual=" << actual
+										  << ",all_match=" << matches << '\n';
+									predicationMismatches += !matches;
+									predicateResults << flags << ',' << decision << ',' << expected << ','
+										<< actual << ',' << matches << '\n';
+								}
+								++caseIndex;
+								continue;
+							}
 							begin();
 							commands->SetDescriptorHeaps(1, heaps);
 							for (unsigned repeat = 0; repeat < 3; ++repeat) {
@@ -729,13 +790,17 @@ int run()
 								 << (nhwc ? "NHWC" : "NCHW") << "," << alignment << ","
 								 << owned << "," << expected << ",3\n";
 						}
-	std::cout << "Validated " << caseIndex << " isolated Conv cases.\n";
-	return 0;
+	std::cout << "Checked " << caseIndex << " isolated Conv cases.\n";
+	if (predication)
+		std::cout << "Predication mismatches: " << predicationMismatches << '\n';
+	return predicationMismatches ? 1 : 0;
 }
 } // namespace ConvMetaCommandProbe
 int main(int argc, char **argv)
 {
 	try {
+		if (argc == 2 && std::string_view(argv[1]) == "--predication")
+			return ConvMetaCommandProbe::run(true);
 		if (argc == 2 && std::string_view(argv[1]) == "--probe-dml-types")
 			return ConvMetaCommandProbe::probeDirectMlTypes();
 		if (argc == 2 && std::string_view(argv[1]) == "--enumerate-meta")

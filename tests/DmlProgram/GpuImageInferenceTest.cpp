@@ -1,5 +1,14 @@
 #include "BackgroundRemoval/PipelineFactory.hpp"
-#include "TraceLoggingProvider.hpp"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <TraceLoggingProvider.h>
+
+TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -38,6 +47,7 @@ void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std:
 
 #ifdef GPU_LANDSCAPE_MODEL
 #include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.hpp"
+#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.hpp"
 #include <wincodec.h>
 #include <winrt/base.h>
 namespace BackgroundRemoval::Generated {
@@ -251,6 +261,36 @@ TEST_CASE("PredicatedDirectML")
 }
 
 #ifdef GPU_LANDSCAPE_MODEL
+namespace BackgroundRemoval {
+struct MediaPipeLandscapeDirectMLPipelineTestAccess {
+	static void finishGate(MediaPipeLandscapeDirectMLPipeline &pipeline)
+	{
+		if (pipeline.gateSubmissionPending_) {
+			REQUIRE(pipeline.engine_->blockCpuUntilSubmittedGpuWorkCompletes() == S_OK);
+			REQUIRE(pipeline.engine_->complete() == S_OK);
+			pipeline.gateSubmissionPending_ = false;
+			pipeline.gateResultAvailable_ = true;
+		}
+	}
+	static auto remaining(const MediaPipeLandscapeDirectMLPipeline &pipeline) -> std::uint32_t
+	{
+		return pipeline.remainingInferenceFrames_;
+	}
+	static void replaceEngine(MediaPipeLandscapeDirectMLPipeline &pipeline,
+				  std::unique_ptr<MediaPipeLandscapeDirectMLEngine> engine)
+	{
+		pipeline.engine_ = std::move(engine);
+	}
+	static auto alphaTexture(const MediaPipeLandscapeDirectMLPipeline &pipeline) -> gs_texture_t *
+	{
+		return pipeline.alphaTexture_.get();
+	}
+	static auto lastInputTexture(const MediaPipeLandscapeDirectMLPipeline &pipeline) -> gs_texture_t *
+	{
+		return pipeline.lastInputTexture_.get();
+	}
+};
+} // namespace BackgroundRemoval
 namespace BackgroundRemoval::PipelineTest {
 auto portraitInput() -> std::vector<float>
 {
@@ -390,6 +430,13 @@ TEST_CASE("LandscapeRenderingInitialization")
 	std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> settings{obs_data_create(), obs_data_release};
 	property.imageSimilarityThreshold = 42.0;
 	BackgroundRemoval::encodeFilterProperty(settings.get(), property);
+	CHECK_FALSE(obs_data_has_user_value(settings.get(), "v2_RefineMask_Expansion"));
+	// Historical Windows settings are ignored and are not serialized again.
+	obs_data_set_int(settings.get(), "v2_RefineMask_Expansion", 30);
+	std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> roundTrip{obs_data_create(), obs_data_release};
+	BackgroundRemoval::encodeFilterProperty(roundTrip.get(),
+						BackgroundRemoval::decodeFilterProperty(settings.get()));
+	CHECK_FALSE(obs_data_has_user_value(roundTrip.get(), "v2_RefineMask_Expansion"));
 	CHECK(BackgroundRemoval::decodeFilterProperty(settings.get()).imageSimilarityThreshold == 42.0);
 	{
 		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, scene, 256, 144);
@@ -454,8 +501,41 @@ TEST_CASE("LandscapeRenderingInitialization")
 		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, filter.get(), 256, 144);
 		filterData->pipeline_ = &pipeline;
 		inputData->pipeline_ = &pipeline;
+		CHECK_FALSE(pipeline.needsRecreation());
+		// A black first input skips inference and keeps the initial background mask.
+		std::vector<uint8_t> blackPixels(256 * 144 * 4, 0);
+		for (size_t i = 0; i < 256 * 144; ++i)
+			blackPixels[i * 4 + 3] = 255;
+		const auto *blackBytes = blackPixels.data();
+		std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> black{
+			gs_texture_create(256, 144, GS_BGRA, 1, &blackBytes, 0), gs_texture_destroy};
+		REQUIRE(black);
+		inputData->image_ = black.get();
+		gs_set_render_target_with_color_space(destination.get(), nullptr, GS_CS_709_EXTENDED);
+		gs_set_viewport(0, 0, 256, 144);
+		gs_ortho(0, 256, 0, 144, -100, 100);
+		gs_matrix_identity();
+		gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+		obs_source_video_render(inputSource.get());
+		CHECK_FALSE(pipeline.needsRecreation());
+		gs_stage_texture(readback.get(), destination.get());
+		uint8_t *initialData = nullptr;
+		uint32_t initialPitch = 0;
+		REQUIRE(gs_stagesurface_map(readback.get(), &initialData, &initialPitch));
+		bool initialBackground = true;
+		for (size_t y = 0; y < 144; ++y)
+			for (size_t x = 0; x < 256; ++x)
+				initialBackground &= initialData[y * initialPitch + x * 4 + 3] == 0;
+		gs_stagesurface_unmap(readback.get());
+		CHECK(initialBackground);
+		const auto blackRenderCount = inputData->renderCount_;
+		obs_source_video_render(inputSource.get());
+		CHECK(inputData->renderCount_ == blackRenderCount + 1);
+		BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess::finishGate(pipeline);
+		inputData->image_ = image.get();
 		const char *stressFrames = std::getenv("DML_TEST_STRESS_FRAMES");
 		const int frameCount = stressFrames ? std::clamp(std::atoi(stressFrames), 4, 120) : 4;
+		std::vector<float> heldExpected(expected.size(), 0.0F);
 		for (int frame = 0; frame < frameCount; ++frame) {
 			pipeline.videoTick(1.0F / 30);
 			if (frame >= 3) {
@@ -485,9 +565,12 @@ TEST_CASE("LandscapeRenderingInitialization")
 			// Processing must reject reentrant renders without touching graphics state.
 			inputData->reenter_ = true;
 			const auto beforeRendering = inputData->renderCount_;
+			auto *previousReference = BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline);
 			obs_source_video_render(inputSource.get());
+			if (BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline) != previousReference)
+				heldExpected = expected;
 			CHECK_FALSE(inputData->reenter_);
-			CHECK(inputData->renderCount_ == beforeRendering + 2);
+			CHECK(inputData->renderCount_ == beforeRendering + 1);
 			CHECK(gs_get_render_target() == destination.get());
 			CHECK(gs_get_color_space() == GS_CS_709_EXTENDED);
 			gs_rect viewport{};
@@ -498,11 +581,23 @@ TEST_CASE("LandscapeRenderingInitialization")
 			uint8_t *mapped = nullptr;
 			uint32_t pitch = 0;
 			REQUIRE(gs_stagesurface_map(readback.get(), &mapped, &pitch));
+			if (frame == 1) {
+				bool opaque = true;
+				std::uint64_t colorSum = 0;
+				for (size_t y = 0; y < 144; ++y)
+					for (size_t x = 0; x < 256; ++x) {
+						const auto *pixel = mapped + y * pitch + x * 4;
+						opaque &= pixel[3] == 255;
+						colorSum += pixel[0] + pixel[1] + pixel[2];
+					}
+				CHECK(opaque);
+				CHECK(colorSum > 0);
+			}
 			if (frame != 1) {
 				double maxError = 0;
 				for (size_t i = 0; i < expected.size(); ++i) {
 					const auto expectedAlpha =
-						255 - uint8_t(std::clamp((1 - expected[i]) * 255.0F, 0.0F, 255.0F));
+						255 - uint8_t(std::clamp((1 - heldExpected[i]) * 255.0F, 0.0F, 255.0F));
 					maxError = std::max(
 						maxError,
 						std::abs(double(mapped[(i / 256) * pitch + (i % 256) * 4 + 3]) -
@@ -523,7 +618,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 				const auto captured = inputData->renderCount_;
 				for (int draw = 0; draw < 3; ++draw) {
 					obs_source_video_render(inputSource.get());
-					CHECK(inputData->renderCount_ == captured);
+					CHECK(inputData->renderCount_ == captured + draw + 1);
 					CHECK(gs_get_render_target() == destination.get());
 					CHECK(gs_get_color_space() == GS_CS_709_EXTENDED);
 					gs_stage_texture(readback.get(), destination.get());
@@ -537,6 +632,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 				property.blurBackgroundEnabled = !property.blurBackgroundEnabled;
 				pipeline.update(property);
 			}
+			BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess::finishGate(pipeline);
 		}
 		std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> calibrated{obs_source_get_settings(filter.get()),
 									       obs_data_release};
@@ -578,11 +674,163 @@ TEST_CASE("LandscapeRenderingInitialization")
 					  << ",p95_ms=" << (*values)[56] << '\n';
 			}
 		}
+		// Seed a portrait mask, then make the Engine expect RGBA while Pipeline uses BGRA.
+		property.refineMaskEnabled = false;
+		property.blurBackgroundEnabled = false;
+		pipeline.update(property);
+		auto retainedInput = portraitInput();
+		std::vector<uint8_t> retainedPixels(256 * 144 * 4, 255);
+		for (size_t i = 0; i < 256 * 144; ++i)
+			for (size_t c = 0; c < 3; ++c)
+				retainedPixels[i * 4 + 2 - c] =
+					uint8_t(std::round(retainedInput[c * 256 * 144 + i] * 255));
+		const auto *retainedBytes = retainedPixels.data();
+		std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> portrait{
+			gs_texture_create(256, 144, GS_BGRA, 1, &retainedBytes, 0), gs_texture_destroy};
+		REQUIRE(portrait);
+		inputData->image_ = portrait.get();
+		pipeline.videoTick(1.0F / 30);
+		obs_source_video_render(inputSource.get());
+		using BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess;
+		std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)> maskReadback{
+			gs_stagesurface_create(256, 144, GS_R8), gs_stagesurface_destroy};
+		REQUIRE(maskReadback);
+		auto readMask = [&] {
+			gs_stage_texture(maskReadback.get(),
+					 MediaPipeLandscapeDirectMLPipelineTestAccess::alphaTexture(pipeline));
+			uint8_t *mapped = nullptr;
+			uint32_t pitch = 0;
+			REQUIRE(gs_stagesurface_map(maskReadback.get(), &mapped, &pitch));
+			std::vector<uint8_t> result(256 * 144);
+			for (size_t y = 0; y < 144; ++y)
+				std::memcpy(result.data() + y * 256, mapped + y * pitch, 256);
+			gs_stagesurface_unmap(maskReadback.get());
+			return result;
+		};
+		// Bypassing the finite-threshold gate must still populate this frame's input.
+		auto ungatedPixels = retainedPixels;
+		for (size_t i = 0; i < 256 * 144; ++i)
+			for (size_t c = 0; c < 3; ++c)
+				ungatedPixels[i * 4 + c] = 255 - ungatedPixels[i * 4 + c];
+		const auto *ungatedBytes = ungatedPixels.data();
+		std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> ungated{
+			gs_texture_create(256, 144, GS_BGRA, 1, &ungatedBytes, 0), gs_texture_destroy};
+		REQUIRE(ungated);
+		inputData->image_ = ungated.get();
+		property.imageSimilarityThreshold = std::numeric_limits<double>::quiet_NaN();
+		pipeline.update(property);
+		pipeline.videoTick(1.0F / 30);
+		obs_source_video_render(inputSource.get());
+		MediaPipeLandscapeDirectMLPipelineTestAccess::finishGate(pipeline);
+		pipeline.videoTick(1.0F / 30);
+		obs_source_video_render(inputSource.get());
+		gs_stage_texture(readback.get(),
+				 MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline));
+		uint8_t *ungatedMapped = nullptr;
+		uint32_t ungatedPitch = 0;
+		REQUIRE(gs_stagesurface_map(readback.get(), &ungatedMapped, &ungatedPitch));
+		for (size_t y = 0; y < 144; ++y)
+			CHECK(std::memcmp(ungatedMapped + y * ungatedPitch, ungatedPixels.data() + y * 256 * 4,
+					  256 * 4) == 0);
+		gs_stagesurface_unmap(readback.get());
+		property.imageSimilarityThreshold = 40;
+		pipeline.update(property);
+		inputData->image_ = portrait.get();
+		pipeline.videoTick(1.0F / 30);
+		obs_source_video_render(inputSource.get());
+		const auto heldMask = readMask();
+		CHECK(*std::max_element(heldMask.begin(), heldMask.end()) >
+		      *std::min_element(heldMask.begin(), heldMask.end()));
+		auto *heldReference = MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline);
+		std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> rgba{
+			gs_texture_create(256, 144, GS_RGBA, 1, &retainedBytes, 0), gs_texture_destroy};
+		REQUIRE(rgba);
+		auto differentFormatEngine = std::make_unique<BackgroundRemoval::MediaPipeLandscapeDirectMLEngine>(
+			BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::Output::GpuMask);
+		REQUIRE(differentFormatEngine->runAsync(rgba.get()) == S_OK);
+		REQUIRE(differentFormatEngine->blockCpuUntilSubmittedGpuWorkCompletes() == S_OK);
+		REQUIRE(differentFormatEngine->complete() == S_OK);
+		MediaPipeLandscapeDirectMLPipelineTestAccess::replaceEngine(pipeline, std::move(differentFormatEngine));
+		std::vector<uint8_t> whitePixels(256 * 144 * 4, 255);
+		const auto *whiteBytes = whitePixels.data();
+		std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> white{
+			gs_texture_create(256, 144, GS_BGRA, 1, &whiteBytes, 0), gs_texture_destroy};
+		REQUIRE(white);
+		inputData->image_ = white.get();
+		property.refineMaskEnabled = true;
+		property.refineMaskThreshold = 0;
+		pipeline.update(property);
+		pipeline.videoTick(1.0F / 30);
+		const auto beforeRecreation = inputData->renderCount_;
+		obs_source_video_render(inputSource.get());
+		CHECK(pipeline.needsRecreation());
+		CHECK(inputData->renderCount_ == beforeRecreation + 1);
+		CHECK(MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline) == heldReference);
+		CHECK(readMask() == heldMask);
+		gs_stage_texture(readback.get(), destination.get());
+		uint8_t *heldOutput = nullptr;
+		uint32_t heldPitch = 0;
+		REQUIRE(gs_stagesurface_map(readback.get(), &heldOutput, &heldPitch));
+		int reuseError = 0;
+		for (size_t y = 0; y < 144; ++y)
+			for (size_t x = 0; x < 256; ++x)
+				for (size_t c = 0; c < 4; ++c)
+					reuseError = std::max(reuseError,
+							      std::abs(int(heldOutput[y * heldPitch + x * 4 + c]) -
+								       (255 - heldMask[y * 256 + x])));
+		gs_stagesurface_unmap(readback.get());
+		CHECK(reuseError <= 1);
+		obs_source_video_render(inputSource.get());
+		CHECK(inputData->renderCount_ == beforeRecreation + 2);
+		CHECK(readMask() == heldMask);
+		// If the parent has not replaced it yet, another tick must not resume inference.
+		pipeline.videoTick(1.0F / 30);
+		obs_source_video_render(inputSource.get());
+		CHECK(inputData->renderCount_ == beforeRecreation + 3);
+		CHECK(pipeline.needsRecreation());
+		CHECK(readMask() == heldMask);
+		CHECK(MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline) == heldReference);
+		CHECK(gs_get_render_target() == destination.get());
+
 		// Early return must preserve the caller's render target as well.
 		obs_source_set_enabled(filter.get(), false);
 		pipeline.videoRender(nullptr);
 		CHECK(gs_get_render_target() == destination.get());
 		obs_source_set_enabled(filter.get(), true);
+	}
+	// One-frame delayed motion starts a burst of 1 + ceil(FPS/30) updates.
+	// Explicit draining belongs to this test only, so completion timing is deterministic.
+	for (const std::uint32_t additional : {1u, 2u, 4u}) {
+		using Access = BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess;
+		property.imageSimilarityThreshold = 40;
+		property.refineMaskEnabled = false;
+		property.blurBackgroundEnabled = false;
+		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, filter.get(), 256, 144);
+		pipeline.additionalInferenceFrames_.store(additional, std::memory_order_relaxed);
+		filterData->pipeline_ = &pipeline;
+		inputData->pipeline_ = &pipeline;
+		inputData->image_ = image.get();
+		auto *initialReference = Access::lastInputTexture(pipeline);
+		pipeline.videoTick(1.0F / 30);
+		obs_source_video_render(inputSource.get());
+		CHECK(Access::lastInputTexture(pipeline) == initialReference);
+		Access::finishGate(pipeline);
+		for (std::uint32_t frame = 0; frame <= additional; ++frame) {
+			pipeline.videoTick(1.0F / 30);
+			auto *reference = Access::lastInputTexture(pipeline);
+			obs_source_video_render(inputSource.get());
+			CHECK(Access::lastInputTexture(pipeline) != reference);
+			CHECK(Access::remaining(pipeline) == additional - frame);
+			reference = Access::lastInputTexture(pipeline);
+			obs_source_video_render(inputSource.get());
+			CHECK(Access::lastInputTexture(pipeline) == reference);
+			CHECK(Access::remaining(pipeline) == additional - frame);
+		}
+		pipeline.videoTick(1.0F / 30);
+		auto *reference = Access::lastInputTexture(pipeline);
+		obs_source_video_render(inputSource.get());
+		CHECK(Access::lastInputTexture(pipeline) == reference);
+		CHECK_FALSE(pipeline.needsRecreation());
 	}
 	gs_set_render_target_with_color_space(previousTarget, nullptr, previousSpace);
 
@@ -622,14 +870,14 @@ int testMain(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	if (TraceLoggingRegister(provider) != ERROR_SUCCESS)
+	if (TraceLoggingRegister(g_hProvider) != ERROR_SUCCESS)
 		return 1;
 	try {
 		const int result = testMain(argc, argv);
-		TraceLoggingUnregister(provider);
+		TraceLoggingUnregister(g_hProvider);
 		return result;
 	} catch (...) {
-		TraceLoggingUnregister(provider);
+		TraceLoggingUnregister(g_hProvider);
 		throw;
 	}
 }

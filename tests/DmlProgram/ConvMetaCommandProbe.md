@@ -33,6 +33,37 @@ execution/descriptor check, not an accuracy test of arbitrary half computations.
 
 ## Running
 
+`--predication` runs an opt-in capability diagnostic: the minimal FP32/NCHW
+Conv with NONE and DISABLE_META_COMMANDS, each with predicate values 0,1,0,1.
+Only RecordDispatch is predicated (EQUAL_ZERO suppresses a zero predicate).
+Each iteration unconditionally initializes all 128 output elements to -123,
+then unconditionally reads them back after disabling predication. Expected
+executed output is 1.125. Thus a predicated output copy cannot hide execution.
+The initializer and input uploads are outside predication. The eight-byte
+predicate is an upload buffer in GENERIC_READ, which includes PREDICATION.
+Each iteration completes before updating the predicate or resetting commands.
+Results are written to `predication-results.csv`; exit status 1 indicates
+that at least one predicate did not suppress Conv. This is a diagnostic,
+not a portable assertion that every DirectML implementation supports predication.
+
+Observed on 2026-10-17, Intel UHD Graphics 630, driver 27.20.100.8681:
+
+| Compile flag | PIX implementation | Predicate 0 | Predicate 1 |
+| --- | --- | --- | --- |
+| NONE | ExecuteMetaCommand | 1.125 (executed) | 1.125 (executed) |
+| DISABLE_META_COMMANDS | Dispatch | -123 (skipped) | 1.125 (executed) |
+
+Both repetitions agreed for every element. PIX 2603.25 capture/export confirmed
+four ExecuteMetaCommand calls for NONE and four Dispatch calls for the control,
+each surrounded by SetPredication/disable; debug-layer replay reported no title
+warnings. Event presence alone does not establish execution: the unconditional
+numeric readback establishes that the MetaCommand ignores the zero predicate
+on this configuration. This result does not establish behavior on other drivers.
+The ordinary descriptor-matrix CTest remains unchanged and passed.
+
+Artifacts: `build/conv-predication-20261017/{results.txt,predication-results.csv,
+probe.wpix,events.csv,export,debug-layer.log}`. No production flags were changed.
+
 Build the `ConvMetaCommandProbe` target, then run:
 
 ```powershell

@@ -8,7 +8,17 @@
 
 #define DML_TARGET_VERSION 0x1000
 
-#include "TraceLoggingProvider.hpp"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <TraceLoggingProvider.h>
+#include <TraceLoggingActivity.h>
+
+TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 #include "BaselineDmlProgramRuntime.hpp"
 #include "DmlProgram/BaselineDmlCompiler.hpp"
 
@@ -150,7 +160,7 @@ class BaselineDmlProgramRuntime::Impl final {
 public:
 	explicit Impl(const Graph &graph, std::span<const std::byte> weights)
 	{
-		TraceLoggingThreadActivity<provider, 0x1> initialization;
+		TraceLoggingThreadActivity<g_hProvider, 0x1> initialization;
 		TraceLoggingWriteStart(initialization, "Runtime.Initialize");
 		check(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice_)),
 		      "D3D12CreateDevice");
@@ -173,7 +183,7 @@ public:
 
 		BaselineDmlCompiler compiler(dmlDevice_.Get());
 		auto compiled = [&] {
-			TraceLoggingThreadActivity<provider, 0x1> scope;
+			TraceLoggingThreadActivity<g_hProvider, 0x1> scope;
 			TraceLoggingWriteStart(scope, "Runtime.Compile");
 			return compiler.compile(graph, weights);
 		}();
@@ -206,7 +216,7 @@ public:
 
 	void run(std::span<const std::span<const std::byte>> inputs, std::span<std::byte> output)
 	{
-		TraceLoggingFunction(provider, TraceLoggingKeyword(0x1));
+		TraceLoggingFunction(g_hProvider, TraceLoggingKeyword(0x1));
 		if (inputs.size() != inputTensors_.size())
 			throw std::invalid_argument("Baseline DirectML input count mismatch");
 		if (output.size() != outputSize_)
@@ -226,7 +236,7 @@ public:
 			inputUploads_ = std::move(uploads);
 		}
 		// Validate every span before mapping or submitting any GPU work.
-		TraceLoggingThreadActivity<provider, 0x1> upload;
+		TraceLoggingThreadActivity<g_hProvider, 0x1> upload;
 		TraceLoggingWriteStart(upload, "Runtime.UploadCpuCopy");
 		for (std::size_t index = 0; index < inputs.size(); ++index) {
 			const auto &tensor = tensors_.at(inputTensors_[index]);
@@ -238,7 +248,7 @@ public:
 			inputUploads_[index]->Unmap(0, nullptr);
 		}
 		TraceLoggingWriteStop(upload, "Runtime.UploadCpuCopy");
-		TraceLoggingThreadActivity<provider, 0x1> recording;
+		TraceLoggingThreadActivity<g_hProvider, 0x1> recording;
 		TraceLoggingWriteStart(recording, "Runtime.RecordCommands");
 		resetCommands();
 		for (std::size_t index = 0; index < inputs.size(); ++index) {
@@ -285,7 +295,7 @@ public:
 #ifdef DML_MODEL_DIAGNOSTICS
         if (!diagnosticRoundedSteps_.empty()) readDiagnosticCopies();
 #endif
-		TraceLoggingThreadActivity<provider, 0x1> readback;
+		TraceLoggingThreadActivity<g_hProvider, 0x1> readback;
 		TraceLoggingWriteStart(readback, "Runtime.ReadbackCpuCopy");
 		void *mapped = nullptr;
 		const D3D12_RANGE readRange{0, static_cast<SIZE_T>(outputSize_)};
@@ -501,7 +511,7 @@ private:
 
 	void initializeOperators()
 	{
-		TraceLoggingThreadActivity<provider, 0x1> scope;
+		TraceLoggingThreadActivity<g_hProvider, 0x1> scope;
 		TraceLoggingWriteStart(scope, "Runtime.InitializeOperators");
 		ID3D12DescriptorHeap *heaps[] = {descriptorHeap_.Get()};
 		commandList_->SetDescriptorHeaps(1, heaps);
@@ -720,7 +730,7 @@ float3 loadRow(uint channel, uint ox, int y) {
 
 	void executeAndWait()
 	{
-		TraceLoggingThreadActivity<provider, 0x1> submit;
+		TraceLoggingThreadActivity<g_hProvider, 0x1> submit;
 		TraceLoggingWriteStart(submit, "Runtime.SubmitAndWait");
 		check(dmlDevice_->GetDeviceRemovedReason(), "DirectML device before command submission");
 		check(commandList_->Close(), "CommandList::Close");
@@ -729,7 +739,7 @@ float3 loadRow(uint channel, uint ox, int y) {
 		const std::uint64_t value = ++fenceValue_;
 		check(queue_->Signal(fence_.Get(), value), "CommandQueue::Signal");
 		if (fence_->GetCompletedValue() < value) {
-			TraceLoggingThreadActivity<provider, 0x1> wait;
+			TraceLoggingThreadActivity<g_hProvider, 0x1> wait;
 			TraceLoggingWriteStart(wait, "Runtime.FenceWait");
 			check(fence_->SetEventOnCompletion(value, fenceEvent_.get()), "Fence::SetEventOnCompletion");
 			for (;;) {

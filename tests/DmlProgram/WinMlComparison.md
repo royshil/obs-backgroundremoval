@@ -3,6 +3,24 @@
 
 # Operator comparison against Windows ML
 
+The Landscape Engine performs luma difference, U8 quantization, reduction,
+and threshold comparison on D3D12. DML operators enable MetaCommands. The gate
+reference is black initially and updates on every submitted input, independently
+of inference. Pipeline consumes the preceding input's gate result without waiting
+for gate-only work; if it is not ready, submission is deferred without overwriting
+in-flight resources. ON starts or extends a burst of 1 + ceil(canvas FPS / 30)
+inferences. Same-frame redraws do not consume the burst. FilterContext::videoTick
+publishes the additional count atomically, without recreating the Pipeline.
+Refinement settings reprocess retained probabilities without forcing inference.
+
+LandscapeDelayedGate (run by the Engine CTest) checks a black initial frame,
+previous-result CPU submission, consecutive-frame differences and retained output
+on skipped frames, including changed inputs. Opt-in Pipeline Statistics verifies
+exactly 37,120 CS invocations in the isolated gate list; production does not enable
+this query. Pipeline tests check 2/3/5-frame bursts (30/60/120 FPS) and repeated
+renders. WinML model comparison and GPU input/mask/Pipeline
+tests provide independent checks.
+
 The doctest executable compares BaselineDml output directly with WinML output,
 using CPU and DirectXHighPerformance sessions. GPU selection is a preference;
 provider placement inside WinML is not instrumented.
@@ -160,40 +178,89 @@ The caller provides an active OBS graphics context for construction, submission,
 result retrieval and destruction. All calls are serialized; there is one
 outstanding submission and no worker thread.
 
+The default constructor retains CPU probability output for numerical tests.
+`Output::GpuMask` selects the model-resolution U8 shared texture for the Pipeline.
+Construction may throw. All other Engine methods are `noexcept`; operations
+return HRESULT and pointer accessors return nullptr for an unavailable output.
+
 - `runAsync(inputTexture)` submits the D3D11 copy, input-ready signal/flush,
   D3D12 queue wait, conversion, inference, readback copy and completion signal.
   It does not wait on the CPU. Resource preparation and command recording occur
   before submission; compiled operators and command lists are reused. The RGB-plane buffer starts
   in COPY_SOURCE and returns to that state on each execution; recording occurs
   only once, after the first input fixes the native format.
-- `runAsync` returns `RunResult::NeedsRecreation` without submitting work when
-  the native format changes after the first input. Pipeline owns Engine
-  replacement and retries the current input; Engine never rebuilds itself.
-  Successful submission returns `RunResult::Submitted`. Invalid inputs and
-  D3D failures remain exceptions.
-- `isDone()` checks the submitted completion value without flushing or blocking.
-  Before submission and after result retrieval it returns false.
-- `getResult(outputSpan)` accepts only a completed submission and the correct
+- `runAsync` returns S_OK when submitted. If the native format changes, it
+  returns E_INVALIDARG without submitting work. Only after this failure does the
+  caller query `needsRecreation()`, which returns true.
+  The Pipeline reports `needsRecreation()` to its parent; FilterContext recreates
+  the Pipeline on the next video tick. No completion wait or input-reference
+  update is performed for the rejected submission. The source capture and final
+  draw continue using the last committed mask even when refinement settings
+  change. While recreation is pending, later frames keep this mask and do not
+  submit new inference or update the input reference. At the Engine API level, an
+  input matching the original format may still be submitted; its format check
+  clears the Engine flag. Each runAsync starts with a fresh recreation result,
+  so ordinary invalid input or an outstanding submission cannot inherit a stale
+  request from an earlier failed call. Only a failed runAsync may set the
+  Pipeline recreation flag; polling, waiting and completion errors do not set it.
+  Invalid inputs return E_INVALIDARG, outstanding work returns E_PENDING, and
+  D3D failures preserve their HRESULT. A partial submission failure makes the
+  Engine unusable; subsequent operations return E_UNEXPECTED.
+- `isDone(done)` checks the submitted completion value without flushing or blocking.
+  GPU-mask mode checks inference/U8 conversion completion. Before submission
+  and after result consumption it writes false. Device loss is an HRESULT error,
+  not an incomplete result.
+- `getResult(outputSpan)` in CPU-output mode accepts only a completed submission and the correct
   output size. It maps/copies/unmaps without waiting and releases the submission
   for reuse. A second submission before retrieval is rejected even when complete.
 - `blockCpuUntilInferenceCompletes()` is explicit CPU blocking for the
   current submission. It returns immediately if already complete. No work is an
   error. Normal submissions never invoke it internally.
 
-Pipeline submits after the existing image-difference decision, prepares settings
-and draws the current output source while GPU work proceeds, then polls before
-CPU mask refinement. Only if incomplete at that deadline does it explicitly
-block. It always uses that frame's result; no previous-frame substitution is
-introduced. Settings-only updates still refine retained output without forcing
-inference. Its local render-state restoration also runs on early returns.
+Pipeline submits `runAsync(input, refineEnabled, refineThreshold)` in
+`Output::GpuMask` mode. Output dimensions are fixed by the Engine constructor.
+Inference and mask postprocessing execute on the Runtime's D3D12 queue.
+The output probabilities are inverted and quantized to bytes. When refinement is
+enabled, each byte is thresholded at `1 - refineThreshold`, then horizontally and
+vertically smoothed with integer weights `[4,13,30,51,60,51,30,13,4]` (sum 256).
+Each pass rounds `(sum + 128) / 256`. Intermediates pack four U8 values per word;
+accumulation uses uint32. The resized result is thresholded at 0.5 and written to
+an output-sized shared R8_UNORM texture. Disabled refinement records only coarse
+conversion and continuous resize. CPU selects between two command lists recorded
+at construction; the enable flag is not a shader uniform. A mapped upload buffer
+carries dimensions and threshold and is only changed while no submission is held.
+
+`refineAsync(enabled, threshold)` reprocesses retained probabilities without DML
+inference. It rejects calls before any result is accepted, while a submission is
+outstanding, and invalid threshold values. Settings-only work observes the same
+shared ready/completion fences as inference, including ordering against OBS reads
+of the output texture. No CPU readback is used. `complete()` orders D3D11 reads and
+consumes the submission. Pipeline wraps the final texture as `alphaTexture_` and
+uses it directly; GS refinement techniques and their intermediate textures are
+removed. Initial output is all background. Repeated renders capture the source
+again and reuse the completed final mask. Reentrant renders return before changing
+rendering state, and state is restored before final drawing or early return.
+Each render calls `obs_source_video_render` once into `targetTexture_`; model input
+is a scaled draw of that captured image. Settings do not force inference.
+Input-reference exchange follows successful completion. Rejected submissions
+retain the committed mask and input reference.
+
+`LandscapeMaskEffect` compares the D3D12 output against an independent integer CPU
+reference using the portrait fixture, thresholds 0/0.42/1, both enable states, and
+31x17 output. It exercises direct inference, retained-output refinement, parameter
+changes, duplicate submissions, invalid thresholds and destruction with pending
+work. Refined binary output must match exactly; continuous U8 output allows one
+LSB for resize rounding. This reference is intentionally quantized and does not
+claim bitwise equivalence to the former FP32 GS Gaussian blur.
 
 Submission failures make the Engine unusable; destruction drains queued work
 before releasing resources. The per-frame consumed fence has been removed.
 Completion waiting is needed only at the output deadline or during destruction.
-`InferenceReadiness.CompletedBeforeDeadline` and SDK TraceLogging activities expose
-the split in WPR. Function-wide activities use their C++ function names; named
+SDK TraceLogging activities expose the split in WPR. `Pipeline.GpuOutputWait`
+covers the completion boundary, including the immediate return when work has
+already completed; its presence alone does not indicate a CPU wait. Function-wide activities use their C++ function names; named
 regions include `Pipeline.IndependentRendering`, `Pipeline.GpuOutputWait`,
-`MPLDEngine.Copy11To12` and `Pipeline.RefineMask`. Start/Stop events share an
+`MPLDEngine.Copy11To12` and `MPLDEngine.Inference`. Start/Stop events share an
 ActivityID and use keyword 0x1 and verbose level 5. Measure duration from the
 paired event timestamps; the old ScopeId/DurationMs payload is removed.
 The provider is registered at plugin load and unregistered at unload. Test and
@@ -215,7 +282,8 @@ CPU Float32-to-U8 mask conversion and resize, alpha upload and final composition
 submission. Refinement is disabled, as in the benchmark's default settings.
 The immediate path retrieves output before the source draw; the deferred path
 retrieves it after. Both validate current-frame output against the CPU-input
-Runtime. CSV includes submission, independent work, deadline waiting, result
+Runtime. Inference timing now includes GPU mask postprocessing; settings-only
+refinement timing includes submission, waiting and completion. CSV includes submission, independent work, deadline waiting, result
 retrieval, refinement, drawing and the wait-required flag. Report mean, median
 and p95, as well as the completion-before-deadline ratio.
 

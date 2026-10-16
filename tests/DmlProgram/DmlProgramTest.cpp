@@ -1,4 +1,13 @@
-#include "TraceLoggingProvider.hpp"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <TraceLoggingProvider.h>
+
+TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -409,14 +418,14 @@ int testMain(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	if (TraceLoggingRegister(provider) != ERROR_SUCCESS)
+	if (TraceLoggingRegister(g_hProvider) != ERROR_SUCCESS)
 		return 1;
 	try {
 		const int result = testMain(argc, argv);
-		TraceLoggingUnregister(provider);
+		TraceLoggingUnregister(g_hProvider);
 		return result;
 	} catch (...) {
-		TraceLoggingUnregister(provider);
+		TraceLoggingUnregister(g_hProvider);
 		throw;
 	}
 }
