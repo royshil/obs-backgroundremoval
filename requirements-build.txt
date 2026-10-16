@@ -3,3 +3,4 @@
 # SPDX-License-Identifier: Apache-2.0
 
 flatbuffers==25.12.19
+onnx==1.22.0

@@ -1,4 +1,10 @@
 -Isrc
+-Ivendor/obs-studio/libobs
+-Ivendor/obs-studio/deps/uthash
+-Ivendor/obs-studio/deps/libcaption
+-Ivendor/obs-studio/deps/jansson/src
+-Itests/UpdateConfig
+-Ivendor/cpp-httplib
 -Ibuild/RelWithDebInfo/include
 -Ibuild
 -I.deps/obs-deps/include
@@ -12,7 +18,6 @@
 -F.deps/obs-deps-qt6/lib
 -Fobs_installed/Frameworks
 -DSIMDE_ENABLE_OPENMP
--DHAVE_OBSCONFIG_H
 -DQT_CORE_LIB
 -DQT_GUI_LIB
 -DQT_WIDGETS_LIB

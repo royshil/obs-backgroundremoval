@@ -49,6 +49,7 @@ env:
   HOMEBREW_NO_AUTO_UPDATE: '1'
   HOMEBREW_NO_ENV_HINTS: '1'
   HOMEBREW_NO_INSTALL_CLEANUP: '1'
+  PLUGIN_BUNDLE_ID: com.royshilkrot.obs-backgroundremoval
 
 jobs:
   tahoe:
@@ -80,18 +81,11 @@ jobs:
           printf 'XCODE_VERSION=%s\n' "$(xcodebuild -version | awk 'NR == 1 { print $2 }')" | tee -a "${GITHUB_OUTPUT:?}"
           printf 'XCODE_BUILD_VERSION=%s\n' "$(xcodebuild -version | awk 'NR == 2 { print $3 }')" | tee -a "${GITHUB_OUTPUT:?}"
 
-      - name: Install OBS Studio (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: brew install --cask obs && xattr -dr com.apple.quarantine /Applications/OBS.app
-
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: true
-
-      - name: Checkout submodules (macOS)
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: git submodule update --init --filter=blob:none vendor/obs-studio
+          submodules: recursive
 
       - name: Load buildspec.props and VERSION
         id: buildspec
@@ -134,6 +128,7 @@ jobs:
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: |
           ENVS=(
+            CMAKE_PREFIX_PATH="${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }}"
             DEVELOPER_DIR="${DEVELOPER_DIR:?}"
             HOME="${HOME:?}"
             PATH="${PATH:?}"
@@ -143,17 +138,7 @@ jobs:
 
       - name: Test (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          ENVS=(
-            DEVELOPER_DIR="${DEVELOPER_DIR:?}"
-            DYLD_FRAMEWORK_PATH=/Applications/OBS.app/Contents/Frameworks
-            DYLD_LIBRARY_PATH=/Applications/OBS.app/Contents/Frameworks
-            HOME="${HOME:?}"
-            PATH="${PATH:?}"
-          )
-
-          /usr/bin/env -i "${ENVS[@]}" "${CTEST_COMMAND:?}" \
-            --test-dir build --build-config RelWithDebInfo --output-on-failure
+        run: "${CTEST_COMMAND:?} --test-dir build --build-config RelWithDebInfo --output-on-failure"
 
       - name: Archive dSYM (macOS)
         id: archive-dsym
@@ -195,7 +180,6 @@ jobs:
           BUILD_PREFIX: ${{ github.workspace }}/build_prefix
           MACOS_SIGNING_APPLICATION_IDENTITY: ${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}
           MACOS_SIGNING_INSTALLER_IDENTITY: ${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}
-          PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.PLUGIN_BUNDLE_ID }}
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
           PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos.pkg"
@@ -257,7 +241,6 @@ jobs:
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           BUILD_PREFIX: ${{ github.workspace }}/build_prefix
-          PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.PLUGIN_BUNDLE_ID }}
           PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
         run: |
           PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos.unsigned.pkg"

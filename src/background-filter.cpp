@@ -181,6 +181,10 @@ obs_properties_t *background_filter_properties(void *data)
 							    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 
 	obs_property_list_add_string(p_use_gpu, obs_module_text("CPU"), USEGPU_CPU);
+#if defined(_WIN32)
+	obs_property_list_clear(p_use_gpu);
+	obs_property_list_add_string(p_use_gpu, "DirectML", USEGPU_DIRECTML);
+#endif
 #ifdef HAVE_ONNXRUNTIME_CUDA_EP
 	obs_property_list_add_string(p_use_gpu, obs_module_text("GPUCUDA"), USEGPU_CUDA);
 #endif
@@ -206,12 +210,17 @@ obs_properties_t *background_filter_properties(void *data)
 								 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 
 	obs_property_list_add_string(p_model_select, obs_module_text("SINet"), MODEL_SINET);
+#if defined(_WIN32)
+	obs_property_list_clear(p_model_select);
+	obs_property_list_add_string(p_model_select, obs_module_text("MediaPipe"), MODEL_MEDIAPIPE);
+#else
 	obs_property_list_add_string(p_model_select, obs_module_text("MediaPipe"), MODEL_MEDIAPIPE);
 	obs_property_list_add_string(p_model_select, obs_module_text("Selfie Segmentation"), MODEL_SELFIE);
 	obs_property_list_add_string(p_model_select, obs_module_text("Selfie Multiclass"), MODEL_SELFIE_MULTICLASS);
 	obs_property_list_add_string(p_model_select, obs_module_text("PPHumanSeg"), MODEL_PPHUMANSEG);
 	obs_property_list_add_string(p_model_select, obs_module_text("Robust Video Matting"), MODEL_RVM);
 	obs_property_list_add_string(p_model_select, obs_module_text("TCMonoDepth"), MODEL_DEPTH_TCMONODEPTH);
+#endif
 
 	obs_properties_add_float_slider(props, "temporal_smooth_factor", obs_module_text("TemporalSmoothFactor"), 0.0,
 					1.0, 0.01);
@@ -270,6 +279,8 @@ void background_filter_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "feather", 0.0);
 #if defined(__APPLE__)
 	obs_data_set_default_string(settings, "useGPU", USEGPU_CPU);
+#elif defined(_WIN32)
+	obs_data_set_default_string(settings, "useGPU", USEGPU_DIRECTML);
 #else
 	// Linux
 	obs_data_set_default_string(settings, "useGPU", USEGPU_CPU);
@@ -321,8 +332,18 @@ void background_filter_update(void *data, obs_data_t *settings)
 	tf->imageSimilarityThreshold = (float)obs_data_get_double(settings, "image_similarity_threshold");
 	tf->enableImageSimilarity = (float)obs_data_get_bool(settings, "enable_image_similarity");
 
-	const std::string newUseGpu = obs_data_get_string(settings, "useGPU");
-	const std::string newModel = obs_data_get_string(settings, "model_select");
+	const std::string newUseGpu =
+#if defined(_WIN32)
+		USEGPU_DIRECTML;
+#else
+		obs_data_get_string(settings, "useGPU");
+#endif
+	const std::string newModel =
+#if defined(_WIN32)
+		MODEL_MEDIAPIPE;
+#else
+		obs_data_get_string(settings, "model_select");
+#endif
 	const uint32_t newNumThreads = (uint32_t)obs_data_get_int(settings, "numThreads");
 
 	if (tf->modelSelection.empty() || tf->modelSelection != newModel || tf->useGPU != newUseGpu ||
@@ -357,13 +378,62 @@ void background_filter_update(void *data, obs_data_t *settings)
 			tf->model.reset(new ModelTCMonoDepth);
 		}
 
-		int ortSessionResult = createOrtSession(tf.get());
-		if (ortSessionResult != OBS_BGREMOVAL_ORT_SESSION_SUCCESS) {
-			obs_log(LOG_ERROR, "Failed to create ONNXRuntime session. Error code: %d", ortSessionResult);
-			// disable filter
-			tf->isDisabled = true;
-			tf->model.reset();
-			return;
+		tf->session.reset();
+#if defined(_WIN32)
+		tf->directML.reset();
+		if (tf->useGPU == USEGPU_DIRECTML) {
+			if (tf->modelSelection != MODEL_MEDIAPIPE) {
+				obs_log(LOG_ERROR, "DirectML currently supports only the MediaPipe model");
+				tf->isDisabled = true;
+				return;
+			}
+			char *weightPath = obs_module_file("models/mediapipe.dmlw");
+			if (!weightPath) {
+				obs_log(LOG_ERROR, "MediaPipe DirectML weights were not found");
+				tf->isDisabled = true;
+				return;
+			}
+			const int length = MultiByteToWideChar(CP_UTF8, 0, weightPath, -1, nullptr, 0);
+			if (length <= 0) {
+				bfree(weightPath);
+				obs_log(LOG_ERROR, "MediaPipe DirectML weight path is not valid UTF-8");
+				tf->isDisabled = true;
+				return;
+			}
+			std::wstring widePath(static_cast<std::size_t>(length), L'\0');
+			const int converted = MultiByteToWideChar(CP_UTF8, 0, weightPath, -1, widePath.data(), length);
+			bfree(weightPath);
+			if (converted <= 0) {
+				obs_log(LOG_ERROR, "Failed to convert the MediaPipe DirectML weight path");
+				tf->isDisabled = true;
+				return;
+			}
+			widePath.resize(static_cast<std::size_t>(converted - 1));
+			try {
+				tf->modelFilepath = widePath;
+				tf->directML = std::make_unique<Windows::DirectML::MediaPipeDirectML>(widePath.c_str());
+				tf->inputDims = {{1, 144, 256, 3}};
+				tf->outputDims = {{1, 144, 256, 2}};
+				tf->inputTensorValues = {{}};
+				tf->inputTensorValues[0].resize(1 * 144 * 256 * 3);
+				tf->outputTensorValues = {{}};
+				tf->outputTensorValues[0].resize(1 * 144 * 256 * 2);
+			} catch (const std::exception &exception) {
+				obs_log(LOG_ERROR, "Failed to create DirectML pipeline: %s", exception.what());
+				tf->isDisabled = true;
+				return;
+			}
+		} else
+#endif
+		{
+			const int ortSessionResult = createOrtSession(tf.get());
+			if (ortSessionResult != OBS_BGREMOVAL_ORT_SESSION_SUCCESS) {
+				obs_log(LOG_ERROR, "Failed to create ONNXRuntime session. Error code: %d",
+					ortSessionResult);
+				tf->isDisabled = true;
+				tf->model.reset();
+				return;
+			}
 		}
 	}
 
@@ -453,7 +523,11 @@ void *background_filter_create(obs_data_t *settings, obs_source_t *source)
 		instance->texrender = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
 
 		std::string instanceName{"background-removal-inference"};
+#if !defined(_WIN32)
 		instance->env.reset(new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, instanceName.c_str()));
+#else
+		UNUSED_PARAMETER(instanceName);
+#endif
 
 		instance->modelSelection = MODEL_MEDIAPIPE;
 
