@@ -4,9 +4,6 @@
 
 #pragma once
 
-#include "BackgroundRemoval/IRenderingPipeline.hpp"
-#include "MediaPipeLandscapeDifferenceHistory.hpp"
-
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -16,11 +13,15 @@
 #include <tuple>
 #include <source_location>
 
+#include "../../IRenderingPipeline.hpp"
+
+#include "MPLDDifferenceHistory.hpp"
+
 namespace BackgroundRemoval {
 
-class MediaPipeLandscapeDirectMLEngine;
+class MPLDEngine;
 
-class MediaPipeLandscapeDirectMLPipeline : public IRenderingPipeline {
+class MPLDPipeline : public IRenderingPipeline {
 public:
 	static constexpr std::int32_t kPipelineId = 62828;
 
@@ -34,14 +35,14 @@ public:
 		const std::source_location loc_;
 	};
 
-	MediaPipeLandscapeDirectMLPipeline(const FilterProperty &property, obs_source_t *source, std::uint32_t width,
+	MPLDPipeline(const FilterProperty &property, obs_source_t *source, std::uint32_t width,
 					   std::uint32_t height);
-	~MediaPipeLandscapeDirectMLPipeline() noexcept override;
+	~MPLDPipeline() noexcept override;
 
-	MediaPipeLandscapeDirectMLPipeline(const MediaPipeLandscapeDirectMLPipeline &) = delete;
-	MediaPipeLandscapeDirectMLPipeline(MediaPipeLandscapeDirectMLPipeline &&) = delete;
-	auto operator=(const MediaPipeLandscapeDirectMLPipeline &) -> MediaPipeLandscapeDirectMLPipeline & = delete;
-	auto operator=(MediaPipeLandscapeDirectMLPipeline &&) -> MediaPipeLandscapeDirectMLPipeline & = delete;
+	MPLDPipeline(const MPLDPipeline &) = delete;
+	MPLDPipeline(MPLDPipeline &&) = delete;
+	auto operator=(const MPLDPipeline &) -> MPLDPipeline & = delete;
+	auto operator=(MPLDPipeline &&) -> MPLDPipeline & = delete;
 
 	auto autoSetSensitivity() noexcept -> bool;
 	void update(const FilterProperty &property) noexcept override;
@@ -67,32 +68,37 @@ public:
 	static constexpr double kModelInputMaximumSum = 9400320.0;
 
 private:
-	friend struct MediaPipeLandscapeDirectMLPipelineTestAccess;
+	friend struct MPLDPipelineTestAccess;
 	enum class FilterState { NeedsProcessing, Processing, ReadyForRendering };
 
-	std::unique_ptr<MediaPipeLandscapeDirectMLEngine> engine_;
+	std::unique_ptr<MPLDEngine> engine_;
 	const std::uint32_t width_;
 	const std::uint32_t height_;
 	obs_source_t *const source_;
-	MediaPipeLandscapeDifferenceHistory differenceHistory_;
+	MPLDDifferenceHistory differenceHistory_;
 	FilterState filterState_ = FilterState::NeedsProcessing;
 	bool frameBlurBackgroundEnabled_ = false;
 	gs_texture_t *frameBlurredTexture_ = nullptr;
 	bool needsRecreation_ = false;
-	bool gateSubmissionPending_ = false;
-	bool gateResultAvailable_ = false;
+	bool differenceStaged_ = false;
+	std::uint64_t differenceTimestamp_ = 0;
 	std::uint32_t remainingInferenceFrames_ = 0;
 
 	// MARK: - Textures and GPU Resources
 
-	std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> effect_;
+	std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> renderingEffect_;
 	gs_eparam_t *const epImage_;
 	gs_eparam_t *const epImage1_;
 	gs_eparam_t *const epImage2_;
+	std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> gateEffect_;
+	gs_eparam_t *const gateImage_;
+	gs_eparam_t *const gateImage1_;
 
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> targetTexture_;
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> inputTexture_;
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> lastInputTexture_;
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> lumaAbsDiffTexture_;
+	std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)> lumaAbsDiffStagesurf_;
 
 	std::array<std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)>, 2> blurTextures_;
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> alphaTexture_;

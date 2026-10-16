@@ -10,9 +10,14 @@
 #include <cstdint>
 #include <optional>
 
+namespace BackgroundRemoval::MPLDDetail {
+extern const char *gateEffectString;
+extern const char *renderingEffectString;
+}
+
 namespace BackgroundRemoval {
 
-class MediaPipeLandscapeDifferenceHistory final {
+class MPLDDifferenceHistory final {
 public:
 	void record(std::uint64_t timeNs, double difference) noexcept
 	{

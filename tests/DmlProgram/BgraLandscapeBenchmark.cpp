@@ -10,7 +10,7 @@
 #include <TraceLoggingProvider.h>
 
 TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
-#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.hpp"
+#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDEngine.hpp"
 #include "DmlProgram/BaselineDmlProgramRuntime.hpp"
 #include <graphics/graphics.h>
 #include <graphics/vec2.h>
@@ -34,8 +34,9 @@ TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 namespace BackgroundRemoval::Generated {
 auto makeMediaPipeLandscapeDmlProgram() -> std::unique_ptr<BaselineDml::BaselineDmlProgramRuntime>;
 }
-namespace BackgroundRemoval::Detail {
-extern const char *mpldEffectString;
+namespace BackgroundRemoval::MPLDDetail {
+extern const char *renderingEffectString;
+extern const char *gateEffectString;
 }
 using Microsoft::WRL::ComPtr;
 namespace LandscapeBenchmark {
@@ -111,7 +112,7 @@ auto parseOptions(int argc, char **argv) -> Options
 }
 
 // Only used after the timed frame has completed. Never part of the hot path.
-auto readModelOutput(BackgroundRemoval::MediaPipeLandscapeDirectMLEngine &engine) -> std::vector<float>
+auto readModelOutput(BackgroundRemoval::MPLDEngine &engine) -> std::vector<float>
 {
 	auto *device = engine.device();
 	D3D12_HEAP_PROPERTIES heap{};
@@ -201,8 +202,8 @@ int run(const Options &options)
 	std::unique_ptr<BaselineDml::BaselineDmlProgramRuntime> referenceRuntime;
 	if (options.verifyReference)
 		referenceRuntime = BackgroundRemoval::Generated::makeMediaPipeLandscapeDmlProgram();
-	BackgroundRemoval::MediaPipeLandscapeDirectMLEngine engine(
-		BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::Output::GpuMask, options.width, options.height);
+	BackgroundRemoval::MPLDEngine engine(
+		BackgroundRemoval::MPLDEngine::Output::GpuMask, options.width, options.height);
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> alpha{gs_texture_wrap_obj(engine.maskTexture()),
 								      gs_texture_destroy};
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> sourceDraw{
@@ -217,15 +218,24 @@ int run(const Options &options)
 		gs_texture_create(256, 144, GS_BGRA, 1, nullptr, GS_RENDER_TARGET), gs_texture_destroy};
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> current{
 		gs_texture_create(256, 144, GS_BGRA, 1, nullptr, GS_RENDER_TARGET), gs_texture_destroy};
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> difference{
+		gs_texture_create(256, 144, GS_R8, 1, nullptr, GS_RENDER_TARGET), gs_texture_destroy};
+	std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)> differenceReadback{
+		gs_stagesurface_create(256, 144, GS_R8), gs_stagesurface_destroy};
 	std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> effect{
-		gs_effect_create(BackgroundRemoval::Detail::mpldEffectString, "LandscapeBenchmark.effect", nullptr),
+		gs_effect_create(BackgroundRemoval::MPLDDetail::renderingEffectString, "LandscapeBenchmark.effect", nullptr),
 		gs_effect_destroy};
-	if (!alpha || !sourceDraw || !finalDraw || !finalReadback || !last || !current ||
-	    !effect)
+	std::unique_ptr<gs_effect_t, void (*)(gs_effect_t *)> gateEffect{
+		gs_effect_create(BackgroundRemoval::MPLDDetail::gateEffectString, "LandscapeBenchmarkGate.effect", nullptr),
+		gs_effect_destroy};
+	if (!alpha || !sourceDraw || !finalDraw || !finalReadback || !last || !current || !difference || !differenceReadback ||
+	    !effect || !gateEffect)
 		throw std::runtime_error("Benchmark graphics resource creation failed");
 	auto *image = gs_effect_get_param_by_name(effect.get(), "image");
 	auto *mask = gs_effect_get_param_by_name(effect.get(), "image1");
-	if (!image || !mask)
+	auto *gateImage = gs_effect_get_param_by_name(gateEffect.get(), "image");
+	auto *gateImage1 = gs_effect_get_param_by_name(gateEffect.get(), "image1");
+	if (!image || !mask || !gateImage || !gateImage1)
 		throw std::runtime_error("Missing benchmark effect parameter");
 	const auto input = portraitInput();
 	std::array<std::vector<float>, 2> expected{std::vector<float>(256 * 144), std::vector<float>(256 * 144)};
@@ -265,6 +275,18 @@ int run(const Options &options)
 			gs_draw_sprite(nullptr, 0, width, height);
 		}
 	};
+	auto drawDifference = [&](gs_texture_t *left, gs_texture_t *right) {
+		gs_set_render_target_with_color_space(difference.get(), nullptr, GS_CS_709_EXTENDED);
+		gs_set_viewport(0, 0, 256, 144);
+		gs_ortho(0, 256, 0, 144, -100, 100);
+		gs_matrix_identity();
+		gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+		while (gs_effect_loop(gateEffect.get(), "LumaAbsDiff")) {
+			gs_effect_set_texture(gateImage, left);
+			gs_effect_set_texture(gateImage1, right);
+			gs_draw_sprite(nullptr, 0, 256, 144);
+		}
+	};
 	double maxError = 0;
 	auto verify = [&](int variant) {
 		if (!referenceRuntime)
@@ -281,7 +303,7 @@ int run(const Options &options)
 	std::ofstream csv(options.output / "samples.csv"), summary(options.output / "summary.csv");
 	csv.exceptions(std::ios::badbit | std::ios::failbit);
 	summary.exceptions(std::ios::badbit | std::ios::failbit);
-	csv << std::setprecision(10) << "scenario,iteration,width,height,inferred,refined,blocked";
+	csv << std::setprecision(10) << "scenario,iteration,width,height,inferred,refined,blocked,difference_sum";
 	for (const auto &[name, field] : metrics)
 		csv << ',' << name;
 	csv << '\n';
@@ -293,6 +315,8 @@ int run(const Options &options)
 		winrt::check_hresult(engine.blockCpuUntilSubmittedGpuWorkCompletes());
 		winrt::check_hresult(engine.complete());
 		verify(0);
+		drawDifference(last.get(), last.get());
+		gs_stage_texture(differenceReadback.get(), difference.get());
 		std::vector<Sample> samples;
 		std::size_t blocked = 0, submitted = 0;
 		for (int iteration = -options.warmup; iteration < options.samples; ++iteration) {
@@ -303,16 +327,38 @@ int run(const Options &options)
 				threshold = step % 2 == 0 ? .45F : .55F;
 			Sample sample;
 			const auto frameStart = std::chrono::steady_clock::now();
-			draw(current.get(), fixtures[variant].get(), "Draw", 256, 144);
-			sample.inputDraw = milliseconds(frameStart);
+			std::uint8_t *differenceData = nullptr;
+			std::uint32_t differencePitch = 0;
+			std::uint64_t differenceSum = 0;
+			if (!gs_stagesurface_map(differenceReadback.get(), &differenceData, &differencePitch))
+				throw std::runtime_error("Difference Map failed");
+			const bool validDifference = differenceData && differencePitch >= 256;
+			if (validDifference)
+				for (std::uint32_t y = 0; y < 144; ++y)
+					for (std::uint32_t x = 0; x < 256; ++x)
+						differenceSum += differenceData[std::size_t(y) * differencePitch + x];
+			gs_stagesurface_unmap(differenceReadback.get());
+			if (!validDifference)
+				throw std::runtime_error("Invalid difference readback");
+			sample.gate = milliseconds(frameStart);
 			auto section = std::chrono::steady_clock::now();
+			draw(current.get(), fixtures[variant].get(), "Draw", 256, 144);
+			sample.inputDraw = milliseconds(section);
+			section = std::chrono::steady_clock::now();
+			drawDifference(last.get(), current.get());
+			gs_stage_texture(differenceReadback.get(), difference.get());
+			sample.gate += milliseconds(section);
+			section = std::chrono::steady_clock::now();
 			const bool infer = scenario == "infer";
-			winrt::check_hresult(engine.runAsync(current.get(), true, threshold, 40, infer));
+			if (infer)
+				winrt::check_hresult(engine.runAsync(current.get(), true, threshold));
+			else if (refine)
+				winrt::check_hresult(engine.refineAsync(true, threshold));
 			sample.submit = milliseconds(section);
 			section = std::chrono::steady_clock::now();
 			draw(sourceDraw.get(), fixtures[variant].get(), "Draw", options.width, options.height);
 			sample.independent = milliseconds(section);
-			{
+			if (infer || refine) {
 				section = std::chrono::steady_clock::now();
 				bool done = false;
 				winrt::check_hresult(engine.isDone(done));
@@ -324,8 +370,7 @@ int run(const Options &options)
 				winrt::check_hresult(engine.complete());
 				sample.complete = milliseconds(section);
 			}
-			if (infer)
-				std::swap(last, current);
+			std::swap(last, current);
 			section = std::chrono::steady_clock::now();
 			draw(finalDraw.get(), sourceDraw.get(), "DrawWithoutBlur", options.width, options.height);
 			gs_flush();
@@ -348,9 +393,9 @@ int run(const Options &options)
 			if (iteration >= 0) {
 				samples.push_back(sample);
 				blocked += sample.blocked;
-				submitted += 1;
+				submitted += infer || refine;
 				csv << scenario << ',' << iteration << ',' << options.width << ',' << options.height
-				    << ',' << infer << ',' << refine << ',' << sample.blocked;
+				    << ',' << infer << ',' << refine << ',' << sample.blocked << ',' << differenceSum;
 				for (const auto &[name, field] : metrics)
 					csv << ',' << sample.*field;
 				csv << '\n';

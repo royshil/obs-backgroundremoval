@@ -33,6 +33,7 @@ TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 #include <numeric>
 #include <vector>
 #include <DirectXPackedVector.h>
+#include <util/platform.h>
 
 void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input,
 			   std::span<float> output)
@@ -46,8 +47,8 @@ void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std:
 }
 
 #ifdef GPU_LANDSCAPE_MODEL
-#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.hpp"
-#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.hpp"
+#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDPipeline.hpp"
+#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDEngine.hpp"
 #include <wincodec.h>
 #include <winrt/base.h>
 namespace BackgroundRemoval::Generated {
@@ -262,30 +263,40 @@ TEST_CASE("PredicatedDirectML")
 
 #ifdef GPU_LANDSCAPE_MODEL
 namespace BackgroundRemoval {
-struct MediaPipeLandscapeDirectMLPipelineTestAccess {
-	static void finishGate(MediaPipeLandscapeDirectMLPipeline &pipeline)
+struct MPLDPipelineTestAccess {
+	static void stageDifference(MPLDPipeline &pipeline, gs_texture_t *texture)
 	{
-		if (pipeline.gateSubmissionPending_) {
-			REQUIRE(pipeline.engine_->blockCpuUntilSubmittedGpuWorkCompletes() == S_OK);
-			REQUIRE(pipeline.engine_->complete() == S_OK);
-			pipeline.gateSubmissionPending_ = false;
-			pipeline.gateResultAvailable_ = true;
-		}
+		if (texture)
+			gs_stage_texture(pipeline.lumaAbsDiffStagesurf_.get(), texture);
+		pipeline.differenceTimestamp_ = os_gettime_ns();
+		pipeline.differenceStaged_ = true;
 	}
-	static auto remaining(const MediaPipeLandscapeDirectMLPipeline &pipeline) -> std::uint32_t
+	static void setRemaining(MPLDPipeline &pipeline, std::uint32_t count)
+	{
+		pipeline.remainingInferenceFrames_ = count;
+	}
+	static void invalidateStaging(MPLDPipeline &pipeline)
+	{
+		pipeline.lumaAbsDiffStagesurf_.reset();
+	}
+	static auto staged(const MPLDPipeline &pipeline) -> bool
+	{
+		return pipeline.differenceStaged_;
+	}
+	static auto remaining(const MPLDPipeline &pipeline) -> std::uint32_t
 	{
 		return pipeline.remainingInferenceFrames_;
 	}
-	static void replaceEngine(MediaPipeLandscapeDirectMLPipeline &pipeline,
-				  std::unique_ptr<MediaPipeLandscapeDirectMLEngine> engine)
+	static void replaceEngine(MPLDPipeline &pipeline,
+				  std::unique_ptr<MPLDEngine> engine)
 	{
 		pipeline.engine_ = std::move(engine);
 	}
-	static auto alphaTexture(const MediaPipeLandscapeDirectMLPipeline &pipeline) -> gs_texture_t *
+	static auto alphaTexture(const MPLDPipeline &pipeline) -> gs_texture_t *
 	{
 		return pipeline.alphaTexture_.get();
 	}
-	static auto lastInputTexture(const MediaPipeLandscapeDirectMLPipeline &pipeline) -> gs_texture_t *
+	static auto lastInputTexture(const MPLDPipeline &pipeline) -> gs_texture_t *
 	{
 		return pipeline.lastInputTexture_.get();
 	}
@@ -322,7 +333,7 @@ struct SourceData {
 	gs_texture_t *image_ = nullptr;
 	std::size_t renderCount_ = 0;
 	bool reenter_ = false;
-	MediaPipeLandscapeDirectMLPipeline *pipeline_ = nullptr;
+	MPLDPipeline *pipeline_ = nullptr;
 };
 auto name(void *) -> const char *
 {
@@ -408,7 +419,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 			obs_source_create_private("scene", "Pipeline factory test", nullptr), obs_source_release};
 		REQUIRE(source);
 		BackgroundRemoval::FilterProperty property{};
-		property.pipelineId = BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline::kPipelineId;
+		property.pipelineId = BackgroundRemoval::MPLDPipeline::kPipelineId;
 		auto pipeline = BackgroundRemoval::createRenderingPipeline(property, source.get(), 256, 144);
 		REQUIRE(pipeline);
 		CHECK(pipeline->getWidth() == 256);
@@ -439,7 +450,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 	CHECK_FALSE(obs_data_has_user_value(roundTrip.get(), "v2_RefineMask_Expansion"));
 	CHECK(BackgroundRemoval::decodeFilterProperty(settings.get()).imageSimilarityThreshold == 42.0);
 	{
-		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, scene, 256, 144);
+		BackgroundRemoval::MPLDPipeline pipeline(property, scene, 256, 144);
 		CHECK(pipeline.getWidth() == 256);
 		CHECK(pipeline.getHeight() == 144);
 		CHECK(gs_get_render_target() == previousTarget);
@@ -498,7 +509,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 	runLandscapeReference(*runtime, input, expected);
 	property.imageSimilarityThreshold = 40;
 	{
-		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, filter.get(), 256, 144);
+		BackgroundRemoval::MPLDPipeline pipeline(property, filter.get(), 256, 144);
 		filterData->pipeline_ = &pipeline;
 		inputData->pipeline_ = &pipeline;
 		CHECK_FALSE(pipeline.needsRecreation());
@@ -531,7 +542,6 @@ TEST_CASE("LandscapeRenderingInitialization")
 		const auto blackRenderCount = inputData->renderCount_;
 		obs_source_video_render(inputSource.get());
 		CHECK(inputData->renderCount_ == blackRenderCount + 1);
-		BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess::finishGate(pipeline);
 		inputData->image_ = image.get();
 		const char *stressFrames = std::getenv("DML_TEST_STRESS_FRAMES");
 		const int frameCount = stressFrames ? std::clamp(std::atoi(stressFrames), 4, 120) : 4;
@@ -565,9 +575,9 @@ TEST_CASE("LandscapeRenderingInitialization")
 			// Processing must reject reentrant renders without touching graphics state.
 			inputData->reenter_ = true;
 			const auto beforeRendering = inputData->renderCount_;
-			auto *previousReference = BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline);
+			const bool expectedInference = BackgroundRemoval::MPLDPipelineTestAccess::remaining(pipeline) > 0;
 			obs_source_video_render(inputSource.get());
-			if (BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline) != previousReference)
+			if (expectedInference)
 				heldExpected = expected;
 			CHECK_FALSE(inputData->reenter_);
 			CHECK(inputData->renderCount_ == beforeRendering + 1);
@@ -632,7 +642,6 @@ TEST_CASE("LandscapeRenderingInitialization")
 				property.blurBackgroundEnabled = !property.blurBackgroundEnabled;
 				pipeline.update(property);
 			}
-			BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess::finishGate(pipeline);
 		}
 		std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> calibrated{obs_source_get_settings(filter.get()),
 									       obs_data_release};
@@ -691,13 +700,13 @@ TEST_CASE("LandscapeRenderingInitialization")
 		inputData->image_ = portrait.get();
 		pipeline.videoTick(1.0F / 30);
 		obs_source_video_render(inputSource.get());
-		using BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess;
+		using BackgroundRemoval::MPLDPipelineTestAccess;
 		std::unique_ptr<gs_stagesurf_t, void (*)(gs_stagesurf_t *)> maskReadback{
 			gs_stagesurface_create(256, 144, GS_R8), gs_stagesurface_destroy};
 		REQUIRE(maskReadback);
 		auto readMask = [&] {
 			gs_stage_texture(maskReadback.get(),
-					 MediaPipeLandscapeDirectMLPipelineTestAccess::alphaTexture(pipeline));
+					 MPLDPipelineTestAccess::alphaTexture(pipeline));
 			uint8_t *mapped = nullptr;
 			uint32_t pitch = 0;
 			REQUIRE(gs_stagesurface_map(maskReadback.get(), &mapped, &pitch));
@@ -721,11 +730,10 @@ TEST_CASE("LandscapeRenderingInitialization")
 		pipeline.update(property);
 		pipeline.videoTick(1.0F / 30);
 		obs_source_video_render(inputSource.get());
-		MediaPipeLandscapeDirectMLPipelineTestAccess::finishGate(pipeline);
 		pipeline.videoTick(1.0F / 30);
 		obs_source_video_render(inputSource.get());
 		gs_stage_texture(readback.get(),
-				 MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline));
+				 MPLDPipelineTestAccess::lastInputTexture(pipeline));
 		uint8_t *ungatedMapped = nullptr;
 		uint32_t ungatedPitch = 0;
 		REQUIRE(gs_stagesurface_map(readback.get(), &ungatedMapped, &ungatedPitch));
@@ -741,16 +749,16 @@ TEST_CASE("LandscapeRenderingInitialization")
 		const auto heldMask = readMask();
 		CHECK(*std::max_element(heldMask.begin(), heldMask.end()) >
 		      *std::min_element(heldMask.begin(), heldMask.end()));
-		auto *heldReference = MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline);
+		auto *heldReference = MPLDPipelineTestAccess::lastInputTexture(pipeline);
 		std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> rgba{
 			gs_texture_create(256, 144, GS_RGBA, 1, &retainedBytes, 0), gs_texture_destroy};
 		REQUIRE(rgba);
-		auto differentFormatEngine = std::make_unique<BackgroundRemoval::MediaPipeLandscapeDirectMLEngine>(
-			BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::Output::GpuMask);
+		auto differentFormatEngine = std::make_unique<BackgroundRemoval::MPLDEngine>(
+			BackgroundRemoval::MPLDEngine::Output::GpuMask);
 		REQUIRE(differentFormatEngine->runAsync(rgba.get()) == S_OK);
 		REQUIRE(differentFormatEngine->blockCpuUntilSubmittedGpuWorkCompletes() == S_OK);
 		REQUIRE(differentFormatEngine->complete() == S_OK);
-		MediaPipeLandscapeDirectMLPipelineTestAccess::replaceEngine(pipeline, std::move(differentFormatEngine));
+		MPLDPipelineTestAccess::replaceEngine(pipeline, std::move(differentFormatEngine));
 		std::vector<uint8_t> whitePixels(256 * 144 * 4, 255);
 		const auto *whiteBytes = whitePixels.data();
 		std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> white{
@@ -762,11 +770,14 @@ TEST_CASE("LandscapeRenderingInitialization")
 		pipeline.update(property);
 		pipeline.videoTick(1.0F / 30);
 		const auto beforeRecreation = inputData->renderCount_;
+		const auto remainingBeforeFailure = MPLDPipelineTestAccess::remaining(pipeline);
 		obs_source_video_render(inputSource.get());
 		CHECK(pipeline.needsRecreation());
+		CHECK(MPLDPipelineTestAccess::remaining(pipeline) == remainingBeforeFailure);
 		CHECK(inputData->renderCount_ == beforeRecreation + 1);
-		CHECK(MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline) == heldReference);
+		CHECK(MPLDPipelineTestAccess::lastInputTexture(pipeline) != heldReference);
 		CHECK(readMask() == heldMask);
+		heldReference = MPLDPipelineTestAccess::lastInputTexture(pipeline);
 		gs_stage_texture(readback.get(), destination.get());
 		uint8_t *heldOutput = nullptr;
 		uint32_t heldPitch = 0;
@@ -789,7 +800,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 		CHECK(inputData->renderCount_ == beforeRecreation + 3);
 		CHECK(pipeline.needsRecreation());
 		CHECK(readMask() == heldMask);
-		CHECK(MediaPipeLandscapeDirectMLPipelineTestAccess::lastInputTexture(pipeline) == heldReference);
+		CHECK(MPLDPipelineTestAccess::lastInputTexture(pipeline) == heldReference);
 		CHECK(gs_get_render_target() == destination.get());
 
 		// Early return must preserve the caller's render target as well.
@@ -801,11 +812,11 @@ TEST_CASE("LandscapeRenderingInitialization")
 	// One-frame delayed motion starts a burst of 1 + ceil(FPS/30) updates.
 	// Explicit draining belongs to this test only, so completion timing is deterministic.
 	for (const std::uint32_t additional : {1u, 2u, 4u}) {
-		using Access = BackgroundRemoval::MediaPipeLandscapeDirectMLPipelineTestAccess;
+		using Access = BackgroundRemoval::MPLDPipelineTestAccess;
 		property.imageSimilarityThreshold = 40;
 		property.refineMaskEnabled = false;
 		property.blurBackgroundEnabled = false;
-		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, filter.get(), 256, 144);
+		BackgroundRemoval::MPLDPipeline pipeline(property, filter.get(), 256, 144);
 		pipeline.additionalInferenceFrames_.store(additional, std::memory_order_relaxed);
 		filterData->pipeline_ = &pipeline;
 		inputData->pipeline_ = &pipeline;
@@ -813,14 +824,18 @@ TEST_CASE("LandscapeRenderingInitialization")
 		auto *initialReference = Access::lastInputTexture(pipeline);
 		pipeline.videoTick(1.0F / 30);
 		obs_source_video_render(inputSource.get());
-		CHECK(Access::lastInputTexture(pipeline) == initialReference);
-		Access::finishGate(pipeline);
+		CHECK(Access::lastInputTexture(pipeline) != initialReference);
+		CHECK(Access::remaining(pipeline) == 0);
+		CHECK(Access::staged(pipeline));
 		for (std::uint32_t frame = 0; frame <= additional; ++frame) {
 			pipeline.videoTick(1.0F / 30);
 			auto *reference = Access::lastInputTexture(pipeline);
 			obs_source_video_render(inputSource.get());
 			CHECK(Access::lastInputTexture(pipeline) != reference);
 			CHECK(Access::remaining(pipeline) == additional - frame);
+			pipeline.additionalInferenceFrames_.store(additional + 1, std::memory_order_relaxed);
+			CHECK(Access::remaining(pipeline) == additional - frame);
+			pipeline.additionalInferenceFrames_.store(additional, std::memory_order_relaxed);
 			reference = Access::lastInputTexture(pipeline);
 			obs_source_video_render(inputSource.get());
 			CHECK(Access::lastInputTexture(pipeline) == reference);
@@ -829,8 +844,47 @@ TEST_CASE("LandscapeRenderingInitialization")
 		pipeline.videoTick(1.0F / 30);
 		auto *reference = Access::lastInputTexture(pipeline);
 		obs_source_video_render(inputSource.get());
-		CHECK(Access::lastInputTexture(pipeline) == reference);
+		CHECK(Access::lastInputTexture(pipeline) != reference);
+		CHECK(Access::remaining(pipeline) == 0);
 		CHECK_FALSE(pipeline.needsRecreation());
+	}
+	{
+		using Access = BackgroundRemoval::MPLDPipelineTestAccess;
+		BackgroundRemoval::MPLDPipeline pipeline(property, filter.get(), 256, 144);
+		pipeline.additionalInferenceFrames_.store(2, std::memory_order_relaxed);
+		for (const auto [value, sensitivity, motion] : std::array{
+			std::tuple{0u, 100.0F, false}, std::tuple{255u, 0.0F, true},
+			std::tuple{1u, 48.0F, false}, std::tuple{1u, 48.3F, true}}) {
+			std::vector<std::uint8_t> bytes(256 * 144, static_cast<std::uint8_t>(value));
+			const auto *data = bytes.data();
+			std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> difference{
+				gs_texture_create(256, 144, GS_R8, 1, &data, 0), gs_texture_destroy};
+			REQUIRE(difference);
+			pipeline.imageSimilarityThreshold_.store(sensitivity, std::memory_order_relaxed);
+			Access::setRemaining(pipeline, 0);
+			Access::stageDifference(pipeline, difference.get());
+			CHECK(Access::remaining(pipeline) == 0);
+			pipeline.videoTick(1.0F / 60);
+			CHECK_FALSE(Access::staged(pipeline));
+			CHECK(Access::remaining(pipeline) == (motion ? 3u : 0u));
+			Access::setRemaining(pipeline, 1);
+			pipeline.videoTick(1.0F / 60);
+			CHECK(Access::remaining(pipeline) == 1);
+			// A new ON result extends an existing burst.
+			Access::stageDifference(pipeline, difference.get());
+			pipeline.videoTick(1.0F / 60);
+			CHECK(Access::remaining(pipeline) == (motion ? 3u : 1u));
+		}
+		// Failed Map requests one inference without shortening a longer burst.
+		Access::invalidateStaging(pipeline);
+		for (const std::uint32_t remaining : {0u, 4u}) {
+			Access::setRemaining(pipeline, remaining);
+			// Inject an unread result whose staging resource has become unavailable.
+			Access::stageDifference(pipeline, nullptr);
+			pipeline.videoTick(1.0F / 30);
+			CHECK_FALSE(Access::staged(pipeline));
+			CHECK(Access::remaining(pipeline) == std::max(remaining, 1u));
+		}
 	}
 	gs_set_render_target_with_color_space(previousTarget, nullptr, previousSpace);
 

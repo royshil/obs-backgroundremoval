@@ -17,9 +17,10 @@ $env:PATH = 'C:/Program Files/obs-studio/bin/64bit;' + $env:PATH
 ```
 
 The production Engine enables MetaCommands. Its dedicated depthwise CS remains
-unchanged. Every measured frame submits shared input and the independent GPU
-luma difference/reduction/decision. Model packing/inference is submitted only
-when requested by the CPU. No CPU difference image is mapped.
+unchanged. The harness stages a 256x144 R8 luma difference once per iteration and
+maps/sums/unmaps that single surface at the start of the next iteration. This
+matches Pipeline's videoRender-to-videoTick scheduling. It records difference_sum
+alongside timings. Model packing/inference is submitted only when requested.
 
 Each scenario seeds the portrait and its retained mask before warmup:
 
@@ -30,7 +31,8 @@ Each scenario seeds the portrait and its retained mask before warmup:
 
 After submission the harness draws an independent output-resolution source.
 It queries completion at the mask deadline and blocks only if necessary, then
-calls complete(), which reads 16 bytes of gate telemetry after GPU completion.
+calls complete(). Skip-only iterations do not submit D3D12 Engine work or wait
+for its completion; their gate Map still synchronizes the preceding Stage.
 These isolated scenarios pass an explicit inference decision; they do not model
 the Pipeline's previous-frame decision and continuation policy. Model output for
 both fixtures is checked against the generated FP32 Runtime outside timing;
@@ -46,11 +48,11 @@ All reported intervals are CPU wall times:
 | Column | Meaning |
 | --- | --- |
 | input_draw_ms | Fixture draw to the 256x144 BGRA input. |
-| gate_ms | Zero: gate execution now occurs inside the GPU submission. |
-| submit_ms | Copy/synchronization and gate/inference/postprocess submission. |
+| gate_ms | Previous difference Map/sum/Unmap plus current difference draw/Stage submission. |
+| submit_ms | Inference or settings-only postprocess submission; no Engine work on skips. |
 | independent_ms | Independent output-resolution source draw submission. |
 | final_wait_ms | Completion query and any CPU wait for the entire GPU chain. |
-| complete_ms | Completion handling and already-completed gate telemetry read. |
+| complete_ms | Engine completion handling. |
 | refine_submit_ms | Zero: mask correction is part of the Engine submission. |
 | draw_submit_ms | Final masked draw and Flush. |
 | cpu_frame_ms | Input draw through final draw submission. |
@@ -61,8 +63,8 @@ Neither Flush nor cpu_frame_ms implies GPU completion. The explicit drain preven
 queue accumulation across samples; production does not read the final image.
 Sleep(10) and numeric verification occur outside measured intervals.
 
-Every frame now has a GPU submission, even when inference is skipped. Blocking
-ratios therefore use all submissions as their denominator. Compare cpu_frame_ms
+Engine blocking ratios use inference/settings-only submissions as their
+denominator (skip-only has none). Compare cpu_frame_ms
 and completed_frame_ms, not submit_ms or waits in isolation. GPU interval
 attribution requires PIX.
 
@@ -72,7 +74,7 @@ D3D12 device. Numeric reference verification is explicitly disabled in this
 diagnostic mode; ordinary benchmark/CTest runs retain it. The mode is not used
 for the before/after performance numbers.
 
-The smoke CTest exercises all scenarios and checks decisions/results without
+The smoke CTest exercises all scenarios, Stage/Map and model results without
 timing thresholds. This harness uses fixtures rather than OBS capture callbacks;
 it does not include properties callbacks, background blur, or repeated-render
 suppression. Preserve the old executable for controlled before/after comparisons.

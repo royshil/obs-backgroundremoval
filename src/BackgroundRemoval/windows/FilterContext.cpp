@@ -15,7 +15,7 @@
 
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
-#include "MediaPipeLandscapeDirectMLPipeline.hpp"
+#include "MediaPipeLandscapeDirectML/MPLDPipeline.hpp"
 
 namespace BackgroundRemoval {
 
@@ -57,7 +57,7 @@ void FilterContext::destroy(void *data) noexcept
 
 void FilterContext::getDefaults(obs_data_t *settings) noexcept
 {
-	obs_data_set_default_int(settings, "v2_Model_PipelineId", MediaPipeLandscapeDirectMLPipeline::kPipelineId);
+	obs_data_set_default_int(settings, "v2_Model_PipelineId", MPLDPipeline::kPipelineId);
 	obs_data_set_default_double(settings, "v2_Model_MatteSensitivity", 60.0);
 	obs_data_set_default_bool(settings, "v2_RefineMask", true);
 	obs_data_set_default_double(settings, "v2_RefineMask_Threshold", 0.5);
@@ -70,10 +70,10 @@ void FilterContext::getDefaults(obs_data_t *settings) noexcept
 auto FilterContext::handleAutoSensitivityClick(obs_properties_t *, obs_property_t *, void *data) -> bool
 {
 	if (auto *contextPtr = static_cast<std::shared_ptr<FilterContext> *>(data); contextPtr && *contextPtr) {
-		std::shared_ptr<MediaPipeLandscapeDirectMLPipeline> pipeline;
+		std::shared_ptr<MPLDPipeline> pipeline;
 		{
 			std::lock_guard lock((*contextPtr)->renderingPipelineMutex_);
-			pipeline = std::dynamic_pointer_cast<MediaPipeLandscapeDirectMLPipeline>(
+			pipeline = std::dynamic_pointer_cast<MPLDPipeline>(
 				(*contextPtr)->renderingPipeline_);
 		}
 		return pipeline && pipeline->autoSetSensitivity();
@@ -105,7 +105,7 @@ auto FilterContext::getProperties(void *) noexcept -> obs_properties_t *
 	obs_property_t *const model = obs_properties_add_list(modelProperties, "v2_Model_PipelineId", "Bg. Rm.",
 							      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(model, obs_module_text("MediaPipe (Landscape) - DirectML"),
-				  MediaPipeLandscapeDirectMLPipeline::kPipelineId);
+				  MPLDPipeline::kPipelineId);
 	obs_properties_add_float_slider(modelProperties, "v2_Model_MatteSensitivity", obs_module_text("Sensitivity"),
 					0.0, 100.0, 0.01);
 	obs_property_t *const autoSensitivity = obs_properties_add_button(modelProperties, "v2_Model_AutoSensitivity",
@@ -185,7 +185,7 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 	const std::uint32_t heldHeight = context->heldHeight_.load(std::memory_order_relaxed);
 	const bool pipelineChanged = heldPipelineId != context->currentFilterProperty_.pipelineId;
 	const bool dimensionsChanged = heldWidth != width || heldHeight != height;
-	const auto directMLPipeline = std::dynamic_pointer_cast<MediaPipeLandscapeDirectMLPipeline>(heldPipeline);
+	const auto directMLPipeline = std::dynamic_pointer_cast<MPLDPipeline>(heldPipeline);
 	const bool pipelineRequestedRecreation = directMLPipeline && directMLPipeline->needsRecreation();
 	const bool requiresPipelineRecreation = pipelineChanged || dimensionsChanged || pipelineRequestedRecreation ||
 						!heldPipeline;
@@ -219,7 +219,7 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 		pipeline->update(*pendingFilterProperty);
 	}
 	if (pipeline) {
-		if (auto directML = std::dynamic_pointer_cast<MediaPipeLandscapeDirectMLPipeline>(pipeline)) {
+		if (auto directML = std::dynamic_pointer_cast<MPLDPipeline>(pipeline)) {
 			obs_video_info videoInfo{};
 			if (obs_get_video_info(&videoInfo) && videoInfo.fps_den && videoInfo.fps_num) {
 				const std::uint64_t denominator = std::uint64_t(videoInfo.fps_den) * 30;

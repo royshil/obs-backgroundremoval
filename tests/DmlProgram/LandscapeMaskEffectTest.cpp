@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.hpp"
+#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDEngine.hpp"
 #include <windows.h>
 #include <doctest.h>
 #include <graphics/graphics.h>
@@ -42,7 +42,7 @@ TEST_CASE("LandscapeMaskEffect")
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> texture{
 		gs_texture_create(width, height, GS_BGRA, 1, &bytes, 0), gs_texture_destroy};
 	REQUIRE(texture);
-	using Engine = BackgroundRemoval::MediaPipeLandscapeDirectMLEngine;
+	using Engine = BackgroundRemoval::MPLDEngine;
 	Engine reference;
 	std::vector<float> probabilities(width * height);
 	REQUIRE(reference.runAsync(texture.get()) == S_OK);

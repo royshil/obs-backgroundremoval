@@ -76,22 +76,23 @@ if(EXISTS "${OBS_TEST_BIN_DIR}/obs.dll" AND EXISTS "${OBS_TEST_BIN_DIR}/libobs-d
   set_tests_properties(GpuImageInferenceTest.MainEffectLumaAbsDiff PROPERTIES TIMEOUT 120
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
   if(EXISTS "${MEDIAPIPE_LANDSCAPE_ONNX}")
-    add_executable(MediaPipeLandscapeDirectMLEngineTest MediaPipeLandscapeDirectMLEngineTest.cpp
-      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.cpp"
+    add_executable(MPLDEngineTest MPLDEngineTest.cpp
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDEngine.cpp"
       "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
       "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
       "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp"
       "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp")
-    target_include_directories(MediaPipeLandscapeDirectMLEngineTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
-    target_compile_definitions(MediaPipeLandscapeDirectMLEngineTest PRIVATE OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}"
+    target_include_directories(MPLDEngineTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
+    target_compile_definitions(MPLDEngineTest PRIVATE OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}"
       LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/Scenarios/0000-portrait-umireon.jpg")
-    target_link_libraries(MediaPipeLandscapeDirectMLEngineTest PRIVATE OBS::libobs d3d11 d3d12 dxgi d3dcompiler directml advapi32 windowsapp windowscodecs ole32)
-    add_test(NAME MediaPipeLandscapeDirectMLEngineTest.LandscapeEngineBgraInput COMMAND MediaPipeLandscapeDirectMLEngineTest)
-    set_tests_properties(MediaPipeLandscapeDirectMLEngineTest.LandscapeEngineBgraInput PROPERTIES TIMEOUT 120
+    target_link_libraries(MPLDEngineTest PRIVATE OBS::libobs d3d11 d3d12 dxgi d3dcompiler directml advapi32 windowsapp windowscodecs ole32)
+    add_test(NAME MPLDEngineTest.LandscapeEngineBgraInput COMMAND MPLDEngineTest)
+    set_tests_properties(MPLDEngineTest.LandscapeEngineBgraInput PROPERTIES TIMEOUT 120
       ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
     add_executable(BgraLandscapeBenchmark BgraLandscapeBenchmark.cpp
-      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.cpp"
-      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDPipeline.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDEffects.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDEngine.cpp"
       "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
       "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
       "${PLUGIN_SOURCE_DIR}/TraceLoggingProvider.cpp"
@@ -108,8 +109,9 @@ if(EXISTS "${OBS_TEST_BIN_DIR}/obs.dll" AND EXISTS "${OBS_TEST_BIN_DIR}/libobs-d
     target_sources(GpuImageInferenceTest PRIVATE
       LandscapeMaskEffectTest.cpp
       "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/PipelineFactory.cpp"
-      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLPipeline.cpp"
-      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDPipeline.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDEffects.cpp"
+      "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDEngine.cpp"
       "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp")
     target_include_directories(GpuImageInferenceTest PRIVATE "${LANDSCAPE_GENERATED}")
     target_compile_definitions(GpuImageInferenceTest PRIVATE GPU_LANDSCAPE_MODEL OBS_LOG_HEADER="[GPU-Test] "
@@ -164,7 +166,7 @@ if(TARGET GpuImageInferenceTest)
   target_sources(GpuImageInferenceTest PRIVATE "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/FilterProperty.cpp")
 endif()
 
-add_executable(MediaPipeLandscapeDifferenceHistoryTest MediaPipeLandscapeDifferenceHistoryTest.cpp)
-target_include_directories(MediaPipeLandscapeDifferenceHistoryTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
-add_test(NAME MediaPipeLandscapeDifferenceHistoryTest COMMAND MediaPipeLandscapeDifferenceHistoryTest)
-set_tests_properties(MediaPipeLandscapeDifferenceHistoryTest PROPERTIES TIMEOUT 30)
+add_executable(MPLDDifferenceHistoryTest MPLDDifferenceHistoryTest.cpp)
+target_include_directories(MPLDDifferenceHistoryTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
+add_test(NAME MPLDDifferenceHistoryTest COMMAND MPLDDifferenceHistoryTest)
+set_tests_properties(MPLDDifferenceHistoryTest PROPERTIES TIMEOUT 30)

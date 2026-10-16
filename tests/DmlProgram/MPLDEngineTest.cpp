@@ -12,7 +12,7 @@ TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
-#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectMLEngine.hpp"
+#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDEngine.hpp"
 #include <graphics/graphics.h>
 #include <d3d11_4.h>
 #include <d3d12.h>
@@ -69,7 +69,7 @@ auto portraitInput() -> std::vector<float>
 	return input;
 }
 
-auto completed(BackgroundRemoval::MediaPipeLandscapeDirectMLEngine &engine) -> bool
+auto completed(BackgroundRemoval::MPLDEngine &engine) -> bool
 {
 	bool done = false;
 	winrt::check_hresult(engine.isDone(done));
@@ -93,7 +93,7 @@ TEST_CASE("LandscapeEngineBgraInput")
 		}
 	} cleanup{graphics};
 	gs_enter_context(graphics);
-	BackgroundRemoval::MediaPipeLandscapeDirectMLEngine engine;
+	BackgroundRemoval::MPLDEngine engine;
 	auto reference = BackgroundRemoval::Generated::makeMediaPipeLandscapeDmlProgram();
 	const auto portrait = portraitInput();
 	std::vector<float> output(256 * 144), expected(output.size());
@@ -122,7 +122,7 @@ TEST_CASE("LandscapeEngineBgraInput")
 	producer->GetImmediateContext(&nativeContext);
 	ComPtr<ID3D11DeviceContext4> context;
 	winrt::check_hresult(nativeContext.As(&context));
-	BackgroundRemoval::MediaPipeLandscapeDirectMLEngine rgbaEngine;
+	BackgroundRemoval::MPLDEngine rgbaEngine;
 	for (const auto format : {GS_BGRA, GS_RGBA}) {
 		auto &frameEngine = format == GS_BGRA ? engine : rgbaEngine;
 		for (int frame = 0; frame < 5; ++frame) {
@@ -172,8 +172,8 @@ TEST_CASE("LandscapeEngineBgraInput")
 			CAPTURE(frame);
 			CHECK(maxError < 2e-5);
 			if (frame == 0 && format == GS_BGRA) {
-				BackgroundRemoval::MediaPipeLandscapeDirectMLEngine gpuEngine(
-					BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::Output::GpuMask);
+				BackgroundRemoval::MPLDEngine gpuEngine(
+					BackgroundRemoval::MPLDEngine::Output::GpuMask);
 				CHECK(engine.gpuOutput() == nullptr);
 				CHECK(gpuEngine.complete() == E_PENDING);
 				winrt::check_hresult(context->Wait(gate11.Get(), 2));
@@ -237,7 +237,7 @@ TEST_CASE("LandscapeEngineBgraInput")
 	CHECK(engine.needsRecreation());
 	{
 		// The owner replaces the Engine, rather than the Engine rebuilding itself.
-		auto replacement = std::make_unique<BackgroundRemoval::MediaPipeLandscapeDirectMLEngine>();
+		auto replacement = std::make_unique<BackgroundRemoval::MPLDEngine>();
 		CHECK(replacement->runAsync(changedFormat.get()) == S_OK);
 		CHECK(replacement->blockCpuUntilInferenceCompletes() == S_OK);
 		CHECK(replacement->getResult(output) == S_OK);
@@ -256,7 +256,7 @@ TEST_CASE("LandscapeEngineBgraInput")
 	CHECK(engine.getResult(output) == S_OK);
 	CHECK(rgbaEngine.runAsync(unconsumedImage.get()) == E_INVALIDARG);
 	{
-		BackgroundRemoval::MediaPipeLandscapeDirectMLEngine initiallyInvalid;
+		BackgroundRemoval::MPLDEngine initiallyInvalid;
 		CHECK(initiallyInvalid.runAsync(wrongFormat.get()) == E_INVALIDARG);
 		CHECK_FALSE(initiallyInvalid.needsRecreation());
 		CHECK(initiallyInvalid.runAsync(unconsumedImage.get()) == S_OK);
@@ -264,70 +264,15 @@ TEST_CASE("LandscapeEngineBgraInput")
 		CHECK(initiallyInvalid.getResult(output) == S_OK);
 	}
 	{
-		BackgroundRemoval::MediaPipeLandscapeDirectMLEngine unconsumed;
+		BackgroundRemoval::MPLDEngine unconsumed;
 		CHECK(unconsumed.runAsync(unconsumedImage.get()) == S_OK);
-	}
-}
-
-TEST_CASE("LandscapeDelayedGate")
-{
-	winrt::init_apartment();
-	struct Apartment { ~Apartment() { winrt::uninit_apartment(); } } apartment;
-	graphics_t *graphics = nullptr;
-	REQUIRE(gs_create(&graphics, OBS_TEST_BIN_DIR "/libobs-d3d11.dll", 0) == 0);
-	struct GraphicsCleanup {
-		graphics_t *g;
-		~GraphicsCleanup() { gs_leave_context(); gs_destroy(g); }
-	} cleanup{graphics};
-	gs_enter_context(graphics);
-	BackgroundRemoval::MediaPipeLandscapeDirectMLEngine engine{BackgroundRemoval::MediaPipeLandscapeDirectMLEngine::Output::CpuProbabilities, 256, 144, true};
-	std::vector<float> result(256 * 144), retained;
-	bool previousMotion = false;
-	uint32_t accepted = 0;
-	int referenceValue = 0;
-	for (const auto [value, shouldInfer] : std::array{std::pair{0, false}, std::pair{64, true},
-		std::pair{64, false}, std::pair{65, false}, std::pair{68, true}, std::pair{68, false}}) {
-		std::vector<uint8_t> pixels(256 * 144 * 4, uint8_t(value));
-		const auto *data = pixels.data();
-		std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> texture{
-			gs_texture_create(256, 144, GS_BGRA, 1, &data, 0), gs_texture_destroy};
-		REQUIRE(texture);
-		REQUIRE(engine.runAsync(texture.get(), false, 0.5F, 40, previousMotion) == S_OK);
-		REQUIRE(engine.blockCpuUntilSubmittedGpuWorkCompletes() == S_OK);
-		REQUIRE(engine.getResult(result) == S_OK);
-		const auto gate = engine.gateResult();
-		CHECK(gate.modelSubmitted == previousMotion);
-		accepted += shouldInfer;
-		CHECK(gate.motionDetected == shouldInfer);
-		CHECK(gate.motionCount == accepted);
-		CHECK(gate.sum == uint32_t(std::abs(value - referenceValue) * 256 * 144));
-		const auto invocations = gate.csInvocations;
-		// Gate alone = 144 row groups plus one decision group, 256 threads each.
-		CHECK(invocations == 145 * 256);
-		if (previousMotion) {
-			retained = result;
-		} else {
-			CHECK(invocations == 145 * 256);
-			if (!retained.empty())
-				CHECK(std::memcmp(result.data(), retained.data(), result.size() * sizeof(float)) == 0);
-			else
-				CHECK(std::all_of(result.begin(), result.end(), [](float v) { return v == 0; }));
-		}
-		referenceValue = value;
-		previousMotion = gate.motionDetected;
-		std::cout << "GPU gate value=" << value << " inferred=" << gate.motionDetected
-			<< " sum=" << gate.sum << " CSInvocations=" << invocations << '\n';
 	}
 }
 
 int testMain(int argc, char **argv)
 {
 	doctest::Context context;
-	// A single-token alias also works with PIX's command-line parser.
-	if (argc == 2 && std::strcmp(argv[1], "--gpu-gate") == 0)
-		context.setOption("test-case", "LandscapeDelayedGate");
-	else
-		context.applyCommandLine(argc, argv);
+	context.applyCommandLine(argc, argv);
 	return context.run();
 }
 

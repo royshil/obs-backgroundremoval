@@ -11,7 +11,7 @@
 
 #include <windows.h>
 
-#include "MediaPipeLandscapeDirectMLEngine.hpp"
+#include "MPLDEngine.hpp"
 
 #include <array>
 #include <algorithm>
@@ -89,7 +89,7 @@ auto blockCpuUntilFenceValueReached(ID3D12Fence *fence, UINT64 value, HANDLE eve
 
 } // namespace
 
-namespace BackgroundRemoval::Detail {
+namespace BackgroundRemoval::MPLDDetail {
 
 void closeHandle(void *handle) noexcept
 {
@@ -138,45 +138,6 @@ RWTexture2D<float> mask : register(u1);
 RWByteAddressBuffer coarse : register(u2);
 RWByteAddressBuffer horizontal : register(u3);
 RWByteAddressBuffer vertical : register(u4);
-RWByteAddressBuffer reference : register(u5);
-RWStructuredBuffer<uint> rowSums : register(u6);
-RWByteAddressBuffer decision : register(u7);
-cbuffer GateSettings : register(b2) { uint sumThreshold; uint gateEnabled; }
-groupshared uint sums[256];
-float Luma(float3 rgb) { return dot(rgb,float3(0.2126,0.7152,0.0722)); }
-[numthreads(256,1,1)]
-void SumDifference(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
- uint p=group.x*256+lane;
- float3 rgb=image.Load(int3(lane,group.x,0)).rgb;
- uint old=reference.Load(p*4);
- float3 previous=float3(old&255,(old>>8)&255,(old>>16)&255)/255.0;
- sums[lane]=(uint)round(saturate(abs(Luma(rgb)-Luma(previous)))*255.0);
- uint3 bytes=(uint3)round(saturate(rgb)*255.0);
- reference.Store(p*4,bytes.x|(bytes.y<<8)|(bytes.z<<16));
- GroupMemoryBarrierWithGroupSync();
- for(uint stride=128;stride>0;stride>>=1) {
-  if(lane<stride) sums[lane]+=sums[lane+stride];
-  GroupMemoryBarrierWithGroupSync();
- }
- if(lane==0) rowSums[group.x]=sums[0];
-}
-[numthreads(256,1,1)]
-void DecideInference(uint lane : SV_GroupIndex) {
- // Root UAVs do not carry a bounds range: keep even speculative loads in range.
- sums[lane]=lane<144 ? rowSums[min(lane,143u)] : 0;
- GroupMemoryBarrierWithGroupSync();
- for(uint stride=128;stride>0;stride>>=1) {
-  if(lane<stride) sums[lane]+=sums[lane+stride];
-  GroupMemoryBarrierWithGroupSync();
- }
- if(lane==0) {
-  uint infer=gateEnabled==0 || (sums[0]!=0 && sums[0]>=sumThreshold);
-  decision.Store(0,infer);
-  decision.Store(4,0);
-  decision.Store(8,sums[0]);
-  decision.Store(12,decision.Load(12)+infer);
- }
-}
 cbuffer MaskSettings : register(b1) {
  uint outputWidth; uint outputHeight; float refineThreshold; uint padding;
 }
@@ -260,12 +221,12 @@ void WriteMaskRefined(uint3 id : SV_DispatchThreadID) {
 }
 )hlsl";
 
-} // namespace BackgroundRemoval::Detail
+} // namespace BackgroundRemoval::MPLDDetail
 
 namespace BackgroundRemoval {
-using namespace Detail;
+using namespace MPLDDetail;
 
-class MediaPipeLandscapeDirectMLEngine::Impl {
+class MPLDEngine::Impl {
 public:
 	static constexpr uint32_t width_ = 256, height_ = 144, count_ = width_ * height_ * 3;
 	static_assert(width_ % 4 == 0);
@@ -297,24 +258,11 @@ public:
 	std::unique_ptr<void, void (*)(void *)> event_{CreateEventW(nullptr, FALSE, FALSE, nullptr), closeHandle};
 	ComPtr<ID3D12CommandAllocator> allocator_;
 	ComPtr<ID3D12GraphicsCommandList> commands_;
-	ComPtr<ID3D12CommandAllocator> gateAllocator_;
-	ComPtr<ID3D12GraphicsCommandList> gateCommands_;
 	bool submittedInference_ = false;
-	bool submittedPostprocess_ = false;
 	ComPtr<ID3D12DescriptorHeap> descriptors_;
 	ComPtr<ID3D12RootSignature> root_;
 	ComPtr<ID3D12PipelineState> pack_;
-	ComPtr<ID3D12PipelineState> sumDifference_, decideInference_;
-	ComPtr<ID3D12Resource> reference_, rowSums_, decision_, gateSettings_, gateReadback_;
-	void *gateSettingsData_ = nullptr;
-	GateResult gateResult_{};
-	bool submissionHasGate_ = false;
-	bool lastRefineEnabled_ = false, submittedRefineEnabled_ = false;
-	float lastRefineThreshold_ = 0.5F, submittedRefineThreshold_ = 0.5F;
-	ComPtr<ID3D12QueryHeap> statistics_;
-	ComPtr<ID3D12Resource> statisticsReadback_;
-	auto readGateResult() noexcept -> HRESULT;
-	Impl(ID3D11Device *native, bool gpuOutput, uint32_t outputWidth, uint32_t outputHeight, bool collectStatistics);
+	Impl(ID3D11Device *native, bool gpuOutput, uint32_t outputWidth, uint32_t outputHeight);
 	auto recordPostprocess(bool refineEnabled) noexcept -> HRESULT;
 	auto refineAsync(bool refineEnabled, float refineThreshold) noexcept -> HRESULT;
 	void setMaskSettings(float refineThreshold) noexcept;
@@ -327,12 +275,12 @@ public:
 	~Impl() noexcept;
 	auto record() noexcept -> HRESULT;
 	auto runAsync(ID3D11Texture2D *input, const D3D11_TEXTURE2D_DESC &inputDesc, bool refineEnabled,
-		      float refineThreshold, double sensitivity, bool inferMask) noexcept -> HRESULT;
+		      float refineThreshold) noexcept -> HRESULT;
 	auto complete() noexcept -> HRESULT;
 };
 
-MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native, bool gpuOutput, uint32_t outputWidth,
-					     uint32_t outputHeight, bool collectStatistics)
+MPLDEngine::Impl::Impl(ID3D11Device *native, bool gpuOutput, uint32_t outputWidth,
+					     uint32_t outputHeight)
 	: gpuOutput_(gpuOutput),
 	  outputWidth_(outputWidth),
 	  outputHeight_(outputHeight)
@@ -386,9 +334,6 @@ MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native, bool gpuOutpu
 				   IID_PPV_ARGS(&commands_)),
 	      "Create engine commands");
 	check(commands_->Close(), "Close initial engine commands");
-	check(d->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&gateAllocator_)), "Create gate allocator");
-	check(d->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, gateAllocator_.Get(), nullptr, IID_PPV_ARGS(&gateCommands_)), "Create gate commands");
-	check(gateCommands_->Close(), "Close initial gate commands");
 	check(d->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&completion_)), "Create engine completion fence");
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -397,7 +342,7 @@ MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native, bool gpuOutpu
 	check(d->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&descriptors_)), "Create engine descriptor heap");
 	D3D12_DESCRIPTOR_RANGE range{D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, 0};
 	D3D12_DESCRIPTOR_RANGE maskRange{D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 1, 0, 0};
-	std::array<D3D12_ROOT_PARAMETER, 12> parameters{};
+	std::array<D3D12_ROOT_PARAMETER, 8> parameters{};
 	parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	parameters[0].DescriptorTable = {1, &range};
 	parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
@@ -412,13 +357,7 @@ MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native, bool gpuOutpu
 	}
 	parameters[7].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	parameters[7].Descriptor = {1, 0};
-	for (uint32_t i = 8; i < 11; ++i) {
-		parameters[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
-		parameters[i].Descriptor = {i - 3, 0};
-	}
-	parameters[11].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-	parameters[11].Descriptor = {2, 0};
-	D3D12_ROOT_SIGNATURE_DESC rootDesc{12, parameters.data(), 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE};
+	D3D12_ROOT_SIGNATURE_DESC rootDesc{8, parameters.data(), 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE};
 	ComPtr<ID3DBlob> serialized, errors, code;
 	check(D3D12SerializeRootSignature(&rootDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serialized, &errors),
 	      "Serialize engine root signature");
@@ -435,44 +374,6 @@ MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native, bool gpuOutpu
 	state.pRootSignature = root_.Get();
 	state.CS = {code->GetBufferPointer(), code->GetBufferSize()};
 	check(d->CreateComputePipelineState(&state, IID_PPV_ARGS(&pack_)), "Create engine packing pipeline");
-	for (auto [entry, pipeline] : std::array{std::pair{"SumDifference", std::addressof(sumDifference_)},
-						 std::pair{"DecideInference", std::addressof(decideInference_)}}) {
-		check(D3DCompile(packSource, sizeof(packSource) - 1, "Landscape GPU gate", nullptr, nullptr,
-				entry, "cs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &code, &errors), "Compile GPU gate");
-		state.CS = {code->GetBufferPointer(), code->GetBufferSize()};
-		check(d->CreateComputePipelineState(&state, IID_PPV_ARGS(pipeline->ReleaseAndGetAddressOf())), "Create GPU gate");
-	}
-	reference_ = buffer(d, width_ * height_ * 4, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
-	rowSums_ = buffer(d, height_ * 4, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_HEAP_TYPE_DEFAULT);
-	decision_ = buffer(d, 24, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_DEFAULT);
-	gateReadback_ = buffer(d, 16, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_READBACK);
-	gateSettings_ = buffer(d, 256, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-	const D3D12_RANGE noGateRead{0, 0};
-	check(gateSettings_->Map(0, &noGateRead, &gateSettingsData_), "Map gate settings");
-	// One-time initialization: black reference, zero probabilities and inference counter.
-	auto zeros = buffer(d, width_ * height_ * 4, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-	void *zeroData = nullptr;
-	check(zeros->Map(0, &noGateRead, &zeroData), "Map initial gate data");
-	std::memset(zeroData, 0, width_ * height_ * 4);
-	zeros->Unmap(0, nullptr);
-	check(allocator_->Reset(), "Reset initialization allocator");
-	check(commands_->Reset(allocator_.Get(), nullptr), "Reset initialization commands");
-	commands_->CopyBufferRegion(reference_.Get(), 0, zeros.Get(), 0, width_ * height_ * 4);
-	commands_->CopyBufferRegion(decision_.Get(), 0, zeros.Get(), 0, 24);
-	commands_->CopyBufferRegion(readback_.Get(), 0, zeros.Get(), 0, width_ * height_ * 4);
-	transition(commands_.Get(), reference_.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	transition(commands_.Get(), decision_.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COPY_SOURCE);
-	check(commands_->Close(), "Close gate initialization");
-	ID3D12CommandList *initialLists[]{commands_.Get()};
-	queue_->ExecuteCommandLists(1, initialLists);
-	check(queue_->Signal(completion_.Get(), ++fenceValue_), "Signal gate initialization");
-	check(blockCpuUntilFenceValueReached(completion_.Get(), fenceValue_, event_.get()), "Initialize gate resources");
-	if (collectStatistics) {
-		const D3D12_QUERY_HEAP_DESC query{D3D12_QUERY_HEAP_TYPE_PIPELINE_STATISTICS, 1, 0};
-		check(d->CreateQueryHeap(&query, IID_PPV_ARGS(&statistics_)), "Create gate diagnostic query");
-		statisticsReadback_ = buffer(d, sizeof(D3D12_QUERY_DATA_PIPELINE_STATISTICS),
-			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_READBACK);
-	}
 	if (gpuOutput_) {
 		D3D12_HEAP_PROPERTIES heap{};
 		heap.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -538,7 +439,7 @@ MediaPipeLandscapeDirectMLEngine::Impl::Impl(ID3D11Device *native, bool gpuOutpu
 	}
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::isDone(bool &done) const noexcept -> HRESULT
+auto MPLDEngine::Impl::isDone(bool &done) const noexcept -> HRESULT
 {
 	done = false;
 	if (unusable_)
@@ -552,7 +453,7 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::isDone(bool &done) const noexcept -
 	return S_OK;
 }
 
-MediaPipeLandscapeDirectMLEngine::Impl::~Impl() noexcept
+MPLDEngine::Impl::~Impl() noexcept
 {
 	if (unusable_) {
 		const uint64_t ready = readyValue_ + 1;
@@ -575,35 +476,9 @@ MediaPipeLandscapeDirectMLEngine::Impl::~Impl() noexcept
 		const D3D12_RANGE noWrite{0, 0};
 		settings_->Unmap(0, &noWrite);
 	}
-	if (gateSettingsData_)
-		gateSettings_->Unmap(0, nullptr);
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::readGateResult() noexcept -> HRESULT
-{
-	if (!submissionHasGate_)
-		return S_OK;
-	void *mapped = nullptr;
-	const D3D12_RANGE read{0, 16};
-	if (HRESULT hr = gateReadback_->Map(0, &read, &mapped); FAILED(hr))
-		return hr;
-	std::array<uint32_t, 4> values{};
-	std::memcpy(values.data(), mapped, 16);
-	const D3D12_RANGE noWrite{0, 0};
-	gateReadback_->Unmap(0, &noWrite);
-	gateResult_ = {values[2], values[3], values[0] != 0};
-	gateResult_.modelSubmitted = submittedInference_;
-	if (statistics_) {
-		const D3D12_RANGE statsRead{0, sizeof(D3D12_QUERY_DATA_PIPELINE_STATISTICS)};
-		if (HRESULT hr = statisticsReadback_->Map(0, &statsRead, &mapped); FAILED(hr))
-			return hr;
-		gateResult_.csInvocations = static_cast<const D3D12_QUERY_DATA_PIPELINE_STATISTICS *>(mapped)->CSInvocations;
-		statisticsReadback_->Unmap(0, &noWrite);
-	}
-	return S_OK;
-}
-
-void MediaPipeLandscapeDirectMLEngine::Impl::setMaskSettings(float threshold) noexcept
+void MPLDEngine::Impl::setMaskSettings(float threshold) noexcept
 {
 	struct Settings {
 		uint32_t width, height;
@@ -613,7 +488,7 @@ void MediaPipeLandscapeDirectMLEngine::Impl::setMaskSettings(float threshold) no
 	std::memcpy(settingsData_, &settings, sizeof(settings));
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::recordPostprocess(bool refineEnabled) noexcept -> HRESULT
+auto MPLDEngine::Impl::recordPostprocess(bool refineEnabled) noexcept -> HRESULT
 {
 	auto *allocator = refineEnabled ? postAllocator_.Get() : rawPostAllocator_.Get();
 	auto *c = refineEnabled ? postCommands_.Get() : rawPostCommands_.Get();
@@ -659,7 +534,7 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::recordPostprocess(bool refineEnable
 	return c->Close();
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::refineAsync(bool enabled, float threshold) noexcept -> HRESULT
+auto MPLDEngine::Impl::refineAsync(bool enabled, float threshold) noexcept -> HRESULT
 {
 	needsRecreation_ = false;
 	if (hasSubmission_)
@@ -675,8 +550,6 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::refineAsync(bool enabled, float thr
 	if (HRESULT hr = device_->GetDeviceRemovedReason(); FAILED(hr))
 		return hr;
 	setMaskSettings(threshold);
-	submittedRefineEnabled_ = enabled;
-	submittedRefineThreshold_ = threshold;
 	// Order against all OBS reads of the shared output, also for settings-only work.
 	const uint64_t ready = readyValue_ + 1;
 	if (HRESULT hr = context_->Signal(ready11_.Get(), ready); FAILED(hr)) {
@@ -698,58 +571,18 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::refineAsync(bool enabled, float thr
 	}
 	fenceValue_ = next;
 	hasSubmission_ = true;
-	submissionHasGate_ = false;
 	submittedInference_ = false;
-	submittedPostprocess_ = true;
 	return S_OK;
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::record() noexcept -> HRESULT
+auto MPLDEngine::Impl::record() noexcept -> HRESULT
 {
-	if (HRESULT hr = gateAllocator_->Reset(); FAILED(hr))
-		return hr;
-	if (HRESULT hr = gateCommands_->Reset(gateAllocator_.Get(), pack_.Get()); FAILED(hr))
-		return hr;
-	if (statistics_)
-		gateCommands_->BeginQuery(statistics_.Get(), D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-	transition(gateCommands_.Get(), texture_.Get(), D3D12_RESOURCE_STATE_COMMON,
-		   D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-	ID3D12DescriptorHeap *heaps[]{descriptors_.Get()};
-	gateCommands_->SetDescriptorHeaps(1, heaps);
-	gateCommands_->SetComputeRootSignature(root_.Get());
-	gateCommands_->SetComputeRootDescriptorTable(0, descriptors_->GetGPUDescriptorHandleForHeapStart());
-	gateCommands_->SetComputeRootUnorderedAccessView(1, current_->GetGPUVirtualAddress());
-	gateCommands_->SetComputeRootUnorderedAccessView(8, reference_->GetGPUVirtualAddress());
-	gateCommands_->SetComputeRootUnorderedAccessView(9, rowSums_->GetGPUVirtualAddress());
-	gateCommands_->SetComputeRootUnorderedAccessView(10, decision_->GetGPUVirtualAddress());
-	gateCommands_->SetComputeRootConstantBufferView(11, gateSettings_->GetGPUVirtualAddress());
-	const uint32_t constants[]{width_, count_};
-	gateCommands_->SetComputeRoot32BitConstants(2, 2, constants, 0);
-	transition(gateCommands_.Get(), decision_.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	D3D12_RESOURCE_BARRIER gateBarriers[2]{};
-	for (auto &barrier : gateBarriers)
-		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-	gateBarriers[0].UAV.pResource = reference_.Get();
-	gateBarriers[1].UAV.pResource = rowSums_.Get();
-	gateCommands_->ResourceBarrier(2, gateBarriers);
-	gateCommands_->SetPipelineState(sumDifference_.Get());
-	gateCommands_->Dispatch(height_, 1, 1);
-	gateCommands_->ResourceBarrier(1, &gateBarriers[1]);
-	gateCommands_->SetPipelineState(decideInference_.Get());
-	gateCommands_->Dispatch(1, 1, 1);
-	transition(gateCommands_.Get(), decision_.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-	gateCommands_->CopyBufferRegion(gateReadback_.Get(), 0, decision_.Get(), 0, 16);
-	if (statistics_) {
-		gateCommands_->EndQuery(statistics_.Get(), D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-		gateCommands_->ResolveQueryData(statistics_.Get(), D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, statisticsReadback_.Get(), 0);
-	}
-	transition(gateCommands_.Get(), texture_.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COMMON);
-	if (HRESULT hr = gateCommands_->Close(); FAILED(hr))
-		return hr;
 	if (HRESULT hr = allocator_->Reset(); FAILED(hr))
 		return hr;
 	if (HRESULT hr = commands_->Reset(allocator_.Get(), pack_.Get()); FAILED(hr))
 		return hr;
+	ID3D12DescriptorHeap *heaps[]{descriptors_.Get()};
+	const uint32_t constants[]{width_, count_};
 	transition(commands_.Get(), texture_.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	transition(commands_.Get(), current_.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	commands_->SetDescriptorHeaps(1, heaps);
@@ -777,7 +610,7 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::record() noexcept -> HRESULT
 	return commands_->Close();
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::createSharedInputTexture(const D3D11_TEXTURE2D_DESC &input,
+auto MPLDEngine::Impl::createSharedInputTexture(const D3D11_TEXTURE2D_DESC &input,
 								      ComPtr<ID3D12Resource> &sharedTexture) noexcept
 	-> HRESULT
 {
@@ -831,7 +664,7 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::createSharedInputTexture(const D3D1
 	return S_OK;
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::openSharedInputTexture(ID3D12Resource *texture,
+auto MPLDEngine::Impl::openSharedInputTexture(ID3D12Resource *texture,
 								    ComPtr<ID3D11Texture2D> &destination) noexcept
 	-> HRESULT
 {
@@ -842,8 +675,8 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::openSharedInputTexture(ID3D12Resour
 	return producer_->OpenSharedResource1(shared.get(), IID_PPV_ARGS(&destination));
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::runAsync(ID3D11Texture2D *input, const D3D11_TEXTURE2D_DESC &inputDesc,
-						      bool refineEnabled, float refineThreshold, double sensitivity, bool inferMask) noexcept -> HRESULT
+auto MPLDEngine::Impl::runAsync(ID3D11Texture2D *input, const D3D11_TEXTURE2D_DESC &inputDesc,
+						      bool refineEnabled, float refineThreshold) noexcept -> HRESULT
 {
 	TraceLoggingFunction(g_hProvider, TraceLoggingKeyword(0x1));
 	if (unusable_) {
@@ -877,13 +710,6 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::runAsync(ID3D11Texture2D *input, co
 	}
 	if (gpuOutput_)
 		setMaskSettings(refineThreshold);
-	const double limit = std::ceil(255.0 * width_ * height_ * std::pow(10.0, -sensitivity / 20.0));
-	const std::array<uint32_t, 2> gateSettings{
-		std::isnan(limit) ? 0u : static_cast<uint32_t>(std::clamp(limit, 0.0, 255.0 * width_ * height_ + 1)),
-		std::isfinite(sensitivity) ? 1u : 0u};
-	std::memcpy(gateSettingsData_, gateSettings.data(), sizeof(gateSettings));
-	submittedRefineEnabled_ = refineEnabled;
-	submittedRefineThreshold_ = refineThreshold;
 	{
 		TraceLoggingThreadActivity<g_hProvider, 0x1> trace;
 		TraceLoggingWriteStart(trace, "MPLDEngine.Copy11To12");
@@ -905,20 +731,11 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::runAsync(ID3D11Texture2D *input, co
 	{
 		TraceLoggingThreadActivity<g_hProvider, 0x1> trace;
 		TraceLoggingWriteStart(trace, "MPLDEngine.Inference");
-		ID3D12CommandList *lists[3]{gateCommands_.Get()};
-		UINT listCount = 1;
-		if (inferMask)
-			lists[listCount++] = commands_.Get();
-		submittedPostprocess_ = gpuOutput_ && (inferMask || (hasModelResult_ &&
-			(refineEnabled != lastRefineEnabled_ || refineThreshold != lastRefineThreshold_)));
-		if (submittedPostprocess_)
-			lists[listCount++] = refineEnabled ? postCommands_.Get() : rawPostCommands_.Get();
-		// Keep explicit execution boundaries between gate, DirectML and postprocess.
-		// The retained-output test detects corruption when these lists are batched
-		// in one ExecuteCommandLists call on the tested UHD 630 driver.
-		for (UINT index = 0; index < listCount; ++index)
+		ID3D12CommandList *lists[]{commands_.Get(), refineEnabled ? postCommands_.Get() : rawPostCommands_.Get()};
+		// Preserve execution boundaries between DirectML and mask postprocessing.
+		for (UINT index = 0; index < (gpuOutput_ ? 2u : 1u); ++index)
 			queue_->ExecuteCommandLists(1, lists + index);
-		submittedInference_ = inferMask;
+		submittedInference_ = true;
 		const uint64_t next = fenceValue_ + 1;
 		if (HRESULT hr = queue_->Signal(completion_.Get(), next); FAILED(hr)) {
 			unusable_ = true;
@@ -927,12 +744,11 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::runAsync(ID3D11Texture2D *input, co
 		}
 		fenceValue_ = next;
 		hasSubmission_ = true;
-		submissionHasGate_ = true;
 	}
 	return S_OK;
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::complete() noexcept -> HRESULT
+auto MPLDEngine::Impl::complete() noexcept -> HRESULT
 {
 	if (!gpuOutput_)
 		return E_UNEXPECTED;
@@ -941,22 +757,16 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::complete() noexcept -> HRESULT
 		return hr;
 	if (!done)
 		return E_PENDING;
-	if (HRESULT hr = readGateResult(); FAILED(hr))
-		return hr;
 	if (HRESULT hr = context_->Wait(completion11_.Get(), fenceValue_); FAILED(hr)) {
 		unusable_ = true;
 		return hr;
 	}
 	hasModelResult_ = hasModelResult_ || submittedInference_;
-	if (submittedPostprocess_) {
-		lastRefineEnabled_ = submittedRefineEnabled_;
-		lastRefineThreshold_ = submittedRefineThreshold_;
-	}
 	hasSubmission_ = false;
 	return S_OK;
 }
 
-auto MediaPipeLandscapeDirectMLEngine::Impl::getResult(std::span<float> output) noexcept -> HRESULT
+auto MPLDEngine::Impl::getResult(std::span<float> output) noexcept -> HRESULT
 {
 	if (gpuOutput_)
 		return E_UNEXPECTED;
@@ -967,8 +777,6 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::getResult(std::span<float> output) 
 		return hr;
 	if (!done)
 		return E_PENDING;
-	if (HRESULT hr = readGateResult(); FAILED(hr))
-		return hr;
 	TraceLoggingFunction(g_hProvider, TraceLoggingKeyword(0x1));
 	const D3D12_RANGE range{0, program_->outputInfo().dataBytes};
 	void *mapped = nullptr;
@@ -987,21 +795,21 @@ auto MediaPipeLandscapeDirectMLEngine::Impl::getResult(std::span<float> output) 
 
 namespace BackgroundRemoval {
 
-MediaPipeLandscapeDirectMLEngine::MediaPipeLandscapeDirectMLEngine(Output output, uint32_t outputWidth,
-								   uint32_t outputHeight, bool collectStatistics)
+MPLDEngine::MPLDEngine(Output output, uint32_t outputWidth,
+								   uint32_t outputHeight)
 {
 	if (gs_get_device_type() != GS_DEVICE_DIRECT3D_11)
-		throw std::invalid_argument("MediaPipeLandscapeDirectMLEngine requires the D3D11 backend");
+		throw std::invalid_argument("MPLDEngine requires the D3D11 backend");
 	auto *device = static_cast<ID3D11Device *>(gs_get_device_obj());
 	if (!device)
 		throw std::runtime_error("The D3D11 device is unavailable");
-	impl_ = std::make_unique<Impl>(device, output == Output::GpuMask, outputWidth, outputHeight, collectStatistics);
+	impl_ = std::make_unique<Impl>(device, output == Output::GpuMask, outputWidth, outputHeight);
 }
 
-MediaPipeLandscapeDirectMLEngine::~MediaPipeLandscapeDirectMLEngine() noexcept = default;
+MPLDEngine::~MPLDEngine() noexcept = default;
 
-auto MediaPipeLandscapeDirectMLEngine::runAsync(gs_texture_t *inputTexture, bool refineEnabled,
-						float refineThreshold, double sensitivity, bool inferMask) noexcept -> HRESULT
+auto MPLDEngine::runAsync(gs_texture_t *inputTexture, bool refineEnabled,
+						float refineThreshold) noexcept -> HRESULT
 {
 	impl_->needsRecreation_ = false;
 	if (!std::isfinite(refineThreshold) || refineThreshold < 0.0F || refineThreshold > 1.0F || !inputTexture ||
@@ -1012,62 +820,57 @@ auto MediaPipeLandscapeDirectMLEngine::runAsync(gs_texture_t *inputTexture, bool
 		return E_INVALIDARG;
 	D3D11_TEXTURE2D_DESC inputDesc{};
 	texture->GetDesc(&inputDesc);
-	return impl_->runAsync(texture, inputDesc, refineEnabled, refineThreshold, sensitivity, inferMask);
+	return impl_->runAsync(texture, inputDesc, refineEnabled, refineThreshold);
 }
 
-auto MediaPipeLandscapeDirectMLEngine::gateResult() const noexcept -> GateResult
-{
-	return impl_->gateResult_;
-}
-
-auto MediaPipeLandscapeDirectMLEngine::refineAsync(bool enabled, float threshold) noexcept -> HRESULT
+auto MPLDEngine::refineAsync(bool enabled, float threshold) noexcept -> HRESULT
 {
 	return impl_->refineAsync(enabled, threshold);
 }
 
-auto MediaPipeLandscapeDirectMLEngine::needsRecreation() const noexcept -> bool
+auto MPLDEngine::needsRecreation() const noexcept -> bool
 {
 	return impl_->needsRecreation_;
 }
 
-auto MediaPipeLandscapeDirectMLEngine::isDone(bool &done) const noexcept -> HRESULT
+auto MPLDEngine::isDone(bool &done) const noexcept -> HRESULT
 {
 	return impl_->isDone(done);
 }
 
-auto MediaPipeLandscapeDirectMLEngine::getResult(std::span<float> output) noexcept -> HRESULT
+auto MPLDEngine::getResult(std::span<float> output) noexcept -> HRESULT
 {
 	return impl_->getResult(output);
 }
 
-auto MediaPipeLandscapeDirectMLEngine::gpuOutput() const noexcept -> ID3D12Resource *
+auto MPLDEngine::gpuOutput() const noexcept -> ID3D12Resource *
 {
 	return impl_->gpuOutput_ ? impl_->readback_.Get() : nullptr;
 }
-auto MediaPipeLandscapeDirectMLEngine::device() const noexcept -> ID3D12Device *
+auto MPLDEngine::device() const noexcept -> ID3D12Device *
 {
 	return impl_->device_.Get();
 }
-auto MediaPipeLandscapeDirectMLEngine::commandQueue() const noexcept -> ID3D12CommandQueue *
+auto MPLDEngine::commandQueue() const noexcept -> ID3D12CommandQueue *
 {
 	return impl_->queue_.Get();
 }
-auto MediaPipeLandscapeDirectMLEngine::maskTexture() const noexcept -> ID3D11Texture2D *
+auto MPLDEngine::maskTexture() const noexcept -> ID3D11Texture2D *
 {
 	return impl_->mask11_.Get();
 }
 
-auto MediaPipeLandscapeDirectMLEngine::complete() noexcept -> HRESULT
+auto MPLDEngine::complete() noexcept -> HRESULT
 {
 	return impl_->complete();
 }
 
-auto MediaPipeLandscapeDirectMLEngine::blockCpuUntilSubmittedGpuWorkCompletes() noexcept -> HRESULT
+auto MPLDEngine::blockCpuUntilSubmittedGpuWorkCompletes() noexcept -> HRESULT
 {
 	return blockCpuUntilInferenceCompletes();
 }
 
-auto MediaPipeLandscapeDirectMLEngine::blockCpuUntilInferenceCompletes() noexcept -> HRESULT
+auto MPLDEngine::blockCpuUntilInferenceCompletes() noexcept -> HRESULT
 {
 	bool done = false;
 	if (HRESULT hr = impl_->isDone(done); FAILED(hr))

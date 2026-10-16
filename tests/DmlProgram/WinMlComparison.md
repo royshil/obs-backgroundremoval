@@ -3,22 +3,22 @@
 
 # Operator comparison against Windows ML
 
-The Landscape Engine performs luma difference, U8 quantization, reduction,
-and threshold comparison on D3D12. DML operators enable MetaCommands. The gate
-reference is black initially and updates on every submitted input, independently
-of inference. Pipeline consumes the preceding input's gate result without waiting
-for gate-only work; if it is not ready, submission is deferred without overwriting
-in-flight resources. ON starts or extends a burst of 1 + ceil(canvas FPS / 30)
+Pipeline renders the consecutive-input luma difference into a 256x144 R8 texture
+and stages it once per processed frame. The next videoTick enters the graphics
+context, maps the single staging surface, sums its pixels using RowPitch, and
+unmaps it before deciding whether to infer. Map supplies any required GPU wait;
+there is no separate gate fence, polling or extra staging buffer. The black
+reference updates after every Stage, independently of inference. MetaCommands
+remain enabled. ON starts or extends a burst of 1 + ceil(canvas FPS / 30)
 inferences. Same-frame redraws do not consume the burst. FilterContext::videoTick
 publishes the additional count atomically, without recreating the Pipeline.
 Refinement settings reprocess retained probabilities without forcing inference.
 
-LandscapeDelayedGate (run by the Engine CTest) checks a black initial frame,
-previous-result CPU submission, consecutive-frame differences and retained output
-on skipped frames, including changed inputs. Opt-in Pipeline Statistics verifies
-exactly 37,120 CS invocations in the isolated gate list; production does not enable
-this query. Pipeline tests check 2/3/5-frame bursts (30/60/120 FPS) and repeated
-renders. WinML model comparison and GPU input/mask/Pipeline
+LandscapeRenderingInitialization checks the black initial frame, one-time Stage
+consumption, threshold boundaries, ON extension, Map failure fallback, retained
+mask values, 2/3/5-frame bursts (30/60/120 FPS), and repeated renders. The Engine
+contains inference/postprocessing only; its gate CS and diagnostic API are gone.
+WinML model comparison and GPU input/mask/Pipeline
 tests provide independent checks.
 
 The doctest executable compares BaselineDml output directly with WinML output,
@@ -153,7 +153,7 @@ its corresponding mask is all background. Mask refinement settings do not
 force inference. Only successful inference and mask refinement advance the
 reference image and retained model output.
 
-The Pipeline sends BGRA input to MediaPipeLandscapeDirectMLEngine only when
+The Pipeline sends BGRA input to MPLDEngine only when
 inference is required. The Engine owns input transfer, RGB-plane packing,
 DirectML submission and output readback. CPU mask refinement and final rendering
 remain in the Pipeline.
@@ -266,7 +266,7 @@ paired event timestamps; the old ScopeId/DurationMs payload is removed.
 The provider is registered at plugin load and unregistered at unload. Test and
 benchmark executables register and unregister it in main.
 
-MediaPipeLandscapeDirectMLEngineTest compares BGRA and RGBA portrait
+MPLDEngineTest compares BGRA and RGBA portrait
 inputs in separate Engines with a fixed format per Engine against the Runtime CPU-input path (max absolute error below 2e-5).
 A test-only shared fence holds the producer queue to deterministically verify
 nonblocking submission, unfinished-result rejection and double-submission

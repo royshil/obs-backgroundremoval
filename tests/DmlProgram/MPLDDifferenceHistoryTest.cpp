@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest.h>
-#include "BackgroundRemoval/windows/MediaPipeLandscapeDifferenceHistory.hpp"
+#include "BackgroundRemoval/windows/MediaPipeLandscapeDirectML/MPLDDifferenceHistory.hpp"
 #include <limits>
 #include <thread>
 
 TEST_CASE("Only the last second contributes to the maximum difference boundary")
 {
-	BackgroundRemoval::MediaPipeLandscapeDifferenceHistory history;
+	BackgroundRemoval::MPLDDifferenceHistory history;
 	CHECK_FALSE(history.sensitivity(0));
 	history.record(0, 1.0);
 	history.record(1000000001ULL, 0.01);
@@ -22,7 +22,7 @@ TEST_CASE("Only the last second contributes to the maximum difference boundary")
 
 TEST_CASE("The ring retains exactly sixty values, including after repeated wraparound")
 {
-	BackgroundRemoval::MediaPipeLandscapeDifferenceHistory history;
+	BackgroundRemoval::MPLDDifferenceHistory history;
 	history.record(0, 1.0);
 	for (std::uint64_t i = 1; i <= 59; ++i)
 		history.record(i, 0.01);
@@ -36,7 +36,7 @@ TEST_CASE("The ring retains exactly sixty values, including after repeated wrapa
 
 TEST_CASE("Zero difference, invalid measurements, timestamps, and UI bounds are handled")
 {
-	BackgroundRemoval::MediaPipeLandscapeDifferenceHistory history;
+	BackgroundRemoval::MPLDDifferenceHistory history;
 	history.record(100, std::numeric_limits<double>::quiet_NaN());
 	history.record(100, -0.1);
 	history.record(100, 1.1);
@@ -52,7 +52,7 @@ TEST_CASE("Zero difference, invalid measurements, timestamps, and UI bounds are 
 
 TEST_CASE("Concurrent publication never overwrites the UI-owned snapshot")
 {
-	BackgroundRemoval::MediaPipeLandscapeDifferenceHistory history;
+	BackgroundRemoval::MPLDDifferenceHistory history;
 	std::atomic<bool> finished{false};
 	std::thread producer([&] {
 		for (std::uint64_t i = 1; i <= 20000; ++i)
