@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
+#include "GpuAccessValidation.hpp"
 #include "DmlProgram/BaselineDmlProgramRuntime.hpp"
 #include "ObsBridgeUtils/TextureReader.hpp"
 #include "BackgroundRemoval/Operators.hpp"
@@ -335,6 +336,13 @@ void renderFilter(void *data, gs_effect_t *effect)
 #ifdef GPU_LANDSCAPE_MODEL
 TEST_CASE("LandscapeRenderingInitialization")
 {
+	ComPtr<ID3D12Device> validationDevice;
+	if (GpuAccessValidation::enabled()) {
+		REQUIRE(SUCCEEDED(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&validationDevice))));
+		ComPtr<ID3D12InfoQueue> messages;
+		REQUIRE(SUCCEEDED(validationDevice.As(&messages)));
+		REQUIRE(SUCCEEDED(messages->SetMessageCountLimit(65536)));
+	}
 	struct ObsSession {
 		ObsSession()
 		{
@@ -446,9 +454,11 @@ TEST_CASE("LandscapeRenderingInitialization")
 		BackgroundRemoval::MediaPipeLandscapeDirectMLPipeline pipeline(property, filter.get(), 256, 144);
 		filterData->pipeline_ = &pipeline;
 		inputData->pipeline_ = &pipeline;
-		for (int frame = 0; frame < 4; ++frame) {
+		const char *stressFrames = std::getenv("DML_TEST_STRESS_FRAMES");
+		const int frameCount = stressFrames ? std::clamp(std::atoi(stressFrames), 4, 120) : 4;
+		for (int frame = 0; frame < frameCount; ++frame) {
 			pipeline.videoTick(1.0F / 30);
-			if (frame == 3) {
+			if (frame >= 3) {
 				for (auto &value : input)
 					value = 1 - value;
 				for (size_t i = 0; i < 256 * 144; ++i)
@@ -577,12 +587,15 @@ TEST_CASE("LandscapeRenderingInitialization")
 	gs_set_render_target_with_color_space(previousTarget, nullptr, previousSpace);
 
 	CHECK(gs_get_render_target() == previousTarget);
+	if (validationDevice)
+		GpuAccessValidation::checkMessages(validationDevice.Get());
 }
 
 #endif
 
 int testMain(int argc, char **argv)
 {
+	GpuAccessValidation::enable();
 	// Enable the standard validation layer when installed. Timing is measured
 	// separately with --benchmark-no-debug to avoid instrumentation overhead.
 	bool debug = true;

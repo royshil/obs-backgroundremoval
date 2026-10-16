@@ -5,6 +5,7 @@
 #endif
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
+#include "GpuAccessValidation.hpp"
 #include "BackgroundRemoval/Operators.hpp"
 #include <chrono>
 #include <iostream>
@@ -263,6 +264,7 @@ TEST_CASE("MaskRefinerDirect3D")
 							       iw, ih, ow, oh);
 		pending.runAsync(input.Get(), {});
 	}
+	GpuAccessValidation::checkMessages(gpu.device.Get());
 }
 TEST_CASE("MaskRefinerBenchmark" * doctest::skip())
 {
@@ -361,6 +363,7 @@ TEST_CASE("MaskRefinerBenchmark" * doctest::skip())
 
 int main(int argc, char **argv)
 {
+	GpuAccessValidation::enable();
 	TraceLoggingRegister(provider);
 	doctest::Context context;
 	for (int i = 1; i < argc; ++i)
