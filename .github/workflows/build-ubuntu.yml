@@ -68,7 +68,7 @@ jobs:
             qt6-base-dev
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -108,21 +108,21 @@ jobs:
 
       - name: Attest package artifacts (Ubuntu)
         if: inputs.attest-artifacts
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        uses: actions/attest@v4.2.2
         with:
           subject-path: |
             build/${{ steps.artifact-names.outputs.DEB_ARTIFACT_NAME }}
             build/${{ steps.artifact-names.outputs.DDEB_ARTIFACT_NAME }}
 
       - name: Upload deb artifact (Ubuntu)
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           path: build/${{ steps.artifact-names.outputs.DEB_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
 
       - name: Upload ddeb artifact (Ubuntu)
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           path: build/${{ steps.artifact-names.outputs.DDEB_ARTIFACT_NAME }}
           archive: false
@@ -151,12 +151,12 @@ jobs:
             xvfb
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Download deb artifact (Ubuntu)
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8.0.2
         with:
           name: ${{ needs.resolute.outputs.DEB_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/${{ github.job }}
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload scenario test artifacts (Ubuntu)
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: scenario-test-results-ubuntu-resolute-${{ inputs.arm64 && 'arm64' || 'amd64' }}
           path: ${{ github.workspace }}/build_test_reports
