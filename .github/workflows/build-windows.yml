@@ -65,7 +65,7 @@ jobs:
           Add-Content -Value "WINDOWS_BUILD_VERSION=$WINDOWS_BUILD_VERSION" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: true
 
@@ -110,7 +110,7 @@ jobs:
 
       - name: Set up Python
         id: setup-python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.9'
 
@@ -148,7 +148,7 @@ jobs:
 
       - name: Restore ccache_ort (Windows)
         id: ccache-ort
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@v6.1.0
         with:
           path: ${{ env.CCACHE_ORT_DIR }}
           key: ccache_ort-v2-${{ runner.os }}-x64-${{ steps.windows-build.outputs.WINDOWS_BUILD_VERSION }}-${{ steps.setup-buildspec-deps.outputs.CCACHE_VERSION }}-${{ steps.buildspec.outputs.windows_sdk_version }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -239,7 +239,7 @@ jobs:
 
       - name: Save ccache_ort
         if: success() && steps.ccache-ort.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/save@v6.1.0
         with:
           path: ${{ env.CCACHE_ORT_DIR }}
           key: ${{ steps.ccache-ort.outputs.cache-primary-key }}
@@ -346,25 +346,25 @@ jobs:
 
       - name: Attest ZIP artifact
         if: inputs.attest-artifacts
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}
 
       - name: Attest PDB artifact
         if: inputs.attest-artifacts
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ steps.package-pdb.outputs.PDB_ARTIFACT_NAME }}
 
       - name: Upload ZIP artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           path: ${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
 
       - name: Upload PDB artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           path: ${{ steps.package-pdb.outputs.PDB_ARTIFACT_NAME }}
           archive: false
@@ -377,7 +377,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -403,7 +403,7 @@ jobs:
           Add-Content -LiteralPath $env:GITHUB_ENV -Value "GUI_SCENARIO_OBS_EXECUTABLE=$($obsExecutable.FullName)" -Encoding utf8
 
       - name: Download ZIP artifact (Windows)
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8.0.2
         with:
           name: ${{ needs.build.outputs.ZIP_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/${{ github.job }}/plugin
@@ -425,7 +425,7 @@ jobs:
 
       - name: Upload scenario test artifacts (Windows)
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: scenario-test-results-windows-x64
           path: artifacts/scenario-tests/windows

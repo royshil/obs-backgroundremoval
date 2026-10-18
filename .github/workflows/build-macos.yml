@@ -85,7 +85,7 @@ jobs:
         run: brew install --cask obs && xattr -dr com.apple.quarantine /Applications/OBS.app
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: true
 
@@ -168,12 +168,12 @@ jobs:
 
       - name: Attest dSYM artifact (macOS)
         if: inputs.attest-artifacts
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ steps.archive-dsym.outputs.DSYM_ARTIFACT_NAME }}
 
       - name: Upload dSYM artifact (macOS)
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           path: ${{ steps.archive-dsym.outputs.DSYM_ARTIFACT_NAME }}
           archive: false
@@ -182,7 +182,7 @@ jobs:
       - name: Set up Apple code signing
         id: setup-codesign
         if: inputs.release-build
-        uses: kaito-tokyo/setup-apple-codesigning@b9f7d7c6819fe6f6bb44694b75963918dcbddd27 # v1.0.0
+        uses: kaito-tokyo/setup-apple-codesigning@v1.0.0
         with:
           MACOS_SIGNING_CERT: ${{ secrets.MACOS_SIGNING_CERT }}
           MACOS_SIGNING_CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
@@ -247,7 +247,7 @@ jobs:
 
       - name: Attest notarized PKG (macOS)
         if: inputs.attest-artifacts && inputs.release-build
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ steps.package-signed.outputs.PKG_ARTIFACT_NAME }}
 
@@ -289,12 +289,12 @@ jobs:
 
       - name: Attest unsigned PKG (macOS)
         if: inputs.attest-artifacts && !inputs.release-build
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ steps.package-unsigned.outputs.PKG_ARTIFACT_NAME }}
 
       - name: Upload PKG artifact (macOS)
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           path: ${{ steps.package-signed.outputs.PKG_ARTIFACT_NAME || steps.package-unsigned.outputs.PKG_ARTIFACT_NAME }}
           archive: false
@@ -307,7 +307,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -316,7 +316,7 @@ jobs:
         run: brew install --cask obs && xattr -dr com.apple.quarantine /Applications/OBS.app
 
       - name: Download PKG artifact (macOS)
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        uses: actions/download-artifact@v8.0.2
         with:
           name: ${{ needs.tahoe.outputs.PKG_ARTIFACT_NAME }}
           path: ${{ runner.temp }}/${{ github.job }}/artifact
@@ -339,7 +339,7 @@ jobs:
 
       - name: Upload scenario test results (macOS)
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: scenario-test-results-macos
           path: ${{ runner.temp }}/${{ github.job }}/build_test_reports
