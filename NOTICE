@@ -9,6 +9,10 @@ the MIT License.
 This product includes software developed by the OpenCV project
 (https://opencv.org/), licensed under the Apache License 2.0.
 
+This product includes software developed by the Simd project
+(https://github.com/ermig1979/Simd), Copyright (C) Ihar Yermalayeu and
+contributors, licensed under the MIT License.
+
 This product includes software developed by the curl project
 (https://curl.se/), Copyright (C) Daniel Stenberg and contributors, licensed
 under the curl license.
@@ -17,6 +21,18 @@ This product includes software developed by the cpuinfo project
 (https://github.com/pytorch/cpuinfo/), Copyright (C) Google LLC, Facebook,
 Inc., Georgia Institute of Technology, and Marat Dukhan, licensed under the
 BSD 3-Clause License.
+
+The macOS version includes the jthread implementation by Nicolai Josuttis
+(http://www.josuttis.com/contact.html) and Lewis Baker, licensed under the
+Creative Commons Attribution 4.0 International license (CC-BY-4.0):
+https://creativecommons.org/licenses/by/4.0/
+Source: https://github.com/josuttis/jthread
+Revision: 0fa8d394254886c555d6faccd0a3de819b7d47f8
+Files: source/jthread.hpp, source/stop_token.hpp,
+source/condition_variable_any2.hpp.
+Modifications: Copyright (C) 2025-2026 Kaito Udagawa <umireon@kaito.tokyo>.
+Renamed namespace std to josuttis; added SPDX headers and modification
+notices; adjusted whitespace and formatting.
 
 This product includes pretrained models provided under the following notices.
 

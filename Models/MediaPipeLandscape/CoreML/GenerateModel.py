@@ -26,7 +26,7 @@ MODEL_REVISION = "2497d5bec26c626c7b3c4edc6e1fefc21b64f6c3"
 MODEL_FILENAME = "onnx/model.onnx"
 OUTPUT_PATH = (
     Path(__file__).resolve().parents[3]
-    / "src/macos/BackgroundRemoval/MediaPipeLandscape.mlpackage"
+    / "src/BackgroundRemoval/macos/generated/MediaPipeLandscape.mlpackage"
 )
 
 

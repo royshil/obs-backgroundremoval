@@ -7,7 +7,6 @@
 macos() {
   : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
   : "${CMAKE_OSX_DEPLOYMENT_TARGET:=13.0}"
-  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
 
   if [[ "${X86_64+set}" != 'set' ]] && [[ "$(uname -m)" == 'x86_64' ]]; then
     X86_64=1
@@ -15,30 +14,18 @@ macos() {
 
   if [[ "${X86_64:-0}" == '0' ]]; then
     : "${CMAKE_OSX_ARCHITECTURES:=arm64}"
-    : "${VCPKG_TARGET_TRIPLET:=arm64-osx-obs}"
-    : "${VCPKG_ORT_TARGET_TRIPLET:=arm64-osx-obs-ort}"
   else
     : "${CMAKE_OSX_ARCHITECTURES:=x86_64}"
-    : "${VCPKG_TARGET_TRIPLET:=x64-osx-obs}"
-    : "${VCPKG_ORT_TARGET_TRIPLET:=x64-osx-obs-ort}"
   fi
-
-  export VCPKG_ROOT
-
-  CMAKE_COMMAND="$(PATH=/usr/bin:/bin "${VCPKG_ROOT:?}/vcpkg" fetch cmake | tail -n1)"
-  NINJA_COMMAND="$(PATH=/usr/bin:/bin "${VCPKG_ROOT:?}/vcpkg" fetch ninja | tail -n1)"
-  PKG_CONFIG_BINDIR="$(brew --prefix pkg-config)/bin"
-
-  export PATH="${CMAKE_COMMAND%/*}:${NINJA_COMMAND%/*}:${PKG_CONFIG_BINDIR:?}:/usr/bin:/bin"
 
   cmake \
     -S "${PWD:?}" \
     -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
-    -G Ninja \
+    -G Xcode \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-    -DCMAKE_PREFIX_PATH="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps;${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed/Frameworks;${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_ort_installed/${VCPKG_ORT_TARGET_TRIPLET:-arm64-osx-obs-ort};${PLUGIN_BUILD_DIR:-${PWD:?}}/ort_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/vcpkg_installed/${VCPKG_TARGET_TRIPLET:-arm64-osx-obs}"
+    -DCMAKE_PREFIX_PATH="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps;${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed/Frameworks"
   printf "INFO: plugin was configured\n" >&2
 }
 

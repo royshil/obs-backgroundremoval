@@ -36,17 +36,21 @@ jobs:
         shell: /bin/sh -eu {0}
         run: |
           pacman --disable-sandbox --needed --noconfirm -Sy \
+            base-devel \
             cmake \
             curl \
+            git \
             ninja \
             obs-studio \
             onnxruntime \
-            opencv
+            opencv \
+            simde
 
       - name: Checkout
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
+          submodules: recursive
 
       - name: Configure (Arch)
         shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}

@@ -5,7 +5,8 @@
 [CmdletBinding()]
 param(
     [string] $ObsExecutable = $env:GUI_SCENARIO_OBS_EXECUTABLE,
-    [string] $PluginRoot = $env:GUI_SCENARIO_PLUGIN_ROOT
+    [string] $PluginRoot = $env:GUI_SCENARIO_PLUGIN_ROOT,
+    [string] $CaseFilter = '*'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,7 +36,7 @@ if (-not $PluginRoot) {
     $PluginRoot = Join-Path $sourceDir 'release\obs-backgroundremoval'
 }
 if (-not (Test-Path -LiteralPath (Join-Path $PluginRoot 'bin\64bit\obs-backgroundremoval.dll') -PathType Leaf)) {
-    throw 'The built Windows plugin was not found. Run bin\build.bat or pass -PluginRoot.'
+    throw 'The built Windows plugin was not found. Run bin\build.cmd or pass -PluginRoot.'
 }
 
 $artifactsRoot = Join-Path $sourceDir 'artifacts\scenario-tests\windows'
@@ -84,7 +85,8 @@ try {
         -ObsExecutable $portableObsExecutable `
         -SourceDir $sourceDir `
         -WorkDir $workDir `
-        -Artifacts $artifacts
+        -Artifacts $artifacts `
+        -CaseFilter $CaseFilter
     $status = 0
 } catch {
     $_ | Out-String | Set-Content -LiteralPath (Join-Path $artifacts 'exception.txt') -Encoding utf8
