@@ -3,23 +3,29 @@
 # SPDX-License-Identifier: Apache-2.0
 
 function(collect_licenses output_header)
-  set(license_files "${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_SOURCE_DIR}/NOTICE")
+  set(
+    license_files
+    "${CMAKE_SOURCE_DIR}/LICENSE"
+    "${CMAKE_SOURCE_DIR}/NOTICE"
+    "${CMAKE_SOURCE_DIR}/LICENSES/Apache-2.0.txt"
+  )
 
-  if(EXISTS "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/LICENSE")
-    list(APPEND license_files "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/LICENSE")
+  if(APPLE)
+    list(APPEND license_files "${CMAKE_SOURCE_DIR}/LICENSES/CC-BY-4.0.txt")
   endif()
 
-  if(EXISTS "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/ThirdPartyNotices.txt")
-    list(APPEND license_files "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/ThirdPartyNotices.txt")
+  if(EXISTS "${CMAKE_SOURCE_DIR}/vendor/Simd/LICENSE")
+    list(APPEND license_files "${CMAKE_SOURCE_DIR}/vendor/Simd/LICENSE")
+    file(GLOB_RECURSE simd_license_sidecars CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/vendor/Simd/*.license")
+    list(APPEND license_files ${simd_license_sidecars})
   endif()
-
-  foreach(prefix IN LISTS CMAKE_PREFIX_PATH)
-    file(GLOB vcpkg_license_files "${prefix}/share/*/copyright")
-    list(APPEND license_files ${vcpkg_license_files})
-  endforeach()
+  if(EXISTS "${CMAKE_SOURCE_DIR}/vendor/cpp-httplib/LICENSE")
+    list(APPEND license_files "${CMAKE_SOURCE_DIR}/vendor/cpp-httplib/LICENSE")
+  endif()
 
   list(REMOVE_DUPLICATES license_files)
   list(SORT license_files)
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${license_files})
 
   get_filename_component(output_directory "${output_header}" DIRECTORY)
   set(output_text "${output_directory}/legal.txt")
@@ -31,10 +37,16 @@ function(collect_licenses output_header)
       set(license_name "obs-backgroundremoval")
     elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/NOTICE")
       set(license_name "obs-backgroundremoval notices")
-    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/LICENSE")
-      set(license_name "onnxruntime")
-    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/ThirdPartyNotices.txt")
-      set(license_name "onnxruntime third-party notices")
+    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/LICENSES/Apache-2.0.txt")
+      set(license_name "Apache-2.0")
+    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/LICENSES/CC-BY-4.0.txt")
+      set(license_name "CC-BY-4.0 (jthread)")
+    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/vendor/Simd/LICENSE")
+      set(license_name "Simd")
+    elseif(license_file IN_LIST simd_license_sidecars)
+      file(RELATIVE_PATH license_name "${CMAKE_SOURCE_DIR}" "${license_file}")
+    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/vendor/cpp-httplib/LICENSE")
+      set(license_name "cpp-httplib")
     endif()
 
     file(READ "${license_file}" license_text)

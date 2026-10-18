@@ -35,7 +35,7 @@ if (-not $PluginRoot) {
     $PluginRoot = Join-Path $sourceDir 'release\obs-backgroundremoval'
 }
 if (-not (Test-Path -LiteralPath (Join-Path $PluginRoot 'bin\64bit\obs-backgroundremoval.dll') -PathType Leaf)) {
-    throw 'The built Windows plugin was not found. Run bin\build.bat or pass -PluginRoot.'
+    throw 'The built Windows plugin was not found. Run bin\build.cmd or pass -PluginRoot.'
 }
 
 $artifactsRoot = Join-Path $sourceDir 'artifacts\scenario-tests\windows'

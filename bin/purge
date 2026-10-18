@@ -49,19 +49,8 @@ targets=(
   "${PLUGIN_BUILD_DIR}/.deps"
   "${PLUGIN_BUILD_DIR}/.venv"
   "${PLUGIN_BUILD_DIR}/build"
-  "${PLUGIN_BUILD_DIR}/build_ort"
-  "${PLUGIN_BUILD_DIR}/build_prefix"
-  "${PLUGIN_BUILD_DIR}/ort_installed"
   "${PLUGIN_BUILD_DIR}/release"
-  "${PLUGIN_BUILD_DIR}/vcpkg_installed"
-  "${PLUGIN_BUILD_DIR}/vcpkg_ort_installed"
   "${PLUGIN_BUILD_DIR}/vendor/obs-studio/.deps"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/buildtrees"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/downloads"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/installed"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/packages"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/vcpkg"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/vcpkg.disable-metrics"
 )
 
 if ! [[ "${OPT_FORCE:-0}" == 1 ]]; then
@@ -93,4 +82,3 @@ done
 
 printf 'INFO: purge completed\n' >&2
 printf 'INFO: Run following commands to remove build caches\n' >&2
-printf 'INFO: rm -rf %q/.ccache_ort %q/.vcpkg_archives\n' "${PLUGIN_BUILD_DIR:?}" "${PLUGIN_BUILD_DIR:?}" >&2

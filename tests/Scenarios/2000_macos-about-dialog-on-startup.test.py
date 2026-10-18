@@ -572,7 +572,7 @@ class MacOSAboutDialogOnStartupTest(unittest.TestCase):
         """ST-2000.7 about-dialog-on-startup-notification-save-failure"""
         write_update_config("[update]", "version=0.0.0", "check_for_updates=false")
         log_path = run_obs_phase("about-dialog-on-startup-notification-save-failure", update_config_write_failure)
-        warning = "[obs-backgroundremoval] Failed to save update config"
+        warning = "[obs-backgroundremoval] Failed to save the update notification setting to update.ini"
         require_log(log_path, warning)
         shutil.copy2(UPDATE_CONFIG, ARTIFACTS / "update-notification-save-failure.ini")
         record_fault("about-dialog-on-startup-notification-save-failure", warning)
@@ -582,7 +582,7 @@ class MacOSAboutDialogOnStartupTest(unittest.TestCase):
         UPDATE_CONFIG.unlink(missing_ok=True)
         run_update_config_write_failures(
             "about-dialog-on-startup-update-open-failure",
-            "[obs-backgroundremoval] Failed to open update config",
+            "Failed to open update config",
         )
         self.assertFalse(UPDATE_CONFIG.exists())
 
@@ -591,7 +591,7 @@ class MacOSAboutDialogOnStartupTest(unittest.TestCase):
         write_update_config("[update]", "version=0.0.0")
         run_update_config_write_failures(
             "about-dialog-on-startup-update-save-failure",
-            "[obs-backgroundremoval] Failed to save update config",
+            "Failed to save update config",
         )
         self.assertIn("version=0.0.0", UPDATE_CONFIG.read_text(encoding="utf-8"))
 
@@ -605,7 +605,7 @@ class MacOSAboutDialogOnStartupTest(unittest.TestCase):
             for attempt in (1, 2):
                 phase = f"about-dialog-on-startup-unwritable-temporary-file-{attempt}"
                 log_path = run_obs_phase(phase, repeated_run)
-                warning = "[obs-backgroundremoval] Failed to save update config"
+                warning = "Failed to save update config"
                 require_log(log_path, warning)
                 record_fault(phase, warning)
         finally:
@@ -622,7 +622,7 @@ class MacOSAboutDialogOnStartupTest(unittest.TestCase):
             for attempt in (1, 2):
                 phase = f"about-dialog-on-startup-temporary-directory-{attempt}"
                 log_path = run_obs_phase(phase, repeated_run)
-                warning = "[obs-backgroundremoval] Failed to save update config"
+                warning = "Failed to save update config"
                 require_log(log_path, warning)
                 record_fault(phase, warning)
         finally:

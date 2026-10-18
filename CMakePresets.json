@@ -13,7 +13,7 @@
       "cacheVariables": {
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "CMAKE_OSX_DEPLOYMENT_TARGET": "13.0",
-        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/obs-deps;${sourceDir}/.deps/obs-deps-qt6;${sourceDir}/obs_installed;${sourceDir}/obs_installed/Frameworks;${sourceDir}/vcpkg_ort_installed/arm64-osx-obs-ort;${sourceDir}/ort_installed;${sourceDir}/vcpkg_installed/arm64-osx-obs"
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/obs-deps;${sourceDir}/.deps/obs-deps-qt6;${sourceDir}/obs_installed;${sourceDir}/obs_installed/Frameworks"
       },
       "warnings": {
         "dev": false
