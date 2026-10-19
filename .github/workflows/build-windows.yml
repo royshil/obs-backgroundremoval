@@ -191,17 +191,6 @@ jobs:
           archive: false
           if-no-files-found: error
 
-  test:
-    needs: build
-    runs-on: ${{ inputs.runs-on }}
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
       - name: Install OBS Studio (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: winget install --id OBSProject.OBSStudio --exact --silent --accept-package-agreements --accept-source-agreements
@@ -211,22 +200,14 @@ jobs:
         run: |
           Add-Content -LiteralPath $env:GITHUB_ENV -Value 'GUI_SCENARIO_OBS_EXECUTABLE=C:\Program Files\obs-studio\bin\64bit\obs64.exe' -Encoding utf8
 
-      - name: Download ZIP artifact (Windows)
-        uses: actions/download-artifact@v8.0.2
-        with:
-          name: ${{ needs.build.outputs.ZIP_ARTIFACT_NAME }}
-          path: ${{ runner.temp }}/${{ github.job }}/plugin
-          skip-decompress: true
-
       - name: Run scenario tests (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
-          $PACKAGE_DOWNLOAD = '${{ runner.temp }}/${{ github.job }}/plugin'
-          $PACKAGE_ZIP = Get-ChildItem -LiteralPath $PACKAGE_DOWNLOAD -Filter '*.zip' -File | Select-Object -First 1
-          if (-not $PACKAGE_ZIP) { throw 'The Windows plugin ZIP was not found.' }
+          $PACKAGE_ZIP = Join-Path $env:GITHUB_WORKSPACE '${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}'
+          if (-not (Test-Path -LiteralPath $PACKAGE_ZIP -PathType Leaf)) { throw 'The Windows plugin ZIP was not found.' }
 
           $PACKAGE_ROOT = '${{ runner.temp }}/${{ github.job }}/plugin-extracted'
-          Expand-Archive -LiteralPath $PACKAGE_ZIP.FullName -DestinationPath $PACKAGE_ROOT
+          Expand-Archive -LiteralPath $PACKAGE_ZIP -DestinationPath $PACKAGE_ROOT
           $PLUGIN_ROOT = Join-Path $PACKAGE_ROOT 'obs-studio\plugins\obs-backgroundremoval'
           if (-not (Test-Path $PLUGIN_ROOT)) { throw "The plugin directory was not found in the ZIP: $PLUGIN_ROOT" }
 
