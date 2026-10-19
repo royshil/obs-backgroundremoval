@@ -82,7 +82,7 @@ target_sources(WinMlComparison PRIVATE "${LANDSCAPE_GENERATED}/MediaPipeLandscap
 target_compile_definitions(WinMlComparison PRIVATE MEDIAPIPE_LANDSCAPE_ONNX="${MEDIAPIPE_LANDSCAPE_ONNX}")
 target_compile_definitions(
   WinMlComparison
-  PRIVATE LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/Scenarios/0000-portrait-umireon.jpg"
+  PRIVATE LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/fixtures/0000-portrait-umireon.jpg"
 )
 target_link_libraries(WinMlComparison PRIVATE windowscodecs ole32)
 add_test(NAME WinMlComparison.MediaPipeLandscape COMMAND WinMlComparison --test-case=MediaPipeLandscape --no-skip)
@@ -155,7 +155,7 @@ target_compile_definitions(
   MPLD10EngineTest
   PRIVATE
     OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}"
-    LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/Scenarios/0000-portrait-umireon.jpg"
+    LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/fixtures/0000-portrait-umireon.jpg"
 )
 target_link_libraries(
   MPLD10EngineTest
@@ -196,6 +196,7 @@ target_sources(
   GpuImageInferenceTest
   PRIVATE
     LandscapeMaskEffectTest.cpp
+    PortraitFixtureTest.cpp
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/PipelineFactory.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MPLD10Pipeline.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp"
@@ -206,9 +207,15 @@ target_compile_definitions(
   PRIVATE
     GPU_LANDSCAPE_MODEL
     OBS_LOG_HEADER="[GPU-Test] "
-    LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/Scenarios/0000-portrait-umireon.jpg"
+    LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/fixtures/0000-portrait-umireon.jpg"
+    LANDSCAPE_CUTOUT="${PROJECT_SOURCE_DIR}/tests/fixtures/0000-portrait-umireon-cutout.png"
 )
 target_link_libraries(GpuImageInferenceTest PRIVATE windowsapp windowscodecs ole32)
+add_test(NAME GpuImageInferenceTest.PortraitFixture COMMAND GpuImageInferenceTest --test-case=PortraitFixture)
+set_tests_properties(
+  GpuImageInferenceTest.PortraitFixture
+  PROPERTIES TIMEOUT 120 ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
+)
 add_test(NAME GpuImageInferenceTest.LandscapeMaskEffect COMMAND GpuImageInferenceTest --test-case=LandscapeMaskEffect)
 set_tests_properties(
   GpuImageInferenceTest.LandscapeMaskEffect
