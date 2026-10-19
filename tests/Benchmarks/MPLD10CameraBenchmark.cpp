@@ -1,13 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
+
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+
 #include <windows.h>
+
 #include <objbase.h>
 #include <TraceLoggingProvider.h>
 #include <obs.h>
