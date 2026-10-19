@@ -3,6 +3,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "FilterContext.hpp"
+#include "MediaPipeLandscapeCoreMLPipeline.hpp"
+#include "common/BackgroundRemoval/IRenderingPipeline.hpp"
+#include "common/BackgroundRemoval/MediaPipeLandscapeNcnnPipeline.hpp"
+#include "common/BackgroundRemoval/PipelineFactory.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -12,9 +16,7 @@
 #include <string>
 
 #include <ObsBridgeUtils/GsUnique.hpp>
-#include "IRenderingPipeline.hpp"
-#include "MediaPipeLandscapePipeline.hpp"
-
+#include <Effects/BackgroundRemovalEffect.hpp>
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 #include <plugin-support.h>
@@ -27,9 +29,7 @@ auto FilterContext::osLogger() noexcept -> os_log_t
 	return logger;
 }
 
-FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source)
-	: source_(source),
-	  settingsData_(obs_data_create(), obs_data_release)
+FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : source_(source)
 {
 	if (!settings) {
 		os_log_with_type(osLogger(), OS_LOG_TYPE_ERROR, "Background removal settings are null");
@@ -37,16 +37,22 @@ FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source)
 	} else if (!source_) {
 		os_log_with_type(osLogger(), OS_LOG_TYPE_ERROR, "Background removal source is null");
 		throw std::invalid_argument("Background removal source is null");
-	} else if (!settingsData_) {
-		os_log_with_type(osLogger(), OS_LOG_TYPE_ERROR, "Background removal settings snapshot is null");
-		throw std::invalid_argument("Background removal settings snapshot is null");
 	}
 
-	getDefaults(settingsData_.get());
-	obs_data_apply(settingsData_.get(), settings);
+	pendingFilterProperty_ = decodeFilterProperty(settings);
+	currentFilterProperty_ = *pendingFilterProperty_;
+
+	ObsBridgeUtils::GsUnique::GraphicsGuard graphicsGuard;
+	backgroundRemovalEffect_ = std::make_unique<Effects::BackgroundRemovalEffect>();
 }
 
-FilterContext::~FilterContext() noexcept = default;
+FilterContext::~FilterContext() noexcept
+{
+	renderingPipeline_.reset();
+	ObsBridgeUtils::GsUnique::GraphicsGuard graphicsGuard;
+	backgroundRemovalEffect_.reset();
+	ObsBridgeUtils::GsUnique::drain();
+}
 
 auto FilterContext::getName(void *) noexcept -> const char *
 {
@@ -71,18 +77,12 @@ auto FilterContext::create(obs_data_t *settings, obs_source_t *source) noexcept 
 
 void FilterContext::destroy(void *data) noexcept
 {
-	using namespace ObsBridgeUtils;
-
 	delete static_cast<std::shared_ptr<FilterContext> *>(data);
-
-	obs_enter_graphics();
-	GsUnique::drain();
-	obs_leave_graphics();
 }
 
 void FilterContext::getDefaults(obs_data_t *settings) noexcept
 {
-	obs_data_set_default_string(settings, "v2_Model_MatteName", "MediaPipeLandscape");
+	obs_data_set_default_int(settings, "v2_Model_PipelineId", MediaPipeLandscapeCoreMLPipeline::kPipelineId);
 	obs_data_set_default_double(settings, "v2_Model_MatteSensitivity", 35.0);
 	obs_data_set_default_bool(settings, "v2_RefineMask", true);
 	obs_data_set_default_double(settings, "v2_RefineMask_Threshold", 0.5);
@@ -133,9 +133,14 @@ auto FilterContext::getProperties(void *) noexcept -> obs_properties_t *
 				 thresholdProps);
 
 	obs_properties_t *const modelProps = obs_properties_create();
-	obs_property_t *const model = obs_properties_add_list(modelProps, "v2_Model_MatteName", "Bg. Rm.",
-							      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(model, obs_module_text("MediaPipe Selfie (Landscape)"), "MediaPipeLandscape");
+	obs_property_t *const model = obs_properties_add_list(
+		modelProps, "v2_Model_PipelineId", obs_module_text("Model"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(model, obs_module_text("MediaPipe Selfie (Landscape) - CoreML"),
+				  MediaPipeLandscapeCoreMLPipeline::kPipelineId);
+	obs_property_list_add_int(model, obs_module_text("MediaPipe Selfie (Landscape) - ncnn"),
+				  MediaPipeLandscapeNcnnPipeline::kPipelineId);
+	obs_property_list_add_int(model, obs_module_text("MediaPipe Selfie (Landscape) - ncnn (CPU)"),
+				  MediaPipeLandscapeNcnnCpuForcedPipeline::kPipelineId);
 	obs_properties_add_float_slider(modelProps, "v2_Model_MatteSensitivity", obs_module_text("Sensitivity"), 0.0,
 					100.0, 1.0);
 	obs_properties_add_group(properties, "v2_Model", obs_module_text("Models"), OBS_GROUP_NORMAL, modelProps);
@@ -155,17 +160,25 @@ void FilterContext::update(void *data, obs_data_t *settings) noexcept
 		os_log_with_type(osLogger(), OS_LOG_TYPE_ERROR, "Background removal settings are null");
 		return;
 	}
-
+	std::optional<FilterProperty> pendingFilterProperty{decodeFilterProperty(settings)};
+	const FilterProperty &property = *pendingFilterProperty;
+	blog(LOG_INFO,
+	     OBS_LOG_HEADER
+	     "Updating settings: pipeline_id=%lld sensitivity=%.3f refine=%d threshold=%.3f contour=%.3f expansion=%lld blur=%d blur_factor=%lld focus_point=%.3f focus_depth=%.3f",
+	     property.pipelineId, property.imageSimilarityThreshold, property.refineMaskEnabled,
+	     property.refineMaskThreshold, property.refineMaskContour,
+	     static_cast<long long>(property.refineMaskExpansion), property.blurBackgroundEnabled,
+	     static_cast<long long>(property.blurBackgroundFactor), property.blurFocusPoint, property.blurFocusDepth);
+	os_log_with_type(
+		osLogger(), OS_LOG_TYPE_INFO,
+		"Updating settings: pipeline_id=%{public}lld sensitivity=%{public}.3f refine=%{public}d threshold=%{public}.3f contour=%{public}.3f expansion=%{public}lld blur=%{public}d blur_factor=%{public}lld focus_point=%{public}.3f focus_depth=%{public}.3f",
+		property.pipelineId, property.imageSimilarityThreshold, property.refineMaskEnabled,
+		property.refineMaskThreshold, property.refineMaskContour,
+		static_cast<long long>(property.refineMaskExpansion), property.blurBackgroundEnabled,
+		static_cast<long long>(property.blurBackgroundFactor), property.blurFocusPoint,
+		property.blurFocusDepth);
 	std::lock_guard lock(context->renderingPipelineMutex_);
-	const char *oldModelSelection = obs_data_get_string(context->settingsData_.get(), "v2_Model_MatteName");
-	const char *newModelSelection = obs_data_get_string(settings, "v2_Model_MatteName");
-	if (strcmp(oldModelSelection, newModelSelection) != 0) {
-		context->renderingPipeline_.reset();
-	} else if (context->renderingPipeline_) {
-		context->renderingPipeline_->update(settings);
-	}
-	obs_data_clear(context->settingsData_.get());
-	obs_data_apply(context->settingsData_.get(), settings);
+	context->pendingFilterProperty_.swap(pendingFilterProperty);
 }
 
 void FilterContext::videoTick(void *data, float seconds) noexcept
@@ -188,32 +201,58 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 
 	const std::uint32_t targetWidth = obs_source_get_base_width(target);
 	const std::uint32_t targetHeight = obs_source_get_base_height(target);
-	std::shared_ptr<IRenderingPipeline> renderingPipeline;
-	{
-		std::lock_guard lock(context->renderingPipelineMutex_);
-		if (targetWidth == 0 || targetHeight == 0) {
-			context->renderingPipeline_.reset();
-			return;
-		}
-
-		renderingPipeline = context->renderingPipeline_;
-		if (!renderingPipeline || renderingPipeline->getWidth() != targetWidth ||
-		    renderingPipeline->getHeight() != targetHeight) {
-			try {
-				renderingPipeline = std::make_shared<MediaPipeLandscapePipeline>(
-					context->settingsData_.get(), context->source_, targetWidth, targetHeight);
-			} catch (const std::exception &exception) {
-				blog(LOG_ERROR, OBS_LOG_HEADER "Failed to create rendering context: %s",
-				     exception.what());
-				os_log_with_type(osLogger(), OS_LOG_TYPE_ERROR,
-						 "Failed to create rendering context: %{public}s", exception.what());
-				return;
-			}
-			context->renderingPipeline_ = renderingPipeline;
-		}
+	if (targetWidth == 0 || targetHeight == 0) {
+		return;
 	}
 
-	renderingPipeline->videoTick(seconds);
+	std::optional<FilterProperty> pendingFilterProperty;
+	{
+		std::lock_guard lock(context->renderingPipelineMutex_);
+		pendingFilterProperty.swap(context->pendingFilterProperty_);
+	}
+	if (pendingFilterProperty) {
+		context->currentFilterProperty_ = *pendingFilterProperty;
+	}
+	const long long heldPipelineId = context->heldPipelineId_.load(std::memory_order_relaxed);
+	const std::uint32_t heldWidth = context->heldWidth_.load(std::memory_order_relaxed);
+	const std::uint32_t heldHeight = context->heldHeight_.load(std::memory_order_relaxed);
+	const bool pipelineChanged = heldPipelineId != context->currentFilterProperty_.pipelineId;
+	const bool dimensionsChanged = heldWidth != targetWidth || heldHeight != targetHeight;
+	const bool requiresPipelineRecreation = pipelineChanged || dimensionsChanged;
+	const bool requiresPipelineUpdate = pendingFilterProperty && !requiresPipelineRecreation;
+
+	std::shared_ptr<IRenderingPipeline> renderingPipeline;
+	if (requiresPipelineRecreation) {
+		const long long pipelineId = context->currentFilterProperty_.pipelineId;
+		try {
+			renderingPipeline = createRenderingPipeline(context->currentFilterProperty_, context->source_,
+								    *context->backgroundRemovalEffect_, targetWidth,
+								    targetHeight);
+		} catch (const std::exception &exception) {
+			blog(LOG_ERROR, OBS_LOG_HEADER "Failed to create rendering context: %s", exception.what());
+			os_log_with_type(osLogger(), OS_LOG_TYPE_ERROR,
+					 "Failed to create rendering context: %{public}s", exception.what());
+		}
+		if (renderingPipeline) {
+			context->heldPipelineId_.store(pipelineId, std::memory_order_relaxed);
+			context->heldWidth_.store(targetWidth, std::memory_order_relaxed);
+			context->heldHeight_.store(targetHeight, std::memory_order_relaxed);
+		}
+	}
+	{
+		std::lock_guard lock(context->renderingPipelineMutex_);
+		if (requiresPipelineRecreation) {
+			context->renderingPipeline_ = renderingPipeline;
+		} else {
+			renderingPipeline = context->renderingPipeline_;
+		}
+	}
+	if (requiresPipelineUpdate && renderingPipeline) {
+		renderingPipeline->update(*pendingFilterProperty);
+	}
+	if (renderingPipeline) {
+		renderingPipeline->videoTick(seconds);
+	}
 }
 
 void FilterContext::videoRender(void *data, gs_effect_t *effect) noexcept
@@ -234,15 +273,14 @@ void FilterContext::videoRender(void *data, gs_effect_t *effect) noexcept
 		return;
 	}
 
-	if (auto renderingPipeline = context->getRenderingPipeline()) {
+	std::shared_ptr<IRenderingPipeline> renderingPipeline;
+	{
+		std::lock_guard lock(context->renderingPipelineMutex_);
+		renderingPipeline = context->renderingPipeline_;
+	}
+	if (renderingPipeline) {
 		renderingPipeline->videoRender(effect);
 	}
-}
-
-auto FilterContext::getRenderingPipeline() const noexcept -> std::shared_ptr<IRenderingPipeline>
-{
-	std::lock_guard lock(renderingPipelineMutex_);
-	return renderingPipeline_;
 }
 
 } // namespace BackgroundRemoval

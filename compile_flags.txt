@@ -1,4 +1,6 @@
 -Isrc
+-Ivendor/ncnn/src
+-Ibuild/vendor/ncnn/src
 -Ibuild/RelWithDebInfo/include
 -Ibuild
 -I.deps/obs-deps/include

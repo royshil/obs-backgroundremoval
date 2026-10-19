@@ -4,11 +4,20 @@
 
 #pragma once
 
+#include "common/BackgroundRemoval/FilterProperty.hpp"
+
+#include <atomic>
+#include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 #include <obs-module.h>
 #include <os/log.h>
+
+namespace Effects {
+class BackgroundRemovalEffect;
+}
 
 namespace BackgroundRemoval {
 
@@ -29,7 +38,7 @@ public:
 		obs_source_info sourceInfo{};
 		sourceInfo.id = "background_removal";
 		sourceInfo.type = OBS_SOURCE_TYPE_FILTER;
-		sourceInfo.output_flags = OBS_SOURCE_VIDEO;
+		sourceInfo.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
 		sourceInfo.get_name = getName;
 		sourceInfo.create = create;
 		sourceInfo.destroy = destroy;
@@ -51,12 +60,16 @@ public:
 
 private:
 	static auto osLogger() noexcept -> os_log_t;
-	auto getRenderingPipeline() const noexcept -> std::shared_ptr<IRenderingPipeline>;
 
 	obs_source_t *const source_;
-	std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> settingsData_;
+	std::optional<FilterProperty> pendingFilterProperty_;
+	FilterProperty currentFilterProperty_{};
+	std::unique_ptr<Effects::BackgroundRemovalEffect> backgroundRemovalEffect_;
 	mutable std::mutex renderingPipelineMutex_;
 	std::shared_ptr<IRenderingPipeline> renderingPipeline_{nullptr};
+	std::atomic<long long> heldPipelineId_{};
+	std::atomic<std::uint32_t> heldWidth_{};
+	std::atomic<std::uint32_t> heldHeight_{};
 };
 
 } // namespace BackgroundRemoval

@@ -2,6 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+src/EmbeddedModels/*.id.h linguist-generated=true merge=ours
+src/EmbeddedModels/*.mem.h linguist-generated=true merge=ours
+
 *.bat text eol=crlf
 *.lib binary linguist-generated=true
 *.tbd linguist-generated=true merge=ours

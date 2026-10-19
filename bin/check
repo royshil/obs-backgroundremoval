@@ -10,11 +10,13 @@ check_clang_format()
 {
 	if [ "$(uname -s)" = "Darwin" ]; then
 		xcrun clang-format --version
-		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' |
+		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' ':!src/EmbeddedModels/*.id.h' \
+			':!src/EmbeddedModels/*.mem.h' |
 			xargs -0 -n 20 xcrun clang-format --dry-run --Werror
 	else
 		clang-format-21 --version
-		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' |
+		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' ':!src/EmbeddedModels/*.id.h' \
+			':!src/EmbeddedModels/*.mem.h' |
 			xargs -0 -n 20 clang-format-21 --dry-run --Werror
 	fi
 }

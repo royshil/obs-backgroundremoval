@@ -91,7 +91,7 @@ jobs:
 
       - name: Checkout submodules (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: git submodule update --init --filter=blob:none vendor/obs-studio
+        run: git submodule update --init --filter=blob:none vendor/obs-studio vendor/ncnn
 
       - name: Load buildspec.props and VERSION
         id: buildspec

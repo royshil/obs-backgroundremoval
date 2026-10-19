@@ -11,3 +11,9 @@
 [submodule "vendor/vcpkg"]
 	path = vendor/vcpkg
 	url = https://github.com/microsoft/vcpkg.git
+[submodule "vendor/ncnn"]
+	path = vendor/ncnn
+	url = https://github.com/Tencent/ncnn.git
+[submodule "vendor/opencv"]
+	path = vendor/opencv
+	url = https://github.com/opencv/opencv.git

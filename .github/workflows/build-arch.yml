@@ -39,8 +39,8 @@ jobs:
             cmake \
             curl \
             ninja \
+            ncnn \
             obs-studio \
-            onnxruntime \
             opencv
 
       - name: Checkout
