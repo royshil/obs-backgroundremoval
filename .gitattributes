@@ -21,3 +21,6 @@
 # Prebuilt SDK files
 *.lib binary linguist-generated
 *.tbd linguist-generated
+
+# Fixed numeric test fixtures
+/tests/fixtures/operators/*.f32 binary

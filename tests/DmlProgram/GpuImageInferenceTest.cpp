@@ -671,23 +671,14 @@ TEST_CASE("LandscapeRenderingInitialization")
 int testMain(int argc, char **argv)
 {
 	GpuAccessValidation::enable();
-	// Enable the standard validation layer when installed. Timing is measured
-	// separately with --benchmark-no-debug to avoid instrumentation overhead.
-	bool debug = true;
-	std::vector<char *> arguments{argv[0]};
-	for (int i = 1; i < argc; ++i) {
-		if (std::string(argv[i]) == "--benchmark-no-debug")
-			debug = false;
-		else
-			arguments.push_back(argv[i]);
-	}
+	// Performance measurements have separate executables without test instrumentation.
 	ComPtr<ID3D12Debug> validation;
-	if (debug && SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&validation))))
+	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&validation))))
 		validation->EnableDebugLayer();
 #ifdef GPU_LANDSCAPE_MODEL
 	winrt::init_apartment(winrt::apartment_type::single_threaded);
 #endif
-	doctest::Context context(static_cast<int>(arguments.size()), arguments.data());
+	doctest::Context context(argc, argv);
 	const int result = context.run();
 #ifdef GPU_LANDSCAPE_MODEL
 	winrt::uninit_apartment();

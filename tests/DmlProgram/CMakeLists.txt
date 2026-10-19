@@ -18,30 +18,24 @@ foreach(TEST_CASE IN LISTS DML_TEST_CASES)
   set_tests_properties("DmlProgramTest.${TEST_CASE}" PROPERTIES TIMEOUT 60)
 endforeach()
 
-# The full-model reference is the original pinned ONNX, not a lowered fixture.
-set(
-  MEDIAPIPE_LANDSCAPE_ONNX
-  "${PROJECT_SOURCE_DIR}/.cache/huggingface/hub/models--onnx-community--mediapipe_selfie_segmentation_landscape/snapshots/2497d5bec26c626c7b3c4edc6e1fefc21b64f6c3/onnx/model.onnx"
-  CACHE FILEPATH
-  "Original pinned MediaPipe Landscape ONNX for WinML comparison"
-)
+set(LANDSCAPE_GENERATED "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/generated")
 
 add_executable(
-  WinMlComparison
-  WinMlComparison.cpp
+  OperatorFixtureTest
+  OperatorFixtureTest.cpp
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
 )
-target_include_directories(
-  WinMlComparison
-  PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest" "${CMAKE_CURRENT_SOURCE_DIR}"
+target_include_directories(OperatorFixtureTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
+target_compile_definitions(
+  OperatorFixtureTest
+  PRIVATE OPERATOR_FIXTURES="${PROJECT_SOURCE_DIR}/tests/fixtures/operators"
 )
 target_link_libraries(
-  WinMlComparison
-  PRIVATE d3d12 d3dcompiler directml windowsapp advapi32 test_onnx_nanopb
+  OperatorFixtureTest
+  PRIVATE d3d12 d3dcompiler directml windowsapp advapi32
 )
-
 foreach(
   OPERATOR
   MPLD10Float32Postprocess
@@ -62,36 +56,11 @@ foreach(
   ConvTranspose
   ConvRelu
   DepthwiseConvRelu
+  PointwiseConvTranspose
 )
-  add_test(NAME "WinMlComparison.${OPERATOR}" COMMAND WinMlComparison "--test-case=${OPERATOR}" --no-skip)
-  set_tests_properties("WinMlComparison.${OPERATOR}" PROPERTIES TIMEOUT 120)
+  add_test(NAME "OperatorFixtureTest.${OPERATOR}" COMMAND OperatorFixtureTest "--test-case=${OPERATOR}" --no-skip)
+  set_tests_properties("OperatorFixtureTest.${OPERATOR}" PROPERTIES TIMEOUT 120)
 endforeach()
-
-if(NOT EXISTS "${MEDIAPIPE_LANDSCAPE_ONNX}")
-  message(FATAL_ERROR "Required reference model not found: ${MEDIAPIPE_LANDSCAPE_ONNX}")
-endif()
-file(SHA256 "${MEDIAPIPE_LANDSCAPE_ONNX}" LANDSCAPE_ONNX_SHA256)
-if(NOT LANDSCAPE_ONNX_SHA256 STREQUAL "7a0adcfdb1715d3b0ff0f61486d8a181c33f4a208343a5abfccbc6540e872d24")
-  message(
-    FATAL_ERROR
-    "MEDIAPIPE_LANDSCAPE_ONNX must be the original pinned revision 2497d5bec26c626c7b3c4edc6e1fefc21b64f6c3"
-  )
-endif()
-set(LANDSCAPE_GENERATED "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/generated")
-target_sources(WinMlComparison PRIVATE "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp")
-target_compile_definitions(WinMlComparison PRIVATE MEDIAPIPE_LANDSCAPE_ONNX="${MEDIAPIPE_LANDSCAPE_ONNX}")
-target_compile_definitions(
-  WinMlComparison
-  PRIVATE LANDSCAPE_PORTRAIT="${PROJECT_SOURCE_DIR}/tests/fixtures/0000-portrait-umireon.jpg"
-)
-target_link_libraries(WinMlComparison PRIVATE windowscodecs ole32)
-add_test(NAME WinMlComparison.MediaPipeLandscape COMMAND WinMlComparison --test-case=MediaPipeLandscape --no-skip)
-set_tests_properties(WinMlComparison.MediaPipeLandscape PROPERTIES TIMEOUT 600)
-add_test(
-  NAME WinMlComparison.MediaPipeLandscapeMask
-  COMMAND WinMlComparison --test-case=MediaPipeLandscapeMask --no-skip
-)
-set_tests_properties(WinMlComparison.MediaPipeLandscapeMask PROPERTIES TIMEOUT 600)
 
 # Built from the pinned OBS submodule by scripts/windows/build-test-obs.cmake.
 set(
@@ -113,7 +82,7 @@ if(NOT EXISTS "${OBS_TEST_LIBRARY}")
     "Required libobs test library not found: ${OBS_TEST_LIBRARY}; run scripts/windows/build-test-obs.cmake"
   )
 endif()
-add_library(CTest::libobs SHARED IMPORTED)
+add_library(CTest::libobs SHARED IMPORTED GLOBAL)
 set_target_properties(
   CTest::libobs
   PROPERTIES
@@ -166,32 +135,6 @@ set_tests_properties(
   MPLD10EngineTest.LandscapeEngineBgraInput
   PROPERTIES TIMEOUT 120 ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
 )
-add_executable(
-  MPLD10CameraBenchmark
-  EXCLUDE_FROM_ALL
-  MPLD10CameraBenchmark.cpp
-  "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MPLD10Pipeline.cpp"
-  "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp"
-  "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
-  "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
-  "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
-  "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp"
-)
-set(
-  OBS_PROFILE_BIN_DIR
-  "$ENV{ProgramFiles}/obs-studio/bin/64bit"
-  CACHE PATH
-  "OBS installation with win-dshow for manual camera profiling (not CTest)"
-)
-target_include_directories(MPLD10CameraBenchmark PRIVATE "${PLUGIN_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
-target_compile_definitions(
-  MPLD10CameraBenchmark
-  PRIVATE OBS_TEST_BIN_DIR="${OBS_PROFILE_BIN_DIR}" OBS_LOG_HEADER="[CameraBenchmark] "
-)
-target_link_libraries(
-  MPLD10CameraBenchmark
-  PRIVATE CTest::libobs d3d11 d3d12 dxgi d3dcompiler directml advapi32 ole32 gdi32
-)
 target_sources(
   GpuImageInferenceTest
   PRIVATE
@@ -229,9 +172,6 @@ set_tests_properties(
   GpuImageInferenceTest.LandscapeRenderingInitialization
   PROPERTIES TIMEOUT 120 ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
 )
-
-add_test(NAME WinMlComparison.PointwiseConvTranspose COMMAND WinMlComparison --test-case=PointwiseConvTranspose)
-set_tests_properties(WinMlComparison.PointwiseConvTranspose PROPERTIES TIMEOUT 120)
 
 target_sources(GpuImageInferenceTest PRIVATE "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/FilterProperty.cpp")
 

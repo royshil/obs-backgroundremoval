@@ -12,7 +12,7 @@ setlocal
 
 echo == Ensure Visual Studio toolchain ==
 
-git submodule update --init --filter=blob:none vendor/obs-studio vendor/nanopb || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
+git submodule update --init --filter=blob:none vendor/obs-studio vendor/nanopb vendor/google/benchmark || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
 
 set "VSWHERE_COMMAND=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE_COMMAND%" (

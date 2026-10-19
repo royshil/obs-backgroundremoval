@@ -20,7 +20,7 @@ by CTest; it is not a CTest dependency.
 ```powershell
 cmake --build build --config RelWithDebInfo --target MPLD10CameraBenchmark
 $env:PATH = 'C:/Program Files/obs-studio/bin/64bit;' + $env:PATH
-./build/tests/DmlProgram/RelWithDebInfo/MPLD10CameraBenchmark.exe --help
+./build/tests/Benchmarks/RelWithDebInfo/MPLD10CameraBenchmark.exe --help
 ```
 
 For a real camera, supply either the camera settings JSON or an OBS scene
@@ -28,7 +28,7 @@ collection containing exactly one `dshow_input`. The file is read without
 changing the OBS configuration. Close other applications using the camera first.
 
 ```powershell
-./build/tests/DmlProgram/RelWithDebInfo/MPLD10CameraBenchmark.exe `
+./build/tests/Benchmarks/RelWithDebInfo/MPLD10CameraBenchmark.exe `
   --camera-settings camera.json --output build/camera-profile-unique `
   --seconds 30 --fps 30 --sensitivity 60 --preview
 ```
@@ -44,7 +44,7 @@ of opening a camera. A static pattern exercises inference gating after the
 initial inference; use a moving camera scene for steady inference analysis.
 
 ```powershell
-./build/tests/DmlProgram/RelWithDebInfo/MPLD10CameraBenchmark.exe `
+./build/tests/Benchmarks/RelWithDebInfo/MPLD10CameraBenchmark.exe `
   --synthetic --output build/pipeline-smoke-unique --seconds 1
 ```
 
@@ -56,6 +56,7 @@ The installed OBS plugin remains the final reference for full OBS behavior.
 
 `samples.csv` contains frame timestamps, CPU tick/render durations and QPC
 callback boundaries. `conditions.txt` records the source, frame rate, dimensions,
-settings and process ID. The console reports mean, median and p95 CPU render
-duration. These CPU durations are not GPU execution time; use PIX for GPU timing.
+settings and process ID. Google Benchmark reports the recorded mean callback
+duration with median and p95 counters and writes `benchmark.json`. These CPU
+durations are not GPU execution time; use PIX for GPU timing.
 Use a fresh output directory for each run.

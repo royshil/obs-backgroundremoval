@@ -16,13 +16,13 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <benchmark/benchmark.h>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -396,10 +396,27 @@ int run(int argc, char **argv)
 		 << "\nprocess_id=" << GetCurrentProcessId() << "\ncamera_width=" << state->width.load()
 		 << "\ncamera_height=" << state->height.load() << "\nsensitivity=" << sensitivity
 		 << "\nrefine_mandatory=1\nrefine_threshold=0.5\nblur_enabled=0\n";
-	std::cout << "CAMERA_RENDER,n=" << durations.size()
-		  << ",mean_ms=" << std::accumulate(durations.begin(), durations.end(), 0.0) / durations.size()
-		  << ",median_ms=" << durations[durations.size() / 2]
-		  << ",p95_ms=" << durations[static_cast<size_t>(std::ceil(durations.size() * .95)) - 1] << '\n';
+	// Report measured OBS callback samples; this is callback latency, not GPU time.
+	std::string program = "MPLD10CameraBenchmark";
+	std::string outputArgument = "--benchmark_out=" + (output / "benchmark.json").string();
+	std::array<char *, 3> benchmarkArguments{program.data(), outputArgument.data(), nullptr};
+	int benchmarkArgumentCount = 2;
+	benchmark::Initialize(&benchmarkArgumentCount, benchmarkArguments.data());
+	benchmark::RegisterBenchmark(
+		"Camera/RenderCallback",
+		[&](benchmark::State &measurement) {
+			std::size_t sample = 0;
+			for (auto _ : measurement)
+				measurement.SetIterationTime(durations.at(sample++) / 1000.0);
+			measurement.counters["median_ms"] = durations[durations.size() / 2];
+			measurement.counters["p95_ms"] =
+				durations[static_cast<size_t>(std::ceil(durations.size() * .95)) - 1];
+		})
+		->UseManualTime()
+		->Iterations(static_cast<int64_t>(durations.size()))
+		->Unit(benchmark::kMillisecond);
+	benchmark::RunSpecifiedBenchmarks();
+	benchmark::Shutdown();
 	return 0;
 }
 } // namespace MPLD10CameraBenchmark

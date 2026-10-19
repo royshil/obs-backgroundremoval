@@ -86,16 +86,6 @@ jobs:
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: cmake -P scripts/windows/build-test-obs.cmake
 
-      - name: Download reference model for CTest (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $MODEL_DIR = '.cache/huggingface/hub/models--onnx-community--mediapipe_selfie_segmentation_landscape/snapshots/2497d5bec26c626c7b3c4edc6e1fefc21b64f6c3/onnx'
-          New-Item -ItemType Directory -Force -Path $MODEL_DIR | Out-Null
-          $MODEL_PATH = Join-Path $MODEL_DIR 'model.onnx'
-          Invoke-WebRequest -Uri 'https://huggingface.co/onnx-community/mediapipe_selfie_segmentation_landscape/resolve/2497d5bec26c626c7b3c4edc6e1fefc21b64f6c3/onnx/model.onnx' -OutFile $MODEL_PATH
-          if ((Get-FileHash -LiteralPath $MODEL_PATH -Algorithm SHA256).Hash -ne '7a0adcfdb1715d3b0ff0f61486d8a181c33f4a208343a5abfccbc6540e872d24') {
-            throw 'The reference ONNX model hash does not match the pinned revision.'
-          }
 
       - name: Configure (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
