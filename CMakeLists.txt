@@ -380,8 +380,9 @@ elseif(WIN32)
   target_sources(
     ${CMAKE_PROJECT_NAME}
     PRIVATE
-      src/BackgroundRemoval/windows/FilterProperty.cpp
       src/BackgroundRemoval/windows/FilterContext.cpp
+      src/BackgroundRemoval/windows/ModuleText.cpp
+      src/BackgroundRemoval/windows/AutoMotionConfigurator.cpp
       src/BackgroundRemoval/windows/PipelineFactory.cpp
       src/BackgroundRemoval/windows/MPLD10Pipeline.cpp
       src/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp

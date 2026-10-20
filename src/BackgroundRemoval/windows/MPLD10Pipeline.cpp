@@ -325,8 +325,7 @@ struct RenderStatePop {
 
 namespace BackgroundRemoval {
 
-MPLD10Pipeline::MPLD10Pipeline(const FilterProperty &property, obs_source_t *source, std::uint32_t width,
-			       std::uint32_t height)
+MPLD10Pipeline::MPLD10Pipeline(obs_source_t *source, std::uint32_t width, std::uint32_t height)
 	: engine_{createEngine()},
 	  width_(width),
 	  height_(height),
@@ -363,7 +362,11 @@ MPLD10Pipeline::MPLD10Pipeline(const FilterProperty &property, obs_source_t *sou
 	gs_set_render_target_with_color_space(previousTarget, previousDepth, previousSpace);
 
 	obs_leave_graphics();
-	update(property);
+	setMotionSuppression(0.0);
+	updateVideoTiming();
+	setMaskAdjustment(0.0);
+	setBlurBgFactor(4);
+	setBlurBgFocusPoint(0.1);
 }
 
 MPLD10Pipeline::~MPLD10Pipeline() noexcept
@@ -383,31 +386,61 @@ MPLD10Pipeline::~MPLD10Pipeline() noexcept
 	obs_leave_graphics();
 }
 
-auto MPLD10Pipeline::autoSetSensitivity() noexcept -> bool
+void MPLD10Pipeline::setMotionMeasurement(std::shared_ptr<MotionMeasurement> measurement) noexcept
 {
-	const auto sensitivity = differenceHistory_.sensitivity(os_gettime_ns());
-	if (!sensitivity)
-		return false;
-	obs_data_t *settings = obs_data_create();
-	obs_data_set_double(settings, "v2_Model_MatteSensitivity", *sensitivity);
-	obs_source_update(source_, settings);
-	obs_data_release(settings);
-	return true;
+	motionMeasurement_.store(std::move(measurement), std::memory_order_release);
 }
 
-void MPLD10Pipeline::update(const FilterProperty &property) noexcept
+void MPLD10Pipeline::setMotionSuppression(double value) noexcept
 {
-	blurBackgroundEnabled_.store(property.blurBackgroundEnabled, std::memory_order_relaxed);
-	blurBackgroundFactor_.store(property.blurBackgroundFactor, std::memory_order_relaxed);
-	blurFocusPoint_.store(static_cast<float>(property.blurFocusPoint), std::memory_order_relaxed);
-	blurFocusDepth_.store(static_cast<float>(property.blurFocusDepth), std::memory_order_relaxed);
-	imageSimilarityThreshold_.store(static_cast<float>(property.imageSimilarityThreshold),
-					std::memory_order_relaxed);
-	refineMaskThreshold_.store(static_cast<float>(property.refineMaskThreshold), std::memory_order_relaxed);
+	const double suppression = std::clamp(value, -50.0, 50.0);
+	imageSimilarityThreshold_.store(static_cast<float>(60.0 - suppression), std::memory_order_relaxed);
+}
+
+void MPLD10Pipeline::setMaskAdjustment(double value) noexcept
+{
+	const double adjustment = std::isfinite(value) ? std::clamp(value, -50.0, 50.0) : 0.0;
+	refineMaskThreshold_.store(static_cast<float>(0.5 - adjustment / 100.0), std::memory_order_relaxed);
+}
+
+void MPLD10Pipeline::setBlurBgEnabled(bool value) noexcept
+{
+	blurBackgroundEnabled_.store(value, std::memory_order_relaxed);
+}
+
+void MPLD10Pipeline::setBlurBgFactor(std::int64_t value) noexcept
+{
+	blurBackgroundFactor_.store(value, std::memory_order_relaxed);
+}
+
+void MPLD10Pipeline::setBlurBgFocusPoint(double value) noexcept
+{
+	blurFocusPoint_.store(static_cast<float>(value), std::memory_order_relaxed);
+}
+
+void MPLD10Pipeline::setBlurBgFocusDepth(double value) noexcept
+{
+	blurFocusDepth_.store(static_cast<float>(value), std::memory_order_relaxed);
+}
+
+void MPLD10Pipeline::updateVideoTiming() noexcept
+{
+	obs_video_info videoInfo{};
+	if (!obs_get_video_info(&videoInfo) || !videoInfo.fps_den || !videoInfo.fps_num ||
+	    (fpsNumerator_ == videoInfo.fps_num && fpsDenominator_ == videoInfo.fps_den)) {
+		return;
+	}
+	fpsNumerator_ = videoInfo.fps_num;
+	fpsDenominator_ = videoInfo.fps_den;
+	const std::uint64_t denominator = std::uint64_t(videoInfo.fps_den) * 30;
+	additionalInferenceFrames_.store(
+		static_cast<std::uint32_t>((videoInfo.fps_num + denominator - 1) / denominator),
+		std::memory_order_relaxed);
 }
 
 void MPLD10Pipeline::videoTick(float) noexcept
 {
+	updateVideoTiming();
 	if (differenceStaged_) {
 		TraceLoggingThreadActivity<g_hProvider, 0x1> trace;
 		TraceLoggingWriteStart(trace, "MPLD10Pipeline.ReadsDifference");
@@ -436,7 +469,9 @@ void MPLD10Pipeline::videoTick(float) noexcept
 		obs_leave_graphics();
 		differenceStaged_ = false;
 		if (valid) {
-			differenceHistory_.record(differenceTimestamp_, double(sum) / kModelInputMaximumSum);
+			if (const auto measurement = motionMeasurement_.load(std::memory_order_acquire)) {
+				measurement->record(differenceTimestamp_, double(sum) / kModelInputMaximumSum);
+			}
 			const double sensitivity = imageSimilarityThreshold_.load(std::memory_order_relaxed);
 			bool motion = !std::isfinite(sensitivity);
 			if (!motion) {

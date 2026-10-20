@@ -4,13 +4,11 @@
 
 #pragma once
 
-#include "FilterProperty.hpp"
+#include "IRenderingPipeline.hpp"
 
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <mutex>
-#include <optional>
 
 #include <obs-module.h>
 
@@ -28,23 +26,6 @@ public:
 	auto operator=(const FilterContext &) -> FilterContext & = delete;
 	auto operator=(FilterContext &&) -> FilterContext & = delete;
 
-	static auto getSourceInfo() noexcept -> obs_source_info
-	{
-		obs_source_info sourceInfo{};
-		sourceInfo.id = "background_removal";
-		sourceInfo.type = OBS_SOURCE_TYPE_FILTER;
-		sourceInfo.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
-		sourceInfo.get_name = getName;
-		sourceInfo.create = create;
-		sourceInfo.destroy = destroy;
-		sourceInfo.get_defaults = getDefaults;
-		sourceInfo.get_properties = getProperties;
-		sourceInfo.update = update;
-		sourceInfo.video_tick = videoTick;
-		sourceInfo.video_render = videoRender;
-		return sourceInfo;
-	}
-
 	static auto getName(void *) noexcept -> const char *;
 	static auto create(obs_data_t *settings, obs_source_t *source) noexcept -> void *;
 	static void destroy(void *data) noexcept;
@@ -54,16 +35,25 @@ public:
 	static void videoTick(void *data, float seconds) noexcept;
 	static void videoRender(void *data, gs_effect_t *effect) noexcept;
 
+	static const obs_source_info kSourceInfo;
+
 private:
 	obs_source_t *const source_;
-	std::optional<FilterProperty> pendingFilterProperty_;
-	FilterProperty currentFilterProperty_{};
-	mutable std::mutex renderingPipelineMutex_;
-	std::shared_ptr<IRenderingPipeline> renderingPipeline_;
-	std::atomic<long long> heldPipelineId_{};
-	std::atomic<std::uint32_t> heldWidth_{};
-	std::atomic<std::uint32_t> heldHeight_{};
+	std::atomic<std::int64_t> pipelineId_{62828};
+	std::atomic<double> motionSuppression_{0.0};
+	std::atomic<double> maskAdjustment_{0.0};
+	std::atomic<bool> blurBgEnabled_{false};
+	std::atomic<std::int64_t> blurBgFactor_{4};
+	std::atomic<double> blurBgFocusPoint_{0.1};
+	std::atomic<double> blurBgFocusDepth_{0.0};
+	std::atomic<std::shared_ptr<IRenderingPipeline>> renderingPipeline_;
+	// Requested selection (Auto or explicit ID), accessed only by videoTick().
+	std::int64_t activePipelineSelection_ = -1;
 
+	void readSettings(obs_data_t *settings) noexcept;
+	void applyRenderingSettings(IRenderingPipeline &pipeline) const noexcept;
+
+	static auto handleAboutButtonClicked(obs_properties_t *, obs_property_t *, void *) -> bool;
 	static auto handleAutoSensitivityClick(obs_properties_t *, obs_property_t *, void *) -> bool;
 };
 

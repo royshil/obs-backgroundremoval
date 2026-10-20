@@ -173,15 +173,14 @@ set_tests_properties(
   PROPERTIES TIMEOUT 120 ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
 )
 
-target_sources(GpuImageInferenceTest PRIVATE "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/FilterProperty.cpp")
 
-add_executable(MPLD10DifferenceHistoryTest MPLD10DifferenceHistoryTest.cpp)
+add_executable(MotionMeasurementTest MotionMeasurementTest.cpp)
 target_include_directories(
-  MPLD10DifferenceHistoryTest
+  MotionMeasurementTest
   PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest"
 )
-add_test(NAME MPLD10DifferenceHistoryTest COMMAND MPLD10DifferenceHistoryTest)
-set_tests_properties(MPLD10DifferenceHistoryTest PROPERTIES TIMEOUT 30)
+add_test(NAME MotionMeasurementTest COMMAND MotionMeasurementTest)
+set_tests_properties(MotionMeasurementTest PROPERTIES TIMEOUT 30)
 
 if(MPLD10_GPU_DIAGNOSTICS)
   foreach(timing_target MPLD10EngineTest GpuImageInferenceTest)

@@ -12,10 +12,9 @@ using obs_source_t = struct obs_source;
 
 namespace BackgroundRemoval {
 
-struct FilterProperty;
 class IRenderingPipeline;
 
-auto createRenderingPipeline(const FilterProperty &property, obs_source_t *source, std::uint32_t width,
-			     std::uint32_t height) -> std::shared_ptr<IRenderingPipeline>;
+auto createRenderingPipeline(std::int64_t pipelineId, obs_source_t *source, std::uint32_t width, std::uint32_t height)
+	-> std::shared_ptr<IRenderingPipeline>;
 
 } // namespace BackgroundRemoval

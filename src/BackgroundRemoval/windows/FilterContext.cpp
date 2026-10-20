@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "FilterContext.hpp"
-#include "PipelineFactory.hpp"
 
 #include <cstdint>
-#include <cstring>
 #include <exception>
 #include <memory>
 #include <optional>
@@ -15,27 +13,43 @@
 
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
-#include "MPLD10Pipeline.hpp"
+
+#include "ModuleText.hpp"
+#include "AutoMotionConfigurator.hpp"
+#include "PipelineFactory.hpp"
 
 namespace BackgroundRemoval {
+
+const obs_source_info FilterContext::kSourceInfo = {
+	.id = "background_removal",
+	.type = OBS_SOURCE_TYPE_FILTER,
+	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW,
+	.get_name = getName,
+	.create = create,
+	.destroy = destroy,
+	.get_defaults = getDefaults,
+	.get_properties = getProperties,
+	.update = update,
+	.video_tick = videoTick,
+	.video_render = videoRender,
+};
 
 FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : source_(source)
 {
 	if (!settings || !source_) {
 		throw std::invalid_argument("Invalid Windows background-removal context arguments");
 	}
-	pendingFilterProperty_ = decodeFilterProperty(settings);
-	currentFilterProperty_ = *pendingFilterProperty_;
+	readSettings(settings);
 }
 
 FilterContext::~FilterContext() noexcept
 {
-	renderingPipeline_.reset();
+	renderingPipeline_.store(nullptr, std::memory_order_release);
 }
 
 auto FilterContext::getName(void *) noexcept -> const char *
 {
-	return obs_module_text("BackgroundRemoval");
+	return tBackgroundRemoval();
 }
 
 auto FilterContext::create(obs_data_t *settings, obs_source_t *source) noexcept -> void *
@@ -55,80 +69,96 @@ void FilterContext::destroy(void *data) noexcept
 	delete static_cast<std::shared_ptr<FilterContext> *>(data);
 }
 
-void FilterContext::getDefaults(obs_data_t *settings) noexcept
+void FilterContext::readSettings(obs_data_t *settings) noexcept
 {
-	const FilterProperty defaults{};
-	obs_data_set_default_int(settings, "v2_Model_PipelineId", defaults.pipelineId);
-	obs_data_set_default_double(settings, "v2_Model_MatteSensitivity", defaults.imageSimilarityThreshold);
-	obs_data_set_default_double(settings, "v2_RefineMask_Threshold", defaults.refineMaskThreshold);
-	obs_data_set_default_bool(settings, "v2_BlurBg", defaults.blurBackgroundEnabled);
-	obs_data_set_default_int(settings, "v2_BlurBg_Factor", defaults.blurBackgroundFactor);
-	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", defaults.blurFocusPoint);
-	obs_data_set_default_double(settings, "v2_BlurBg_FocusDepth", defaults.blurFocusDepth);
+	getDefaults(settings);
+	pipelineId_.store(obs_data_get_int(settings, "v2_PipelineId"));
+	motionSuppression_.store(obs_data_get_double(settings, "v2_MotionSuppression"));
+	maskAdjustment_.store(obs_data_get_double(settings, "v2_MaskAdjustment"));
+	blurBgEnabled_.store(obs_data_get_bool(settings, "v2_BlurBg"));
+	blurBgFactor_.store(obs_data_get_int(settings, "v2_BlurBg_Factor"));
+	blurBgFocusPoint_.store(obs_data_get_double(settings, "v2_BlurBg_FocusPoint"));
+	blurBgFocusDepth_.store(obs_data_get_double(settings, "v2_BlurBg_FocusDepth"));
+	if (const auto pipeline = renderingPipeline_.load(std::memory_order_acquire)) {
+		applyRenderingSettings(*pipeline);
+	}
+}
+
+void FilterContext::applyRenderingSettings(IRenderingPipeline &pipeline) const noexcept
+{
+	pipeline.setMotionSuppression(motionSuppression_.load());
+	pipeline.setMaskAdjustment(maskAdjustment_.load());
+	pipeline.setBlurBgEnabled(blurBgEnabled_.load());
+	pipeline.setBlurBgFactor(blurBgFactor_.load());
+	pipeline.setBlurBgFocusPoint(blurBgFocusPoint_.load());
+	pipeline.setBlurBgFocusDepth(blurBgFocusDepth_.load());
 }
 
 auto FilterContext::handleAutoSensitivityClick(obs_properties_t *, obs_property_t *, void *data) -> bool
 {
 	if (auto *contextPtr = static_cast<std::shared_ptr<FilterContext> *>(data); contextPtr && *contextPtr) {
-		std::shared_ptr<MPLD10Pipeline> pipeline;
-		{
-			std::lock_guard lock((*contextPtr)->renderingPipelineMutex_);
-			pipeline = std::dynamic_pointer_cast<MPLD10Pipeline>((*contextPtr)->renderingPipeline_);
-		}
-		return pipeline && pipeline->autoSetSensitivity();
+		const auto pipeline = (*contextPtr)->renderingPipeline_.load(std::memory_order_acquire);
+		return AutoMotionConfigurator::show((*contextPtr)->source_, pipeline);
 	} else {
-		return false;
+		return AutoMotionConfigurator::show(nullptr, nullptr);
 	}
 }
 
-auto FilterContext::getProperties(void *) noexcept -> obs_properties_t *
+auto FilterContext::handleAboutButtonClicked(obs_properties_t *, obs_property_t *, void *) -> bool
 {
-	obs_properties_t *const properties = obs_properties_create();
+	static_cast<void>(AboutDialogIntegration::show());
+	return false;
+}
+
+void FilterContext::getDefaults(obs_data_t *settings) noexcept
+{
+	obs_data_set_default_int(settings, "v2_PipelineId", 0);
+	obs_data_set_default_double(settings, "v2_MotionSuppression", 0.0);
+	obs_data_set_default_double(settings, "v2_MaskAdjustment", 0.0);
+	obs_data_set_default_bool(settings, "v2_BlurBg", false);
+	obs_data_set_default_int(settings, "v2_BlurBg_Factor", 4);
+	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", 0.1);
+	obs_data_set_default_double(settings, "v2_BlurBg_FocusDepth", 0.0);
+}
+
+auto FilterContext::getProperties(void *data) noexcept -> obs_properties_t *
+{
 	const char *aboutButtonText;
-	if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion();
-	    latestVersion && *latestVersion != PLUGIN_VERSION_STR) {
-		aboutButtonText = obs_module_text("About this plugin (New version available)");
+	if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion(); latestVersion) {
+		aboutButtonText = tAboutThisPlugin(UpdateConfig::isSemverNewer(*latestVersion, PLUGIN_VERSION_STR));
 	} else {
-		aboutButtonText = obs_module_text("About this plugin");
+		aboutButtonText = tAboutThisPlugin(false);
 	}
 
-	obs_properties_add_button2(
-		properties, "v2_AboutButton", aboutButtonText,
-		[](obs_properties_t *, obs_property_t *, void *) {
-			static_cast<void>(AboutDialogIntegration::show());
-			return false;
-		},
-		nullptr);
+	obs_properties_t *const p = obs_properties_create();
 
-	obs_properties_t *const modelProperties = obs_properties_create();
-	obs_property_t *const model = obs_properties_add_list(modelProperties, "v2_Model_PipelineId", "Bg. Rm.",
-							      OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(model, obs_module_text("MediaPipe (Landscape) - DirectML (Baseline)"),
-				  MPLD10Pipeline::kPipelineId);
-	obs_properties_add_float_slider(modelProperties, "v2_Model_MatteSensitivity", obs_module_text("Sensitivity"),
-					0.0, 100.0, 0.01);
-	obs_property_t *const autoSensitivity = obs_properties_add_button(modelProperties, "v2_Model_AutoSensitivity",
-									  obs_module_text("AutoSetSensitivity"),
-									  handleAutoSensitivityClick);
-	obs_property_set_long_description(autoSensitivity, obs_module_text("AutoSetSensitivityDescription"));
-	obs_properties_add_group(properties, "v2_Model", obs_module_text("Models"), OBS_GROUP_NORMAL, modelProperties);
+	obs_properties_add_button2(p, "v2_AboutButton", aboutButtonText, handleAboutButtonClicked, data);
+
+	obs_property_t *const pipeline =
+		obs_properties_add_list(p, "v2_PipelineId", tPipeline(), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(pipeline, tPipelineAuto(), 0);
+	obs_property_list_add_int(pipeline, tPipelineMPLD10(), kMPLD10PipelineId);
+	obs_property_set_long_description(pipeline, tPipelineDescription());
+
+	obs_property_t *const maskAdjustment =
+		obs_properties_add_float_slider(p, "v2_MaskAdjustment", tMaskAdjustment(), -50.0, 50.0, 0.01);
+	obs_property_set_long_description(maskAdjustment, tMaskAdjustmentDescription());
+
+	obs_property_t *const motionSuppression =
+		obs_properties_add_float_slider(p, "v2_MotionSuppression", tMotionSuppression(), -50.0, 50.0, 0.01);
+	obs_property_set_long_description(motionSuppression, tMotionSuppressionDescription());
+
+	obs_property_t *const autoSensitivity = obs_properties_add_button(
+		p, "v2_Model_AutoSensitivity", tAutoSetSensitivity(), handleAutoSensitivityClick);
+	obs_property_set_long_description(autoSensitivity, tAutoSetSensitivityDescription());
 
 	obs_properties_t *const blurProperties = obs_properties_create();
-	obs_properties_add_int_slider(blurProperties, "v2_BlurBg_Factor", obs_module_text("Strength"), 0, 20, 1);
-	obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusPoint", obs_module_text("Focus point"), 0.0,
-					1.0, 0.05);
-	obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusDepth", obs_module_text("Focus depth"), 0.0,
-					0.3, 0.02);
-	obs_properties_add_group(properties, "v2_BlurBg", obs_module_text("Blur Bg."), OBS_GROUP_CHECKABLE,
-				 blurProperties);
+	obs_properties_add_int_slider(blurProperties, "v2_BlurBg_Factor", tBlurBgStrength(), 0, 20, 1);
+	obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusPoint", tBlurBgFocusPoint(), 0.0, 1.0, 0.05);
+	obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusDepth", tBlurBgFocusDepth(), 0.0, 0.3, 0.02);
+	obs_properties_add_group(p, "v2_BlurBg", tBlurBg(), OBS_GROUP_CHECKABLE, blurProperties);
 
-	obs_properties_t *const thresholdProperties = obs_properties_create();
-	obs_properties_add_float_slider(thresholdProperties, "v2_RefineMask_Threshold", obs_module_text("Threshold"),
-					0.0, 1.0, 0.025);
-	obs_properties_add_group(properties, "v2_RefineMask", obs_module_text("Refine Mask"), OBS_GROUP_NORMAL,
-				 thresholdProperties);
-
-	return properties;
+	return p;
 }
 
 void FilterContext::update(void *data, obs_data_t *settings) noexcept
@@ -138,17 +168,7 @@ void FilterContext::update(void *data, obs_data_t *settings) noexcept
 		return;
 	}
 	const std::shared_ptr<FilterContext> context = *contextPtr;
-	std::optional<FilterProperty> pendingFilterProperty{decodeFilterProperty(settings)};
-	const FilterProperty &property = *pendingFilterProperty;
-	blog(LOG_INFO,
-	     OBS_LOG_HEADER
-	     "Updating Windows settings: pipeline_id=%lld sensitivity=%.3f refine=%d threshold=%.3f blur=%d blur_factor=%lld focus_point=%.3f focus_depth=%.3f",
-	     property.pipelineId, property.imageSimilarityThreshold, property.refineMaskEnabled,
-	     property.refineMaskThreshold, property.blurBackgroundEnabled,
-	     static_cast<long long>(property.blurBackgroundFactor), property.blurFocusPoint, property.blurFocusDepth);
-
-	std::lock_guard lock(context->renderingPipelineMutex_);
-	context->pendingFilterProperty_.swap(pendingFilterProperty);
+	context->readSettings(settings);
 }
 
 void FilterContext::videoTick(void *data, float seconds) noexcept
@@ -169,64 +189,27 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 		return;
 	}
 
-	std::optional<FilterProperty> pendingFilterProperty;
-	std::shared_ptr<IRenderingPipeline> heldPipeline;
-	{
-		std::lock_guard lock(context->renderingPipelineMutex_);
-		pendingFilterProperty.swap(context->pendingFilterProperty_);
-		heldPipeline = context->renderingPipeline_;
-	}
-	if (pendingFilterProperty) {
-		context->currentFilterProperty_ = *pendingFilterProperty;
-	}
-	const long long heldPipelineId = context->heldPipelineId_.load(std::memory_order_relaxed);
-	const std::uint32_t heldWidth = context->heldWidth_.load(std::memory_order_relaxed);
-	const std::uint32_t heldHeight = context->heldHeight_.load(std::memory_order_relaxed);
-	const bool pipelineChanged = heldPipelineId != context->currentFilterProperty_.pipelineId;
-	const bool dimensionsChanged = heldWidth != width || heldHeight != height;
-	const auto directMLPipeline = std::dynamic_pointer_cast<MPLD10Pipeline>(heldPipeline);
-	const bool pipelineRequestedRecreation = directMLPipeline && directMLPipeline->needsRecreation();
-	const bool requiresPipelineRecreation = pipelineChanged || dimensionsChanged || pipelineRequestedRecreation ||
-						!heldPipeline;
-	const bool requiresPipelineUpdate = pendingFilterProperty && !requiresPipelineRecreation;
-
-	std::shared_ptr<IRenderingPipeline> pipeline;
-	if (requiresPipelineRecreation) {
-		const long long pipelineId = context->currentFilterProperty_.pipelineId;
+	auto pipeline = context->renderingPipeline_.load(std::memory_order_acquire);
+	const long long pipelineId = context->pipelineId_.load();
+	if (!pipeline || context->activePipelineSelection_ != pipelineId || pipeline->width() != width ||
+	    pipeline->height() != height || pipeline->needsRecreation()) {
+		pipeline.reset();
 		try {
-			pipeline = createRenderingPipeline(context->currentFilterProperty_, context->source_, width,
-							   height);
+			pipeline = createRenderingPipeline(pipelineId, context->source_, width, height);
+			if (pipeline) {
+				context->applyRenderingSettings(*pipeline);
+				context->activePipelineSelection_ = pipelineId;
+			}
 		} catch (const std::exception &exception) {
 			blog(LOG_ERROR, OBS_LOG_HEADER "Failed to recreate DirectML rendering pipeline: %s",
 			     exception.what());
 		}
-		if (pipeline) {
-			context->heldPipelineId_.store(pipelineId, std::memory_order_relaxed);
-			context->heldWidth_.store(width, std::memory_order_relaxed);
-			context->heldHeight_.store(height, std::memory_order_relaxed);
-		}
-	}
-	{
-		std::lock_guard lock(context->renderingPipelineMutex_);
-		if (requiresPipelineRecreation) {
-			context->renderingPipeline_ = pipeline;
-		} else {
-			pipeline = context->renderingPipeline_;
-		}
-	}
-	if (requiresPipelineUpdate && pipeline) {
-		pipeline->update(*pendingFilterProperty);
+		context->renderingPipeline_.store(pipeline, std::memory_order_release);
 	}
 	if (pipeline) {
-		if (auto directML = std::dynamic_pointer_cast<MPLD10Pipeline>(pipeline)) {
-			obs_video_info videoInfo{};
-			if (obs_get_video_info(&videoInfo) && videoInfo.fps_den && videoInfo.fps_num) {
-				const std::uint64_t denominator = std::uint64_t(videoInfo.fps_den) * 30;
-				directML->additionalInferenceFrames_.store(
-					static_cast<std::uint32_t>((videoInfo.fps_num + denominator - 1) / denominator),
-					std::memory_order_relaxed);
-			}
-		}
+		// Reconcile updates that raced with creation/publication, and apply the latest values
+		// before ticking even when update() ran concurrently with the previous application.
+		context->applyRenderingSettings(*pipeline);
 		pipeline->videoTick(seconds);
 	}
 }
@@ -242,11 +225,7 @@ void FilterContext::videoRender(void *data, gs_effect_t *effect) noexcept
 	if (!parent || !obs_source_active(parent) || !obs_source_showing(parent)) {
 		return;
 	}
-	std::shared_ptr<IRenderingPipeline> pipeline;
-	{
-		std::lock_guard lock(context->renderingPipelineMutex_);
-		pipeline = context->renderingPipeline_;
-	}
+	const auto pipeline = context->renderingPipeline_.load(std::memory_order_acquire);
 	if (pipeline) {
 		pipeline->videoRender(effect);
 	}

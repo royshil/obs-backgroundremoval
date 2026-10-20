@@ -80,7 +80,7 @@ void showStartupDialogHandler(enum obs_frontend_event event, void *)
 
 bool obs_module_load(void)
 {
-	static obs_source_info backgroundRemovalSourceInfo = BackgroundRemoval::FilterContext::getSourceInfo();
+	const auto &backgroundRemovalSourceInfo = BackgroundRemoval::FilterContext::kSourceInfo;
 	const std::string_view registeringSourceId = backgroundRemovalSourceInfo.id;
 
 	const char *sourceId = nullptr;

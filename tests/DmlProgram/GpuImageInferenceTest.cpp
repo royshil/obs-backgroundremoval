@@ -27,6 +27,7 @@ TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 #include <iostream>
 #include <limits>
 #include <vector>
+#include <obs.hpp>
 #include <util/platform.h>
 
 void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input,
@@ -217,12 +218,11 @@ TEST_CASE("LandscapeRenderingInitialization")
 		std::unique_ptr<obs_source_t, void (*)(obs_source_t *)> source{
 			obs_source_create_private("scene", "Pipeline factory test", nullptr), obs_source_release};
 		REQUIRE(source);
-		BackgroundRemoval::FilterProperty property{};
-		property.pipelineId = BackgroundRemoval::MPLD10Pipeline::kPipelineId;
-		auto pipeline = BackgroundRemoval::createRenderingPipeline(property, source.get(), 256, 144);
+		auto pipeline = BackgroundRemoval::createRenderingPipeline(0, source.get(), 256, 144);
 		REQUIRE(pipeline);
-		CHECK(pipeline->getWidth() == 256);
-		CHECK(pipeline->getHeight() == 144);
+		CHECK(pipeline->pipelineId() == BackgroundRemoval::kMPLD10PipelineId);
+		CHECK(pipeline->width() == 256);
+		CHECK(pipeline->height() == 144);
 	}
 	obs_enter_graphics();
 	struct LeaveGraphics {
@@ -236,22 +236,21 @@ TEST_CASE("LandscapeRenderingInitialization")
 	} source{scene};
 	auto *previousTarget = gs_get_render_target();
 	auto previousSpace = gs_get_color_space();
-	BackgroundRemoval::FilterProperty property{};
-	std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> settings{obs_data_create(), obs_data_release};
-	property.imageSimilarityThreshold = 42.0;
-	BackgroundRemoval::encodeFilterProperty(settings.get(), property);
-	CHECK_FALSE(obs_data_has_user_value(settings.get(), "v2_RefineMask_Expansion"));
-	// Historical Windows settings are ignored and are not serialized again.
-	obs_data_set_int(settings.get(), "v2_RefineMask_Expansion", 30);
-	std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> roundTrip{obs_data_create(), obs_data_release};
-	BackgroundRemoval::encodeFilterProperty(roundTrip.get(),
-						BackgroundRemoval::decodeFilterProperty(settings.get()));
-	CHECK_FALSE(obs_data_has_user_value(roundTrip.get(), "v2_RefineMask_Expansion"));
-	CHECK(BackgroundRemoval::decodeFilterProperty(settings.get()).imageSimilarityThreshold == 42.0);
 	{
-		BackgroundRemoval::MPLD10Pipeline pipeline(property, scene, 256, 144);
-		CHECK(pipeline.getWidth() == 256);
-		CHECK(pipeline.getHeight() == 144);
+		BackgroundRemoval::MPLD10Pipeline pipeline(scene, 256, 144);
+		pipeline.setMotionSuppression(20.0);
+		pipeline.setMotionSuppression(0.0);
+		CHECK(pipeline.imageSimilarityThreshold_.load() == 60.0F);
+		pipeline.setMotionSuppression(50.0);
+		CHECK(pipeline.imageSimilarityThreshold_.load() == 10.0F);
+		pipeline.setMotionSuppression(-50.0);
+		CHECK(pipeline.imageSimilarityThreshold_.load() == 110.0F);
+		pipeline.setMaskAdjustment(50.0);
+		CHECK(pipeline.refineMaskThreshold_.load() == 0.0F);
+		pipeline.setMaskAdjustment(-50.0);
+		CHECK(pipeline.refineMaskThreshold_.load() == 1.0F);
+		CHECK(pipeline.width() == 256);
+		CHECK(pipeline.height() == 144);
 		CHECK(gs_get_render_target() == previousTarget);
 		CHECK(gs_get_color_space() == previousSpace);
 	}
@@ -306,9 +305,12 @@ TEST_CASE("LandscapeRenderingInitialization")
 	std::vector<float> expected(256 * 144);
 	const std::array inputs{std::as_bytes(std::span(input))};
 	runLandscapeReference(*runtime, input, expected);
-	property.imageSimilarityThreshold = 40;
 	{
-		BackgroundRemoval::MPLD10Pipeline pipeline(property, filter.get(), 256, 144);
+		BackgroundRemoval::MPLD10Pipeline pipeline(filter.get(), 256, 144);
+		pipeline.setMotionSuppression(20.0);
+		auto measurement = std::make_shared<BackgroundRemoval::MotionMeasurement>(
+			0, std::numeric_limits<std::uint64_t>::max());
+		pipeline.setMotionMeasurement(measurement);
 		filterData->pipeline_ = &pipeline;
 		inputData->pipeline_ = &pipeline;
 		CHECK_FALSE(pipeline.needsRecreation());
@@ -360,11 +362,11 @@ TEST_CASE("LandscapeRenderingInitialization")
 				runLandscapeReference(*runtime, input, expected);
 			}
 			// Settings do not force inference; mandatory refinement accompanies the next inference.
-			property.blurBackgroundEnabled = frame == 1;
-			property.blurBackgroundFactor = 2;
-			property.refineMaskEnabled = frame == 1;
-			property.refineMaskThreshold = 0.5;
-			pipeline.update(property);
+			pipeline.setBlurBgEnabled(frame == 1);
+			pipeline.setBlurBgFactor(2);
+
+			pipeline.setMaskAdjustment((0.5 - (0.5)) * 100.0);
+
 			gs_set_render_target_with_color_space(destination.get(), nullptr, GS_CS_709_EXTENDED);
 			gs_set_viewport(0, 0, 256, 144);
 			gs_ortho(0, 256, 0, 144, -100, 100);
@@ -420,9 +422,9 @@ TEST_CASE("LandscapeRenderingInitialization")
 			gs_stagesurface_unmap(readback.get());
 
 			// Settings arriving mid-tick apply on the next tick, without repeating refinement.
-			property.refineMaskEnabled = !property.refineMaskEnabled;
-			property.blurBackgroundEnabled = !property.blurBackgroundEnabled;
-			pipeline.update(property);
+
+			pipeline.setBlurBgEnabled(!pipeline.blurBackgroundEnabled_.load());
+
 			const auto captured = inputData->renderCount_;
 			for (int draw = 0; draw < 3; ++draw) {
 				obs_source_video_render(inputSource.get());
@@ -436,22 +438,25 @@ TEST_CASE("LandscapeRenderingInitialization")
 							  256 * 4) == 0);
 				gs_stagesurface_unmap(readback.get());
 			}
-			property.refineMaskEnabled = !property.refineMaskEnabled;
-			property.blurBackgroundEnabled = !property.blurBackgroundEnabled;
-			pipeline.update(property);
+
+			pipeline.setBlurBgEnabled(!pipeline.blurBackgroundEnabled_.load());
 		}
 		std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> calibrated{obs_source_get_settings(filter.get()),
 									       obs_data_release};
-		CHECK_FALSE(obs_data_has_user_value(calibrated.get(), "v2_Model_MatteSensitivity"));
-		REQUIRE(pipeline.autoSetSensitivity());
-		REQUIRE(obs_data_has_user_value(calibrated.get(), "v2_Model_MatteSensitivity"));
-		const double sensitivity = obs_data_get_double(calibrated.get(), "v2_Model_MatteSensitivity");
-		CHECK(sensitivity >= 0.0);
-		CHECK(sensitivity <= 100.0);
+		CHECK_FALSE(obs_data_has_user_value(calibrated.get(), "v2_MotionSuppression"));
+		measurement->stop();
+		pipeline.setMotionMeasurement(nullptr);
+		REQUIRE(measurement->sampleCount() > 0);
+		const auto suppression = measurement->motionSuppression();
+		REQUIRE(suppression);
+		CHECK(*suppression >= -50.0);
+		CHECK(*suppression <= 50.0);
+		// Measuring alone must not change the user's settings.
+		CHECK_FALSE(obs_data_has_user_value(calibrated.get(), "v2_MotionSuppression"));
 		// Seed a portrait mask, then make the Engine expect RGBA while Pipeline uses BGRA.
-		property.refineMaskEnabled = false;
-		property.blurBackgroundEnabled = false;
-		pipeline.update(property);
+
+		pipeline.setBlurBgEnabled(false);
+
 		auto retainedInput = portraitInput();
 		std::vector<uint8_t> retainedPixels(256 * 144 * 4, 255);
 		for (size_t i = 0; i < 256 * 144; ++i)
@@ -490,8 +495,8 @@ TEST_CASE("LandscapeRenderingInitialization")
 			gs_texture_create(256, 144, GS_BGRA, 1, &ungatedBytes, 0), gs_texture_destroy};
 		REQUIRE(ungated);
 		inputData->image_ = ungated.get();
-		property.imageSimilarityThreshold = std::numeric_limits<double>::quiet_NaN();
-		pipeline.update(property);
+		pipeline.setMotionSuppression(std::numeric_limits<double>::quiet_NaN());
+
 		pipeline.videoTick(1.0F / 30);
 		obs_source_video_render(inputSource.get());
 		pipeline.videoTick(1.0F / 30);
@@ -504,8 +509,8 @@ TEST_CASE("LandscapeRenderingInitialization")
 			CHECK(std::memcmp(ungatedMapped + y * ungatedPitch, ungatedPixels.data() + y * 256 * 4,
 					  256 * 4) == 0);
 		gs_stagesurface_unmap(readback.get());
-		property.imageSimilarityThreshold = 40;
-		pipeline.update(property);
+		pipeline.setMotionSuppression(20);
+
 		inputData->image_ = portrait.get();
 		pipeline.videoTick(1.0F / 30);
 		obs_source_video_render(inputSource.get());
@@ -529,9 +534,9 @@ TEST_CASE("LandscapeRenderingInitialization")
 			gs_texture_create(256, 144, GS_BGRA, 1, &whiteBytes, 0), gs_texture_destroy};
 		REQUIRE(white);
 		inputData->image_ = white.get();
-		property.refineMaskEnabled = true;
-		property.refineMaskThreshold = 0;
-		pipeline.update(property);
+
+		pipeline.setMaskAdjustment((0.5 - (0)) * 100.0);
+
 		pipeline.videoTick(1.0F / 30);
 		const auto beforeRecreation = inputData->renderCount_;
 		const auto remainingBeforeFailure = MPLD10PipelineTestAccess::remaining(pipeline);
@@ -577,10 +582,8 @@ TEST_CASE("LandscapeRenderingInitialization")
 	// Explicit draining belongs to this test only, so completion timing is deterministic.
 	for (const std::uint32_t additional : {1u, 2u, 4u}) {
 		using Access = BackgroundRemoval::MPLD10PipelineTestAccess;
-		property.imageSimilarityThreshold = 40;
-		property.refineMaskEnabled = false;
-		property.blurBackgroundEnabled = false;
-		BackgroundRemoval::MPLD10Pipeline pipeline(property, filter.get(), 256, 144);
+		BackgroundRemoval::MPLD10Pipeline pipeline(filter.get(), 256, 144);
+		pipeline.setMotionSuppression(20.0);
 		pipeline.additionalInferenceFrames_.store(additional, std::memory_order_relaxed);
 		filterData->pipeline_ = &pipeline;
 		inputData->pipeline_ = &pipeline;
@@ -623,7 +626,8 @@ TEST_CASE("LandscapeRenderingInitialization")
 	}
 	{
 		using Access = BackgroundRemoval::MPLD10PipelineTestAccess;
-		BackgroundRemoval::MPLD10Pipeline pipeline(property, filter.get(), 256, 144);
+		BackgroundRemoval::MPLD10Pipeline pipeline(filter.get(), 256, 144);
+		pipeline.setMotionSuppression(20.0);
 		pipeline.additionalInferenceFrames_.store(2, std::memory_order_relaxed);
 		for (const auto [value, sensitivity, motion] :
 		     std::array{std::tuple{0u, 100.0F, false}, std::tuple{255u, 0.0F, true},

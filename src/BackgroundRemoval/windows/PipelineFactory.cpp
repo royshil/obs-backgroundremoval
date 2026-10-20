@@ -9,14 +9,14 @@
 
 namespace BackgroundRemoval {
 
-auto createRenderingPipeline(const FilterProperty &property, obs_source_t *source, std::uint32_t width,
-			     std::uint32_t height) -> std::shared_ptr<IRenderingPipeline>
+auto createRenderingPipeline(std::int64_t pipelineId, obs_source_t *source, std::uint32_t width, std::uint32_t height)
+	-> std::shared_ptr<IRenderingPipeline>
 {
-	if (property.pipelineId == MPLD10Pipeline::kPipelineId) {
+	if (pipelineId == 0 || pipelineId == kMPLD10PipelineId) {
 		blog(LOG_INFO, OBS_LOG_HEADER "Recreating DirectML rendering pipeline (%ux%u)", width, height);
 		obs_enter_graphics();
 		try {
-			auto pipeline = std::make_shared<MPLD10Pipeline>(property, source, width, height);
+			auto pipeline = std::make_shared<MPLD10Pipeline>(source, width, height);
 			obs_leave_graphics();
 			return pipeline;
 		} catch (...) {
@@ -24,7 +24,7 @@ auto createRenderingPipeline(const FilterProperty &property, obs_source_t *sourc
 			throw;
 		}
 	}
-	blog(LOG_ERROR, OBS_LOG_HEADER "Unknown rendering pipeline ID: %lld", property.pipelineId);
+	blog(LOG_ERROR, OBS_LOG_HEADER "Unknown rendering pipeline ID: %lld", pipelineId);
 	return nullptr;
 }
 

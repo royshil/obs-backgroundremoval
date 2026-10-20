@@ -13,7 +13,7 @@
 
 #include "IRenderingPipeline.hpp"
 
-#include <BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10DifferenceHistory.hpp>
+#include "MotionMeasurement.hpp"
 
 namespace BackgroundRemoval {
 
@@ -21,8 +21,6 @@ class MPLD10Engine;
 
 class MPLD10Pipeline : public IRenderingPipeline {
 public:
-	static constexpr std::int32_t kPipelineId = 62828;
-
 	class InitError : public std::exception {
 	public:
 		explicit InitError(std::source_location loc = std::source_location::current()) noexcept : loc_(loc) {}
@@ -33,7 +31,7 @@ public:
 		const std::source_location loc_;
 	};
 
-	MPLD10Pipeline(const FilterProperty &property, obs_source_t *source, std::uint32_t width, std::uint32_t height);
+	MPLD10Pipeline(obs_source_t *source, std::uint32_t width, std::uint32_t height);
 	~MPLD10Pipeline() noexcept override;
 
 	MPLD10Pipeline(const MPLD10Pipeline &) = delete;
@@ -41,15 +39,20 @@ public:
 	auto operator=(const MPLD10Pipeline &) -> MPLD10Pipeline & = delete;
 	auto operator=(MPLD10Pipeline &&) -> MPLD10Pipeline & = delete;
 
-	auto autoSetSensitivity() noexcept -> bool;
-	void update(const FilterProperty &property) noexcept override;
+	void setMotionMeasurement(std::shared_ptr<MotionMeasurement> measurement) noexcept override;
+	void setMotionSuppression(double value) noexcept override;
+	void setMaskAdjustment(double value) noexcept override;
+	void setBlurBgEnabled(bool value) noexcept override;
+	void setBlurBgFactor(std::int64_t value) noexcept override;
+	void setBlurBgFocusPoint(double value) noexcept override;
+	void setBlurBgFocusDepth(double value) noexcept override;
 	void videoTick(float seconds) noexcept override;
 	void videoRender(gs_effect_t *effect) noexcept override;
-	auto pipelineId() const noexcept -> std::int32_t override { return kPipelineId; }
-	auto getWidth() const noexcept -> std::uint32_t override { return width_; }
-	auto getHeight() const noexcept -> std::uint32_t override { return height_; }
+	auto pipelineId() const noexcept -> std::int32_t override { return kMPLD10PipelineId; }
+	auto width() const noexcept -> std::uint32_t override { return width_; }
+	auto height() const noexcept -> std::uint32_t override { return height_; }
 
-	auto needsRecreation() const noexcept -> bool;
+	auto needsRecreation() const noexcept -> bool override;
 
 	std::atomic<bool> blurBackgroundEnabled_{};
 	std::atomic<std::int64_t> blurBackgroundFactor_{};
@@ -71,11 +74,14 @@ private:
 	const std::uint32_t width_;
 	const std::uint32_t height_;
 	obs_source_t *const source_;
-	MPLD10DifferenceHistory differenceHistory_;
+	std::atomic<std::shared_ptr<MotionMeasurement>> motionMeasurement_;
 	FilterState filterState_ = FilterState::NeedsProcessing;
 	bool frameBlurBackgroundEnabled_ = false;
 	gs_texture_t *frameBlurredTexture_ = nullptr;
 	bool needsRecreation_ = false;
+	std::uint32_t fpsNumerator_ = 0;
+	std::uint32_t fpsDenominator_ = 0;
+	void updateVideoTiming() noexcept;
 	bool differenceStaged_ = false;
 	std::uint64_t differenceTimestamp_ = 0;
 	std::uint32_t remainingInferenceFrames_ = 0;

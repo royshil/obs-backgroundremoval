@@ -36,9 +36,10 @@
 #include <benchmark/benchmark.h>
 
 #include <obs.h>
+#include <obs.hpp>
 #include <graphics/graphics.h>
 
-#include <BackgroundRemoval/windows/FilterProperty.hpp>
+#include <BackgroundRemoval/windows/IRenderingPipeline.hpp>
 #include <BackgroundRemoval/windows/MPLD10Pipeline.hpp>
 
 TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
@@ -91,17 +92,14 @@ void tick(void *data, float seconds)
 	state.width.store(width, std::memory_order_relaxed);
 	state.height.store(height, std::memory_order_relaxed);
 	if (width && height &&
-	    (!state.pipeline || state.pipeline->needsRecreation() || state.pipeline->getWidth() != width ||
-	     state.pipeline->getHeight() != height)) {
+	    (!state.pipeline || state.pipeline->needsRecreation() || state.pipeline->width() != width ||
+	     state.pipeline->height() != height)) {
 		obs_enter_graphics();
 		state.pipeline.reset();
 		try {
-			BackgroundRemoval::FilterProperty property{};
-			property.pipelineId = BackgroundRemoval::MPLD10Pipeline::kPipelineId;
-			property.imageSimilarityThreshold = state.sensitivity;
-			property.refineMaskThreshold = .5;
-			state.pipeline = std::make_unique<BackgroundRemoval::MPLD10Pipeline>(property, state.source,
-											     width, height);
+			state.pipeline =
+				std::make_unique<BackgroundRemoval::MPLD10Pipeline>(state.source, width, height);
+			state.pipeline->setMotionSuppression(60.0 - state.sensitivity);
 		} catch (const std::exception &e) {
 			blog(LOG_ERROR, "Camera benchmark initialization: %s", e.what());
 			state.failures.fetch_add(1, std::memory_order_relaxed);
