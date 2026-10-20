@@ -175,13 +175,10 @@ auto FilterContext::getProperties(void *data) noexcept -> obs_properties_t *
 	obs_property_t *const maskAdjustment =
 		obs_properties_add_float_slider(pGeneral, "v2_MaskAdjustment", tMaskAdjustment(), -50.0, 50.0, 0.01);
 	obs_property_set_long_description(maskAdjustment, tMaskAdjustmentDescription());
-	obs_properties_add_text(pGeneral, "v2_MaskAdjustmentDescription", tMaskAdjustmentDescription(), OBS_TEXT_INFO);
 
 	obs_property_t *const motionSuppression = obs_properties_add_float_slider(
 		pGeneral, "v2_MotionSuppression", tMotionSuppression(), -50.0, 50.0, 0.01);
 	obs_property_set_long_description(motionSuppression, tMotionSuppressionDescription());
-	obs_properties_add_text(pGeneral, "v2_MotionSuppressionDescription", tMotionSuppressionDescription(),
-				OBS_TEXT_INFO);
 
 	// MARK: - Blur Background Properties
 
