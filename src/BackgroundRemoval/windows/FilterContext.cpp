@@ -62,8 +62,7 @@ const obs_source_info FilterContext::kSourceInfo = {
 	.video_render = videoRender,
 };
 
-FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source)
-	: source_(source)
+FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : source_(source)
 {
 	if (!settings || !source_) {
 		throw std::invalid_argument("Invalid Windows background-removal context arguments");
@@ -128,7 +127,8 @@ auto FilterContext::handleAutoSensitivityClick(obs_properties_t *, obs_property_
 	if (auto *contextPtr = static_cast<std::shared_ptr<FilterContext> *>(data); contextPtr && *contextPtr) {
 		const auto context = *contextPtr;
 		if (!context->autoConfigurator_)
-			context->autoConfigurator_ = new AutoConfigurator(context->source_, QApplication::activeWindow());
+			context->autoConfigurator_ =
+				new AutoConfigurator(context->source_, QApplication::activeWindow());
 		context->autoConfigurator_->show();
 		context->autoConfigurator_->raise();
 		context->autoConfigurator_->activateWindow();

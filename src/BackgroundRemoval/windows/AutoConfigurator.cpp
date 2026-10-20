@@ -189,5 +189,4 @@ void AutoConfigurator::done(int result)
 	QDialog::done(result);
 }
 
-
 } // namespace BackgroundRemoval
