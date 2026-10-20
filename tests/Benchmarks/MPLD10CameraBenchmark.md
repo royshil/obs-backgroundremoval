@@ -41,7 +41,10 @@ without recording camera images or audio.
 
 For an unattended launch check, `--synthetic` supplies a static pattern instead
 of opening a camera. A static pattern exercises inference gating after the
-initial inference; use a moving camera scene for steady inference analysis.
+initial inference. `--animated` alternates two preloaded complementary textures
+once per video tick to exercise sustained inference without camera or upload
+variability. The selected texture stays unchanged across renders within a tick.
+This deterministic workload does not represent a natural camera scene.
 
 ```powershell
 ./build/tests/Benchmarks/RelWithDebInfo/MPLD10CameraBenchmark.exe `
@@ -53,6 +56,30 @@ Use the production Engine TraceLogging scopes and the native D3D11/D3D12 queue
 timeline to inspect the typical path. Capture the warmed-up measurement interval.
 Keep `--force11on12` disabled for native performance measurements.
 The installed OBS plugin remains the final reference for full OBS behavior.
+
+Run PIX from an elevated PowerShell session: on the tested Windows/driver setup,
+normal-user captures completed successfully but contained no GPU executions.
+For PIX versions that reject `--command-line`, configure the benchmark through
+inherited environment variables and launch it without arguments. CLI options
+override these defaults. Start PIX before the target creates its D3D devices;
+check that the resulting capture actually contains GPU executions.
+
+```powershell
+$env:MPLD10_BENCHMARK_INPUT = 'animated' # 'static' also supported
+$env:MPLD10_BENCHMARK_OUTPUT = "$PWD/build/pipeline-pix-unique"
+$env:MPLD10_BENCHMARK_SECONDS = '90'
+$exe = (Resolve-Path build/tests/Benchmarks/RelWithDebInfo/MPLD10CameraBenchmark.exe).Path
+& 'C:/Program Files/Microsoft PIX/2603.25/pixtool.exe' launch --timing $exe `
+  take-new-timing-capture "$PWD/build/pipeline-pix-unique.wpix" --duration=30000
+Remove-Item Env:MPLD10_BENCHMARK_INPUT, Env:MPLD10_BENCHMARK_OUTPUT, Env:MPLD10_BENCHMARK_SECONDS
+```
+
+Keep the target alive longer than the capture and its stop processing; otherwise
+PIX may abort with `PIXTOOL18`. PIX terminates its launched target on completion,
+so callback CSV/JSON may not be finalized in this run. Collect CPU callback
+statistics in a separate uninstrumented run, and use the completed `.wpix` for
+GPU timing. Allow for initialization, then select a steady interval (for example,
+capture seconds 15–30) and verify sustained executions near the configured fps.
 
 `samples.csv` contains frame timestamps, CPU tick/render durations and QPC
 callback boundaries. `conditions.txt` records the source, frame rate, dimensions,

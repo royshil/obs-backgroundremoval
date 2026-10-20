@@ -10,17 +10,16 @@
 #endif
 
 #include <windows.h>
-
 #include <objbase.h>
-#include <TraceLoggingProvider.h>
-#include <obs.h>
-#include <graphics/graphics.h>
-#include <BackgroundRemoval/windows/MPLD10Pipeline.hpp>
+
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
-#include <benchmark/benchmark.h>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -29,7 +28,18 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
+
+#include <TraceLoggingProvider.h>
+
+#include <benchmark/benchmark.h>
+
+#include <obs.h>
+#include <graphics/graphics.h>
+
+#include <BackgroundRemoval/windows/FilterProperty.hpp>
+#include <BackgroundRemoval/windows/MPLD10Pipeline.hpp>
 
 TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 
@@ -127,15 +137,18 @@ auto colorSpace(void *, size_t, const gs_color_space *) -> gs_color_space
 void synchronize(void *) {}
 struct Pattern {
 	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> image;
+	std::unique_ptr<gs_texture_t, void (*)(gs_texture_t *)> alternate{nullptr, gs_texture_destroy};
+	unsigned frame = 0;
 	explicit Pattern(gs_texture_t *texture) : image(texture, gs_texture_destroy) {}
 	~Pattern()
 	{
 		obs_enter_graphics();
 		image.reset();
+		alternate.reset();
 		obs_leave_graphics();
 	}
 };
-auto patternCreate(obs_data_t *, obs_source_t *) -> void *
+auto patternCreate(obs_data_t *settings, obs_source_t *) -> void *
 {
 	std::vector<std::uint8_t> pixels(1280 * 720 * 4, 255);
 	for (unsigned y = 0; y < 720; ++y)
@@ -151,7 +164,22 @@ auto patternCreate(obs_data_t *, obs_source_t *) -> void *
 	obs_leave_graphics();
 	if (!texture)
 		return nullptr;
-	return new Pattern(texture);
+	auto pattern = std::make_unique<Pattern>(texture);
+	if (obs_data_get_bool(settings, "animated")) {
+		for (size_t i = 0; i < pixels.size(); i += 4)
+			for (size_t channel = 0; channel < 3; ++channel)
+				pixels[i + channel] = 255 - pixels[i + channel];
+		obs_enter_graphics();
+		pattern->alternate.reset(gs_texture_create(1280, 720, GS_BGRA, 1, &bytes, 0));
+		obs_leave_graphics();
+		if (!pattern->alternate)
+			return nullptr;
+	}
+	return pattern.release();
+}
+void patternTick(void *data, float)
+{
+	++static_cast<Pattern *>(data)->frame;
 }
 void patternDestroy(void *data)
 {
@@ -159,7 +187,9 @@ void patternDestroy(void *data)
 }
 void patternRender(void *data, gs_effect_t *)
 {
-	obs_source_draw(static_cast<Pattern *>(data)->image.get(), 0, 0, 1280, 720, false);
+	auto &pattern = *static_cast<Pattern *>(data);
+	obs_source_draw(pattern.alternate && (pattern.frame & 1) ? pattern.alternate.get() : pattern.image.get(), 0, 0,
+			1280, 720, false);
 }
 auto patternWidth(void *) -> uint32_t
 {
@@ -198,11 +228,26 @@ int run(int argc, char **argv)
 	double seconds = 15, sensitivity = 60;
 	bool preview = false;
 	bool synthetic = false;
+	bool animated = false;
 	unsigned fps = 30;
+	// Some PIX versions reject --command-line. CLI options override these environment defaults.
+	if (const auto *value = std::getenv("MPLD10_BENCHMARK_OUTPUT"))
+		output = std::filesystem::u8path(value);
+	if (const auto *value = std::getenv("MPLD10_BENCHMARK_SECONDS"))
+		seconds = std::stod(value);
+	if (const auto *value = std::getenv("MPLD10_BENCHMARK_INPUT")) {
+		synthetic = std::string(value) == "static" || std::string(value) == "animated";
+		animated = std::string(value) == "animated";
+	}
 	for (int i = 1; i < argc; ++i) {
 		const std::string option = argv[i];
+		if (option == "--animated") {
+			synthetic = animated = true;
+			continue;
+		}
 		if (option == "--synthetic") {
 			synthetic = true;
+			animated = false;
 			continue;
 		}
 		if (option == "--preview") {
@@ -211,7 +256,7 @@ int run(int argc, char **argv)
 		}
 		if (option == "--help") {
 			std::cout
-				<< "--camera-settings FILE --output DIRECTORY [--seconds 15] [--fps 30] [--sensitivity 60] [--preview] [--synthetic]\n";
+				<< "--camera-settings FILE --output DIRECTORY [--seconds 15] [--fps 30] [--sensitivity 60] [--preview] [--synthetic | --animated]\n";
 			return 0;
 		}
 		if (++i == argc)
@@ -277,6 +322,7 @@ int run(int argc, char **argv)
 		pattern.create = patternCreate;
 		pattern.destroy = patternDestroy;
 		pattern.video_render = patternRender;
+		pattern.video_tick = patternTick;
 		pattern.get_width = patternWidth;
 		pattern.get_height = patternHeight;
 		obs_register_source(&pattern);
@@ -299,6 +345,8 @@ int run(int argc, char **argv)
 		obs_data_release};
 	if (!settings)
 		throw std::runtime_error("Camera settings could not be read");
+	if (synthetic)
+		obs_data_set_bool(settings.get(), "animated", animated);
 	// Accept an existing OBS scene collection read-only; pass only the camera's settings to dshow.
 	std::unique_ptr<obs_data_array_t, void (*)(obs_data_array_t *)> sources{
 		obs_data_get_array(settings.get(), "sources"), obs_data_array_release};
@@ -394,7 +442,7 @@ int run(int argc, char **argv)
 		throw std::runtime_error("No valid camera rendering samples");
 	std::sort(durations.begin(), durations.end());
 	std::ofstream metadata(output / "conditions.txt");
-	metadata << "source=" << (synthetic ? "static-pattern" : "dshow_input")
+	metadata << "source=" << (synthetic ? (animated ? "alternating-pattern" : "static-pattern") : "dshow_input")
 		 << "\nreal_obs_graphics_thread=1\ncanvas=1280x720\nfps=" << fps << "\npreview=" << preview
 		 << "\nprocess_id=" << GetCurrentProcessId() << "\ncamera_width=" << state->width.load()
 		 << "\ncamera_height=" << state->height.load() << "\nsensitivity=" << sensitivity
