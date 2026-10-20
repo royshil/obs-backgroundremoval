@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include "AutoMotionConfigurator.hpp"
+#include "AutoConfigurator.hpp"
 #include "ModuleText.hpp"
+#include "FilterContext.hpp"
 #include "MotionMeasurement.hpp"
 
 #include <QApplication>
@@ -29,42 +30,9 @@ namespace {
 constexpr int kMeasurementMs = 3000;
 } // namespace
 
-class AutoMotionDialog final : public QDialog {
-public:
-	AutoMotionDialog(AutoMotionConfigurator &configurator, obs_source_t *source, QWidget *parent);
-	~AutoMotionDialog() override;
-
-protected:
-	void done(int result) override;
-
-private:
-	void setupUi();
-	void startMeasurement();
-	void updateMeasurement();
-	void stopMeasurement();
-	void applyValue(double value);
-	void applySettings();
-	OBSSource source_;
-	AutoMotionConfigurator &configurator_;
-	std::shared_ptr<MotionMeasurement> measurement_;
-	std::optional<double> recommendation_;
-	QElapsedTimer elapsed_;
-	QTimer *const timer_;
-	QLabel *const instructions_;
-	QLabel *const status_;
-	QProgressBar *const progress_;
-	QPushButton *const start_;
-	QSlider *const suppressionSlider_;
-	QDoubleSpinBox *const suppressionValue_;
-	QDialogButtonBox *const buttonBox_;
-	QPushButton *const apply_;
-	QPushButton *const ok_;
-};
-
-AutoMotionDialog::AutoMotionDialog(AutoMotionConfigurator &configurator, obs_source_t *source, QWidget *parent)
+AutoConfigurator::AutoConfigurator(obs_source_t *source, QWidget *parent)
 	: QDialog(parent),
 	  source_(source),
-	  configurator_(configurator),
 	  timer_(new QTimer(this)),
 	  instructions_(new QLabel(this)),
 	  status_(new QLabel(this)),
@@ -77,14 +45,20 @@ AutoMotionDialog::AutoMotionDialog(AutoMotionConfigurator &configurator, obs_sou
 	  apply_(buttonBox_->button(QDialogButtonBox::Apply)),
 	  ok_(buttonBox_->button(QDialogButtonBox::Ok))
 {
+	setAttribute(Qt::WA_DeleteOnClose);
+	if (source_ && obs_source_get_type(source_) == OBS_SOURCE_TYPE_FILTER) {
+		auto *context = static_cast<std::shared_ptr<FilterContext> *>(obs_obj_get_data(source_));
+		if (context && *context)
+			context_ = context->get();
+	}
 	setupUi();
-	if (!source_) {
+	if (!context_) {
 		start_->setEnabled(false);
 		status_->setText(tNoMotionInput());
 	}
 }
 
-void AutoMotionDialog::setupUi()
+void AutoConfigurator::setupUi()
 {
 	setWindowTitle(tAutoMotionTitle());
 	setObjectName("autoMotionDialog");
@@ -121,7 +95,7 @@ void AutoMotionDialog::setupUi()
 		[this](int value) { suppressionValue_->setValue(value / 100.0); });
 	connect(suppressionValue_, &QDoubleSpinBox::valueChanged, this,
 		[this](double value) { suppressionSlider_->setValue(qRound(value * 100.0)); });
-	connect(apply_, &QPushButton::clicked, this, &AutoMotionDialog::applySettings);
+	connect(apply_, &QPushButton::clicked, this, &AutoConfigurator::applySettings);
 	connect(buttonBox_, &QDialogButtonBox::accepted, this, &QDialog::accept);
 	connect(buttonBox_, &QDialogButtonBox::rejected, this, &QDialog::reject);
 	connect(start_, &QPushButton::clicked, this, [this] { startMeasurement(); });
@@ -129,12 +103,12 @@ void AutoMotionDialog::setupUi()
 	timer_->setInterval(50);
 }
 
-AutoMotionDialog::~AutoMotionDialog()
+AutoConfigurator::~AutoConfigurator()
 {
 	stopMeasurement();
 }
 
-void AutoMotionDialog::startMeasurement()
+void AutoConfigurator::startMeasurement()
 {
 	suppressionSlider_->setEnabled(false);
 	suppressionValue_->setEnabled(false);
@@ -142,7 +116,7 @@ void AutoMotionDialog::startMeasurement()
 	ok_->setEnabled(false);
 	recommendation_.reset();
 	stopMeasurement();
-	measurement_ = configurator_.startMeasurement();
+	context_->motionMeasurement_.requestStart();
 	progress_->setValue(0);
 	status_->setText(tMeasuringMotion());
 	start_->setEnabled(false);
@@ -150,13 +124,22 @@ void AutoMotionDialog::startMeasurement()
 	timer_->start();
 }
 
-void AutoMotionDialog::updateMeasurement()
+void AutoConfigurator::updateMeasurement()
 {
 	progress_->setValue(static_cast<int>(std::min<qint64>(elapsed_.elapsed(), kMeasurementMs)));
 	if (elapsed_.elapsed() < kMeasurementMs)
 		return;
-	stopMeasurement();
-	recommendation_ = measurement_->motionSuppression();
+	if (!context_->motionMeasurement_.readable()) {
+		// An inactive source may not tick. Cancel without reading unpublished data.
+		if (elapsed_.elapsed() < kMeasurementMs + 1500)
+			return;
+		stopMeasurement();
+		start_->setEnabled(true);
+		status_->setText(tNoMotionInput());
+		return;
+	}
+	timer_->stop();
+	recommendation_ = context_->motionMeasurement_.motionSuppression();
 	start_->setText(tMeasureMotionAgain());
 	start_->setEnabled(true);
 	if (!recommendation_) {
@@ -165,7 +148,7 @@ void AutoMotionDialog::updateMeasurement()
 	}
 	status_->setText(QString::fromUtf8(tMotionMeasurementResult())
 				 .arg(*recommendation_, 0, 'f', 2)
-				 .arg(static_cast<qulonglong>(measurement_->sampleCount())));
+				 .arg(static_cast<qulonglong>(context_->motionMeasurement_.samples().size())));
 	suppressionValue_->setValue(*recommendation_);
 	suppressionSlider_->setEnabled(true);
 	suppressionValue_->setEnabled(true);
@@ -173,16 +156,14 @@ void AutoMotionDialog::updateMeasurement()
 	ok_->setEnabled(true);
 }
 
-void AutoMotionDialog::stopMeasurement()
+void AutoConfigurator::stopMeasurement()
 {
 	timer_->stop();
-	if (measurement_) {
-		measurement_->stop();
-		configurator_.stopMeasurement();
-	}
+	if (context_)
+		context_->motionMeasurement_.requestCancel();
 }
 
-void AutoMotionDialog::applyValue(double value)
+void AutoConfigurator::applyValue(double value)
 {
 	OBSDataAutoRelease settings = obs_data_create();
 	obs_data_set_double(settings, "v2_MotionSuppression", value);
@@ -190,14 +171,14 @@ void AutoMotionDialog::applyValue(double value)
 	obs_source_update_properties(source_);
 }
 
-void AutoMotionDialog::applySettings()
+void AutoConfigurator::applySettings()
 {
 	if (!recommendation_)
 		return;
 	applyValue(suppressionValue_->value());
 }
 
-void AutoMotionDialog::done(int result)
+void AutoConfigurator::done(int result)
 {
 	stopMeasurement();
 	if (result == QDialog::Accepted) {
@@ -208,46 +189,5 @@ void AutoMotionDialog::done(int result)
 	QDialog::done(result);
 }
 
-AutoMotionConfigurator::~AutoMotionConfigurator()
-{
-	stopMeasurement();
-}
-
-auto AutoMotionConfigurator::show(std::shared_ptr<void> owner) -> bool
-{
-	if (dialog_) {
-		dialog_->raise();
-		dialog_->activateWindow();
-		return false;
-	}
-	auto *dialog = new AutoMotionDialog(*this, source_, QApplication::activeWindow());
-	dialog_ = dialog;
-	dialog->setAttribute(Qt::WA_DeleteOnClose);
-	// Keep the embedded configurator's owner alive until the dialog is destroyed.
-	QObject::connect(dialog, &QObject::destroyed, [owner = std::move(owner)] {});
-	dialog->show();
-	return false;
-}
-
-auto AutoMotionConfigurator::startMeasurement() -> std::shared_ptr<MotionMeasurement>
-{
-	stopMeasurement();
-	auto measurement =
-		std::make_shared<MotionMeasurement>(os_gettime_ns(), std::uint64_t(kMeasurementMs) * 1000000);
-	measurement_.store(measurement, std::memory_order_release);
-	return measurement;
-}
-
-void AutoMotionConfigurator::stopMeasurement() noexcept
-{
-	if (const auto measurement = measurement_.exchange(nullptr, std::memory_order_acq_rel))
-		measurement->stop();
-}
-
-void AutoMotionConfigurator::recordMotion(double motion) noexcept
-{
-	if (const auto measurement = measurement_.load(std::memory_order_acquire))
-		measurement->record(os_gettime_ns(), motion);
-}
 
 } // namespace BackgroundRemoval

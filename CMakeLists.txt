@@ -382,7 +382,7 @@ elseif(WIN32)
     PRIVATE
       src/BackgroundRemoval/windows/FilterContext.cpp
       src/BackgroundRemoval/windows/ModuleText.cpp
-      src/BackgroundRemoval/windows/AutoMotionConfigurator.cpp
+      src/BackgroundRemoval/windows/AutoConfigurator.cpp
       src/BackgroundRemoval/windows/PipelineFactory.cpp
       src/BackgroundRemoval/windows/MPLD10Pipeline.cpp
       src/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp

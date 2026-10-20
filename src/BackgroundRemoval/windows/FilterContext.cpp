@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "FilterContext.hpp"
+#include <QApplication>
+#include <limits>
+#include <util/platform.h>
 
 #include <cmath>
 #include <cstdint>
@@ -15,7 +18,7 @@
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 
-#include "AutoMotionConfigurator.hpp"
+#include "AutoConfigurator.hpp"
 #include "ModuleText.hpp"
 #include "PipelineFactory.hpp"
 
@@ -60,8 +63,7 @@ const obs_source_info FilterContext::kSourceInfo = {
 };
 
 FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source)
-	: source_(source),
-	  autoMotionConfigurator_(source)
+	: source_(source)
 {
 	if (!settings || !source_) {
 		throw std::invalid_argument("Invalid Windows background-removal context arguments");
@@ -125,11 +127,16 @@ auto FilterContext::handleAutoSensitivityClick(obs_properties_t *, obs_property_
 {
 	if (auto *contextPtr = static_cast<std::shared_ptr<FilterContext> *>(data); contextPtr && *contextPtr) {
 		const auto context = *contextPtr;
-		return context->autoMotionConfigurator_.show(context);
+		if (!context->autoConfigurator_)
+			context->autoConfigurator_ = new AutoConfigurator(context->source_, QApplication::activeWindow());
+		context->autoConfigurator_->show();
+		context->autoConfigurator_->raise();
+		context->autoConfigurator_->activateWindow();
 	} else {
-		auto configurator = std::make_shared<AutoMotionConfigurator>(nullptr);
-		return configurator->show(configurator);
+		auto *configurator = new AutoConfigurator(nullptr, QApplication::activeWindow());
+		configurator->show();
 	}
+	return false;
 }
 
 auto FilterContext::handleAboutButtonClicked(obs_properties_t *, obs_property_t *, void *) -> bool
@@ -213,6 +220,8 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 		return;
 	}
 	const std::shared_ptr<FilterContext> context = *contextPtr;
+	const auto measurementTime = os_gettime_ns();
+	context->motionMeasurement_.tick(measurementTime);
 	obs_source_t *const parent = obs_filter_get_parent(context->source_);
 	obs_source_t *const target = obs_filter_get_target(context->source_);
 	if (!parent || !target || !obs_source_active(parent)) {
@@ -246,9 +255,7 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 		// before ticking even when update() ran concurrently with the previous application.
 		context->applyRenderingSettings(*pipeline);
 		pipeline->videoTick(seconds);
-		if (const auto motion = pipeline->getMotion(); std::isfinite(motion)) {
-			context->autoMotionConfigurator_.recordMotion(motion);
-		}
+		context->motionMeasurement_.tick(measurementTime, pipeline->getMotion());
 	}
 }
 

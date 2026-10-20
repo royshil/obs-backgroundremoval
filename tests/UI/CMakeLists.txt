@@ -53,7 +53,7 @@ if(WIN32)
     "${PLUGIN_SOURCE_DIR}/Resources/resources.qrc"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/FilterContext.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/ModuleText.cpp"
-    "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/AutoMotionConfigurator.cpp"
+    "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/AutoConfigurator.cpp"
     "${PLUGIN_SOURCE_DIR}/UpdateConfig/UpdateConfigSemver.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/PipelineFactory.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MPLD10Pipeline.cpp"

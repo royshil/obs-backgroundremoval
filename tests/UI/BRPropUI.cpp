@@ -4,7 +4,7 @@
 
 #include <BackgroundRemoval/windows/FilterContext.hpp>
 #include <BackgroundRemoval/windows/ModuleText.hpp>
-#include <BackgroundRemoval/windows/AutoMotionConfigurator.hpp>
+#include <BackgroundRemoval/windows/AutoConfigurator.hpp>
 #include <BackgroundRemoval/windows/MotionMeasurement.hpp>
 #include <UI/AboutDialog.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
@@ -29,11 +29,22 @@
 
 #include <obs.hpp>
 #include <util/text-lookup.h>
+#include <util/platform.h>
 
 #include <cstdlib>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+
+namespace BackgroundRemoval {
+struct FilterContextTestAccess {
+	static auto measurement(obs_source_t *source) -> MotionMeasurement &
+	{
+		auto *context = static_cast<std::shared_ptr<FilterContext> *>(obs_obj_get_data(source));
+		return (*context)->motionMeasurement_;
+	}
+};
+} // namespace BackgroundRemoval
 
 namespace {
 lookup_t *translations = nullptr;
@@ -55,16 +66,10 @@ auto findAutoMotionDialog() -> QDialog *
 
 auto smokeAutoMotionDialog() -> bool
 {
-	obs_source_info fixture{};
+	obs_source_info fixture = BackgroundRemoval::FilterContext::kSourceInfo;
 	fixture.id = "auto-motion-ui-fixture";
-	fixture.type = OBS_SOURCE_TYPE_INPUT;
 	fixture.get_name = [](void *) {
 		return "Auto motion UI fixture";
-	};
-	fixture.create = [](obs_data_t *, obs_source_t *source) -> void * {
-		return source;
-	};
-	fixture.destroy = [](void *) {
 	};
 	obs_register_source(&fixture);
 	OBSSourceAutoRelease source = obs_source_create_private(fixture.id, "Auto motion UI test", nullptr);
@@ -76,7 +81,7 @@ auto smokeAutoMotionDialog() -> bool
 		obs_data_unset_user_value(settings, "v2_MotionSuppression");
 		if (mode == 0)
 			obs_data_set_double(settings, "v2_MotionSuppression", 12.0);
-		BackgroundRemoval::AutoMotionConfigurator configurator(source);
+		auto *configurator = new BackgroundRemoval::AutoConfigurator(source);
 		QTimer driver;
 		QElapsedTimer elapsed;
 		bool started = false;
@@ -100,7 +105,7 @@ auto smokeAutoMotionDialog() -> bool
 					}
 				}
 			}
-			configurator.recordMotion(0.01);
+			BackgroundRemoval::FilterContextTestAccess::measurement(source).tick(os_gettime_ns(), 0.01);
 			auto *buttons = dialog->findChild<QDialogButtonBox *>();
 			if (!buttons || !buttons->button(QDialogButtonBox::Apply)->isEnabled())
 				return;
@@ -114,7 +119,7 @@ auto smokeAutoMotionDialog() -> bool
 		});
 		elapsed.start();
 		driver.start(20);
-		configurator.show();
+		configurator->show();
 		QEventLoop loop;
 		QPointer<QDialog> calibration = findAutoMotionDialog();
 		if (!calibration)
@@ -241,22 +246,10 @@ int main(int argc, char **argv)
 				obs_data_set_int(selection, "v2_PipelineId", 0);
 				if (obs_data_get_int(selection, "v2_PipelineId") != 0)
 					result = EXIT_FAILURE;
-				BackgroundRemoval::AutoMotionConfigurator configurator(nullptr);
-				configurator.recordMotion(1.0);
-				const auto measurement = configurator.startMeasurement();
-				if (measurement->sampleCount() != 0)
-					result = EXIT_FAILURE;
-				configurator.recordMotion(0.01);
-				configurator.stopMeasurement();
-				configurator.recordMotion(1.0);
-				if (measurement->sampleCount() != 1 || !measurement->motionSuppression() ||
-				    std::abs(*measurement->motionSuppression() - 20.0) > 0.0001)
-					result = EXIT_FAILURE;
-				configurator.show();
-				if (auto *calibration = findAutoMotionDialog()) {
-					calibration->reject();
-					delete calibration;
-				}
+				auto *configurator = new BackgroundRemoval::AutoConfigurator(nullptr);
+				configurator->show();
+				configurator->reject();
+				delete configurator;
 				if (!smokeAutoMotionDialog())
 					result = EXIT_FAILURE;
 				const auto arguments = application.arguments();

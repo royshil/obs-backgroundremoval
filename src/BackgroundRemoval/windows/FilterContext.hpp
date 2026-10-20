@@ -5,7 +5,9 @@
 #pragma once
 
 #include "IRenderingPipeline.hpp"
-#include "AutoMotionConfigurator.hpp"
+#include "AutoConfigurator.hpp"
+#include "MotionMeasurement.hpp"
+#include <QPointer>
 
 #include <atomic>
 #include <cstdint>
@@ -39,8 +41,11 @@ public:
 	static const obs_source_info kSourceInfo;
 
 private:
+	friend class AutoConfigurator;
+	friend struct FilterContextTestAccess;
 	obs_source_t *const source_;
-	AutoMotionConfigurator autoMotionConfigurator_;
+	QPointer<AutoConfigurator> autoConfigurator_; // UI thread only; Qt owns the dialog.
+	MotionMeasurement motionMeasurement_;
 	std::atomic<std::shared_ptr<IRenderingPipeline>> renderingPipeline_;
 
 	std::atomic<std::int64_t> pipelineId_{62828};
