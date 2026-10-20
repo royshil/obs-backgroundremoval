@@ -57,13 +57,14 @@ void FilterContext::destroy(void *data) noexcept
 
 void FilterContext::getDefaults(obs_data_t *settings) noexcept
 {
-	obs_data_set_default_int(settings, "v2_Model_PipelineId", MPLD10Pipeline::kPipelineId);
-	obs_data_set_default_double(settings, "v2_Model_MatteSensitivity", 60.0);
-	obs_data_set_default_double(settings, "v2_RefineMask_Threshold", 0.5);
-	obs_data_set_default_bool(settings, "v2_BlurBg", false);
-	obs_data_set_default_int(settings, "v2_BlurBg_Factor", 4);
-	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", 0.1);
-	obs_data_set_default_double(settings, "v2_BlurBg_FocusDepth", 0.0);
+	const FilterProperty defaults{};
+	obs_data_set_default_int(settings, "v2_Model_PipelineId", defaults.pipelineId);
+	obs_data_set_default_double(settings, "v2_Model_MatteSensitivity", defaults.imageSimilarityThreshold);
+	obs_data_set_default_double(settings, "v2_RefineMask_Threshold", defaults.refineMaskThreshold);
+	obs_data_set_default_bool(settings, "v2_BlurBg", defaults.blurBackgroundEnabled);
+	obs_data_set_default_int(settings, "v2_BlurBg_Factor", defaults.blurBackgroundFactor);
+	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", defaults.blurFocusPoint);
+	obs_data_set_default_double(settings, "v2_BlurBg_FocusDepth", defaults.blurFocusDepth);
 }
 
 auto FilterContext::handleAutoSensitivityClick(obs_properties_t *, obs_property_t *, void *data) -> bool

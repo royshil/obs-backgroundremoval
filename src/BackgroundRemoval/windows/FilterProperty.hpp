@@ -9,15 +9,15 @@
 namespace BackgroundRemoval {
 
 struct FilterProperty {
-	long long pipelineId;
-	double imageSimilarityThreshold;
-	bool refineMaskEnabled;
-	double refineMaskThreshold;
-	double refineMaskContour;
-	bool blurBackgroundEnabled;
-	long long blurBackgroundFactor;
-	double blurFocusPoint;
-	double blurFocusDepth;
+	long long pipelineId = 62828;
+	double imageSimilarityThreshold = 60.0;
+	bool refineMaskEnabled = false;
+	double refineMaskThreshold = 0.5;
+	double refineMaskContour = 0.0;
+	bool blurBackgroundEnabled = false;
+	long long blurBackgroundFactor = 4;
+	double blurFocusPoint = 0.1;
+	double blurFocusDepth = 0.0;
 };
 
 auto decodeFilterProperty(obs_data_t *settings) noexcept -> FilterProperty;
