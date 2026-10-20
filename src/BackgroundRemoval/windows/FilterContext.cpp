@@ -15,8 +15,8 @@
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 
-#include "ModuleText.hpp"
 #include "AutoMotionConfigurator.hpp"
+#include "ModuleText.hpp"
 #include "PipelineFactory.hpp"
 
 namespace BackgroundRemoval {
@@ -156,21 +156,24 @@ auto FilterContext::getProperties(void *data) noexcept -> obs_properties_t *
 	obs_properties_add_text(p, "v2_VersionNotice", tVersionNotice().c_str(), OBS_TEXT_INFO);
 
 	obs_property_t *const autoSensitivity = obs_properties_add_button(
-		p, "v2_Model_AutoSensitivity", tAutoSetSensitivity(), handleAutoSensitivityClick);
+		p, "v2_Model_AutoSensitivity", tShowFilterWizard(), handleAutoSensitivityClick);
 	obs_property_set_long_description(autoSensitivity, tAutoSetSensitivityDescription());
 
+	obs_properties_t *const pGeneral = obs_properties_create();
+	obs_properties_add_group(p, "v2_GeneralGroup", tGeneral(), OBS_GROUP_NORMAL, pGeneral);
+
 	obs_property_t *const pipeline =
-		obs_properties_add_list(p, "v2_PipelineId", tPipeline(), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+		obs_properties_add_list(pGeneral, "v2_PipelineId", tPipeline(), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(pipeline, tPipelineAuto(), 0);
 	obs_property_list_add_int(pipeline, tPipelineMPLD10(), kMPLD10PipelineId);
 	obs_property_set_long_description(pipeline, tPipelineDescription());
 
 	obs_property_t *const maskAdjustment =
-		obs_properties_add_float_slider(p, "v2_MaskAdjustment", tMaskAdjustment(), -50.0, 50.0, 0.01);
+		obs_properties_add_float_slider(pGeneral, "v2_MaskAdjustment", tMaskAdjustment(), -50.0, 50.0, 0.01);
 	obs_property_set_long_description(maskAdjustment, tMaskAdjustmentDescription());
 
 	obs_property_t *const motionSuppression =
-		obs_properties_add_float_slider(p, "v2_MotionSuppression", tMotionSuppression(), -50.0, 50.0, 0.01);
+		obs_properties_add_float_slider(pGeneral, "v2_MotionSuppression", tMotionSuppression(), -50.0, 50.0, 0.01);
 	obs_property_set_long_description(motionSuppression, tMotionSuppressionDescription());
 
 	obs_properties_t *const blurProperties = obs_properties_create();

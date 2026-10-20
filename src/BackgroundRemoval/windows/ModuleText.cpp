@@ -23,6 +23,16 @@ auto tNewVersionsAvailable() -> const char *
 	return obs_module_text("New Version Available!");
 }
 
+auto tShowFilterWizard() -> const char *
+{
+	return obs_module_text("Show auto-configuration wizard for this filter...");
+}
+
+auto tGeneral() -> const char *
+{
+	return obs_module_text("General");
+}
+
 auto tPipeline() -> const char *
 {
 	return obs_module_text("Pipeline");
@@ -64,11 +74,6 @@ auto tMotionSuppressionDescription() -> const char *
 {
 	return obs_module_text("Higher values keep the mask steadier by ignoring small changes. "
 			       "Lower values make the mask more responsive. The default is 0.");
-}
-
-auto tAutoSetSensitivity() -> const char *
-{
-	return obs_module_text("Adjust motion suppression automatically...");
 }
 
 auto tAutoSetSensitivityDescription() -> const char *

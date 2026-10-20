@@ -9,6 +9,8 @@ namespace BackgroundRemoval {
 auto tBackgroundRemoval() -> const char *;
 auto tUpToDate() -> const char *;
 auto tNewVersionsAvailable() -> const char *;
+auto tShowFilterWizard() -> const char *;
+auto tGeneral() -> const char *;
 auto tPipeline() -> const char *;
 auto tPipelineAuto() -> const char *;
 auto tPipelineMPLD10() -> const char *;
