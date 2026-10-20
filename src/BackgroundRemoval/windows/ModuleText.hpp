@@ -32,6 +32,6 @@ auto tBlurBg() -> const char *;
 auto tBlurBgStrength() -> const char *;
 auto tBlurBgFocusPoint() -> const char *;
 auto tBlurBgFocusDepth() -> const char *;
-auto tRefineMask() -> const char *;
+auto tAboutThisPlugin() -> const char *;
 
 } // namespace BackgroundRemoval

@@ -45,7 +45,7 @@ auto tPipelineAuto() -> const char *
 
 auto tPipelineMPLD10() -> const char *
 {
-	return obs_module_text("MediaPipe (Landscape) - DirectML (Baseline)");
+	return obs_module_text("MediaPipe (Landscape) - DirectML (Basic)");
 }
 
 auto tPipelineDescription() -> const char *
@@ -122,7 +122,7 @@ auto tMotionMeasurementResult() -> const char *
 
 auto tBlurBg() -> const char *
 {
-	return obs_module_text("Blur Bg.");
+	return obs_module_text("Blur Background");
 }
 
 auto tBlurBgStrength() -> const char *
@@ -143,6 +143,11 @@ auto tBlurBgFocusDepth() -> const char *
 auto tRefineMask() -> const char *
 {
 	return obs_module_text("Refine Mask");
+}
+
+auto tAboutThisPlugin() -> const char *
+{
+	return obs_module_text("About this plugin");
 }
 
 } // namespace BackgroundRemoval
