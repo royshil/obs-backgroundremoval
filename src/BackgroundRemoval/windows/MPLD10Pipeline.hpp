@@ -13,8 +13,6 @@
 
 #include "IRenderingPipeline.hpp"
 
-#include "MotionMeasurement.hpp"
-
 namespace BackgroundRemoval {
 
 class MPLD10Engine;
@@ -39,7 +37,7 @@ public:
 	auto operator=(const MPLD10Pipeline &) -> MPLD10Pipeline & = delete;
 	auto operator=(MPLD10Pipeline &&) -> MPLD10Pipeline & = delete;
 
-	void setMotionMeasurement(std::shared_ptr<MotionMeasurement> measurement) noexcept override;
+	auto getMotion() const noexcept -> std::optional<double> override;
 	void setMotionSuppression(double value) noexcept override;
 	void setMaskAdjustment(double value) noexcept override;
 	void setBlurBgEnabled(bool value) noexcept override;
@@ -74,7 +72,7 @@ private:
 	const std::uint32_t width_;
 	const std::uint32_t height_;
 	obs_source_t *const source_;
-	std::atomic<std::shared_ptr<MotionMeasurement>> motionMeasurement_;
+	std::atomic<double> motion_{-1.0};
 	FilterState filterState_ = FilterState::NeedsProcessing;
 	bool frameBlurBackgroundEnabled_ = false;
 	gs_texture_t *frameBlurredTexture_ = nullptr;
@@ -83,7 +81,6 @@ private:
 	std::uint32_t fpsDenominator_ = 0;
 	void updateVideoTiming() noexcept;
 	bool differenceStaged_ = false;
-	std::uint64_t differenceTimestamp_ = 0;
 	std::uint32_t remainingInferenceFrames_ = 0;
 
 	// MARK: - Textures and GPU Resources

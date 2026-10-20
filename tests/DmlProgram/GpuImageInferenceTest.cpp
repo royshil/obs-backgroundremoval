@@ -75,7 +75,6 @@ struct MPLD10PipelineTestAccess {
 	{
 		if (texture)
 			gs_stage_texture(pipeline.lumaAbsDiffStagesurf_.get(), texture);
-		pipeline.differenceTimestamp_ = os_gettime_ns();
 		pipeline.differenceStaged_ = true;
 	}
 	static void setRemaining(MPLD10Pipeline &pipeline, std::uint32_t count)
@@ -308,9 +307,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 	{
 		BackgroundRemoval::MPLD10Pipeline pipeline(filter.get(), 256, 144);
 		pipeline.setMotionSuppression(20.0);
-		auto measurement = std::make_shared<BackgroundRemoval::MotionMeasurement>(
-			0, std::numeric_limits<std::uint64_t>::max());
-		pipeline.setMotionMeasurement(measurement);
+		CHECK_FALSE(pipeline.getMotion());
 		filterData->pipeline_ = &pipeline;
 		inputData->pipeline_ = &pipeline;
 		CHECK_FALSE(pipeline.needsRecreation());
@@ -323,6 +320,10 @@ TEST_CASE("LandscapeRenderingInitialization")
 			gs_texture_create(256, 144, GS_BGRA, 1, &blackBytes, 0), gs_texture_destroy};
 		REQUIRE(black);
 		inputData->image_ = black.get();
+		REQUIRE(obs_filter_get_target(filter.get()) == inputSource.get());
+		REQUIRE(obs_source_enabled(filter.get()));
+		REQUIRE(obs_source_get_width(inputSource.get()) == 256);
+		REQUIRE(obs_source_get_height(inputSource.get()) == 144);
 		gs_set_render_target_with_color_space(destination.get(), nullptr, GS_CS_709_EXTENDED);
 		gs_set_viewport(0, 0, 256, 144);
 		gs_ortho(0, 256, 0, 144, -100, 100);
@@ -348,6 +349,9 @@ TEST_CASE("LandscapeRenderingInitialization")
 		std::vector<float> heldExpected(expected.size(), 0.0F);
 		for (int frame = 0; frame < frameCount; ++frame) {
 			pipeline.videoTick(1.0F / 30);
+			REQUIRE(pipeline.getMotion());
+			CHECK(*pipeline.getMotion() >= 0.0);
+			CHECK(*pipeline.getMotion() <= 1.0);
 			if (frame >= 3) {
 				for (auto &value : input)
 					value = 1 - value;
@@ -444,13 +448,6 @@ TEST_CASE("LandscapeRenderingInitialization")
 		std::unique_ptr<obs_data_t, void (*)(obs_data_t *)> calibrated{obs_source_get_settings(filter.get()),
 									       obs_data_release};
 		CHECK_FALSE(obs_data_has_user_value(calibrated.get(), "v2_MotionSuppression"));
-		measurement->stop();
-		pipeline.setMotionMeasurement(nullptr);
-		REQUIRE(measurement->sampleCount() > 0);
-		const auto suppression = measurement->motionSuppression();
-		REQUIRE(suppression);
-		CHECK(*suppression >= -50.0);
-		CHECK(*suppression <= 50.0);
 		// Measuring alone must not change the user's settings.
 		CHECK_FALSE(obs_data_has_user_value(calibrated.get(), "v2_MotionSuppression"));
 		// Seed a portrait mask, then make the Engine expect RGBA while Pipeline uses BGRA.

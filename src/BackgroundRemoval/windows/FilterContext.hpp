@@ -5,6 +5,7 @@
 #pragma once
 
 #include "IRenderingPipeline.hpp"
+#include "AutoMotionConfigurator.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -39,6 +40,7 @@ public:
 
 private:
 	obs_source_t *const source_;
+	AutoMotionConfigurator autoMotionConfigurator_;
 	std::atomic<std::int64_t> pipelineId_{62828};
 	std::atomic<double> motionSuppression_{0.0};
 	std::atomic<double> maskAdjustment_{0.0};

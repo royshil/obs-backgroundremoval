@@ -34,7 +34,9 @@ const obs_source_info FilterContext::kSourceInfo = {
 	.video_render = videoRender,
 };
 
-FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : source_(source)
+FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source)
+	: source_(source),
+	  autoMotionConfigurator_(source)
 {
 	if (!settings || !source_) {
 		throw std::invalid_argument("Invalid Windows background-removal context arguments");
@@ -97,10 +99,11 @@ void FilterContext::applyRenderingSettings(IRenderingPipeline &pipeline) const n
 auto FilterContext::handleAutoSensitivityClick(obs_properties_t *, obs_property_t *, void *data) -> bool
 {
 	if (auto *contextPtr = static_cast<std::shared_ptr<FilterContext> *>(data); contextPtr && *contextPtr) {
-		const auto pipeline = (*contextPtr)->renderingPipeline_.load(std::memory_order_acquire);
-		return AutoMotionConfigurator::show((*contextPtr)->source_, pipeline);
+		const auto context = *contextPtr;
+		return context->autoMotionConfigurator_.show();
 	} else {
-		return AutoMotionConfigurator::show(nullptr, nullptr);
+		AutoMotionConfigurator configurator(nullptr);
+		return configurator.show();
 	}
 }
 
@@ -211,6 +214,9 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 		// before ticking even when update() ran concurrently with the previous application.
 		context->applyRenderingSettings(*pipeline);
 		pipeline->videoTick(seconds);
+		if (const auto motion = pipeline->getMotion()) {
+			context->autoMotionConfigurator_.recordMotion(*motion);
+		}
 	}
 }
 

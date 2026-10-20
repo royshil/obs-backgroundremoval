@@ -386,9 +386,10 @@ MPLD10Pipeline::~MPLD10Pipeline() noexcept
 	obs_leave_graphics();
 }
 
-void MPLD10Pipeline::setMotionMeasurement(std::shared_ptr<MotionMeasurement> measurement) noexcept
+auto MPLD10Pipeline::getMotion() const noexcept -> std::optional<double>
 {
-	motionMeasurement_.store(std::move(measurement), std::memory_order_release);
+	const auto motion = motion_.load(std::memory_order_relaxed);
+	return motion >= 0.0 ? std::optional<double>(motion) : std::nullopt;
 }
 
 void MPLD10Pipeline::setMotionSuppression(double value) noexcept
@@ -440,6 +441,7 @@ void MPLD10Pipeline::updateVideoTiming() noexcept
 
 void MPLD10Pipeline::videoTick(float) noexcept
 {
+	motion_.store(-1.0, std::memory_order_relaxed);
 	updateVideoTiming();
 	if (differenceStaged_) {
 		TraceLoggingThreadActivity<g_hProvider, 0x1> trace;
@@ -469,9 +471,8 @@ void MPLD10Pipeline::videoTick(float) noexcept
 		obs_leave_graphics();
 		differenceStaged_ = false;
 		if (valid) {
-			if (const auto measurement = motionMeasurement_.load(std::memory_order_acquire)) {
-				measurement->record(differenceTimestamp_, double(sum) / kModelInputMaximumSum);
-			}
+			motion_.store(std::clamp(double(sum) / kModelInputMaximumSum, 0.0, 1.0),
+				      std::memory_order_relaxed);
 			const double sensitivity = imageSimilarityThreshold_.load(std::memory_order_relaxed);
 			bool motion = !std::isfinite(sensitivity);
 			if (!motion) {
@@ -681,7 +682,6 @@ void MPLD10Pipeline::videoRender(gs_effect_t *) noexcept
 			gs_draw_sprite(nullptr, 0, kModelWidth, kModelHeight);
 		}
 		gs_stage_texture(lumaAbsDiffStagesurf_.get(), lumaAbsDiffTexture_.get());
-		differenceTimestamp_ = os_gettime_ns();
 		differenceStaged_ = true;
 		std::swap(lastInputTexture_, inputTexture_);
 	}

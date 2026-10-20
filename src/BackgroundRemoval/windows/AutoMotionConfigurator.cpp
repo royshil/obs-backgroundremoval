@@ -3,19 +3,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "AutoMotionConfigurator.hpp"
-#include "IRenderingPipeline.hpp"
 #include "ModuleText.hpp"
 #include "MotionMeasurement.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QDialog>
 #include <QDialogButtonBox>
+#include <QElapsedTimer>
+#include <obs.hpp>
 #include <QLabel>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
+#include <optional>
 #include <util/platform.h>
 #include <utility>
 
@@ -24,11 +27,41 @@ namespace {
 constexpr int kMeasurementMs = 3000;
 }
 
-AutoMotionConfigurator::AutoMotionConfigurator(obs_source_t *source, std::shared_ptr<IRenderingPipeline> pipeline,
-					       QWidget *parent)
+class AutoMotionDialog final : public QDialog {
+public:
+	AutoMotionDialog(AutoMotionConfigurator &configurator, obs_source_t *source, QWidget *parent);
+	~AutoMotionDialog() override;
+
+protected:
+	void done(int result) override;
+
+private:
+	void startMeasurement();
+	void updateMeasurement();
+	void stopMeasurement();
+	void setPreview(bool enabled);
+	void applyValue(double value);
+	void restoreValue();
+	OBSSource source_;
+	AutoMotionConfigurator &configurator_;
+	std::shared_ptr<MotionMeasurement> measurement_;
+	std::optional<double> recommendation_;
+	double originalValue_ = 0.0;
+	bool originalHasUserValue_ = false;
+	bool previewApplied_ = false;
+	QElapsedTimer elapsed_;
+	QTimer *timer_;
+	QLabel *status_;
+	QProgressBar *progress_;
+	QPushButton *start_;
+	QPushButton *apply_;
+	QCheckBox *preview_;
+};
+
+AutoMotionDialog::AutoMotionDialog(AutoMotionConfigurator &configurator, obs_source_t *source, QWidget *parent)
 	: QDialog(parent),
 	  source_(source),
-	  pipeline_(std::move(pipeline)),
+	  configurator_(configurator),
 	  timer_(new QTimer(this)),
 	  status_(new QLabel(this)),
 	  progress_(new QProgressBar(this)),
@@ -64,36 +97,27 @@ AutoMotionConfigurator::AutoMotionConfigurator(obs_source_t *source, std::shared
 		originalValue_ = obs_data_get_double(settings, "v2_MotionSuppression");
 		originalHasUserValue_ = obs_data_has_user_value(settings, "v2_MotionSuppression");
 	}
-	if (!source_ || !pipeline_) {
+	if (!source_) {
 		start_->setEnabled(false);
 		status_->setText(tNoMotionInput());
 	}
 }
 
-AutoMotionConfigurator::~AutoMotionConfigurator()
+AutoMotionDialog::~AutoMotionDialog()
 {
 	stopMeasurement();
 	if (previewApplied_)
 		restoreValue();
 }
 
-auto AutoMotionConfigurator::show(obs_source_t *source, std::shared_ptr<IRenderingPipeline> pipeline) -> bool
-{
-	AutoMotionConfigurator dialog(source, std::move(pipeline), QApplication::activeWindow());
-	dialog.exec();
-	// The standard OBS button handler refreshes the property view after this returns.
-	return true;
-}
-
-void AutoMotionConfigurator::startMeasurement()
+void AutoMotionDialog::startMeasurement()
 {
 	preview_->setChecked(false);
 	preview_->setEnabled(false);
 	apply_->setEnabled(false);
 	recommendation_.reset();
 	stopMeasurement();
-	measurement_ = std::make_shared<MotionMeasurement>(os_gettime_ns(), std::uint64_t(kMeasurementMs) * 1000000);
-	pipeline_->setMotionMeasurement(measurement_);
+	measurement_ = configurator_.startMeasurement();
 	progress_->setValue(0);
 	status_->setText(tMeasuringMotion());
 	start_->setEnabled(false);
@@ -101,7 +125,7 @@ void AutoMotionConfigurator::startMeasurement()
 	timer_->start();
 }
 
-void AutoMotionConfigurator::updateMeasurement()
+void AutoMotionDialog::updateMeasurement()
 {
 	progress_->setValue(static_cast<int>(std::min<qint64>(elapsed_.elapsed(), kMeasurementMs)));
 	if (elapsed_.elapsed() < kMeasurementMs)
@@ -121,23 +145,23 @@ void AutoMotionConfigurator::updateMeasurement()
 	apply_->setEnabled(true);
 }
 
-void AutoMotionConfigurator::stopMeasurement()
+void AutoMotionDialog::stopMeasurement()
 {
 	timer_->stop();
 	if (measurement_) {
 		measurement_->stop();
-		pipeline_->setMotionMeasurement(nullptr);
+		configurator_.stopMeasurement();
 	}
 }
 
-void AutoMotionConfigurator::applyValue(double value)
+void AutoMotionDialog::applyValue(double value)
 {
 	OBSDataAutoRelease settings = obs_data_create();
 	obs_data_set_double(settings, "v2_MotionSuppression", value);
 	obs_source_update(source_, settings);
 }
 
-void AutoMotionConfigurator::restoreValue()
+void AutoMotionDialog::restoreValue()
 {
 	if (originalHasUserValue_) {
 		applyValue(originalValue_);
@@ -149,7 +173,7 @@ void AutoMotionConfigurator::restoreValue()
 	previewApplied_ = false;
 }
 
-void AutoMotionConfigurator::setPreview(bool enabled)
+void AutoMotionDialog::setPreview(bool enabled)
 {
 	if (enabled && recommendation_) {
 		applyValue(*recommendation_);
@@ -159,7 +183,7 @@ void AutoMotionConfigurator::setPreview(bool enabled)
 	}
 }
 
-void AutoMotionConfigurator::done(int result)
+void AutoMotionDialog::done(int result)
 {
 	stopMeasurement();
 	if (result == QDialog::Accepted) {
@@ -171,6 +195,39 @@ void AutoMotionConfigurator::done(int result)
 		restoreValue();
 	}
 	QDialog::done(result);
+}
+
+AutoMotionConfigurator::~AutoMotionConfigurator()
+{
+	stopMeasurement();
+}
+
+auto AutoMotionConfigurator::show() -> bool
+{
+	AutoMotionDialog dialog(*this, source_, QApplication::activeWindow());
+	dialog.exec();
+	return true;
+}
+
+auto AutoMotionConfigurator::startMeasurement() -> std::shared_ptr<MotionMeasurement>
+{
+	stopMeasurement();
+	auto measurement =
+		std::make_shared<MotionMeasurement>(os_gettime_ns(), std::uint64_t(kMeasurementMs) * 1000000);
+	measurement_.store(measurement, std::memory_order_release);
+	return measurement;
+}
+
+void AutoMotionConfigurator::stopMeasurement() noexcept
+{
+	if (const auto measurement = measurement_.exchange(nullptr, std::memory_order_acq_rel))
+		measurement->stop();
+}
+
+void AutoMotionConfigurator::recordMotion(double motion) noexcept
+{
+	if (const auto measurement = measurement_.load(std::memory_order_acquire))
+		measurement->record(os_gettime_ns(), motion);
 }
 
 } // namespace BackgroundRemoval

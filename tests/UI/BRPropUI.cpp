@@ -5,6 +5,7 @@
 #include <BackgroundRemoval/windows/FilterContext.hpp>
 #include <BackgroundRemoval/windows/ModuleText.hpp>
 #include <BackgroundRemoval/windows/AutoMotionConfigurator.hpp>
+#include <BackgroundRemoval/windows/MotionMeasurement.hpp>
 #include <UI/AboutDialog.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 
@@ -15,9 +16,11 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QDebug>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QElapsedTimer>
 #include <QGroupBox>
 #include <QPushButton>
 #include <QPixmap>
@@ -28,6 +31,7 @@
 #include <util/text-lookup.h>
 
 #include <cstdlib>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 
@@ -39,6 +43,80 @@ auto properties(void *) -> obs_properties_t *
 {
 	auto *result = BackgroundRemoval::FilterContext::getProperties(nullptr);
 	return result;
+}
+
+auto smokeAutoMotionDialog() -> bool
+{
+	obs_source_info fixture{};
+	fixture.id = "auto-motion-ui-fixture";
+	fixture.type = OBS_SOURCE_TYPE_INPUT;
+	fixture.get_name = [](void *) {
+		return "Auto motion UI fixture";
+	};
+	fixture.create = [](obs_data_t *, obs_source_t *source) -> void * {
+		return source;
+	};
+	fixture.destroy = [](void *) {
+	};
+	obs_register_source(&fixture);
+	OBSSourceAutoRelease source = obs_source_create_private(fixture.id, "Auto motion UI test", nullptr);
+	if (!source)
+		return false;
+	// Cancel restores both an explicit value and an unset value; Apply keeps the result.
+	for (int mode = 0; mode < 3; ++mode) {
+		OBSDataAutoRelease settings = obs_source_get_settings(source);
+		obs_data_unset_user_value(settings, "v2_MotionSuppression");
+		if (mode == 0)
+			obs_data_set_double(settings, "v2_MotionSuppression", 12.0);
+		BackgroundRemoval::AutoMotionConfigurator configurator(source);
+		QTimer driver;
+		QElapsedTimer elapsed;
+		bool started = false;
+		bool previewed = false;
+		bool valid = true;
+		QObject::connect(&driver, &QTimer::timeout, [&] {
+			auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+			if (!dialog)
+				return;
+			if (elapsed.elapsed() > 6000) {
+				valid = false;
+				dialog->reject();
+				return;
+			}
+			if (!started) {
+				for (auto *button : dialog->findChildren<QPushButton *>()) {
+					if (button->text() == BackgroundRemoval::tStartMotionMeasurement()) {
+						button->click();
+						started = true;
+						break;
+					}
+				}
+			}
+			configurator.recordMotion(0.01);
+			auto *preview = dialog->findChild<QCheckBox *>();
+			if (!preview || !preview->isEnabled())
+				return;
+			preview->setChecked(true);
+			previewed = true;
+			valid &= std::abs(obs_data_get_double(settings, "v2_MotionSuppression") - 20.0) < 0.0001;
+			if (mode == 2)
+				dialog->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Apply)->click();
+			else
+				dialog->reject();
+		});
+		elapsed.start();
+		driver.start(20);
+		configurator.show();
+		driver.stop();
+		if (!valid || !previewed)
+			return false;
+		if (obs_data_has_user_value(settings, "v2_MotionSuppression") != (mode != 1))
+			return false;
+		const double expected = mode == 0 ? 12.0 : mode == 2 ? 20.0 : 0.0;
+		if (std::abs(obs_data_get_double(settings, "v2_MotionSuppression") - expected) > 0.0001)
+			return false;
+	}
+	return true;
 }
 } // namespace
 
@@ -148,9 +226,24 @@ int main(int argc, char **argv)
 				obs_data_set_int(selection, "v2_PipelineId", 0);
 				if (obs_data_get_int(selection, "v2_PipelineId") != 0)
 					result = EXIT_FAILURE;
-				BackgroundRemoval::AutoMotionConfigurator calibration(nullptr, nullptr, &dialog);
-				QTimer::singleShot(0, &calibration, &QDialog::reject);
-				if (calibration.exec() != QDialog::Rejected)
+				BackgroundRemoval::AutoMotionConfigurator configurator(nullptr);
+				configurator.recordMotion(1.0);
+				const auto measurement = configurator.startMeasurement();
+				if (measurement->sampleCount() != 0)
+					result = EXIT_FAILURE;
+				configurator.recordMotion(0.01);
+				configurator.stopMeasurement();
+				configurator.recordMotion(1.0);
+				if (measurement->sampleCount() != 1 || !measurement->motionSuppression() ||
+				    std::abs(*measurement->motionSuppression() - 20.0) > 0.0001)
+					result = EXIT_FAILURE;
+				QTimer::singleShot(0, [] {
+					if (auto *calibration =
+						    qobject_cast<QDialog *>(QApplication::activeModalWidget()))
+						calibration->reject();
+				});
+				configurator.show();
+				if (!smokeAutoMotionDialog())
 					result = EXIT_FAILURE;
 				const auto arguments = application.arguments();
 				const int screenshot = arguments.indexOf("--screenshot");
