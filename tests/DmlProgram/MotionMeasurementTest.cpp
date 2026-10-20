@@ -5,6 +5,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest.h>
 #include <BackgroundRemoval/windows/MotionMeasurement.hpp>
+#include <chrono>
 #include <limits>
 #include <thread>
 
