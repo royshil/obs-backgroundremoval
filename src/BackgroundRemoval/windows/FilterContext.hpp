@@ -41,6 +41,8 @@ public:
 private:
 	obs_source_t *const source_;
 	AutoMotionConfigurator autoMotionConfigurator_;
+	std::atomic<std::shared_ptr<IRenderingPipeline>> renderingPipeline_;
+
 	std::atomic<std::int64_t> pipelineId_{62828};
 	std::atomic<double> motionSuppression_{0.0};
 	std::atomic<double> maskAdjustment_{0.0};
@@ -48,7 +50,6 @@ private:
 	std::atomic<std::int64_t> blurBgFactor_{4};
 	std::atomic<double> blurBgFocusPoint_{0.1};
 	std::atomic<double> blurBgFocusDepth_{0.0};
-	std::atomic<std::shared_ptr<IRenderingPipeline>> renderingPipeline_;
 	// Requested selection (Auto or explicit ID), accessed only by videoTick().
 	std::int64_t activePipelineSelection_ = -1;
 

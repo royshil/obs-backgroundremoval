@@ -307,7 +307,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 	{
 		BackgroundRemoval::MPLD10Pipeline pipeline(filter.get(), 256, 144);
 		pipeline.setMotionSuppression(20.0);
-		CHECK_FALSE(pipeline.getMotion());
+		CHECK(std::isnan(pipeline.getMotion()));
 		filterData->pipeline_ = &pipeline;
 		inputData->pipeline_ = &pipeline;
 		CHECK_FALSE(pipeline.needsRecreation());
@@ -349,9 +349,10 @@ TEST_CASE("LandscapeRenderingInitialization")
 		std::vector<float> heldExpected(expected.size(), 0.0F);
 		for (int frame = 0; frame < frameCount; ++frame) {
 			pipeline.videoTick(1.0F / 30);
-			REQUIRE(pipeline.getMotion());
-			CHECK(*pipeline.getMotion() >= 0.0);
-			CHECK(*pipeline.getMotion() <= 1.0);
+			const auto motion = pipeline.getMotion();
+			REQUIRE(std::isfinite(motion));
+			CHECK(motion >= 0.0);
+			CHECK(motion <= 1.0);
 			if (frame >= 3) {
 				for (auto &value : input)
 					value = 1 - value;
@@ -641,9 +642,11 @@ TEST_CASE("LandscapeRenderingInitialization")
 			pipeline.videoTick(1.0F / 60);
 			CHECK_FALSE(Access::staged(pipeline));
 			CHECK(Access::remaining(pipeline) == (motion ? 3u : 0u));
+			CHECK(pipeline.getMotion() == doctest::Approx(double(value) / 255.0));
 			Access::setRemaining(pipeline, 1);
 			pipeline.videoTick(1.0F / 60);
 			CHECK(Access::remaining(pipeline) == 1);
+			CHECK(std::isnan(pipeline.getMotion()));
 			// A new ON result extends an existing burst.
 			Access::stageDifference(pipeline, difference.get());
 			pipeline.videoTick(1.0F / 60);
@@ -658,6 +661,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 			pipeline.videoTick(1.0F / 30);
 			CHECK(Access::staged(pipeline));
 			CHECK(Access::remaining(pipeline) == remaining);
+			CHECK(std::isnan(pipeline.getMotion()));
 		}
 	}
 	gs_set_render_target_with_color_space(previousTarget, nullptr, previousSpace);

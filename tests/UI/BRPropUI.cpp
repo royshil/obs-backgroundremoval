@@ -16,11 +16,11 @@
 
 #include <QApplication>
 #include <QComboBox>
-#include <QCheckBox>
 #include <QDebug>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QGroupBox>
 #include <QPushButton>
 #include <QPixmap>
@@ -45,6 +45,14 @@ auto properties(void *) -> obs_properties_t *
 	return result;
 }
 
+auto findAutoMotionDialog() -> QDialog *
+{
+	for (auto *widget : QApplication::topLevelWidgets())
+		if (widget->objectName() == "autoMotionDialog")
+			return qobject_cast<QDialog *>(widget);
+	return nullptr;
+}
+
 auto smokeAutoMotionDialog() -> bool
 {
 	obs_source_info fixture{};
@@ -62,7 +70,7 @@ auto smokeAutoMotionDialog() -> bool
 	OBSSourceAutoRelease source = obs_source_create_private(fixture.id, "Auto motion UI test", nullptr);
 	if (!source)
 		return false;
-	// Cancel restores both an explicit value and an unset value; Apply keeps the result.
+	// Cancel preserves both an explicit value and an unset value; Apply keeps the result.
 	for (int mode = 0; mode < 3; ++mode) {
 		OBSDataAutoRelease settings = obs_source_get_settings(source);
 		obs_data_unset_user_value(settings, "v2_MotionSuppression");
@@ -72,10 +80,10 @@ auto smokeAutoMotionDialog() -> bool
 		QTimer driver;
 		QElapsedTimer elapsed;
 		bool started = false;
-		bool previewed = false;
+		bool measured = false;
 		bool valid = true;
 		QObject::connect(&driver, &QTimer::timeout, [&] {
-			auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+			auto *dialog = findAutoMotionDialog();
 			if (!dialog)
 				return;
 			if (elapsed.elapsed() > 6000) {
@@ -93,22 +101,29 @@ auto smokeAutoMotionDialog() -> bool
 				}
 			}
 			configurator.recordMotion(0.01);
-			auto *preview = dialog->findChild<QCheckBox *>();
-			if (!preview || !preview->isEnabled())
+			auto *buttons = dialog->findChild<QDialogButtonBox *>();
+			if (!buttons || !buttons->button(QDialogButtonBox::Apply)->isEnabled())
 				return;
-			preview->setChecked(true);
-			previewed = true;
-			valid &= std::abs(obs_data_get_double(settings, "v2_MotionSuppression") - 20.0) < 0.0001;
-			if (mode == 2)
-				dialog->findChild<QDialogButtonBox *>()->button(QDialogButtonBox::Apply)->click();
-			else
+			measured = true;
+			if (mode == 2) {
+				buttons->button(QDialogButtonBox::Apply)->click();
+				valid &= dialog->isVisible();
+				buttons->button(QDialogButtonBox::Ok)->click();
+			} else
 				dialog->reject();
 		});
 		elapsed.start();
 		driver.start(20);
 		configurator.show();
+		QEventLoop loop;
+		QPointer<QDialog> calibration = findAutoMotionDialog();
+		if (!calibration)
+			return false;
+		QObject::connect(calibration, &QDialog::finished, &loop, &QEventLoop::quit);
+		loop.exec();
+		delete calibration.data();
 		driver.stop();
-		if (!valid || !previewed)
+		if (!valid || !measured)
 			return false;
 		if (obs_data_has_user_value(settings, "v2_MotionSuppression") != (mode != 1))
 			return false;
@@ -237,12 +252,11 @@ int main(int argc, char **argv)
 				if (measurement->sampleCount() != 1 || !measurement->motionSuppression() ||
 				    std::abs(*measurement->motionSuppression() - 20.0) > 0.0001)
 					result = EXIT_FAILURE;
-				QTimer::singleShot(0, [] {
-					if (auto *calibration =
-						    qobject_cast<QDialog *>(QApplication::activeModalWidget()))
-						calibration->reject();
-				});
 				configurator.show();
+				if (auto *calibration = findAutoMotionDialog()) {
+					calibration->reject();
+					delete calibration;
+				}
 				if (!smokeAutoMotionDialog())
 					result = EXIT_FAILURE;
 				const auto arguments = application.arguments();

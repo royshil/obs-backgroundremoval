@@ -6,19 +6,13 @@
 
 #include <cstdint>
 
-struct gs_effect_t;
+struct gs_effect;
+typedef struct gs_effect gs_effect_t;
 
 namespace BackgroundRemoval {
 
 inline constexpr std::int32_t kMPLD10PipelineId = 62828;
 
-/**
- * @brief Windows background-removal rendering contract.
- *
- * Lifecycle calls and recreation checks belong to the OBS video thread. Parameter
- * setters may run concurrently with rendering; multiple setters are not a single
- * atomic settings transaction. Implementations must not propagate exceptions.
- */
 class IRenderingPipeline {
 public:
 	virtual ~IRenderingPipeline() noexcept = default;

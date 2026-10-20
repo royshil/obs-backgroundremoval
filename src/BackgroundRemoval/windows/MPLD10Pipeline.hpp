@@ -8,8 +8,11 @@
 #include <atomic>
 #include <cstdint>
 #include <exception>
+#include <limits>
 #include <memory>
 #include <source_location>
+
+#include <obs-module.h>
 
 #include "IRenderingPipeline.hpp"
 
@@ -37,7 +40,7 @@ public:
 	auto operator=(const MPLD10Pipeline &) -> MPLD10Pipeline & = delete;
 	auto operator=(MPLD10Pipeline &&) -> MPLD10Pipeline & = delete;
 
-	auto getMotion() const noexcept -> std::optional<double> override;
+	auto getMotion() const noexcept -> double override;
 	void setMotionSuppression(double value) noexcept override;
 	void setMaskAdjustment(double value) noexcept override;
 	void setBlurBgEnabled(bool value) noexcept override;
@@ -72,7 +75,7 @@ private:
 	const std::uint32_t width_;
 	const std::uint32_t height_;
 	obs_source_t *const source_;
-	std::atomic<double> motion_{-1.0};
+	std::atomic<double> motion_{std::numeric_limits<double>::quiet_NaN()};
 	FilterState filterState_ = FilterState::NeedsProcessing;
 	bool frameBlurBackgroundEnabled_ = false;
 	gs_texture_t *frameBlurredTexture_ = nullptr;

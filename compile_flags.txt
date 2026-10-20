@@ -11,6 +11,9 @@
 -Iobs_installed/Frameworks/libobs.framework/Headers
 -Iobs_installed/include/obs
 -I.deps/obs-deps-qt6/include
+-I.deps/obs-deps-qt6/include/QtCore
+-I.deps/obs-deps-qt6/include/QtGui
+-I.deps/obs-deps-qt6/include/QtWidgets
 -I.deps/obs-deps-qt6/lib/QtCore.framework/Headers
 -I.deps/obs-deps-qt6/lib/QtGui.framework/Headers
 -I.deps/obs-deps-qt6/lib/QtWidgets.framework/Headers

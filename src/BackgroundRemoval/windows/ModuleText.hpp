@@ -7,7 +7,8 @@
 namespace BackgroundRemoval {
 
 auto tBackgroundRemoval() -> const char *;
-auto tAboutThisPlugin(bool newVersionAvailable = false) -> const char *;
+auto tUpToDate() -> const char *;
+auto tNewVersionsAvailable() -> const char *;
 auto tPipeline() -> const char *;
 auto tPipelineAuto() -> const char *;
 auto tPipelineMPLD10() -> const char *;
@@ -25,7 +26,6 @@ auto tMeasureMotionAgain() -> const char *;
 auto tMeasuringMotion() -> const char *;
 auto tNoMotionInput() -> const char *;
 auto tMotionMeasurementResult() -> const char *;
-auto tMotionPreview() -> const char *;
 auto tBlurBg() -> const char *;
 auto tBlurBgStrength() -> const char *;
 auto tBlurBgFocusPoint() -> const char *;

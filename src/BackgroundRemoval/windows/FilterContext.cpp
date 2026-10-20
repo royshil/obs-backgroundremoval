@@ -4,6 +4,7 @@
 
 #include "FilterContext.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <exception>
 #include <memory>
@@ -19,6 +20,30 @@
 #include "PipelineFactory.hpp"
 
 namespace BackgroundRemoval {
+
+namespace {
+
+auto tVersionNotice() -> std::string
+{
+	std::string versionNotice = "<a href=\"https://github.com/royshil/obs-backgroundremoval/releases\">";
+	versionNotice += tBackgroundRemoval();
+	versionNotice += " ";
+	versionNotice += PLUGIN_VERSION_STR;
+	if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion();
+	    latestVersion.has_value()) {
+		versionNotice += " (";
+		if (UpdateConfig::isSemverNewer(latestVersion.value(), PLUGIN_VERSION_STR)) {
+			versionNotice += tNewVersionsAvailable();
+		} else {
+			versionNotice += tUpToDate();
+		}
+		versionNotice += ")";
+	}
+	versionNotice += "</a>";
+	return versionNotice;
+}
+
+} // namespace
 
 const obs_source_info FilterContext::kSourceInfo = {
 	.id = "background_removal",
@@ -100,10 +125,10 @@ auto FilterContext::handleAutoSensitivityClick(obs_properties_t *, obs_property_
 {
 	if (auto *contextPtr = static_cast<std::shared_ptr<FilterContext> *>(data); contextPtr && *contextPtr) {
 		const auto context = *contextPtr;
-		return context->autoMotionConfigurator_.show();
+		return context->autoMotionConfigurator_.show(context);
 	} else {
-		AutoMotionConfigurator configurator(nullptr);
-		return configurator.show();
+		auto configurator = std::make_shared<AutoMotionConfigurator>(nullptr);
+		return configurator->show(configurator);
 	}
 }
 
@@ -126,16 +151,13 @@ void FilterContext::getDefaults(obs_data_t *settings) noexcept
 
 auto FilterContext::getProperties(void *data) noexcept -> obs_properties_t *
 {
-	const char *aboutButtonText;
-	if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion(); latestVersion) {
-		aboutButtonText = tAboutThisPlugin(UpdateConfig::isSemverNewer(*latestVersion, PLUGIN_VERSION_STR));
-	} else {
-		aboutButtonText = tAboutThisPlugin(false);
-	}
-
 	obs_properties_t *const p = obs_properties_create();
 
-	obs_properties_add_button2(p, "v2_AboutButton", aboutButtonText, handleAboutButtonClicked, data);
+	obs_properties_add_text(p, "v2_VersionNotice", tVersionNotice().c_str(), OBS_TEXT_INFO);
+
+	obs_property_t *const autoSensitivity = obs_properties_add_button(
+		p, "v2_Model_AutoSensitivity", tAutoSetSensitivity(), handleAutoSensitivityClick);
+	obs_property_set_long_description(autoSensitivity, tAutoSetSensitivityDescription());
 
 	obs_property_t *const pipeline =
 		obs_properties_add_list(p, "v2_PipelineId", tPipeline(), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -150,10 +172,6 @@ auto FilterContext::getProperties(void *data) noexcept -> obs_properties_t *
 	obs_property_t *const motionSuppression =
 		obs_properties_add_float_slider(p, "v2_MotionSuppression", tMotionSuppression(), -50.0, 50.0, 0.01);
 	obs_property_set_long_description(motionSuppression, tMotionSuppressionDescription());
-
-	obs_property_t *const autoSensitivity = obs_properties_add_button(
-		p, "v2_Model_AutoSensitivity", tAutoSetSensitivity(), handleAutoSensitivityClick);
-	obs_property_set_long_description(autoSensitivity, tAutoSetSensitivityDescription());
 
 	obs_properties_t *const blurProperties = obs_properties_create();
 	obs_properties_add_int_slider(blurProperties, "v2_BlurBg_Factor", tBlurBgStrength(), 0, 20, 1);
@@ -214,8 +232,8 @@ void FilterContext::videoTick(void *data, float seconds) noexcept
 		// before ticking even when update() ran concurrently with the previous application.
 		context->applyRenderingSettings(*pipeline);
 		pipeline->videoTick(seconds);
-		if (const auto motion = pipeline->getMotion()) {
-			context->autoMotionConfigurator_.recordMotion(*motion);
+		if (const auto motion = pipeline->getMotion(); std::isfinite(motion)) {
+			context->autoMotionConfigurator_.recordMotion(motion);
 		}
 	}
 }

@@ -6,6 +6,9 @@
 
 #include <atomic>
 #include <memory>
+#include <QPointer>
+
+class QDialog;
 
 struct obs_source;
 using obs_source_t = struct obs_source;
@@ -21,7 +24,7 @@ public:
 	AutoMotionConfigurator(const AutoMotionConfigurator &) = delete;
 	auto operator=(const AutoMotionConfigurator &) -> AutoMotionConfigurator & = delete;
 
-	auto show() -> bool;
+	auto show(std::shared_ptr<void> owner = {}) -> bool;
 	auto startMeasurement() -> std::shared_ptr<MotionMeasurement>;
 	void stopMeasurement() noexcept;
 	void recordMotion(double motion) noexcept;
@@ -29,6 +32,7 @@ public:
 private:
 	obs_source_t *const source_;
 	std::atomic<std::shared_ptr<MotionMeasurement>> measurement_;
+	QPointer<QDialog> dialog_;
 };
 
 } // namespace BackgroundRemoval

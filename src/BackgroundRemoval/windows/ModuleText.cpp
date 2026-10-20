@@ -13,10 +13,14 @@ auto tBackgroundRemoval() -> const char *
 	return obs_module_text("Background Removal");
 }
 
-auto tAboutThisPlugin(bool newVersionAvailable) -> const char *
+auto tUpToDate() -> const char *
 {
-	return newVersionAvailable ? obs_module_text("About this plugin (New version available!)")
-				   : obs_module_text("About this plugin");
+	return obs_module_text("Up to date");
+}
+
+auto tNewVersionsAvailable() -> const char *
+{
+	return obs_module_text("New Version Available!");
 }
 
 auto tPipeline() -> const char *
@@ -109,11 +113,6 @@ auto tNoMotionInput() -> const char *
 auto tMotionMeasurementResult() -> const char *
 {
 	return obs_module_text("Recommended motion suppression: %1 (%2 samples).");
-}
-
-auto tMotionPreview() -> const char *
-{
-	return obs_module_text("Preview on the video (Cancel restores the previous value)");
 }
 
 auto tBlurBg() -> const char *

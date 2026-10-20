@@ -386,10 +386,9 @@ MPLD10Pipeline::~MPLD10Pipeline() noexcept
 	obs_leave_graphics();
 }
 
-auto MPLD10Pipeline::getMotion() const noexcept -> std::optional<double>
+auto MPLD10Pipeline::getMotion() const noexcept -> double
 {
-	const auto motion = motion_.load(std::memory_order_relaxed);
-	return motion >= 0.0 ? std::optional<double>(motion) : std::nullopt;
+	return motion_.load(std::memory_order_relaxed);
 }
 
 void MPLD10Pipeline::setMotionSuppression(double value) noexcept
@@ -441,7 +440,7 @@ void MPLD10Pipeline::updateVideoTiming() noexcept
 
 void MPLD10Pipeline::videoTick(float) noexcept
 {
-	motion_.store(-1.0, std::memory_order_relaxed);
+	motion_.store(std::numeric_limits<double>::quiet_NaN(), std::memory_order_relaxed);
 	updateVideoTiming();
 	if (differenceStaged_) {
 		TraceLoggingThreadActivity<g_hProvider, 0x1> trace;
