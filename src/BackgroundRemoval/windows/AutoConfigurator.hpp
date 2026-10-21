@@ -33,8 +33,7 @@ public:
 protected:
 	void done(int result) override;
 
-PLUGIN_PRIVATE:
-	void setupUi();
+	PLUGIN_PRIVATE : void setupUi();
 	void startMeasurement();
 	void updateMeasurement();
 	void stopMeasurement();

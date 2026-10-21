@@ -82,8 +82,7 @@ public:
 		return std::clamp(60.0 - sensitivity, -50.0, 50.0);
 	}
 
-PLUGIN_PRIVATE:
-	std::atomic<Request> motionMeasurementRequest_{Request::None};
+	PLUGIN_PRIVATE : std::atomic<Request> motionMeasurementRequest_{Request::None};
 	std::atomic<bool> readable_{false};
 	std::vector<double> samples_;
 	const std::uint64_t durationNs_;

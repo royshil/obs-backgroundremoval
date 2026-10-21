@@ -71,8 +71,7 @@ public:
 	static constexpr std::uint32_t kModelHeight = 144;
 	static constexpr double kModelInputMaximumSum = 9400320.0;
 
-PLUGIN_PRIVATE:
-	friend struct MPLD10PipelineTestAccess;
+	PLUGIN_PRIVATE : friend struct MPLD10PipelineTestAccess;
 	enum class FilterState { NeedsProcessing, Processing, ReadyForRendering };
 
 	std::unique_ptr<MPLD10Engine> engine_;

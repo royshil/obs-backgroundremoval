@@ -44,8 +44,7 @@ public:
 
 	static const obs_source_info kSourceInfo;
 
-PLUGIN_PRIVATE:
-	friend class AutoConfigurator;
+	PLUGIN_PRIVATE : friend class AutoConfigurator;
 	obs_source_t *const source_;
 	QPointer<AutoConfigurator> autoConfigurator_; // UI thread only; Qt owns the dialog.
 	MotionMeasurement motionMeasurement_;

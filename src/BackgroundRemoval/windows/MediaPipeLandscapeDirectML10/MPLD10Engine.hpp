@@ -61,8 +61,7 @@ public:
 	static constexpr std::uint32_t kModelWidth = 256;
 	static constexpr std::uint32_t kModelHeight = 144;
 
-PLUGIN_PRIVATE:
-	class Impl;
+	PLUGIN_PRIVATE : class Impl;
 	std::unique_ptr<Impl> impl_;
 };
 
