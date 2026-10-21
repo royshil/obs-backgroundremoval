@@ -21,6 +21,18 @@ endforeach()
 set(LANDSCAPE_GENERATED "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/generated")
 
 add_executable(
+  LandscapeModelCheck
+  EXCLUDE_FROM_ALL
+  LandscapeModelCheck.cpp
+  "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
+  "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
+  "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp"
+)
+target_include_directories(LandscapeModelCheck PRIVATE "${PLUGIN_SOURCE_DIR}")
+target_link_libraries(LandscapeModelCheck PRIVATE d3d12 d3dcompiler directml advapi32)
+
+add_executable(
   OperatorFixtureTest
   OperatorFixtureTest.cpp
   "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"

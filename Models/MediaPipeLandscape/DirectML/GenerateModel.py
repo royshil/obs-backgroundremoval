@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import pathlib
 import subprocess
@@ -20,6 +21,7 @@ from huggingface_hub import hf_hub_download
 MODEL_REPOSITORY = "onnx-community/mediapipe_selfie_segmentation_landscape"
 MODEL_REVISION = "2497d5bec26c626c7b3c4edc6e1fefc21b64f6c3"
 MODEL_FILENAME = "onnx/model.onnx"
+MODEL_SHA256 = "7a0adcfdb1715d3b0ff0f61486d8a181c33f4a208343a5abfccbc6540e872d24"
 INPUT_SHAPE = [1, 3, 144, 256]
 OUTPUT_SHAPE = [1, 1, 144, 256]
 
@@ -212,6 +214,8 @@ def main() -> None:
         repo_id=MODEL_REPOSITORY, revision=MODEL_REVISION, filename=MODEL_FILENAME,
         local_files_only=args.offline,
     )
+    if hashlib.sha256(pathlib.Path(model_path).read_bytes()).hexdigest() != MODEL_SHA256:
+        raise RuntimeError("The pinned MediaPipe Landscape model SHA-256 does not match")
     original_model = onnx.load(model_path)
     original_nodes = {tuple(node.output): (index, node.op_type, node.name)
                       for index, node in enumerate(original_model.graph.node)}
