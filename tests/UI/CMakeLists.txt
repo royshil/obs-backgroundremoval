@@ -39,6 +39,7 @@ if(WIN32)
     BRPropUI
     EXCLUDE_FROM_ALL
     BRPropUI.cpp
+    FilterContextLifecycle.cpp
     PropertyUIApp.hpp
     "${CMAKE_CURRENT_BINARY_DIR}/obs-property-widgets/properties-view.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/obs-property-widgets/qt-wrappers.cpp"
@@ -79,6 +80,7 @@ if(WIN32)
     BRPropUI
     PRIVATE
       PLUGIN_PRIVATE=public
+      OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}"
       PLUGIN_VERSION_STR="${PLUGIN_VERSION}"
       OBS_LOG_HEADER="[PropertyUI] "
       FILTER_PROPERTY_LOCALE="${PROJECT_SOURCE_DIR}/data/locale/en-US.ini"

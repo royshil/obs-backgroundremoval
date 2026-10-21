@@ -37,6 +37,8 @@
 #include <iostream>
 #include <stdexcept>
 
+auto runFilterContextLifecycle() -> bool;
+
 namespace {
 lookup_t *translations = nullptr;
 lookup_t *frontendTranslations = nullptr;
@@ -167,8 +169,10 @@ bool show()
 int main(int argc, char **argv)
 {
 	const QString firstArgument = argc > 1 ? QString::fromLocal8Bit(argv[1]) : QStringLiteral("Yami_dark");
-	const QString paletteName = firstArgument == QStringLiteral("--smoke-test") ? QStringLiteral("Yami_dark")
-										    : firstArgument;
+	const QString paletteName =
+		(firstArgument == QStringLiteral("--smoke-test") || firstArgument == QStringLiteral("--lifecycle-test"))
+			? QStringLiteral("Yami_dark")
+			: firstArgument;
 	YamiVariant variant;
 	if (paletteName == QStringLiteral("Yami_dark")) {
 		variant = YamiVariant::Dark;
@@ -197,6 +201,8 @@ int main(int argc, char **argv)
 		frontendTranslations = text_lookup_create(OBS_FRONTEND_LOCALE);
 		if (!translations || !frontendTranslations)
 			throw std::runtime_error("Cannot load property translations");
+		if (application.arguments().contains("--lifecycle-test"))
+			return runFilterContextLifecycle() ? EXIT_SUCCESS : EXIT_FAILURE;
 		OBSDataAutoRelease settings = obs_data_create();
 		BackgroundRemoval::FilterContext::getDefaults(settings);
 		QDialog dialog;

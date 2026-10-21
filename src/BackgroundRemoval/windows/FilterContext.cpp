@@ -272,6 +272,8 @@ void FilterContext::videoRender(void *data, gs_effect_t *effect) noexcept
 	const auto pipeline = context->renderingPipeline_.load(std::memory_order_acquire);
 	if (pipeline) {
 		pipeline->videoRender(effect);
+	} else {
+		obs_source_skip_video_filter(context->source_);
 	}
 }
 
