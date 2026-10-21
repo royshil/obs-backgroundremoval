@@ -188,8 +188,7 @@ public:
 		return static_cast<TensorId>(tensors_.size() - 1);
 	}
 
-	auto binary(std::uint32_t type, TensorId a, TensorId b, std::span<const UINT> shape, bool multiply,
-		    bool subtract = false) -> TensorId
+	auto binary(std::uint32_t type, TensorId a, TensorId b, std::span<const UINT> shape, bool multiply) -> TensorId
 	{
 		const auto padded = paddedShape(shape);
 		const auto output = createTensor(type, padded);
@@ -199,67 +198,11 @@ public:
 		if (multiply) {
 			DML_ELEMENT_WISE_MULTIPLY_OPERATOR_DESC desc{&aDesc.tensor, &bDesc.tensor, &outputDesc.tensor};
 			compile(DML_OPERATOR_ELEMENT_WISE_MULTIPLY, desc, {a, b}, output);
-		} else if (subtract) {
-			DML_ELEMENT_WISE_SUBTRACT_OPERATOR_DESC desc{&aDesc.tensor, &bDesc.tensor, &outputDesc.tensor};
-			compile(DML_OPERATOR_ELEMENT_WISE_SUBTRACT, desc, {a, b}, output);
 		} else {
 			DML_ELEMENT_WISE_ADD_OPERATOR_DESC desc{&aDesc.tensor, &bDesc.tensor, &outputDesc.tensor};
 			compile(DML_OPERATOR_ELEMENT_WISE_ADD, desc, {a, b}, output);
 		}
 		return reshape(output, shape);
-	}
-
-	auto cast(const Cast &node, TensorId input) -> TensorId
-	{
-		const auto shape = rankedShape(node);
-		input = reshape(input, paddedShape(shape));
-		const auto output = createTensor(node.dataType, paddedShape(shape));
-		TensorDescriptor inDesc(tensors_.at(input)), outDesc(tensors_.at(output));
-		DML_CAST_OPERATOR_DESC desc{&inDesc.tensor, &outDesc.tensor};
-		compile(DML_OPERATOR_CAST, desc, {input}, output);
-		return reshape(output, shape);
-	}
-
-	auto pad(const Pad &node, TensorId input) -> TensorId
-	{
-		checkInputType(input, node.dataType);
-		require(tensors_.at(input).sizes.size() == 4, "Pad requires rank-4 input");
-		for (std::size_t axis = 0; axis < 4; ++axis)
-			require(checkedAdd(checkedAdd(tensors_.at(input).sizes[axis], node.startPadding[axis]),
-					   node.endPadding[axis]) == node.shape[axis],
-				"Pad output shape mismatch");
-		const auto output = createTensor(node.dataType, resolvedShape(node.shape));
-		TensorDescriptor inDesc(tensors_.at(input)), outDesc(tensors_.at(output));
-		DML_PADDING_OPERATOR_DESC desc{&inDesc.tensor,
-					       &outDesc.tensor,
-					       node.edge ? DML_PADDING_MODE_EDGE : DML_PADDING_MODE_CONSTANT,
-					       node.value,
-					       4,
-					       node.startPadding.data(),
-					       node.endPadding.data()};
-		compile(DML_OPERATOR_PADDING, desc, {input}, output);
-		return output;
-	}
-
-	auto gather(const Gather &node, TensorId input, TensorId indices) -> TensorId
-	{
-		checkInputType(input, node.dataType);
-		checkInputType(indices, dtUInt32);
-		require(node.axis < 4 && tensors_.at(input).sizes.size() == 4 && tensors_.at(indices).sizes.size() == 4,
-			"Gather requires rank-4 tensors and a valid axis");
-		const auto &indexShape = tensors_.at(indices).sizes;
-		require(indexShape[0] == 1 && indexShape[1] == 1 && indexShape[2] == 1,
-			"Gather indices must have one effective dimension");
-		for (std::size_t axis = 0; axis < 4; ++axis)
-			require(node.shape[axis] ==
-					(axis == node.axis ? indexShape[3] : tensors_.at(input).sizes[axis]),
-				"Gather output shape mismatch");
-		const auto output = createTensor(node.dataType, resolvedShape(node.shape));
-		TensorDescriptor inDesc(tensors_.at(input)), indicesDesc(tensors_.at(indices)),
-			outDesc(tensors_.at(output));
-		DML_GATHER_OPERATOR_DESC desc{&inDesc.tensor, &indicesDesc.tensor, &outDesc.tensor, node.axis, 1};
-		compile(DML_OPERATOR_GATHER, desc, {input, indices}, output);
-		return output;
 	}
 
 	auto clip(const ClipFloat32 &node, TensorId input) -> TensorId
@@ -567,18 +510,6 @@ auto nodeName(const auto &node) -> const char *
 		return "Add";
 	else if constexpr (std::is_same_v<T, Mul>)
 		return "Mul";
-	else if constexpr (std::is_same_v<T, Sub>)
-		return "Sub";
-	else if constexpr (std::is_same_v<T, Floor>)
-		return "Floor";
-	else if constexpr (std::is_same_v<T, Ceil>)
-		return "Ceil";
-	else if constexpr (std::is_same_v<T, Cast>)
-		return "Cast";
-	else if constexpr (std::is_same_v<T, Pad>)
-		return "Pad";
-	else if constexpr (std::is_same_v<T, Gather>)
-		return "Gather";
 	else if constexpr (std::is_same_v<T, DepthToSpace>)
 		return "DepthToSpace";
 	else if constexpr (std::is_same_v<T, MPLD10DepthwiseConv2dRelu>)
@@ -666,26 +597,10 @@ auto BaselineDmlCompiler::compile(std::span<const ProgramDefinition::InputSpecIt
 					require(inputSpecs[node.inputSpecIndex].dataType == dataType,
 						"InputItem and InputSpec data types must match");
 					return specs[static_cast<std::size_t>(node.inputSpecIndex)];
-				} else if constexpr (std::is_same_v<T, Add> || std::is_same_v<T, Mul> ||
-						     std::is_same_v<T, Sub>) {
+				} else if constexpr (std::is_same_v<T, Add> || std::is_same_v<T, Mul>) {
 					return builder.binary(dataType, resolve(node.leftIndex),
 							      resolve(node.rightIndex), rankedShape(node),
-							      std::is_same_v<T, Mul>, std::is_same_v<T, Sub>);
-				} else if constexpr (std::is_same_v<T, Cast>) {
-					return builder.cast(node, resolve(node.inputIndex));
-				} else if constexpr (std::is_same_v<T, Pad>) {
-					return builder.pad(node, resolve(node.inputIndex));
-				} else if constexpr (std::is_same_v<T, Gather>) {
-					return builder.gather(node, resolve(node.inputIndex),
-							      resolve(node.indicesIndex));
-				} else if constexpr (std::is_same_v<T, Floor>) {
-					return builder.activation<DML_ELEMENT_WISE_FLOOR_OPERATOR_DESC>(
-						DML_OPERATOR_ELEMENT_WISE_FLOOR, dataType, resolve(node.inputIndex),
-						rankedShape(node));
-				} else if constexpr (std::is_same_v<T, Ceil>) {
-					return builder.activation<DML_ELEMENT_WISE_CEIL_OPERATOR_DESC>(
-						DML_OPERATOR_ELEMENT_WISE_CEIL, dataType, resolve(node.inputIndex),
-						rankedShape(node));
+							      std::is_same_v<T, Mul>);
 
 				} else if constexpr (std::is_same_v<T, MPLD10BinarizeFloat32>) {
 					return builder.mpld10BinarizeFloat32(resolve(node.inputIndex),

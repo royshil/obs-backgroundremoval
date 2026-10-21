@@ -134,54 +134,6 @@ struct Sigmoid final {
 	std::array<std::int32_t, 4> shape;
 };
 
-// Native DirectML 1.0 operations used by the generated mask postprocessing graph.
-struct Floor final {
-	std::int32_t dataType;
-	std::int32_t inputIndex;
-	std::int32_t shapeRank;
-	std::array<std::int32_t, 4> shape;
-};
-
-struct Ceil final {
-	std::int32_t dataType;
-	std::int32_t inputIndex;
-	std::int32_t shapeRank;
-	std::array<std::int32_t, 4> shape;
-};
-
-struct Cast final {
-	std::int32_t dataType;
-	std::int32_t inputIndex;
-	std::int32_t shapeRank;
-	std::array<std::int32_t, 4> shape;
-};
-
-struct Sub final {
-	std::int32_t dataType;
-	std::int32_t leftIndex;
-	std::int32_t rightIndex;
-	std::int32_t shapeRank;
-	std::array<std::int32_t, 4> shape;
-};
-
-struct Pad final {
-	std::int32_t dataType;
-	std::int32_t inputIndex;
-	std::array<std::uint32_t, 4> startPadding;
-	std::array<std::uint32_t, 4> endPadding;
-	bool edge;
-	float value;
-	std::array<std::int32_t, 4> shape;
-};
-
-struct Gather final {
-	std::int32_t dataType;
-	std::int32_t inputIndex;
-	std::int32_t indicesIndex;
-	std::uint32_t axis;
-	std::array<std::int32_t, 4> shape;
-};
-
 // MARK: - Fused operations
 
 struct BiasedConv2dRelu final {
@@ -223,9 +175,9 @@ struct MPLD10BinarizeFloat32 final {
 	static constexpr std::array<std::int32_t, 4> shape{1, 1, 144, 256};
 };
 
-using Onnx11Node = std::variant<AveragePool2d, BiasedConv2d, BiasedConvTranspose2d, DepthToSpace, Pad>;
-using Onnx13Node = std::variant<ClipFloat32, Resize, Sigmoid, Floor, Ceil, Cast, Gather>;
-using Onnx14Node = std::variant<Add, Mul, Relu, Sub>;
+using Onnx11Node = std::variant<AveragePool2d, BiasedConv2d, BiasedConvTranspose2d, DepthToSpace>;
+using Onnx13Node = std::variant<ClipFloat32, Resize, Sigmoid>;
+using Onnx14Node = std::variant<Add, Mul, Relu>;
 using FusedNode = std::variant<BiasedConv2dRelu, HardSwishGate, MPLD10DepthwiseConv2dRelu, MPLD10BinarizeFloat32>;
 using Node = std::variant<InputItem, FusedNode, Onnx11Node, Onnx13Node, Onnx14Node>;
 
