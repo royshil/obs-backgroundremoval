@@ -8,13 +8,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-
 #include <windows.h>
 
 #include "MPLD10Pipeline.hpp"
-
-#include <TraceLoggingProvider.h>
-#include <TraceLoggingActivity.h>
 
 #include <algorithm>
 #include <atomic>
@@ -25,10 +21,13 @@
 #include <utility>
 #include <source_location>
 
+#include <TraceLoggingProvider.h>
+#include <TraceLoggingActivity.h>
+
 #include <graphics/graphics.h>
 #include <util/platform.h>
 
-#include <BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.hpp>
+#include "MediaPipeLandscapeDirectML10/MPLD10Engine.hpp"
 
 TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 

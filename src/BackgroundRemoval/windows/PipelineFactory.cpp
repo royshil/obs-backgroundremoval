@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "PipelineFactory.hpp"
-#include "MPLD10Pipeline.hpp"
 
-#include <obs-module.h>
+#include <obs.h>
+
+#include "MPLD10Pipeline.hpp"
 
 namespace BackgroundRemoval {
 

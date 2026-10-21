@@ -4,10 +4,7 @@
 
 #include "FilterContext.hpp"
 #include <QApplication>
-#include <limits>
-#include <util/platform.h>
 
-#include <cmath>
 #include <cstdint>
 #include <exception>
 #include <memory>
@@ -17,6 +14,8 @@
 
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
+
+#include <util/platform.h>
 
 #include "AutoConfigurator.hpp"
 #include "ModuleText.hpp"

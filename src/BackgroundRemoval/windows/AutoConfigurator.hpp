@@ -4,6 +4,10 @@
 
 #pragma once
 
+#ifndef PLUGIN_PRIVATE
+#define PLUGIN_PRIVATE private
+#endif
+
 #include <QDialog>
 #include <QElapsedTimer>
 #include <obs.hpp>
@@ -29,7 +33,7 @@ public:
 protected:
 	void done(int result) override;
 
-private:
+PLUGIN_PRIVATE:
 	void setupUi();
 	void startMeasurement();
 	void updateMeasurement();

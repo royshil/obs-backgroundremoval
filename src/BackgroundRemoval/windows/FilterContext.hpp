@@ -4,6 +4,10 @@
 
 #pragma once
 
+#ifndef PLUGIN_PRIVATE
+#define PLUGIN_PRIVATE private
+#endif
+
 #include "IRenderingPipeline.hpp"
 #include "AutoConfigurator.hpp"
 #include "MotionMeasurement.hpp"
@@ -40,9 +44,8 @@ public:
 
 	static const obs_source_info kSourceInfo;
 
-private:
+PLUGIN_PRIVATE:
 	friend class AutoConfigurator;
-	friend struct FilterContextTestAccess;
 	obs_source_t *const source_;
 	QPointer<AutoConfigurator> autoConfigurator_; // UI thread only; Qt owns the dialog.
 	MotionMeasurement motionMeasurement_;

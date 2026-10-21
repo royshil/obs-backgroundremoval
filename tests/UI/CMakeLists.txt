@@ -78,6 +78,7 @@ if(WIN32)
   target_compile_definitions(
     BRPropUI
     PRIVATE
+      PLUGIN_PRIVATE=public
       PLUGIN_VERSION_STR="${PLUGIN_VERSION}"
       OBS_LOG_HEADER="[PropertyUI] "
       FILTER_PROPERTY_LOCALE="${PROJECT_SOURCE_DIR}/data/locale/en-US.ini"

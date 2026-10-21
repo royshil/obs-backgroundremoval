@@ -8,20 +8,17 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-
 #include <windows.h>
 
 #include "MPLD10Engine.hpp"
 #include "MPLD10Model.hpp"
 
 #include <array>
-#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <cmath>
 #include <stdexcept>
 #include <string>
-#include <utility>
 
 #include <d3d11_4.h>
 #include <d3d12.h>

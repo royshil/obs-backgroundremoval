@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "AutoConfigurator.hpp"
-#include "ModuleText.hpp"
-#include "FilterContext.hpp"
-#include "MotionMeasurement.hpp"
+
+#include <algorithm>
+#include <optional>
 
 #include <QApplication>
 #include <QDialog>
@@ -20,10 +20,12 @@
 #include <QPushButton>
 #include <QTimer>
 #include <QVBoxLayout>
-#include <algorithm>
-#include <optional>
+
 #include <util/platform.h>
-#include <utility>
+
+#include "FilterContext.hpp"
+#include "ModuleText.hpp"
+#include "MotionMeasurement.hpp"
 
 namespace BackgroundRemoval {
 namespace {

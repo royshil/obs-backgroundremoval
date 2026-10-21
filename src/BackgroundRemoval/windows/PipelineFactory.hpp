@@ -8,7 +8,7 @@
 #include <memory>
 
 struct obs_source;
-using obs_source_t = struct obs_source;
+using obs_source_t = obs_source;
 
 namespace BackgroundRemoval {
 

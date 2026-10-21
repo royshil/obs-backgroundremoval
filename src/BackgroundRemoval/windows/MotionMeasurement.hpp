@@ -4,6 +4,10 @@
 
 #pragma once
 
+#ifndef PLUGIN_PRIVATE
+#define PLUGIN_PRIVATE private
+#endif
+
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -78,7 +82,7 @@ public:
 		return std::clamp(60.0 - sensitivity, -50.0, 50.0);
 	}
 
-private:
+PLUGIN_PRIVATE:
 	std::atomic<Request> motionMeasurementRequest_{Request::None};
 	std::atomic<bool> readable_{false};
 	std::vector<double> samples_;

@@ -2,10 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-
 #define DML_TARGET_VERSION 0x1000
 
 #ifndef NOMINMAX

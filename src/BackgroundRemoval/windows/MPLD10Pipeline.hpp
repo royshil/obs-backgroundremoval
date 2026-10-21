@@ -4,6 +4,10 @@
 
 #pragma once
 
+#ifndef PLUGIN_PRIVATE
+#define PLUGIN_PRIVATE private
+#endif
+
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -12,7 +16,7 @@
 #include <memory>
 #include <source_location>
 
-#include <obs-module.h>
+#include <obs.h>
 
 #include "IRenderingPipeline.hpp"
 
@@ -67,7 +71,7 @@ public:
 	static constexpr std::uint32_t kModelHeight = 144;
 	static constexpr double kModelInputMaximumSum = 9400320.0;
 
-private:
+PLUGIN_PRIVATE:
 	friend struct MPLD10PipelineTestAccess;
 	enum class FilterState { NeedsProcessing, Processing, ReadyForRendering };
 

@@ -5,7 +5,6 @@
 #include <BackgroundRemoval/windows/FilterContext.hpp>
 #include <BackgroundRemoval/windows/ModuleText.hpp>
 #include <BackgroundRemoval/windows/AutoConfigurator.hpp>
-#include <BackgroundRemoval/windows/MotionMeasurement.hpp>
 #include <UI/AboutDialog.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 
@@ -19,7 +18,9 @@
 #include <QDebug>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QElapsedTimer>
+#include <QEvent>
 #include <QEventLoop>
 #include <QGroupBox>
 #include <QPushButton>
@@ -36,16 +37,6 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace BackgroundRemoval {
-struct FilterContextTestAccess {
-	static auto measurement(obs_source_t *source) -> MotionMeasurement &
-	{
-		auto *context = static_cast<std::shared_ptr<FilterContext> *>(obs_obj_get_data(source));
-		return (*context)->motionMeasurement_;
-	}
-};
-} // namespace BackgroundRemoval
-
 namespace {
 lookup_t *translations = nullptr;
 lookup_t *frontendTranslations = nullptr;
@@ -56,48 +47,44 @@ auto properties(void *) -> obs_properties_t *
 	return result;
 }
 
-auto findAutoMotionDialog() -> QDialog *
+auto smokeAutoConfigurator() -> bool
 {
-	for (auto *widget : QApplication::topLevelWidgets())
-		if (widget->objectName() == "autoMotionDialog")
-			return qobject_cast<QDialog *>(widget);
-	return nullptr;
-}
-
-auto smokeAutoMotionDialog() -> bool
-{
-	obs_source_info fixture = BackgroundRemoval::FilterContext::kSourceInfo;
-	fixture.id = "auto-motion-ui-fixture";
-	fixture.get_name = [](void *) {
-		return "Auto motion UI fixture";
-	};
+	using BackgroundRemoval::FilterContext;
+	obs_source_info fixture = FilterContext::kSourceInfo;
+	fixture.id = "auto-configurator-ui-fixture";
 	obs_register_source(&fixture);
-	OBSSourceAutoRelease source = obs_source_create_private(fixture.id, "Auto motion UI test", nullptr);
+	OBSSourceAutoRelease source = obs_source_create_private(fixture.id, "Auto configurator UI test", nullptr);
 	if (!source)
 		return false;
-	// Cancel preserves both an explicit value and an unset value; Apply keeps the result.
+	auto *contextHandle = static_cast<std::shared_ptr<FilterContext> *>(obs_obj_get_data(source));
+	const auto context = *contextHandle;
 	for (int mode = 0; mode < 3; ++mode) {
 		OBSDataAutoRelease settings = obs_source_get_settings(source);
 		obs_data_unset_user_value(settings, "v2_MotionSuppression");
 		if (mode == 0)
 			obs_data_set_double(settings, "v2_MotionSuppression", 12.0);
-		auto *configurator = new BackgroundRemoval::AutoConfigurator(source);
+		FilterContext::handleAutoSensitivityClick(nullptr, nullptr, contextHandle);
+		const auto configurator = context->autoConfigurator_;
+		if (!configurator)
+			return false;
+		FilterContext::handleAutoSensitivityClick(nullptr, nullptr, contextHandle);
+		if (context->autoConfigurator_ != configurator)
+			return false;
+		QEventLoop loop;
+		QObject::connect(configurator, &QDialog::finished, &loop, &QEventLoop::quit);
 		QTimer driver;
 		QElapsedTimer elapsed;
 		bool started = false;
 		bool measured = false;
 		bool valid = true;
 		QObject::connect(&driver, &QTimer::timeout, [&] {
-			auto *dialog = findAutoMotionDialog();
-			if (!dialog)
-				return;
 			if (elapsed.elapsed() > 6000) {
 				valid = false;
-				dialog->reject();
+				configurator->reject();
 				return;
 			}
 			if (!started) {
-				for (auto *button : dialog->findChildren<QPushButton *>()) {
+				for (auto *button : configurator->findChildren<QPushButton *>()) {
 					if (button->text() == BackgroundRemoval::tStartMotionMeasurement()) {
 						button->click();
 						started = true;
@@ -105,39 +92,43 @@ auto smokeAutoMotionDialog() -> bool
 					}
 				}
 			}
-			BackgroundRemoval::FilterContextTestAccess::measurement(source).tick(os_gettime_ns(), 0.01);
-			auto *buttons = dialog->findChild<QDialogButtonBox *>();
-			if (!buttons || !buttons->button(QDialogButtonBox::Apply)->isEnabled())
+			// Simulate the sole video writer without exposing private production hooks.
+			context->motionMeasurement_.tick(os_gettime_ns(), 0.01);
+			auto *buttons = configurator->findChild<QDialogButtonBox *>();
+			if (!buttons->button(QDialogButtonBox::Apply)->isEnabled())
 				return;
 			measured = true;
+			auto *value = configurator->findChild<QDoubleSpinBox *>();
+			valid &= std::abs(value->value() - 20.0) < 0.0001;
 			if (mode == 2) {
+				value->setValue(17.25);
 				buttons->button(QDialogButtonBox::Apply)->click();
-				valid &= dialog->isVisible();
+				valid &= configurator->isVisible();
+				valid &= std::abs(obs_data_get_double(settings, "v2_MotionSuppression") - 17.25) <
+					 0.0001;
+				value->setValue(-12.0);
 				buttons->button(QDialogButtonBox::Ok)->click();
-			} else
-				dialog->reject();
+			} else {
+				value->setValue(17.25);
+				configurator->reject();
+			}
 		});
 		elapsed.start();
 		driver.start(20);
-		configurator->show();
-		QEventLoop loop;
-		QPointer<QDialog> calibration = findAutoMotionDialog();
-		if (!calibration)
-			return false;
-		QObject::connect(calibration, &QDialog::finished, &loop, &QEventLoop::quit);
 		loop.exec();
-		delete calibration.data();
 		driver.stop();
-		if (!valid || !measured)
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		if (!valid || !measured || context->autoConfigurator_)
 			return false;
 		if (obs_data_has_user_value(settings, "v2_MotionSuppression") != (mode != 1))
 			return false;
-		const double expected = mode == 0 ? 12.0 : mode == 2 ? 20.0 : 0.0;
+		const double expected = mode == 0 ? 12.0 : mode == 2 ? -12.0 : 0.0;
 		if (std::abs(obs_data_get_double(settings, "v2_MotionSuppression") - expected) > 0.0001)
 			return false;
 	}
 	return true;
 }
+
 } // namespace
 
 const char *obs_module_text(const char *key)
@@ -250,7 +241,7 @@ int main(int argc, char **argv)
 				configurator->show();
 				configurator->reject();
 				delete configurator;
-				if (!smokeAutoMotionDialog())
+				if (!smokeAutoConfigurator())
 					result = EXIT_FAILURE;
 				const auto arguments = application.arguments();
 				const int screenshot = arguments.indexOf("--screenshot");

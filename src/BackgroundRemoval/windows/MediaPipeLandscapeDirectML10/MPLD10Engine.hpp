@@ -4,6 +4,10 @@
 
 #pragma once
 
+#ifndef PLUGIN_PRIVATE
+#define PLUGIN_PRIVATE private
+#endif
+
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -57,7 +61,7 @@ public:
 	static constexpr std::uint32_t kModelWidth = 256;
 	static constexpr std::uint32_t kModelHeight = 144;
 
-private:
+PLUGIN_PRIVATE:
 	class Impl;
 	std::unique_ptr<Impl> impl_;
 };
