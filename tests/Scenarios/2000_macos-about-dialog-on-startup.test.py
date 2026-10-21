@@ -170,7 +170,8 @@ def checkbox_action(pid: int, action: str) -> str:
     return run_osa(
         process_script(f'''
 set matches to {{}}
-repeat with element in entire contents of window "{ABOUT_TITLE}" of targetProcess
+set windowElements to entire contents of window "{ABOUT_TITLE}" of targetProcess
+repeat with element in windowElements
   if role of element is "AXCheckBox" then
     if name of element is "Notify me about new versions on its Filter Properties screen" then
       set end of matches to contents of element
