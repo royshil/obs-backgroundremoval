@@ -773,7 +773,12 @@ void main(uint3 id : SV_DispatchThreadID) {
 		queue_->ExecuteCommandLists(1, lists);
 		const std::uint64_t value = ++fenceValue_;
 		check(queue_->Signal(fence_.Get(), value), "CommandQueue::Signal");
-		if (fence_->GetCompletedValue() < value) {
+		const auto completedValue = fence_->GetCompletedValue();
+		if (completedValue == std::numeric_limits<std::uint64_t>::max()) {
+			check(d3dDevice_->GetDeviceRemovedReason(), "D3D12 device removed after command submission");
+			throw std::runtime_error("DirectML GPU fence reported device removal");
+		}
+		if (completedValue < value) {
 			TraceLoggingThreadActivity<g_hProvider, 0x1> wait;
 			TraceLoggingWriteStart(wait, "Runtime.FenceWait");
 			check(fence_->SetEventOnCompletion(value, fenceEvent_.get()), "Fence::SetEventOnCompletion");
@@ -790,6 +795,8 @@ void main(uint3 id : SV_DispatchThreadID) {
 								 std::to_string(result) + ")");
 			}
 		}
+		check(dmlDevice_->GetDeviceRemovedReason(), "DirectML device after command completion");
+		check(d3dDevice_->GetDeviceRemovedReason(), "D3D12 device after command completion");
 	}
 
 	std::vector<Tensor> tensors_;
