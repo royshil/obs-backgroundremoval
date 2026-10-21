@@ -97,10 +97,14 @@ auto smokeAutoConfigurator() -> bool
 			// Simulate the sole video writer without exposing private production hooks.
 			context->motionMeasurement_.tick(os_gettime_ns(), 0.01);
 			auto *buttons = configurator->findChild<QDialogButtonBox *>();
-			if (!buttons->button(QDialogButtonBox::Apply)->isEnabled())
+			if (!buttons->button(QDialogButtonBox::Apply)->isEnabled()) {
+				valid &= !buttons->button(QDialogButtonBox::Ok)->isEnabled();
+				valid &= !configurator->findChild<QDoubleSpinBox *>()->isEnabled();
 				return;
+			}
 			measured = true;
 			auto *value = configurator->findChild<QDoubleSpinBox *>();
+			valid &= value->isEnabled() && value->minimum() == -50.0 && value->maximum() == 50.0;
 			valid &= std::abs(value->value() - 20.0) < 0.0001;
 			if (mode == 2) {
 				value->setValue(17.25);
@@ -227,11 +231,35 @@ int main(int argc, char **argv)
 		int result = EXIT_SUCCESS;
 		if (application.arguments().contains("--smoke-test")) {
 			QTimer::singleShot(500, &dialog, [&] {
-				if (view->findChildren<QGroupBox *>().isEmpty())
+				const auto groups = view->findChildren<QGroupBox *>();
+				QGroupBox *general = nullptr;
+				QGroupBox *blur = nullptr;
+				for (auto *group : groups) {
+					if (group->title() == BackgroundRemoval::tGeneral())
+						general = group;
+					if (group->title() == BackgroundRemoval::tBlurBg())
+						blur = group;
+				}
+				if (!general || general->isCheckable() || !blur || !blur->isCheckable() ||
+				    blur->isChecked())
 					result = EXIT_FAILURE;
+				if (general) {
+					const auto values = general->findChildren<QDoubleSpinBox *>();
+					if (values.size() != 2)
+						result = EXIT_FAILURE;
+					for (auto *value : values)
+						if (value->minimum() != -50.0 || value->maximum() != 50.0 ||
+						    value->value() != 0.0)
+							result = EXIT_FAILURE;
+				}
 				const auto combos = view->findChildren<QComboBox *>();
 				if (combos.size() != 1 || combos.front()->currentData().toLongLong() != 0 ||
 				    combos.front()->currentText() != BackgroundRemoval::tPipelineAuto())
+					result = EXIT_FAILURE;
+				if (combos.size() == 1 &&
+				    (combos.front()->count() != 2 ||
+				     combos.front()->itemData(1).toLongLong() != 62828 ||
+				     combos.front()->itemText(1) != BackgroundRemoval::tPipelineMPLD10()))
 					result = EXIT_FAILURE;
 				OBSDataAutoRelease selection = obs_data_create();
 				BackgroundRemoval::FilterContext::getDefaults(selection);

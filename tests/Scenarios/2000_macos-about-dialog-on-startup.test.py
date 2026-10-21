@@ -166,27 +166,35 @@ def close_qt_dialog(pid: int) -> None:
     )
 
 
-def checkbox_checked(pid: int) -> bool:
+def checkbox_action(pid: int, action: str) -> str:
     return run_osa(
-        process_script(f'return value of checkbox 1 of window "{ABOUT_TITLE}" of targetProcess as boolean'),
+        process_script(f'''
+set matches to {{}}
+repeat with element in entire contents of window "{ABOUT_TITLE}" of targetProcess
+  if role of element is "AXCheckBox" then
+    if name of element is "Notify me about new versions on its Filter Properties screen" then
+      set end of matches to contents of element
+    end if
+  end if
+end repeat
+if (count matches) is not 1 then error "Expected one update-notification checkbox"
+set targetCheckbox to item 1 of matches
+{action}
+'''),
         str(pid),
-    ) == "true"
+    )
+
+
+def checkbox_checked(pid: int) -> bool:
+    return checkbox_action(pid, 'return value of targetCheckbox as boolean') == "true"
 
 
 def checkbox_details(pid: int) -> str:
-    return run_osa(
-        process_script(
-            f'return {{name, value, role description, description}} of checkbox 1 of window "{ABOUT_TITLE}" of targetProcess'
-        ),
-        str(pid),
-    )
+    return checkbox_action(pid, 'return {name, value, role description, description} of targetCheckbox')
 
 
 def click_checkbox(pid: int) -> None:
-    run_osa(
-        process_script(f'click checkbox 1 of window "{ABOUT_TITLE}" of targetProcess'),
-        str(pid),
-    )
+    checkbox_action(pid, 'click targetCheckbox')
 
 
 def close_window(pid: int, title: str) -> None:
@@ -408,6 +416,7 @@ def initial_run(process: OBSProcess) -> None:
         "Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement",
         f"Version {VERSION}",
         "Copyright © 2021–2026 Roy Shilkrot",
+        "© 2023–2026 Kaito Udagawa",
     ):
         if expected not in contents:
             raise AssertionError(f"Missing visible text {expected!r} in {ABOUT_TITLE}")
@@ -419,8 +428,9 @@ def initial_run(process: OBSProcess) -> None:
 
     click_group_button(pid, ABOUT_TITLE, "Licenses")
     wait_for("Licenses dialog", lambda: window_exists(pid, "Licenses"))
-    if "GNU General Public License" not in window_text(pid, "Licenses"):
-        raise AssertionError("Licenses dialog does not expose the expected license text")
+    for license_text in ("GNU General Public License", "Apache License"):
+        if license_text not in window_text(pid, "Licenses"):
+            raise AssertionError(f"Licenses dialog does not expose {license_text}")
     click_group_button(pid, "Licenses", "Close")
     wait_for("Licenses dialog to close", lambda: not window_exists(pid, "Licenses"))
 

@@ -13,6 +13,7 @@
 #include <winrt/base.h>
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
+#include "../DoctestRunner.hpp"
 #include "MaskReference.hpp"
 #include <DmlProgram/BaselineDmlProgramRuntime.hpp>
 #include <algorithm>
@@ -231,7 +232,7 @@ int testMain(int argc, char **argv)
 {
 	winrt::init_apartment();
 	doctest::Context context(argc, argv);
-	const int result = context.run();
+	const int result = TestHelpers::runTests(context);
 	winrt::uninit_apartment();
 	return result;
 }

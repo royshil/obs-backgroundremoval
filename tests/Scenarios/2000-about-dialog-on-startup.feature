@@ -20,6 +20,9 @@ Feature: About dialog on startup
     And it shows "Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement"
     And the displayed version equals the installed plugin version
     And it shows text containing "Copyright © 2021–2026 Roy Shilkrot"
+    And it shows text containing "© 2023–2026 Kaito Udagawa"
+    And it explains that updates are shown on the Filter Properties screen
+    And it states that the plugin never downloads or installs updates
     And the update-notification checkbox is checked
     And the "Licenses", "About Qt", and "OK" actions are available
 
@@ -28,6 +31,7 @@ Feature: About dialog on startup
     When the user selects "Licenses"
     Then the "Licenses" dialog is displayed
     And it contains "GNU General Public License"
+    And it contains "Apache License"
     When the user closes the Licenses dialog
     Then the Licenses dialog is no longer displayed
 

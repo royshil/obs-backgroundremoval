@@ -99,9 +99,8 @@ int testFailedFetch()
 	int failures = 0;
 	UpdateConfig::latestVersionClient();
 	HttpServer server("missing", 404);
-	UpdateConfig::fetchLatestVersionAsync(server.url(), "UpdateConfigCurlTest/1.0");
-	UpdateConfig::resetLatestVersion();
-	expect(failures, !UpdateConfig::getLatestVersion(), "a non-success HTTP status should not publish a response");
+	const auto response = waitForLatestVersion(server.url());
+	expect(failures, !response, "a non-success HTTP status should not publish a response");
 	UpdateConfig::resetLatestVersion();
 	return failures;
 }

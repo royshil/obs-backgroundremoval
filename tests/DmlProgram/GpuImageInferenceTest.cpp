@@ -16,6 +16,7 @@ TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
+#include "../DoctestRunner.hpp"
 #include "GpuAccessValidation.hpp"
 #include <DmlProgram/BaselineDmlProgramRuntime.hpp>
 #include <d3d12.h>
@@ -70,6 +71,7 @@ struct Graphics {
 #ifdef GPU_LANDSCAPE_MODEL
 namespace BackgroundRemoval {
 struct MPLD10PipelineTestAccess {
+	static auto device(const MPLD10Pipeline &pipeline) -> ID3D12Device * { return pipeline.engine_->device(); }
 	static auto &staging(MPLD10Pipeline &pipeline) { return pipeline.lumaAbsDiffStagesurf_; }
 	static void stageDifference(MPLD10Pipeline &pipeline, gs_texture_t *texture)
 	{
@@ -186,13 +188,18 @@ void renderFilter(void *data, gs_effect_t *effect)
 #ifdef GPU_LANDSCAPE_MODEL
 TEST_CASE("LandscapeRenderingInitialization")
 {
-	ComPtr<ID3D12Device> validationDevice;
-	if (GpuAccessValidation::enabled()) {
-		REQUIRE(SUCCEEDED(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&validationDevice))));
+	std::vector<ComPtr<ID3D12Device>> validationDevices;
+	const auto trackDevice = [&](ID3D12Device *device) {
+		if (!GpuAccessValidation::enabled())
+			return;
+		if (std::any_of(validationDevices.begin(), validationDevices.end(),
+				[&](const auto &tracked) { return tracked.Get() == device; }))
+			return;
 		ComPtr<ID3D12InfoQueue> messages;
-		REQUIRE(SUCCEEDED(validationDevice.As(&messages)));
+		REQUIRE(SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&messages))));
 		REQUIRE(SUCCEEDED(messages->SetMessageCountLimit(65536)));
-	}
+		validationDevices.emplace_back(device);
+	};
 	struct ObsSession {
 		ObsSession()
 		{
@@ -219,6 +226,8 @@ TEST_CASE("LandscapeRenderingInitialization")
 		REQUIRE(source);
 		auto pipeline = BackgroundRemoval::createRenderingPipeline(0, source.get(), 256, 144);
 		REQUIRE(pipeline);
+		trackDevice(BackgroundRemoval::MPLD10PipelineTestAccess::device(
+			*static_cast<BackgroundRemoval::MPLD10Pipeline *>(pipeline.get())));
 		CHECK(pipeline->pipelineId() == BackgroundRemoval::kMPLD10PipelineId);
 		CHECK(pipeline->width() == 256);
 		CHECK(pipeline->height() == 144);
@@ -237,6 +246,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 	auto previousSpace = gs_get_color_space();
 	{
 		BackgroundRemoval::MPLD10Pipeline pipeline(scene, 256, 144);
+		trackDevice(BackgroundRemoval::MPLD10PipelineTestAccess::device(pipeline));
 		pipeline.setMotionSuppression(20.0);
 		pipeline.setMotionSuppression(0.0);
 		CHECK(pipeline.imageSimilarityThreshold_.load() == 60.0F);
@@ -301,11 +311,13 @@ TEST_CASE("LandscapeRenderingInitialization")
 	REQUIRE(readback);
 	inputData->image_ = image.get();
 	auto runtime = LandscapeTestModel::makeRawRuntime();
+	trackDevice(runtime->device());
 	std::vector<float> expected(256 * 144);
 	const std::array inputs{std::as_bytes(std::span(input))};
 	runLandscapeReference(*runtime, input, expected);
 	{
 		BackgroundRemoval::MPLD10Pipeline pipeline(filter.get(), 256, 144);
+		trackDevice(BackgroundRemoval::MPLD10PipelineTestAccess::device(pipeline));
 		pipeline.setMotionSuppression(20.0);
 		CHECK(std::isnan(pipeline.getMotion()));
 		filterData->pipeline_ = &pipeline;
@@ -522,6 +534,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 		auto differentFormatEngine = std::make_unique<BackgroundRemoval::MPLD10Engine>(
 			static_cast<ID3D11Device *>(gs_get_device_obj()),
 			BackgroundRemoval::MPLD10Engine::Output::GpuMask);
+		trackDevice(differentFormatEngine->device());
 		REQUIRE(differentFormatEngine->runAsync(
 				static_cast<ID3D11Texture2D *>(gs_texture_get_obj(rgba.get()))) == S_OK);
 		REQUIRE(differentFormatEngine->ensureOutput() == S_OK);
@@ -581,6 +594,7 @@ TEST_CASE("LandscapeRenderingInitialization")
 	for (const std::uint32_t additional : {1u, 2u, 4u}) {
 		using Access = BackgroundRemoval::MPLD10PipelineTestAccess;
 		BackgroundRemoval::MPLD10Pipeline pipeline(filter.get(), 256, 144);
+		trackDevice(Access::device(pipeline));
 		pipeline.setMotionSuppression(20.0);
 		pipeline.additionalInferenceFrames_.store(additional, std::memory_order_relaxed);
 		filterData->pipeline_ = &pipeline;
@@ -667,8 +681,8 @@ TEST_CASE("LandscapeRenderingInitialization")
 	gs_set_render_target_with_color_space(previousTarget, nullptr, previousSpace);
 
 	CHECK(gs_get_render_target() == previousTarget);
-	if (validationDevice)
-		GpuAccessValidation::checkMessages(validationDevice.Get());
+	for (const auto &device : validationDevices)
+		GpuAccessValidation::checkMessages(device.Get());
 }
 
 #endif
@@ -684,7 +698,7 @@ int testMain(int argc, char **argv)
 	winrt::init_apartment(winrt::apartment_type::single_threaded);
 #endif
 	doctest::Context context(argc, argv);
-	const int result = context.run();
+	const int result = TestHelpers::runTests(context);
 #ifdef GPU_LANDSCAPE_MODEL
 	winrt::uninit_apartment();
 #endif

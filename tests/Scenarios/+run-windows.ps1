@@ -5,7 +5,8 @@
 [CmdletBinding()]
 param(
     [string] $ObsExecutable = $env:GUI_SCENARIO_OBS_EXECUTABLE,
-    [string] $PluginRoot = $env:GUI_SCENARIO_PLUGIN_ROOT
+    [string] $PluginRoot = $env:GUI_SCENARIO_PLUGIN_ROOT,
+    [string] $CaseFilter = '*'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -84,7 +85,8 @@ try {
         -ObsExecutable $portableObsExecutable `
         -SourceDir $sourceDir `
         -WorkDir $workDir `
-        -Artifacts $artifacts
+        -Artifacts $artifacts `
+        -CaseFilter $CaseFilter
     $status = 0
 } catch {
     $_ | Out-String | Set-Content -LiteralPath (Join-Path $artifacts 'exception.txt') -Encoding utf8

@@ -11,7 +11,8 @@ param(
     [Parameter(Mandatory)][ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
     [string] $WorkDir,
     [Parameter(Mandatory)][ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
-    [string] $Artifacts
+    [string] $Artifacts,
+    [string] $CaseFilter = '*'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -157,6 +158,9 @@ function Get-Checkbox {
             $AutomationElement::ControlTypeProperty, $ControlType::CheckBox))
     if ($checkboxes.Count -ne 1) {
         throw "Expected one update-notification checkbox; found $($checkboxes.Count)."
+    }
+    if ($checkboxes.Item(0).Current.Name -ne 'Notify me about new versions on its Filter Properties screen') {
+        throw 'The update-notification checkbox has an unexpected label.'
     }
     return $checkboxes.Item(0)
 }
@@ -317,7 +321,9 @@ $cases['ST-2000.1-ST-2000.4 initial actions'] = {
         $text = Get-WindowText $about
         foreach ($expected in @(
                 'Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement',
-                "Version $Version", 'Copyright © 2021–2026 Roy Shilkrot')) {
+                "Version $Version", 'Copyright © 2021–2026 Roy Shilkrot',
+                '© 2023–2026 Kaito Udagawa',
+                'The plugin never downloads or installs updates.')) {
             if (-not $text.Contains($expected)) { throw "About dialog is missing: $expected" }
         }
         $checkbox = Get-Checkbox $about
@@ -327,8 +333,10 @@ $cases['ST-2000.1-ST-2000.4 initial actions'] = {
         $licenses = Wait-Until -Description 'Licenses dialog' -ConditionScript {
             Find-Window -ProcessId $process.Id -Title 'Licenses'
         }
-        if (-not (Get-WindowText $licenses).Contains('GNU General Public License')) {
-            throw 'Licenses dialog does not contain the GNU General Public License.'
+        foreach ($license in @('GNU General Public License', 'Apache License')) {
+            if (-not (Get-WindowText $licenses).Contains($license)) {
+                throw "Licenses dialog does not contain $license."
+            }
         }
         Invoke-Control (Find-Control -Root $licenses -Name 'Close' -Type $ControlType::Button)
         Wait-Until -Description 'Licenses dialog to close' -ConditionScript {
@@ -498,7 +506,9 @@ $cases['ST-2000.20 downgrade is displayed once'] = {
 }
 
 $failed = $false
-foreach ($case in $cases.GetEnumerator()) {
+$selectedCases = @($cases.GetEnumerator() | Where-Object { $_.Key -like $CaseFilter })
+if ($selectedCases.Count -eq 0) { throw "No scenarios match: $CaseFilter" }
+foreach ($case in $selectedCases) {
     Report-Case 'START' $case.Key
     try {
         & $case.Value
@@ -512,4 +522,4 @@ foreach ($case in $cases.GetEnumerator()) {
 }
 
 if ($failed) { throw 'Windows ST-2000 scenario failed. See the scenario artifacts for details.' }
-Write-Host "Windows ST-2000 scenario passed ($($cases.Count) case groups)."
+Write-Host "Windows ST-2000 scenario passed ($($selectedCases.Count) case groups)."

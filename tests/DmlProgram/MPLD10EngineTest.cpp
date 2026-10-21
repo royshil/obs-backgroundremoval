@@ -15,6 +15,7 @@ TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
+#include "../DoctestRunner.hpp"
 #include <BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.hpp>
 #include <graphics/graphics.h>
 #include <d3d11_4.h>
@@ -308,7 +309,7 @@ int testMain(int argc, char **argv)
 {
 	doctest::Context context;
 	context.applyCommandLine(argc, argv);
-	return context.run();
+	return TestHelpers::runTests(context);
 }
 
 int main(int argc, char **argv)
