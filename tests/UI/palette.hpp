@@ -57,16 +57,24 @@ inline QPalette yamiPalette(QPalette palette, YamiVariant variant)
 
 inline QString yamiStyleSheet(YamiVariant variant)
 {
+	// Match Yami's group layout using the runner's palette for both variants.
+	const auto groupStyle = QStringLiteral(
+		"QGroupBox { background: palette(base); border: none; border-radius: 4px; "
+		"padding-top: 24px; padding-bottom: 4px; font-weight: bold; margin-bottom: 4px; spacing: 1px; } "
+		"QGroupBox::title { subcontrol-origin: margin; left: 4px; top: 4px; } "
+		"QGroupBox::indicator { width: 16px; height: 16px; margin-left: 2px; margin-right: 4px; } ");
 	if (variant == YamiVariant::Light) {
-		return QStringLiteral(
-			"QPushButton { background-color: #F5F5F5; color: #0A0A0A; border: 1px solid #F5F5F5; "
-			"border-radius: 4px; padding: 2px 16px; } "
-			"QPushButton:hover { background-color: #FEFEFE; border-color: #828282; } "
-			"QPushButton:pressed { background-color: #D3D3D3; border-color: #F5F5F5; } "
-			"QPushButton:disabled { background-color: #D3D3D3; color: #646464; }");
+		return groupStyle +
+		       QStringLiteral(
+			       "QPushButton { background-color: #F5F5F5; color: #0A0A0A; border: 1px solid #F5F5F5; "
+			       "border-radius: 4px; padding: 2px 16px; } "
+			       "QPushButton:hover { background-color: #FEFEFE; border-color: #828282; } "
+			       "QPushButton:pressed { background-color: #D3D3D3; border-color: #F5F5F5; } "
+			       "QPushButton:disabled { background-color: #D3D3D3; color: #646464; }");
 	}
 
-	return QStringLiteral("QPushButton { background-color: #3C404D; color: #FFFFFF; border: 1px solid #3C404D; "
+	return groupStyle +
+	       QStringLiteral("QPushButton { background-color: #3C404D; color: #FFFFFF; border: 1px solid #3C404D; "
 			      "border-radius: 4px; padding: 2px 16px; } "
 			      "QPushButton:hover { background-color: #464B59; border-color: #5B6273; } "
 			      "QPushButton:pressed { background-color: #1D1F26; border-color: #3C404D; } "

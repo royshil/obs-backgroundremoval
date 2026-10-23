@@ -1,0 +1,6 @@
+Repository: https://github.com/josuttis/jthread
+Commit: 0fa8d394254886c555d6faccd0a3de819b7d47f8
+Path: source/stop_token.hpp
+License: https://creativecommons.org/licenses/by/4.0/
+Authors: Nicolai Josuttis (http://www.josuttis.com/contact.html), Lewis Baker
+Modifications: Renamed namespace std to josuttis; added SPDX headers and modification notices; adjusted whitespace and formatting.

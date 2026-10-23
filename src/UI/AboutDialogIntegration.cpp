@@ -11,7 +11,7 @@
 #include <obs-module.h>
 
 #include "AboutDialog.hpp"
-#include "../UpdateConfig/UpdateConfig.hpp"
+#include <UpdateConfig/UpdateConfig.hpp>
 
 #ifndef PLUGIN_VERSION_STR
 #error PLUGIN_VERSION_STR must be defined by the build system

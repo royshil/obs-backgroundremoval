@@ -10,16 +10,22 @@ endif()
 
 set(PACKAGE_VERSION_SUFFIX "" CACHE STRING "Version suffix for plugin package")
 
-block(PROPAGATE PLUGIN_VERSION)
-  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_CONTENT)
-  string(STRIP "${VERSION_CONTENT}" PLUGIN_VERSION)
-endblock()
+set(PLUGIN_DISPLAY_NAME "OBS Background Removal")
+set(PLUGIN_AUTHOR "Roy Shilkrot")
+set(PLUGIN_EMAIL "roy.shil@gmail.com")
+set(PLUGIN_BUNDLE_ID "com.royshilkrot.obs-backgroundremoval")
+set(PLUGIN_LATEST_VERSION_URL "https://royshil.github.io/obs-backgroundremoval/metadata/latest-version.txt")
+
+if(DEFINED ENV{GITHUB_RUN_ID})
+  set(PLUGIN_BUILD_NUMBER "$ENV{GITHUB_RUN_ID}")
+else()
+  set(PLUGIN_BUILD_NUMBER "1")
+endif()
+
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PLUGIN_VERSION)
+string(STRIP "${PLUGIN_VERSION}" PLUGIN_VERSION)
 
 project(obs-backgroundremoval VERSION "${PLUGIN_VERSION}" LANGUAGES C CXX)
-
-if(APPLE AND NOT CMAKE_GENERATOR STREQUAL "Xcode")
-  message(FATAL_ERROR "The macOS plugin requires the Xcode generator.")
-endif()
 
 if(APPLE)
   enable_language(OBJCXX)
@@ -32,23 +38,6 @@ include(GNUInstallDirs)
 
 include(./cmake/collect_licenses.cmake OPTIONAL)
 
-block(
-  PROPAGATE PLUGIN_DISPLAY_NAME PLUGIN_AUTHOR PLUGIN_EMAIL PLUGIN_BUNDLE_ID PLUGIN_LATEST_VERSION_URL
-)
-  file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.props" BUILDSPEC_LINES)
-  foreach(LINE IN LISTS BUILDSPEC_LINES)
-    if(LINE MATCHES "^([a-zA-Z][a-zA-Z0-9_]*)=(.*)$")
-      set("${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}")
-    endif()
-  endforeach()
-endblock()
-
-if(DEFINED ENV{GITHUB_RUN_ID})
-  set(PLUGIN_BUILD_NUMBER "$ENV{GITHUB_RUN_ID}")
-else()
-  set(PLUGIN_BUILD_NUMBER "1")
-endif()
-
 ### Global configurations
 set(CMAKE_C_EXTENSIONS FALSE)
 set(CMAKE_C_STANDARD 17)
@@ -58,43 +47,23 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
-add_library(BuildOptions INTERFACE)
+if(MSVC OR APPLE)
+  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
+endif()
 
 if(MSVC)
-  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
-  target_compile_definitions(BuildOptions INTERFACE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
-  target_compile_options(
-    BuildOptions
-    INTERFACE
-      /utf-8
-      /Zc:preprocessor
-      $<$<COMPILE_LANGUAGE:CXX>:/permissive->
-      $<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>
-      /W4
-      /WX
-  )
-elseif(APPLE)
-  set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
-  target_compile_options(
-    BuildOptions
-    INTERFACE -fno-omit-frame-pointer -fstack-protector-strong -Wall -Wextra -Werror
-  )
-elseif(UNIX)
-  target_compile_definitions(BuildOptions INTERFACE SIMDE_ENABLE_OPENMP)
-  target_compile_options(
-    BuildOptions
-    INTERFACE -fno-omit-frame-pointer -fstack-protector-strong -fopenmp-simd -Wall -Wextra -Werror
+  add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+  add_compile_options(
+    /utf-8
+    /Zc:preprocessor
+    $<$<COMPILE_LANGUAGE:CXX>:/permissive->
+    $<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>
   )
 endif()
 
-target_compile_definitions(
-  BuildOptions
-  INTERFACE
-    PLUGIN_NAME_STR="${CMAKE_PROJECT_NAME}"
-    PLUGIN_VERSION_STR="${PLUGIN_VERSION}"
-    PLUGIN_LATEST_VERSION_URL="${PLUGIN_LATEST_VERSION_URL}"
-    OBS_LOG_HEADER="[${CMAKE_PROJECT_NAME}] "
-)
+if(UNIX)
+  add_compile_options(-fno-omit-frame-pointer -fstack-protector-strong)
+endif()
 
 ### Dependency helpers
 function(map_imported_executable_to_release TARGET_NAME FALLBACK_LOCATION)
@@ -232,7 +201,7 @@ block()
 endblock()
 
 block(PROPAGATE OpenCV_FOUND)
-  if(NOT APPLE)
+  if(NOT APPLE AND NOT WIN32)
     find_package(OpenCV CONFIG QUIET)
 
     if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
@@ -263,7 +232,7 @@ block(PROPAGATE OpenCV_FOUND)
 endblock()
 
 block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM_EP)
-  if(NOT APPLE)
+  if(NOT APPLE AND NOT WIN32)
     set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON)
 
     find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc HINTS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES tools/protobuf)
@@ -311,7 +280,7 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
 
     if(HAVE_ONNXRUNTIME_CUDA_EP)
       message(STATUS "Building with ONNX Runtime CUDA EP.")
-      target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_CUDA_EP)
+      add_compile_definitions(HAVE_ONNXRUNTIME_CUDA_EP)
     else()
       message(STATUS "Building without ONNX Runtime CUDA EP.")
     endif()
@@ -329,7 +298,7 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
 
     if(HAVE_ONNXRUNTIME_ROCM_EP)
       message(STATUS "Building with ONNX Runtime ROCm EP.")
-      target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_ROCM_EP)
+      add_compile_definitions(HAVE_ONNXRUNTIME_ROCM_EP)
     else()
       message(STATUS "Building without ONNX Runtime ROCm EP.")
     endif()
@@ -338,16 +307,33 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
   endif()
 endblock()
 
+if(APPLE)
+  add_subdirectory(vendor/josuttis-jthread)
+endif()
+
+if(WIN32)
+  add_subdirectory(vendor/Simd)
+endif()
+
 ### Plugin main
-add_subdirectory(vendor/josuttis-jthread)
 add_subdirectory(src/UpdateConfig)
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
+option(MPLD10_GPU_DIAGNOSTICS "Emit in-command-list MPLD10 GPU timestamps after the existing completion fence" OFF)
+if(WIN32 AND MPLD10_GPU_DIAGNOSTICS)
+  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE MPLD10_GPU_DIAGNOSTICS)
+endif()
 
-target_link_libraries(
+target_compile_definitions(
   ${CMAKE_PROJECT_NAME}
-  PRIVATE BuildOptions OBS::libobs OBS::obs-frontend-api Qt6::Widgets UpdateConfig
+  PUBLIC
+    PLUGIN_NAME_STR="${CMAKE_PROJECT_NAME}"
+    PLUGIN_VERSION_STR="${PLUGIN_VERSION}"
+    PLUGIN_LATEST_VERSION_URL="${PLUGIN_LATEST_VERSION_URL}"
+    OBS_LOG_HEADER="[${CMAKE_PROJECT_NAME}] "
 )
+
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs OBS::obs-frontend-api Qt6::Widgets UpdateConfig)
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src)
 
@@ -355,17 +341,22 @@ if(APPLE)
   target_sources(
     ${CMAKE_PROJECT_NAME}
     PRIVATE
-      src/Memory/AlignedBuffer.cpp
-      src/ObsBridgeUtils/AsyncTextureReader.cpp
+      src/BackgroundRemoval/macos/AlignedBuffer.cpp
       src/ObsBridgeUtils/GsUnique.cpp
-      src/macos/ImageProcessing.cpp
-      src/macos/plugin-main.cpp
-      src/macos/BackgroundRemoval/MainEffect.cpp
-      src/macos/BackgroundRemoval/FilterContext.cpp
-      src/macos/BackgroundRemoval/MediaPipeLandscapePipeline.mm
+      src/ObsBridgeUtils/TextureReader.cpp
+      src/BackgroundRemoval/macos/Operators.hpp
+      src/BackgroundRemoval/macos/MaskOperators.cpp
+      src/BackgroundRemoval/macos/Operators.cpp
+      src/BackgroundRemoval/macos/FilterProperty.cpp
+      src/BackgroundRemoval/macos/FilterContext.cpp
+      src/BackgroundRemoval/macos/PipelineFactory.cpp
+      src/BackgroundRemoval/macos/MediaPipeLandscapeCoreMLPipeline.mm
+      src/BackgroundRemoval/macos/MainEffect.cpp
+      src/plugin-main-macos.cpp
+      src/plugin-support.c
   )
   set_source_files_properties(
-    src/macos/BackgroundRemoval/MediaPipeLandscapePipeline.mm
+    src/BackgroundRemoval/macos/MediaPipeLandscapeCoreMLPipeline.mm
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
   )
 
@@ -374,12 +365,41 @@ if(APPLE)
     PRIVATE "-framework Accelerate" "-framework CoreML" "-framework Foundation"
   )
 
-  set(MEDIAPIPE_LANDSCAPE_MODEL "${CMAKE_CURRENT_SOURCE_DIR}/src/macos/BackgroundRemoval/MediaPipeLandscape.mlpackage")
+  set(
+    MEDIAPIPE_LANDSCAPE_MODEL
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/BackgroundRemoval/macos/generated/MediaPipeLandscape.mlpackage"
+  )
   set_source_files_properties(
     "${MEDIAPIPE_LANDSCAPE_MODEL}"
     PROPERTIES MACOSX_PACKAGE_LOCATION "Resources" XCODE_EXPLICIT_FILE_TYPE "folder.mlpackage"
   )
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${MEDIAPIPE_LANDSCAPE_MODEL}")
+elseif(WIN32)
+  set(DIRECTML_GENERATED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/BackgroundRemoval/windows/generated")
+  set(DIRECTML_PROGRAM_SOURCE "${DIRECTML_GENERATED_DIR}/MediaPipeLandscapeDmlProgram.generated.cpp")
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE
+      src/BackgroundRemoval/windows/FilterContext.cpp
+      src/BackgroundRemoval/windows/ModuleText.cpp
+      src/BackgroundRemoval/windows/AutoConfigurator.cpp
+      src/BackgroundRemoval/windows/PipelineFactory.cpp
+      src/BackgroundRemoval/windows/MPLD10Pipeline.cpp
+      src/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp
+      src/BaselineDml/Detail.cpp
+      src/BaselineDml/CreateDmlProgram.cpp
+      src/BaselineDml/RecordDmlProgram.cpp
+      src/BaselineDml/DmlProgramCompiler.cpp
+      src/BaselineDml/DmlProgramCompilerBuilder.cpp
+      src/BackgroundRemoval/windows/TraceLoggingProvider.cpp
+      src/plugin-main-windows.cpp
+      src/plugin-support.c
+      "${DIRECTML_PROGRAM_SOURCE}"
+  )
+  target_link_libraries(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE d3d12 directml d3d11 dxgi d3dcompiler advapi32
+  )
 else()
   target_sources(
     ${CMAKE_PROJECT_NAME}
@@ -391,6 +411,7 @@ else()
       src/obs-utils/obs-utils.cpp
       src/enhance-filter.cpp
   )
+
   target_link_libraries(
     ${CMAKE_PROJECT_NAME}
     PRIVATE
@@ -486,6 +507,8 @@ configure_file(
   @ONLY
 )
 
+set(APACHE_LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSES/Apache-2.0.txt")
+
 if(APPLE)
   set_target_properties(
     ${CMAKE_PROJECT_NAME}
@@ -500,12 +523,13 @@ if(APPLE)
       XCODE_ATTRIBUTE_INFOPLIST_FILE ""
       XCODE_ATTRIBUTE_INFOPLIST_KEY_CFBundleDisplayName "${PLUGIN_DISPLAY_NAME}"
       XCODE_ATTRIBUTE_INFOPLIST_KEY_NSHumanReadableCopyright
-        "Copyright © 2021-2026 Roy Shilkrot; Copyright © 2023-2026 Kaito Udagawa"
+        "Copyright ﾂｩ 2021-2026 Roy Shilkrot; Copyright ﾂｩ 2023-2026 Kaito Udagawa"
   )
   set_source_files_properties(${EFFECTS_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/effects")
   set_source_files_properties(${LOCALE_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/locale")
-  set_source_files_properties(${MODELS_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/models")
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${EFFECTS_FILES} ${LOCALE_FILES} ${MODELS_FILES})
+  set(MACOS_LICENSE_FILES "${APACHE_LICENSE_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/LICENSES/CC-BY-4.0.txt")
+  set_source_files_properties(${MACOS_LICENSE_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/licenses")
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${EFFECTS_FILES} ${LOCALE_FILES} ${MACOS_LICENSE_FILES})
 
   install(
     TARGETS "${CMAKE_PROJECT_NAME}"
@@ -523,7 +547,7 @@ elseif(MSVC)
   )
   install(FILES ${EFFECTS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/effects")
   install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
-  install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
+  install(FILES "${APACHE_LICENSE_FILE}" DESTINATION "${OBS_PLUGIN_DATA_DIR}/licenses")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(OBS_PLUGIN_DATA_DIR "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}")
   set(OBS_PLUGIN_DOC_DIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${CMAKE_PROJECT_NAME}")
@@ -540,12 +564,14 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
   install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
   install(FILES LICENSE DESTINATION "${OBS_PLUGIN_DOC_DIR}" RENAME copyright)
+  install(FILES "${APACHE_LICENSE_FILE}" DESTINATION "${OBS_PLUGIN_DOC_DIR}/licenses")
 
   # User plugin
   install(TARGETS "${CMAKE_PROJECT_NAME}" LIBRARY DESTINATION "bin/64bit" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
   install(FILES ${EFFECTS_FILES} DESTINATION "data/effects" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
   install(FILES ${LOCALE_FILES} DESTINATION "data/locale" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
   install(FILES ${MODELS_FILES} DESTINATION "data/models" COMPONENT UserPlugin EXCLUDE_FROM_ALL OPTIONAL)
+  install(FILES "${APACHE_LICENSE_FILE}" DESTINATION "data/licenses" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
 else()
   message("Installing on this platform is not supported officially.")
 endif()
