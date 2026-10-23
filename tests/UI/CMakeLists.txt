@@ -61,8 +61,11 @@ if(WIN32)
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/generated/MediaPipeLandscapeDmlProgram.generated.cpp"
-    "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
-    "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
+    "${PLUGIN_SOURCE_DIR}/BaselineDml/Detail.cpp"
+    "${PLUGIN_SOURCE_DIR}/BaselineDml/CreateDmlProgram.cpp"
+    "${PLUGIN_SOURCE_DIR}/BaselineDml/RecordDmlProgram.cpp"
+    "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+    "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompilerBuilder.cpp"
   )
 
   set_target_properties(BRPropUI PROPERTIES AUTOMOC ON AUTORCC ON)

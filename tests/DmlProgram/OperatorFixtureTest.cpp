@@ -15,7 +15,9 @@
 #include <doctest.h>
 #include "../DoctestRunner.hpp"
 #include "MaskReference.hpp"
-#include <DmlProgram/BaselineDmlProgramRuntime.hpp>
+#include "ProgramTestSession.hpp"
+#include "TensorSpecFixture.hpp"
+#include <BaselineDml/DmlProgramCompiler.hpp>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -25,13 +27,16 @@
 
 TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 using namespace BaselineDml;
-using namespace BaselineDml::ProgramDefinition;
+using DmlProgramTest::ProgramTestSession;
+using DmlProgramTest::makeInputTensorSpec;
+using DmlProgramTest::makeWeightTensorSpec;
+using namespace BaselineDml::Definition;
 
 TEST_CASE("MPLD10Float32Postprocess")
 {
-	const InputSpecItem specs[]{
-		{kRuntimeInput, dtFloat32, 4, {1, 1, 144, 256}},
-		{kRuntimeInput, dtFloat32, 4, {1, 1, 1, 1}},
+	const TensorSpec specs[]{
+		makeInputTensorSpec(dtFloat32, 4, {1, 1, 144, 256}),
+		makeInputTensorSpec(dtFloat32, 4, {1, 1, 1, 1}),
 	};
 	const std::pair<std::int32_t, std::int32_t> barriers[]{{3, 2}};
 	std::vector<float> probabilities(256 * 144);
@@ -45,8 +50,8 @@ TEST_CASE("MPLD10Float32Postprocess")
 		FusedNode{MPLD10BinarizeFloat32{0, 1}},
 		Onnx11Node{AveragePool2d{dtFloat32, 2, {1, 1}, {5, 5}, {2, 2}, {2, 2}, {1, 1, 144, 256}}},
 	};
-	BaselineDmlProgramRuntime binary(specs, std::span(nodes).subspan(0, 3), {}, 2, {});
-	BaselineDmlProgramRuntime full(specs, std::span(nodes).subspan(0, 4), barriers, 3, {});
+	ProgramTestSession binary(specs, std::span(nodes).subspan(0, 3), {}, 2, {});
+	ProgramTestSession full(specs, std::span(nodes).subspan(0, 4), barriers, 3, {});
 	for (const float threshold : {0.0F, 0.42F, 0.5F, 1.0F}) {
 		CAPTURE(threshold);
 		const std::array inputs{std::as_bytes(std::span(probabilities)),
@@ -93,7 +98,7 @@ void compareOperator(const std::string &name)
 						     : name == "Resize"     ? std::array<std::int32_t, 4>{1, 2, 6, 12}
 						     : name == "ConvTranspose" ? std::array<std::int32_t, 4>{1, 2, 6, 8}
 									       : shape;
-	std::vector<InputSpecItem> specs{{kRuntimeInput, dtFloat32, 4, shape}};
+	std::vector<TensorSpec> specs{makeInputTensorSpec(dtFloat32, 4, shape)};
 	std::vector<Node> nodes{InputItem{dtFloat32, 0}};
 	std::vector<float> weights{3.0F, 1.0F / 6.0F};
 	if (name == "PointwiseConvTranspose") {
@@ -103,8 +108,8 @@ void compareOperator(const std::string &name)
 				weights[phase * 16 + channel] = float(int((channel * 4 + phase) % 7) - 3) / 16;
 			weights[64 + phase] = 0.25F;
 		}
-		specs.push_back({0, dtFloat32, 4, {4, 16, 1, 1}});
-		specs.push_back({256, dtFloat32, 1, {4}});
+		specs.push_back(makeWeightTensorSpec(0, dtFloat32, 4, {4, 16, 1, 1}));
+		specs.push_back(makeWeightTensorSpec(256, dtFloat32, 1, {4}));
 		nodes.insert(
 			nodes.end(),
 			{InputItem{dtFloat32, 1}, InputItem{dtFloat32, 2},
@@ -117,16 +122,19 @@ void compareOperator(const std::string &name)
 			weights[i] = float(int(i % 7) - 3) / 16;
 		for (size_t i = 0; i < 16; ++i)
 			weights[144 + i] = i % 2 ? -0.5F : 0.25F;
-		specs.push_back({0, dtFloat32, 4, {16, 1, 3, 3}});
-		specs.push_back({576, dtFloat32, 1, {16}});
+		specs.push_back(makeWeightTensorSpec(0, dtFloat32, 4, {16, 1, 3, 3}));
+		specs.push_back(makeWeightTensorSpec(576, dtFloat32, 1, {16}));
 		nodes.insert(nodes.end(), {InputItem{dtFloat32, 1}, InputItem{dtFloat32, 2},
 					   FusedNode{MPLD10DepthwiseConv2dRelu{dtFloat32, 0, 1, 2}}});
 	} else if (name == "HardSwishFused") {
 		nodes.push_back(FusedNode{HardSwishGate{dtFloat32, 0, 4, shape}});
 		nodes.push_back(Onnx14Node{Mul{dtFloat32, 0, 1, 4, shape}});
 	} else if (name == "HardSwish") {
-		specs.push_back({0, dtFloat32, 4, {1, 1, 1, 1}});
-		specs.push_back({4, dtFloat32, 4, {1, 1, 1, 1}});
+		const size_t count = size_t(shape[0]) * shape[1] * shape[2] * shape[3];
+		weights.assign(count, 3.0F);
+		weights.resize(count * 2, 1.0F / 6.0F);
+		specs.push_back(makeWeightTensorSpec(0, dtFloat32, 4, shape));
+		specs.push_back(makeWeightTensorSpec(static_cast<int64_t>(count * 4), dtFloat32, 4, shape));
 		nodes.insert(nodes.end(),
 			     {InputItem{dtFloat32, 1}, InputItem{dtFloat32, 2},
 			      Onnx14Node{Add{dtFloat32, 0, 1, 4, shape}}, Onnx13Node{ClipFloat32{3, 4, shape, 0, 6}},
@@ -136,8 +144,10 @@ void compareOperator(const std::string &name)
 	} else if (name == "Resize") {
 		nodes.push_back(Onnx13Node{Resize{dtFloat32, 0, 4, 2, 3, outShape}});
 	} else if (name == "Add" || name == "Mul") {
-		weights = {0.5F, -1.25F};
-		specs.push_back({0, dtFloat32, 4, {1, 2, 1, 1}});
+		const size_t channelSize = size_t(shape[2]) * shape[3];
+		weights.assign(channelSize, 0.5F);
+		weights.resize(channelSize * 2, -1.25F);
+		specs.push_back(makeWeightTensorSpec(0, dtFloat32, 4, shape));
 		nodes.push_back(InputItem{dtFloat32, 1});
 		if (name == "Add")
 			nodes.push_back(Onnx14Node{Add{dtFloat32, 0, 1, 4, shape}});
@@ -155,13 +165,14 @@ void compareOperator(const std::string &name)
 		const std::int32_t kernel = transpose ? 2 : 3;
 		const std::array<std::int32_t, 4> filter{2, depthwise ? 1 : 2, kernel, kernel};
 		const size_t count = filter[0] * filter[1] * kernel * kernel;
-		weights.resize(count + 2);
+		const size_t biasOffset = (count + 3) / 4 * 4;
+		weights.resize(biasOffset + 2);
 		for (size_t i = 0; i < count; ++i)
 			weights[i] = float(int(i % 7) - 3) / 16;
-		weights[count] = 0.25F;
-		weights[count + 1] = -0.5F;
-		specs.push_back({0, dtFloat32, 4, filter});
-		specs.push_back({static_cast<int64_t>(count * 4), dtFloat32, 1, {2, 0, 0, 0}});
+		weights[biasOffset] = 0.25F;
+		weights[biasOffset + 1] = -0.5F;
+		specs.push_back(makeWeightTensorSpec(0, dtFloat32, 4, filter));
+		specs.push_back(makeWeightTensorSpec(static_cast<int64_t>(biasOffset * 4), dtFloat32, 1, {2, 0, 0, 0}));
 		nodes.push_back(InputItem{dtFloat32, 1});
 		nodes.push_back(InputItem{dtFloat32, 2});
 		if (transpose)
@@ -197,12 +208,12 @@ void compareOperator(const std::string &name)
 		uavBarriers.emplace_back(2, 1);
 	if (name == "PointwiseConvTranspose")
 		uavBarriers.emplace_back(4, 3);
-	std::span<const InputSpecItem> graphInputSpecs = specs;
+	std::span<const TensorSpec> graphTensorSpecs = specs;
 	std::span<const Node> graphNodes = std::span(nodes).subspan(0, static_cast<std::int32_t>(nodes.size()));
 	std::span<const std::pair<std::int32_t, std::int32_t>> graphBarriers = uavBarriers;
 	std::int32_t graphOutputIndex = static_cast<std::int32_t>(nodes.size() - 1);
-	BaselineDmlProgramRuntime runtime(graphInputSpecs, graphNodes, graphBarriers, graphOutputIndex,
-					  std::as_bytes(std::span(weights)));
+	ProgramTestSession runtime(graphTensorSpecs, graphNodes, graphBarriers, graphOutputIndex,
+				   std::as_bytes(std::span(weights)));
 	for (int scenario = 0; scenario < 5; ++scenario) {
 		CAPTURE(name);
 		CAPTURE(scenario);
@@ -332,66 +343,74 @@ TEST_CASE("MPLD10DepthwiseConv2dRelu")
 
 TEST_CASE("MPLD10DepthwiseConv2dReluContract")
 {
-	std::array<InputSpecItem, 3> specs{{
-		{kRuntimeInput, dtFloat32, 4, {1, 16, 72, 128}},
-		{0, dtFloat32, 4, {16, 1, 3, 3}},
-		{576, dtFloat32, 1, {16}},
+	std::array<TensorSpec, 3> specs{{
+		makeInputTensorSpec(dtFloat32, 4, {1, 16, 72, 128}),
+		makeWeightTensorSpec(0, dtFloat32, 4, {16, 1, 3, 3}),
+		makeWeightTensorSpec(576, dtFloat32, 1, {16}),
 	}};
 	const std::array<float, 160> weights{};
 	std::array<Node, 4> nodes{InputItem{dtFloat32, 0}, InputItem{dtFloat32, 1}, InputItem{dtFloat32, 2},
 				  FusedNode{MPLD10DepthwiseConv2dRelu{dtFloat32, 0, 1, 2}}};
-	std::span<const InputSpecItem> graphInputSpecs = specs;
+	std::span<const TensorSpec> graphTensorSpecs = specs;
 	std::span<const Node> graphNodes = std::span(nodes).subspan(0, static_cast<std::int32_t>(nodes.size()));
 	std::span<const std::pair<std::int32_t, std::int32_t>> graphBarriers = {};
 	std::int32_t graphOutputIndex = 3;
+	const char *expected = "";
 	SUBCASE("input shape")
 	{
-		specs[0].shape[3] = 127;
+		specs[0] = makeInputTensorSpec(dtFloat32, 4, {1, 16, 72, 127});
+		expected = "MPLD10DepthwiseConv2dRelu input shape";
 	}
 	SUBCASE("filter shape")
 	{
-		specs[1].shape[2] = 2;
+		specs[1] = makeWeightTensorSpec(0, dtFloat32, 4, {16, 1, 2, 3});
+		expected = "MPLD10DepthwiseConv2dRelu filter shape";
 	}
 	SUBCASE("bias shape")
 	{
-		specs[2].shape[0] = 15;
+		specs[2] = makeWeightTensorSpec(576, dtFloat32, 1, {15});
+		expected = "MPLD10DepthwiseConv2dRelu bias shape";
 	}
 	SUBCASE("runtime filter")
 	{
-		specs[1].byteOffset = kRuntimeInput;
+		specs[1] = makeInputTensorSpec(dtFloat32, 4, {16, 1, 3, 3});
+		expected = "MPLD10DepthwiseConv2dRelu filter shape";
 	}
 	SUBCASE("input type")
 	{
-		specs[0].dataType = dtFloat16;
+		specs[0] = makeInputTensorSpec(dtFloat16, 4, {1, 16, 72, 128});
 		nodes[0] = InputItem{dtFloat16, 0};
+		expected = "input and operator data types must match; no implicit conversion";
 	}
-	CHECK_THROWS_AS(BaselineDmlProgramRuntime(graphInputSpecs, graphNodes, graphBarriers, graphOutputIndex,
-						  std::as_bytes(std::span(weights))),
-			std::runtime_error);
+	CHECK_THROWS_WITH_AS(ProgramTestSession(graphTensorSpecs, graphNodes, graphBarriers, graphOutputIndex,
+						std::as_bytes(std::span(weights))),
+			     expected, DmlCompilationError);
 }
 
 TEST_CASE("ClipFloat32Contract")
 {
-	InputSpecItem spec{kRuntimeInput, dtFloat32, 1, {3}};
+	auto spec = makeInputTensorSpec(dtFloat32, 1, {3});
 	std::array<Node, 2> nodes{InputItem{dtFloat32, 0}, Onnx13Node{ClipFloat32{0, 1, {3}, 0, 6}}};
-	std::span<const InputSpecItem> graphInputSpecs = std::span(&spec, 1);
+	std::span<const TensorSpec> graphTensorSpecs = std::span(&spec, 1);
 	std::span<const Node> graphNodes = std::span(nodes).subspan(0, 2);
 	std::span<const std::pair<std::int32_t, std::int32_t>> graphBarriers = {};
 	std::int32_t graphOutputIndex = 1;
+	const char *expected = "input and operator data types must match; no implicit conversion";
 	SUBCASE("Float16 input")
 	{
-		spec.dataType = dtFloat16;
+		spec = makeInputTensorSpec(dtFloat16, 1, {3});
 		nodes[0] = InputItem{dtFloat16, 0};
 	}
 	SUBCASE("integer input")
 	{
-		spec.dataType = dtInt32;
+		spec = makeInputTensorSpec(dtInt32, 1, {3});
 		nodes[0] = InputItem{dtInt32, 0};
 	}
 	SUBCASE("reversed bounds")
 	{
 		nodes[1] = Onnx13Node{ClipFloat32{0, 1, {3}, 6, 0}};
+		expected = "ClipFloat32 minimum exceeds maximum";
 	}
-	CHECK_THROWS_AS(BaselineDmlProgramRuntime(graphInputSpecs, graphNodes, graphBarriers, graphOutputIndex, {}),
-			std::runtime_error);
+	CHECK_THROWS_WITH_AS(ProgramTestSession(graphTensorSpecs, graphNodes, graphBarriers, graphOutputIndex, {}),
+			     expected, DmlCompilationError);
 }

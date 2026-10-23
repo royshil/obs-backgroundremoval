@@ -19,7 +19,7 @@
 #include <benchmark/benchmark.h>
 
 #include <BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Model.hpp>
-#include <DmlProgram/BaselineDmlProgramRuntime.hpp>
+#include "../DmlProgram/ProgramTestSession.hpp"
 
 TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 
@@ -27,9 +27,8 @@ static void landscape(benchmark::State &state)
 {
 	const auto weights = std::as_bytes(std::span(BackgroundRemoval::MPLD10Detail::weightsData,
 						     BackgroundRemoval::MPLD10Detail::weightsDataSize));
-	BaselineDml::BaselineDmlProgramRuntime runtime(BackgroundRemoval::MPLD10Detail::inputSpecs,
-						       BackgroundRemoval::MPLD10Detail::graphNodes,
-						       BackgroundRemoval::MPLD10Detail::uavBarriers, 239, weights);
+	DmlProgramTest::ProgramTestSession runtime(BackgroundRemoval::MPLD10Detail::graphNodes,
+						   BackgroundRemoval::MPLD10Detail::modelParams, weights);
 	const std::vector<float> input(3 * 256 * 144, 0.5F);
 	const float threshold = 0.42F;
 	const std::array inputs{std::as_bytes(std::span(input)), std::as_bytes(std::span(&threshold, 1))};

@@ -22,11 +22,12 @@
 
 #include <d3d11_4.h>
 #include <d3d12.h>
+#include <DirectML.h>
 #include <d3dcompiler.h>
 #include <dxgi1_4.h>
 #include <wrl/client.h>
 
-#include <DmlProgram/BaselineDmlProgramRuntime.hpp>
+#include <BaselineDml/DmlProgramOperations.hpp>
 
 #include <TraceLoggingActivity.h>
 #include <TraceLoggingProvider.h>
@@ -149,9 +150,11 @@ public:
 	static constexpr uint32_t width_ = 256, height_ = 144, count_ = width_ * height_ * 3;
 	static_assert(width_ % 4 == 0);
 	DXGI_FORMAT inputFormat_ = DXGI_FORMAT_UNKNOWN;
-	std::unique_ptr<BaselineDml::BaselineDmlProgramRuntime> program_;
-	ComPtr<ID3D12Device> device_{program_->device()};
-	ComPtr<ID3D12CommandQueue> queue_{program_->queue()};
+	ComPtr<ID3D12Device> device_;
+	ComPtr<IDMLDevice> dmlDevice_;
+	ComPtr<ID3D12CommandQueue> queue_;
+	BaselineDml::DmlProgramDefinition programDefinition_;
+	std::unique_ptr<BaselineDml::DmlProgram> program_;
 	ComPtr<ID3D12Resource> texture_, current_, readback_;
 	ComPtr<ID3D12Fence> ready_, completion_;
 	ComPtr<ID3D11Device5> producer_;
@@ -198,12 +201,21 @@ public:
 	auto ensureOutput() noexcept -> HRESULT;
 };
 
-MPLD10Engine::Impl::Impl(ID3D11Device *native, bool gpuOutput)
-	: program_(std::make_unique<BaselineDml::BaselineDmlProgramRuntime>(
-		  MPLD10Detail::inputSpecs, MPLD10Detail::graphNodes, MPLD10Detail::uavBarriers, gpuOutput ? 239 : 236,
-		  std::as_bytes(std::span(MPLD10Detail::weightsData, MPLD10Detail::weightsDataSize)))),
-	  gpuOutput_(gpuOutput)
+MPLD10Engine::Impl::Impl(ID3D11Device *native, bool gpuOutput) : gpuOutput_(gpuOutput)
 {
+	if (!native || !event_)
+		throw std::invalid_argument("Invalid OBS backend or completion event");
+	check(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device_)), "Create engine device");
+	check(DMLCreateDevice(device_.Get(), DML_CREATE_DEVICE_FLAG_NONE, IID_PPV_ARGS(&dmlDevice_)),
+	      "Create engine DirectML device");
+	D3D12_COMMAND_QUEUE_DESC queueDescription{};
+	queueDescription.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+	check(device_->CreateCommandQueue(&queueDescription, IID_PPV_ARGS(&queue_)), "Create engine queue");
+	programDefinition_ = MPLD10Detail::modelDefinition;
+	programDefinition_.params.outputTensor = gpuOutput ? MPLD10Detail::maskOutputIndex
+							   : MPLD10Detail::rawOutputIndex;
+	program_ = std::make_unique<BaselineDml::DmlProgram>(
+		BaselineDml::createDmlProgram(device_.Get(), dmlDevice_.Get(), programDefinition_));
 	auto *d = device_.Get();
 	auto *q = queue_.Get();
 	constexpr auto w = width_, h = height_;
@@ -212,7 +224,7 @@ MPLD10Engine::Impl::Impl(ID3D11Device *native, bool gpuOutput)
 	ComPtr<ID3D12Device> queueDevice;
 	check(q->GetDevice(IID_PPV_ARGS(&queueDevice)), "Get engine queue device");
 	if (queueDevice.Get() != d || q->GetDesc().Type != D3D12_COMMAND_LIST_TYPE_DIRECT)
-		throw std::invalid_argument("Engine requires the Runtime's direct queue");
+		throw std::invalid_argument("Engine requires a direct queue on its device");
 	// Use the caller's immediate context so input copies follow its rendering
 	// on the same command stream.
 	if (!native)
@@ -235,23 +247,22 @@ MPLD10Engine::Impl::Impl(ID3D11Device *native, bool gpuOutput)
 	check(d->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&ready_)), "Create input-ready fence");
 	auto readyHandle = sharedHandle(d, ready_.Get());
 	check(producer_->OpenSharedFence(readyHandle.get(), IID_PPV_ARGS(&ready11_)), "Open input-ready fence");
-	const auto inputType = program_->inputInfo(0).type;
-	const auto outputType = program_->outputInfo().type;
-	if (program_->inputCount() != 2u || inputType != BaselineDml::ProgramDefinition::dtFloat32 ||
-	    outputType != BaselineDml::ProgramDefinition::dtFloat32 ||
-	    program_->inputInfo(0).dataBytes != count_ * sizeof(float) ||
-	    program_->outputInfo().dataBytes != width_ * height_ * sizeof(float))
+	const auto inputType = BaselineDml::inputInfo(programDefinition_, 0).type;
+	const auto outputType = BaselineDml::outputInfo(programDefinition_).type;
+	if (BaselineDml::inputCount(programDefinition_) != 2u || inputType != BaselineDml::Definition::dtFloat32 ||
+	    outputType != BaselineDml::Definition::dtFloat32 ||
+	    BaselineDml::inputInfo(programDefinition_, 0).dataBytes != count_ * sizeof(float) ||
+	    BaselineDml::outputInfo(programDefinition_).dataBytes != width_ * height_ * sizeof(float))
 		throw std::invalid_argument("Landscape engine tensor contract mismatch");
-	current_ =
-		buffer(d, program_->inputInfo(0).dataBytes, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_HEAP_TYPE_DEFAULT);
-	readback_ = buffer(d, program_->outputInfo().dataBytes, D3D12_RESOURCE_STATE_COPY_DEST,
+	current_ = buffer(d, BaselineDml::inputInfo(programDefinition_, 0).dataBytes, D3D12_RESOURCE_STATE_COPY_SOURCE,
+			  D3D12_HEAP_TYPE_DEFAULT);
+	readback_ = buffer(d, BaselineDml::outputInfo(programDefinition_).dataBytes, D3D12_RESOURCE_STATE_COPY_DEST,
 			   gpuOutput_ ? D3D12_HEAP_TYPE_DEFAULT : D3D12_HEAP_TYPE_READBACK);
 	check(d->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&allocator_)),
 	      "Create engine allocator");
 	check(d->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, allocator_.Get(), nullptr,
 				   IID_PPV_ARGS(&commands_)),
 	      "Create engine commands");
-	check(commands_->Close(), "Close initial engine commands");
 	check(d->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&completion_)), "Create engine completion fence");
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -322,6 +333,29 @@ MPLD10Engine::Impl::Impl(ID3D11Device *native, bool gpuOutput)
 			throw std::runtime_error("Invalid timing frequency");
 #endif
 	}
+	// Submit only after all fallible CPU setup; retain every program resource through completion.
+	BaselineDml::recordInitialization(programDefinition_, *program_, commands_.Get());
+	check(commands_->Close(), "Close engine initialization");
+	ID3D12CommandList *lists[]{commands_.Get()};
+	q->ExecuteCommandLists(1, lists);
+	const auto value = ++fenceValue_;
+	const HRESULT signal = q->Signal(completion_.Get(), value);
+	if (FAILED(signal) && FAILED(q->Signal(completion_.Get(), value))) {
+		if (SUCCEEDED(d->GetDeviceRemovedReason()))
+			std::terminate(); // A live queue without a completion marker cannot safely release resources.
+		check(signal, "Signal engine initialization");
+	}
+	for (;;) {
+		const auto completed = completion_->GetCompletedValue();
+		if (completed == UINT64_MAX)
+			throw std::runtime_error("Engine device removed during initialization");
+		if (completed >= value)
+			break;
+		check(d->GetDeviceRemovedReason(), "Engine initialization completion");
+		Sleep(1);
+	}
+	check(signal, "Signal engine initialization");
+	check(dmlDevice_->GetDeviceRemovedReason(), "DirectML initialization completion");
 }
 
 auto MPLD10Engine::Impl::isDone(bool &done) const noexcept -> HRESULT
@@ -433,19 +467,10 @@ auto MPLD10Engine::Impl::record() noexcept -> HRESULT
 		commands_->EndQuery(timingQueries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
 #endif
 	const std::array<BaselineDml::GpuInput, 2> inputs{{
-		{current_.Get(), 0, program_->inputInfo(0).dataBytes},
+		{current_.Get(), 0, BaselineDml::inputInfo(programDefinition_, 0).dataBytes},
 		{settings_.Get(), 0, sizeof(float)},
 	}};
-	// The shared Runtime still uses exceptions; contain them at this boundary.
-	try {
-		program_->recordGpuRun(commands_.Get(), inputs, nullptr, readback_.Get(), 0);
-	} catch (const std::bad_alloc &) {
-		return E_OUTOFMEMORY;
-	} catch (const std::invalid_argument &) {
-		return E_INVALIDARG;
-	} catch (...) {
-		return E_FAIL;
-	}
+	BaselineDml::recordGpuRun(programDefinition_, *program_, commands_.Get(), inputs, nullptr, readback_.Get(), 0);
 #ifdef MPLD10_GPU_DIAGNOSTICS
 	if (timingQueries_)
 		commands_->EndQuery(timingQueries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 2);
@@ -680,7 +705,7 @@ auto MPLD10Engine::Impl::getResult(std::span<float> output) noexcept -> HRESULT
 	if (!done)
 		return E_PENDING;
 	TraceLoggingFunction(g_hProvider, TraceLoggingKeyword(0x1));
-	const D3D12_RANGE range{0, program_->outputInfo().dataBytes};
+	const D3D12_RANGE range{0, BaselineDml::outputInfo(programDefinition_).dataBytes};
 	void *mapped = nullptr;
 	if (HRESULT hr = readback_->Map(0, &range, &mapped); FAILED(hr))
 		return hr;

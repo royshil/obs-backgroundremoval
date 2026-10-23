@@ -21,7 +21,7 @@ TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 #include <d3d11_4.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
-#include <DmlProgram/BaselineDmlProgramRuntime.hpp>
+#include "ProgramTestSession.hpp"
 #include <winrt/base.h>
 #include <wincodec.h>
 #include <wrl/client.h>
@@ -33,11 +33,11 @@ TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 #include <vector>
 #include <DirectXPackedVector.h>
 
-void runLandscapeReference(BaselineDml::BaselineDmlProgramRuntime &runtime, std::span<const float> input,
+void runLandscapeReference(DmlProgramTest::ProgramTestSession &runtime, std::span<const float> input,
 			   std::span<float> output)
 {
-	if (runtime.inputInfo(0).type != BaselineDml::ProgramDefinition::dtFloat32 ||
-	    runtime.outputInfo().type != BaselineDml::ProgramDefinition::dtFloat32) {
+	if (runtime.inputInfo(0).type != BaselineDml::Definition::dtFloat32 ||
+	    runtime.outputInfo().type != BaselineDml::Definition::dtFloat32) {
 		FAIL("Landscape requires FP32 input and output");
 	}
 	const std::array inputs{std::as_bytes(input)};

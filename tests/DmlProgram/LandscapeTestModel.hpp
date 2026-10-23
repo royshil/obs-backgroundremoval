@@ -5,7 +5,7 @@
 #pragma once
 
 #include <BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Model.hpp>
-#include <DmlProgram/BaselineDmlProgramRuntime.hpp>
+#include "ProgramTestSession.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -13,22 +13,23 @@
 namespace LandscapeTestModel {
 
 // These prefixes deliberately depend on the pinned model's internal layout.
-// Production always compiles all 240 nodes, including mask postprocessing.
-inline constexpr std::int32_t rawOutputIndex = 236;
+// Production always compiles the complete graph, including mask postprocessing.
+inline const std::int32_t rawOutputIndex = BackgroundRemoval::MPLD10Detail::rawOutputIndex;
 
-inline auto inputSpecs()
+inline auto tensorSpecs()
 {
-	return std::span(BackgroundRemoval::MPLD10Detail::inputSpecs).first(111);
+	const auto specs = std::span(BackgroundRemoval::MPLD10Detail::tensorSpecs);
+	return specs.first(specs.size() - 1);
 }
 
 inline auto nodes()
 {
-	return std::span(BackgroundRemoval::MPLD10Detail::graphNodes).first(237);
+	return std::span(BackgroundRemoval::MPLD10Detail::graphNodes).first(rawOutputIndex + 1);
 }
 
-inline auto barriers(std::size_t nodeCount = 237)
+inline auto barriers(std::size_t nodeCount = rawOutputIndex + 1)
 {
-	const auto entries = std::span(BackgroundRemoval::MPLD10Detail::uavBarriers).first(125);
+	const auto entries = std::span(BackgroundRemoval::MPLD10Detail::uavBarriers);
 	const auto end =
 		std::lower_bound(entries.begin(), entries.end(), nodeCount,
 				 [](const auto &entry, auto boundary) { return std::cmp_less(entry.first, boundary); });
@@ -43,16 +44,14 @@ inline auto weights()
 
 inline auto makeRawRuntime()
 {
-	return std::make_unique<BaselineDml::BaselineDmlProgramRuntime>(inputSpecs(), nodes(), barriers(),
-									rawOutputIndex, weights());
+	return std::make_unique<DmlProgramTest::ProgramTestSession>(tensorSpecs(), nodes(), barriers(), rawOutputIndex,
+								    weights());
 }
 
 inline auto makeMaskRuntime()
 {
-	return std::make_unique<BaselineDml::BaselineDmlProgramRuntime>(BackgroundRemoval::MPLD10Detail::inputSpecs,
-									BackgroundRemoval::MPLD10Detail::graphNodes,
-									BackgroundRemoval::MPLD10Detail::uavBarriers,
-									239, weights());
+	return std::make_unique<DmlProgramTest::ProgramTestSession>(
+		BackgroundRemoval::MPLD10Detail::graphNodes, BackgroundRemoval::MPLD10Detail::modelParams, weights());
 }
 
 } // namespace LandscapeTestModel

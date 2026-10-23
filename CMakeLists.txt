@@ -386,8 +386,11 @@ elseif(WIN32)
       src/BackgroundRemoval/windows/PipelineFactory.cpp
       src/BackgroundRemoval/windows/MPLD10Pipeline.cpp
       src/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp
-      src/DmlProgram/BaselineDmlCompiler.cpp
-      src/DmlProgram/BaselineDmlProgramRuntime.cpp
+      src/BaselineDml/Detail.cpp
+      src/BaselineDml/CreateDmlProgram.cpp
+      src/BaselineDml/RecordDmlProgram.cpp
+      src/BaselineDml/DmlProgramCompiler.cpp
+      src/BaselineDml/DmlProgramCompilerBuilder.cpp
       src/BackgroundRemoval/windows/TraceLoggingProvider.cpp
       src/plugin-main-windows.cpp
       src/plugin-support.c

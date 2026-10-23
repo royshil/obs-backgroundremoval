@@ -12,6 +12,7 @@ import json
 import pathlib
 import subprocess
 from string import Template
+from dataclasses import dataclass, replace
 
 import numpy as np
 import onnx
@@ -37,11 +38,11 @@ CPP_TEMPLATE = Template("""\
 
 #include <array>
 
-#include <DmlProgram/BaselineDmlProgramRuntime.hpp>
+#include <BaselineDml/DmlProgramDefinition.hpp>
 
 namespace BackgroundRemoval::MPLD10Detail {
 
-using namespace BaselineDml::ProgramDefinition;
+using namespace BaselineDml::Definition;
 
 $input_specs
 
@@ -53,6 +54,15 @@ alignas(16) extern constexpr char weightsData[] =
 $weight_literals;
 
 extern constexpr std::size_t weightsDataSize = $weight_bytes;
+
+extern constexpr auto modelTables =
+    makeModelParamsStorage(tensorSpecs, graphNodes, uavBarriers, $mask_output_index, weightsDataSize);
+extern constexpr ModelParams modelParams = modelTables.params();
+extern constexpr BaselineDml::DmlProgramDefinition modelDefinition{
+    graphNodes, modelParams, {weightsData, weightsDataSize}};
+
+extern constexpr std::int32_t rawOutputIndex = $raw_output_index;
+extern constexpr std::int32_t maskOutputIndex = $mask_output_index;
 
 } // namespace BackgroundRemoval::MPLD10Detail
 
@@ -187,6 +197,8 @@ GROUPS = {
     "BiasedConvTranspose2d": "Onnx11Node", "DepthToSpace": "Onnx11Node",
     "MPLD10DepthwiseConv2dRelu": "FusedNode", "BiasedConv2dRelu": "FusedNode", "HardSwishGate": "FusedNode",
     "ClipFloat32": "Onnx13Node", "Resize": "Onnx13Node", "Sigmoid": "Onnx13Node",
+    "Reshape": "Onnx13Node",
+    "Expand": "Onnx13Node",
     "Add": "Onnx14Node", "Mul": "Onnx14Node", "Relu": "Onnx14Node",
 }
 
@@ -195,6 +207,164 @@ def data_type(element_type: int) -> str:
     if element_type not in DATA_TYPES:
         raise RuntimeError(f"unsupported tensor data type: {element_type}")
     return "dt" + DATA_TYPES[element_type]
+
+
+
+TYPE_BYTES = {
+    "dtFloat32": 4, "dtFloat16": 2, "dtUInt32": 4, "dtUInt16": 2,
+    "dtUInt8": 1, "dtInt32": 4, "dtInt16": 2, "dtInt8": 1,
+    "dtFloat64": 8, "dtUInt64": 8, "dtInt64": 8,
+}
+
+
+@dataclass(frozen=True)
+class Tensor:
+    byte_offset: int
+    data_type: str
+    sizes: tuple[int, ...]
+    strides: tuple[int, ...]
+    size: int
+    data_bytes: int
+
+
+def tensor_spec(byte_offset: int, data_type: str, shape: list[int]) -> Tensor:
+    if data_type not in TYPE_BYTES or not 1 <= len(shape) <= 4 or any(d <= 0 for d in shape):
+        raise ValueError(f"invalid tensor: {data_type}, {shape}")
+    strides = [0] * len(shape)
+    count = 1
+    for axis in range(len(shape) - 1, -1, -1):
+        strides[axis] = count
+        count *= shape[axis]
+    if count > 2**32 - 1:
+        raise ValueError("tensor element count overflow")
+    data_bytes = count * TYPE_BYTES[data_type]
+    return Tensor(byte_offset, data_type, tuple(shape), tuple(strides),
+                  (data_bytes + 3) // 4 * 4, data_bytes)
+
+
+def render_tensor(tensor: Tensor) -> str:
+    sizes = [*tensor.sizes, *([0] * (4 - len(tensor.sizes)))]
+    strides = [*tensor.strides, *([0] * (4 - len(tensor.strides)))]
+    prefix = "InputTensorSpec{" if tensor.byte_offset == -1 else "WeightTensorSpec{"
+    suffix = "" if tensor.byte_offset == -1 else f", {tensor.byte_offset}LL"
+    return (f"{prefix}{tensor.data_type}, {len(tensor.sizes)}u, "
+            f"{dimensions(sizes)}, {dimensions(strides)}, {tensor.size}ULL, {tensor.data_bytes}ULL{suffix}}}")
+
+
+@dataclass(frozen=True)
+class LayoutNode:
+    kind: str
+    data_type: str
+    inputs: tuple[int, ...]
+    shape: tuple[int, ...]
+    spec_index: int = -1
+    minimum: float = 0.0
+    maximum: float = 0.0
+
+
+def normalize_graph(specs: list[Tensor], nodes: list[LayoutNode], entries: list[str],
+                    weight_data: bytearray) -> tuple[list[LayoutNode], list[str], list[int]]:
+    """Expose pointwise adaptation as nodes; preserve convolution and spatial contracts."""
+    normalized: list[LayoutNode] = []
+    rendered: list[str] = []
+    weights: list[Tensor | None] = []
+    remap: list[int] = []
+
+    def append(node: LayoutNode, entry: str, weight: Tensor | None = None) -> int:
+        normalized.append(node)
+        rendered.append(entry)
+        weights.append(weight)
+        return len(normalized) - 1
+
+    def adapt(index: int, shape: tuple[int, ...], kind: str) -> int:
+        source = normalized[index]
+        if source.shape == shape:
+            return index
+        weight = weights[index]
+        if weight is not None:
+            payload = bytes(weight_data[weight.byte_offset:weight.byte_offset + weight.data_bytes])
+            array = np.ndarray(weight.sizes, dtype="<f4", buffer=payload,
+                               strides=tuple(stride * 4 for stride in weight.strides))
+            array = array.reshape(shape) if kind == "Reshape" else np.broadcast_to(array, shape)
+            weight_data.extend(bytes((-len(weight_data)) % 16))
+            spec = tensor_spec(len(weight_data), weight.data_type, list(shape))
+            weight_data.extend(array.tobytes(order="C"))
+            weight_data.extend(bytes(spec.size - spec.data_bytes))
+            spec_index = len(specs)
+            specs.append(spec)
+            return append(LayoutNode("InputItem", spec.data_type, (), shape, spec_index),
+                          f"InputItem{{{spec.data_type}, {spec_index}}}", spec)
+        shape_text = f"{len(shape)}, {dimensions([*shape, *([0] * (4 - len(shape)))])}"
+        return append(LayoutNode(kind, source.data_type, (index,), shape),
+                      f"Onnx13Node{{{kind}{{{source.data_type}, {index}, {shape_text}}}}}")
+
+    for node, entry in zip(nodes, entries):
+        if node.kind == "InputItem":
+            spec = specs[node.spec_index]
+            remap.append(append(replace(node, shape=spec.sizes), entry,
+                                spec if spec.byte_offset >= 0 else None))
+            continue
+        operands = [remap[index] for index in node.inputs]
+        if node.kind in {"Add", "Mul", "HardSwishGate", "ClipFloat32", "Relu", "Sigmoid"}:
+            shape = (1,) * (4 - len(node.shape)) + node.shape
+            for operand, index in enumerate(operands):
+                source_shape = normalized[index].shape
+                if node.kind in {"Add", "Mul"}:
+                    if len(source_shape) > len(shape):
+                        raise ValueError("pointwise input rank exceeds output rank")
+                    padded = (1,) * (len(shape) - len(source_shape)) + source_shape
+                    index = adapt(index, padded, "Reshape")
+                    index = adapt(index, shape, "Expand")
+                else:
+                    if source_shape != node.shape:
+                        raise ValueError("unary input and output shapes must match")
+                    index = adapt(index, shape, "Reshape")
+                operands[operand] = index
+            shape_text = f"{len(shape)}, {dimensions(list(shape))}"
+            arguments = ", ".join(map(str, operands))
+            if node.kind == "ClipFloat32":
+                limits = f"{float_literal(node.minimum)}, {float_literal(node.maximum)}"
+                new_entry = f"Onnx13Node{{ClipFloat32{{{arguments}, {shape_text}, {limits}}}}}"
+            else:
+                new_entry = f"{GROUPS[node.kind]}{{{node.kind}{{{node.data_type}, {arguments}, {shape_text}}}}}"
+            comment = entry[:entry.rfind(GROUPS[node.kind] + "{")]
+            value = append(replace(node, inputs=tuple(operands), shape=shape), comment + new_entry)
+            remap.append(adapt(value, node.shape, "Reshape"))
+        else:
+            prefix = node.kind + "{"
+            if node.kind != "MPLD10BinarizeFloat32":
+                prefix += node.data_type + ", "
+            old = prefix + ", ".join(map(str, node.inputs))
+            new = prefix + ", ".join(map(str, operands))
+            if old not in entry:
+                raise ValueError(f"cannot remap {node.kind} inputs")
+            remap.append(append(replace(node, inputs=tuple(operands)), entry.replace(old, new, 1)))
+    return normalized, rendered, remap
+
+
+def graph_barriers(nodes: list[LayoutNode]) -> list[list[int]]:
+    """Views alias their writer; only GPU consumers consume pending UAV writes."""
+    writers: list[int] = []
+    pending: set[int] = set()
+    barriers: list[list[int]] = []
+    for index, node in enumerate(nodes):
+        if any(not 0 <= source < index for source in node.inputs):
+            raise ValueError("input must reference a preceding node")
+        row: list[int] = []
+        if node.kind in {"Reshape", "Expand"}:
+            writers.append(writers[node.inputs[0]])
+        elif node.kind == "InputItem":
+            writers.append(-1)
+        else:
+            for source in node.inputs:
+                producer = writers[source]
+                if producer in pending:
+                    row.append(producer)
+                    pending.remove(producer)
+            writers.append(index)
+            pending.add(index)
+        barriers.append(row)
+    return barriers
 
 
 def main() -> None:
@@ -290,7 +460,7 @@ def main() -> None:
     runtime_inputs = [value for value in model.graph.input if value.name not in initializers]
     for value in runtime_inputs:
         spec_indices[value.name] = len(spec_entries)
-        spec_entries.append(f"{{kRuntimeInput, {types[value.name]}, {shape_fields(shapes[value.name])}}}")
+        spec_entries.append(tensor_spec(-1, types[value.name], shapes[value.name]))
     weight_data = bytearray()
     for name, initializer in initializers.items():
         if name not in used_initializers:
@@ -302,10 +472,14 @@ def main() -> None:
             raise RuntimeError(f"Landscape execution requires FP32 weights: {name}")
         if not np.isfinite(array).all():
             raise RuntimeError(f"Weight contains nonfinite FP32 values: {name}")
+        # Use the same aligned range in the embedded data and the GPU weight buffer.
+        weight_data.extend(bytes((-len(weight_data)) % 16))
         offset = len(weight_data)
+        spec = tensor_spec(offset, dtype, list(initializer.dims) or [1])
         weight_data.extend(array.astype("<f4", copy=False).tobytes(order="C"))
+        weight_data.extend(bytes(spec.size - spec.data_bytes))
         spec_indices[name] = len(spec_entries)
-        spec_entries.append(f"{{{offset}LL, {dtype}, {shape_fields(list(initializer.dims) or [1])}}}")
+        spec_entries.append(spec)
     if len(weight_data) >= 2**63:
         raise RuntimeError("weight data exceeds the BaselineDml signed 64-bit offset range")
     if not spec_entries or len(spec_entries) > 2**31 - 1:
@@ -338,24 +512,18 @@ def main() -> None:
 
     value_sources = {}
     node_entries = []
-    barrier_entries = []
-    node_types = []
-    pending_writes = []
+    layout_nodes = []
     for value in runtime_inputs:
         value_sources[value.name] = len(node_entries)
         node_entries.append(f"InputItem{{{types[value.name]}, {spec_indices[value.name]}}}")
-        node_types.append(types[value.name])
-        pending_writes.append(False)
-        barrier_entries.append([])
+        layout_nodes.append(LayoutNode("InputItem", types[value.name], (), (), spec_indices[value.name]))
 
     def source(name: str) -> str:
         if name not in value_sources:
             if name not in spec_indices:
                 raise RuntimeError(f"input {name} is not a constant or preceding node")
             node_entries.append(f"InputItem{{{types[name]}, {spec_indices[name]}}}")
-            node_types.append(types[name])
-            pending_writes.append(False)
-            barrier_entries.append([])
+            layout_nodes.append(LayoutNode("InputItem", types[name], (), (), spec_indices[name]))
             value_sources[name] = len(node_entries) - 1
         return str(value_sources[name])
 
@@ -376,6 +544,8 @@ def main() -> None:
         elif node.op_type == "Clip":
             minimum = float(numpy_helper.to_array(initializers[node.input[1]]).reshape(-1)[0])
             maximum = float(numpy_helper.to_array(initializers[node.input[2]]).reshape(-1)[0])
+            if not minimum <= maximum:
+                raise ValueError("invalid Clip range")
             entry = f"ClipFloat32{{{inputs[0]}, {output}, {float_literal(minimum)}, {float_literal(maximum)}}}"
         elif node.op_type in {"Relu", "Sigmoid"}:
             entry = f"{node.op_type}{{{inputs[0]}, {output}}}"
@@ -430,19 +600,6 @@ def main() -> None:
             entry = entry.split("{", 1)[0] + "{" + connections + "}"
         kind = entry.split("{", 1)[0]
         dtype = types[node.output[0]]
-        barriers = []
-        # Inputs/weights are ordered by transfer/initialization. An operator's
-        # dedicated output needs a UAV barrier at its first consumer only.
-        # A repeated input is synchronized once, in input order.
-        for value in inputs:
-            producer = int(value)
-            if not 0 <= producer < len(node_entries):
-                raise RuntimeError(f"node {node_index}: input must reference a preceding node")
-            if node_types[producer] != dtype:
-                raise RuntimeError(f"node {node_index}: input/output data type mismatch")
-            if pending_writes[producer]:
-                barriers.append(producer)
-            pending_writes[producer] = False
         arguments = entry.split("{", 1)[1][:-1]
         if kind == "ClipFloat32":
             if dtype != "dtFloat32":
@@ -450,9 +607,6 @@ def main() -> None:
             entry = f"{GROUPS[kind]}{{{kind}{{{arguments}}}}}"
         else:
             entry = f"{GROUPS[kind]}{{{kind}{{{dtype}, {arguments}}}}}"
-        barrier_entries.append(barriers)
-        node_types.append(dtype)
-        pending_writes.append(True)
         if node.output[0] in projection_origins:
             origin = projection_origins[node.output[0]]
             entry = (f"// Original ONNX #{origin[0]} ConvTranspose {json.dumps(origin[2])}: "
@@ -470,21 +624,42 @@ def main() -> None:
                      f"#{relu_origin[0]} Relu {json.dumps(relu_origin[2])}\n\t" + entry)
             value_sources[relu.output[0]] = len(node_entries)
         node_entries.append(entry)
+        layout_nodes.append(LayoutNode(kind, dtype, tuple(map(int, inputs)), tuple(output_shape),
+                                       minimum=minimum if kind == "ClipFloat32" else 0.0,
+                                       maximum=maximum if kind == "ClipFloat32" else 0.0))
         value_sources[node.output[0]] = len(node_entries) - 1
 
     model_spec_count = len(spec_entries)
     model_node_count = len(node_entries)
     output_index = value_sources[model.graph.output[0].name]
     # Fixed model-resolution postprocessing is part of the same immutable graph.
-    spec_entries.append("{kRuntimeInput, dtFloat32, 4, {1, 1, 1, 1}}")
+    spec_entries.append(tensor_spec(-1, "dtFloat32", [1, 1, 1, 1]))
     node_entries.extend([
         f"InputItem{{dtFloat32, {model_spec_count}}}",
         f"FusedNode{{MPLD10BinarizeFloat32{{{output_index}, {model_node_count}}}}}",
         f"Onnx11Node{{AveragePool2d{{dtFloat32, {model_node_count + 1}, "
         "{1, 1}, {5, 5}, {2, 2}, {2, 2}, {1, 1, 144, 256}}}",
     ])
-    barrier_entries.extend([[], [output_index], [model_node_count + 1]])
+    layout_nodes.extend([
+        LayoutNode("InputItem", "dtFloat32", (), (), model_spec_count),
+        LayoutNode("MPLD10BinarizeFloat32", "dtFloat32", (output_index, model_node_count), (1, 1, 144, 256)),
+        LayoutNode("AveragePool2d", "dtFloat32", (model_node_count + 1,), (1, 1, 144, 256)),
+    ])
 
+    layout_nodes, node_entries, remap = normalize_graph(spec_entries, layout_nodes, node_entries, weight_data)
+    raw_output_index = remap[output_index]
+    mask_output_index = remap[-1]
+    # Keep the threshold last so raw fixtures can use a source-spec prefix.
+    threshold = spec_entries.pop(model_spec_count)
+    spec_entries.append(threshold)
+    for index, node in enumerate(layout_nodes):
+        if node.kind != "InputItem":
+            continue
+        spec_index = (len(spec_entries) - 1 if node.spec_index == model_spec_count else
+                      node.spec_index - 1 if node.spec_index > model_spec_count else node.spec_index)
+        layout_nodes[index] = replace(node, spec_index=spec_index)
+        node_entries[index] = f"InputItem{{{node.data_type}, {spec_index}}}"
+    barrier_entries = graph_barriers(layout_nodes)
     if len(barrier_entries) != len(node_entries):
         raise RuntimeError("UAV barrier table does not match Node count")
     if len(node_entries) > 2**31 - 1:
@@ -518,13 +693,20 @@ def main() -> None:
                       "moved": sum(actual[producer] != first_use for producer, first_use in expected.items())}))
     barrier_entries = [f"{{{boundary}, {producer}}}"
                        for boundary, row in enumerate(barrier_entries) for producer in row]
+    print(json.dumps({"source_specs": len(spec_entries), "nodes": len(layout_nodes),
+                      "raw_output": raw_output_index, "mask_output": mask_output_index,
+                      "reshape_nodes": sum(node.kind == "Reshape" for node in layout_nodes),
+                      "expand_nodes": sum(node.kind == "Expand" for node in layout_nodes)}))
     source_code = CPP_TEMPLATE.substitute(
         model_repository=MODEL_REPOSITORY,
         model_revision=MODEL_REVISION,
         model_filename=MODEL_FILENAME,
-        input_specs=render_table("InputSpecItem", "inputSpecs", spec_entries),
+        input_specs=render_table("TensorSpec", "tensorSpecs", [render_tensor(spec) for spec in spec_entries]),
+        raw_output_index=raw_output_index,
+        mask_output_index=mask_output_index,
         graph_nodes=render_table("Node", "graphNodes", node_entries),
-        uav_barriers=render_table("std::pair<std::int32_t, std::int32_t>", "uavBarriers", barrier_entries),
+        uav_barriers=(f"extern constexpr auto uavBarriers = makeUavBarriers<{len(barrier_entries)}>"
+                      f"(graphNodes, {'true' if args.uav_placement == 'early-batched' else 'false'});"),
         weight_literals=render_weight_literals(weight_data),
         weight_bytes=len(weight_data),
     )

@@ -31,12 +31,15 @@ int main(int argc, char **argv)
 				throw std::runtime_error("Cannot write output");
 		};
 		const auto bytes = std::as_bytes(std::span(input));
-		const std::array rawInputs{bytes};
-		auto raw = LandscapeTestModel::makeRawRuntime();
+		const float threshold = 0.42F;
+		const std::array rawInputs{bytes, std::as_bytes(std::span(&threshold, 1))};
+		auto rawParams = BackgroundRemoval::MPLD10Detail::modelParams;
+		rawParams.outputTensor = LandscapeTestModel::rawOutputIndex;
+		auto raw = std::make_unique<DmlProgramTest::ProgramTestSession>(
+			BackgroundRemoval::MPLD10Detail::graphNodes, rawParams, LandscapeTestModel::weights());
 		raw->run(rawInputs, std::as_writable_bytes(std::span(output)));
 		writeOutput(argv[2]);
 		raw.reset();
-		const float threshold = 0.42F;
 		const std::array maskInputs{bytes, std::as_bytes(std::span(&threshold, 1))};
 		auto mask = LandscapeTestModel::makeMaskRuntime();
 		mask->run(maskInputs, std::as_writable_bytes(std::span(output)));

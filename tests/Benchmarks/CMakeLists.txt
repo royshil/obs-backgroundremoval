@@ -15,8 +15,12 @@ add_executable(
   MPLD10Benchmark
   EXCLUDE_FROM_ALL
   MPLD10Benchmark.cpp
-  "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
-  "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
+  "${PROJECT_SOURCE_DIR}/tests/DmlProgram/ProgramTestSession.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/Detail.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/CreateDmlProgram.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/RecordDmlProgram.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompilerBuilder.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
   "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp"
 )
@@ -32,8 +36,11 @@ add_executable(
   MPLD10CameraBenchmark.cpp
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MPLD10Pipeline.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp"
-  "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlCompiler.cpp"
-  "${PLUGIN_SOURCE_DIR}/DmlProgram/BaselineDmlProgramRuntime.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/Detail.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/CreateDmlProgram.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/RecordDmlProgram.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompilerBuilder.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
   "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp"
 )
