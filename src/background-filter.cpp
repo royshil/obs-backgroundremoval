@@ -45,6 +45,7 @@
 #include "models/ModelPPHumanSeg.hpp"
 #include "models/ModelTCMonoDepth.hpp"
 #include "FilterData.hpp"
+#include "pipeline-helpers.h"
 #include "ort-utils/ort-session-utils.hpp"
 #include "obs-utils/obs-utils.hpp"
 #include "consts.h"
@@ -559,16 +560,9 @@ void background_filter_video_tick(void *data, float seconds)
 	}
 
 	if (tf->enableImageSimilarity) {
-		if (!tf->lastImageBGRA.empty() && !imageBGRA.empty() && tf->lastImageBGRA.size() == imageBGRA.size()) {
-			// calculate PSNR
-			double psnr = cv::PSNR(tf->lastImageBGRA, imageBGRA);
-
-			if (psnr > tf->imageSimilarityThreshold) {
-				// The image is almost the same as the previous one. Skip processing.
-				return;
-			}
-		}
-		tf->lastImageBGRA = imageBGRA.clone();
+		cv::Mat thumbnail = pipeline::preprocess_resize(imageBGRA, 192, 108);
+		if (pipeline::check_similarity(thumbnail, tf->lastImageBGRA, tf->imageSimilarityThreshold))
+			return;
 	}
 
 	if (tf->backgroundMask.empty()) {
