@@ -46,17 +46,6 @@ struct IUnknownReleaser final {
 	}
 };
 
-auto createDmlPersistentBufferError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-auto setInitializerOperatorsError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-auto bindBatchedInitializerResourcesError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-auto closeCompilerCommandsError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-auto signalCompilerCompletionError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-auto compilerGpuCompletionError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-auto compilerDirectMlCompletionError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-auto compilerGpuDeviceRemovedError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-auto operatorCreationError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-auto operatorCompilationError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError;
-
 constexpr auto bufferResourceDesc(std::uint64_t size, D3D12_RESOURCE_FLAGS flags) noexcept -> D3D12_RESOURCE_DESC;
 constexpr auto bufferTensorDesc(const BaselineDml::TensorSpec &spec) noexcept -> DML_BUFFER_TENSOR_DESC;
 auto makeDmlPersistentResource(ID3D12Device *device, IDMLCompiledOperator *operation)
@@ -79,7 +68,7 @@ auto makeDmlPersistentResource(ID3D12Device *device, IDMLCompiledOperator *opera
 	    FAILED(result)) {
 		if (resource != nullptr)
 			resource->Release();
-		throw createDmlPersistentBufferError(result);
+		throw BaselineDml::DmlProgramCompilerError("Create DML persistent buffer failed", result);
 	}
 	return {resource, {}};
 }
@@ -791,7 +780,7 @@ void DmlProgramCompiler::prepareInitialization()
 	if (const HRESULT result = impl_->initializer_->Reset(static_cast<UINT>(impl_->operatorsToReset_.size()),
 							      impl_->operatorsToReset_.data());
 	    FAILED(result)) {
-		throw setInitializerOperatorsError(result);
+		throw DmlProgramCompilerError("Set initializer operators failed", result);
 	}
 
 	const auto properties = impl_->initializer_->GetBindingProperties();
@@ -827,7 +816,7 @@ void DmlProgramCompiler::prepareInitialization()
 		impl_->initializationTable_->BindTemporaryResource(&binding);
 	}
 	if (const HRESULT result = impl_->dmlDevice_->GetDeviceRemovedReason(); FAILED(result))
-		throw bindBatchedInitializerResourcesError(result);
+		throw DmlProgramCompilerError("Bind batched initializer resources failed", result);
 }
 
 void DmlProgramCompiler::recordInitialization()
@@ -846,15 +835,15 @@ void DmlProgramCompiler::submitAndWait()
 {
 	// Submit the upload and initialization, then retain their resources until completion.
 	if (const HRESULT result = impl_->commandList_->Close(); FAILED(result))
-		throw closeCompilerCommandsError(result);
+		throw DmlProgramCompilerError("Close compiler commands failed", result);
 	ID3D12CommandList *lists[]{impl_->commandList_.get()};
 	impl_->queue_->ExecuteCommandLists(1, lists);
 	const HRESULT signal = impl_->signalCompletion();
 	impl_->waitForCompletion();
 	if (FAILED(signal))
-		throw signalCompilerCompletionError(signal);
+		throw DmlProgramCompilerError("Signal compiler completion failed", signal);
 	if (const HRESULT result = impl_->dmlDevice_->GetDeviceRemovedReason(); FAILED(result))
-		throw compilerDirectMlCompletionError(result);
+		throw DmlProgramCompilerError("Compiler DirectML completion failed", result);
 }
 
 auto DmlProgramCompiler::build() -> std::unique_ptr<DmlProgram>
@@ -930,11 +919,12 @@ void DmlProgramCompiler::Impl::waitForCompletion() const
 	for (;;) {
 		const auto completed = fence_->GetCompletedValue();
 		if (completed == std::numeric_limits<std::uint64_t>::max())
-			throw compilerGpuDeviceRemovedError(d3dDevice_->GetDeviceRemovedReason());
+			throw DmlProgramCompilerError("Compiler GPU device removed",
+						      d3dDevice_->GetDeviceRemovedReason());
 		if (completed >= 1)
 			break;
 		if (const HRESULT result = d3dDevice_->GetDeviceRemovedReason(); FAILED(result))
-			throw compilerGpuCompletionError(result);
+			throw DmlProgramCompilerError("Compiler GPU completion failed", result);
 		Sleep(1);
 	}
 }
@@ -1002,7 +992,7 @@ auto DmlProgramCompiler::operator()(const BiasedConv2dRelu &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1010,7 +1000,7 @@ auto DmlProgramCompiler::operator()(const BiasedConv2dRelu &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1037,7 +1027,7 @@ auto DmlProgramCompiler::operator()(const HardSwishGate &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1045,7 +1035,7 @@ auto DmlProgramCompiler::operator()(const HardSwishGate &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1097,7 +1087,7 @@ auto DmlProgramCompiler::operator()(const AveragePool2d &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1105,7 +1095,7 @@ auto DmlProgramCompiler::operator()(const AveragePool2d &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1160,7 +1150,7 @@ auto DmlProgramCompiler::operator()(const BiasedConv2d &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1168,7 +1158,7 @@ auto DmlProgramCompiler::operator()(const BiasedConv2d &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1223,7 +1213,7 @@ auto DmlProgramCompiler::operator()(const BiasedConvTranspose2d &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1231,7 +1221,7 @@ auto DmlProgramCompiler::operator()(const BiasedConvTranspose2d &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1258,7 +1248,7 @@ auto DmlProgramCompiler::operator()(const DepthToSpace &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1266,7 +1256,7 @@ auto DmlProgramCompiler::operator()(const DepthToSpace &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1297,7 +1287,7 @@ auto DmlProgramCompiler::operator()(const ClipFloat32 &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1305,7 +1295,7 @@ auto DmlProgramCompiler::operator()(const ClipFloat32 &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1336,7 +1326,7 @@ auto DmlProgramCompiler::operator()(const Resize &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1344,7 +1334,7 @@ auto DmlProgramCompiler::operator()(const Resize &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1373,7 +1363,7 @@ auto DmlProgramCompiler::operator()(const Sigmoid &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1381,7 +1371,7 @@ auto DmlProgramCompiler::operator()(const Sigmoid &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1421,7 +1411,7 @@ auto DmlProgramCompiler::operator()(const Add &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1429,7 +1419,7 @@ auto DmlProgramCompiler::operator()(const Add &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1459,7 +1449,7 @@ auto DmlProgramCompiler::operator()(const Mul &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1467,7 +1457,7 @@ auto DmlProgramCompiler::operator()(const Mul &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1496,7 +1486,7 @@ auto DmlProgramCompiler::operator()(const Relu &node) -> void
 		impl_->dmlDevice_->CreateOperator(&operatorDesc, IID_PPV_ARGS(&operationPointer));
 	operation.reset(operationPointer);
 	if (const HRESULT result = operationResult; FAILED(result))
-		throw operatorCreationError(result);
+		throw DmlProgramCompilerError("CreateOperator failed", result);
 
 	std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser> compiledOperation;
 	IDMLCompiledOperator *compiledOperationPointer = nullptr;
@@ -1504,7 +1494,7 @@ auto DmlProgramCompiler::operator()(const Relu &node) -> void
 		operation.get(), DML_EXECUTION_FLAG_NONE, IID_PPV_ARGS(&compiledOperationPointer));
 	compiledOperation.reset(compiledOperationPointer);
 	if (const HRESULT result = compiledOperationResult; FAILED(result))
-		throw operatorCompilationError(result);
+		throw DmlProgramCompilerError("CompileOperator failed", result);
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
@@ -1548,59 +1538,7 @@ static_assert(static_cast<std::uint32_t>(dtInt64) == DML_TENSOR_DATA_TYPE_INT64)
 
 } // namespace BaselineDml
 
-// MARK: - Error helpers
-
 namespace {
-
-auto createDmlPersistentBufferError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"Create DML persistent buffer failed", hresult};
-}
-
-auto setInitializerOperatorsError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"Set initializer operators failed", hresult};
-}
-
-auto bindBatchedInitializerResourcesError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"Bind batched initializer resources failed", hresult};
-}
-
-auto closeCompilerCommandsError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"Close compiler commands failed", hresult};
-}
-
-auto signalCompilerCompletionError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"Signal compiler completion failed", hresult};
-}
-
-auto compilerGpuCompletionError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"Compiler GPU completion failed", hresult};
-}
-
-auto compilerDirectMlCompletionError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"Compiler DirectML completion failed", hresult};
-}
-
-auto operatorCreationError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"CreateOperator failed", hresult};
-}
-
-auto operatorCompilationError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"CompileOperator failed", hresult};
-}
-
-auto compilerGpuDeviceRemovedError(HRESULT hresult) noexcept -> BaselineDml::DmlProgramCompilerError
-{
-	return {"Compiler GPU device removed", hresult};
-}
 
 // MARK: - D3D12 Resource Helpers
 
