@@ -2,9 +2,25 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-*.bat text eol=crlf
-*.lib binary linguist-generated=true
-*.tbd linguist-generated=true merge=ours
-.github/workflows/*.lock.yml linguist-generated=true merge=ours
-docs/download-trends.svg linguist-generated=true merge=ours
-docs/star-history.svg linguist-generated=true merge=ours
+# Windows command scripts
+*.cmd text eol=crlf
+
+# Generated files
+*.generated.cpp linguist-generated -diff
+/.github/workflows/*.lock.yml linguist-generated
+/docs/download-trends.svg linguist-generated
+/docs/star-history.svg linguist-generated
+
+# Vendored source and license texts
+/vendor/cpp-httplib/** linguist-vendored
+/vendor/cpp-httplib/httplib.h -text
+/vendor/cpp-httplib/LICENSE -text
+/vendor/Simd/LICENSE -text
+/vendor/Simd/src/** linguist-vendored
+
+# Prebuilt SDK files
+*.lib binary linguist-generated
+*.tbd linguist-generated
+
+# Fixed numeric test fixtures
+/tests/fixtures/operators/*.f32 binary

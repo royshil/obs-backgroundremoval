@@ -14,6 +14,10 @@
 #include "models/Model.hpp"
 #include "ort-utils/ORTModelData.hpp"
 
+#if defined(_WIN32)
+#include "windows/DirectML/MediaPipeDirectML.hpp"
+#endif
+
 /**
   * @brief The filter_data struct
   *
@@ -25,6 +29,9 @@ struct filter_data : public ORTModelData, public std::enable_shared_from_this<fi
 	uint32_t numThreads;
 	std::string modelSelection;
 	std::unique_ptr<Model> model;
+#if defined(_WIN32)
+	std::unique_ptr<Windows::DirectML::MediaPipeDirectML> directML;
+#endif
 
 	obs_source_t *source;
 	gs_texrender_t *texrender;

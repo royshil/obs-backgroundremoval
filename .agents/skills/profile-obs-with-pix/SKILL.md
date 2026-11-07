@@ -1,0 +1,17 @@
+---
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: profile-obs-with-pix
+description: Measure the native Windows OBS DirectML pipeline with PIX Timing Capture when investigating GPU performance or missing GPU execution events.
+---
+
+Use this skill for native OBS GPU timing and event diagnosis. Keep synchronous model benchmarks, CPU callback latency and native GPU execution timing separate.
+
+1. Build `MPLD10CameraBenchmark` in RelWithDebInfo; read [the profiling instructions](../../../tests/Benchmarks/MPLD10CameraBenchmark.md) for commands and environment variables. Record the revision/local changes, GPU/driver, input and settings, and use unique output directories. Never force `--force11on12` for native timing.
+2. Collect CPU samples separately without PIX, preserving the three-second warmup. Use `--animated` or a moving camera for sustained inference; `--synthetic` measures static-input gating. Report mean, median and p95 from `samples.csv`.
+3. Launch PIX from elevated PowerShell and accept UAC. On the tested setup, normal-user captures saved successfully but contained no GPU executions. Discover the installed PIX path/version, then run `pixtool launch --timing <exe> take-new-timing-capture <capture.wpix> --duration=30000`. PIX 2603.25 rejects `--command-line`; configure `MPLD10_BENCHMARK_INPUT=animated`, `MPLD10_BENCHMARK_OUTPUT=<unique-directory>` and `MPLD10_BENCHMARK_SECONDS=90` in the launch environment instead, restoring them afterward. Set PATH for the OBS runtime as documented. Keep the target alive through capture stop processing: early exit can cause `PIXTOOL18`; denied UAC can cause `0x800704c7`. Correct the cause before retrying. PIX may terminate its target at completion, leaving callback CSV/JSON unfinished; use the separate baseline for CPU values.
+4. Require a completed capture containing actual target GPU executions, not merely exit code zero. If missing, compare normal/elevated launch under identical conditions before changing OBS's loop. If needed, collect ETW provider `ObsBackgroundRemoval.DirectML` (`57797101-3691-5b3e-e0d4-f643a2082873`, keyword `0x1`, verbose) and count `InferenceDecision.Required`, `MPLD10Engine.Inference` and errors. Inference calls alone do not prove GPU completion.
+5. Inspect the completed `.wpix` SQLite schema read-only. Resolve the target through `Processes`/`Strings`, select its `ApiCommandQueue` IDs and query `ApiQueueExecution`. Analyze a steady interval such as capture seconds 15–30; timestamps in this format are nanoseconds. Require `SubmitTimestamp <= BeginTimestamp < EndTimestamp`, with both execution endpoints in the interval. Report count/rate and mean/median/p95 for `(End-Begin)/1e6`, `(Begin-Submit)/1e6` and `(End-Submit)/1e6` in milliseconds. Check `CaptureStats` lost ETW events/buffers, `DroppedData`, and loaded images for unintended `d3d11on12.dll`.
+6. Preserve captures, raw CSV, conditions, commands, logs and analysis with the report. GPU queue spans include pack/inference/copy and scheduling effects; they are neither isolated model arithmetic nor whole-frame GPU time. Submit-to-begin is queue latency, not CPU blocking. Disclose instrumentation overhead, incomplete data and undecoded dropped-data records. Confirm sustained GPU executions before claiming continuous inference; do not treat different inputs or forced replay versus native timing as an optimization A/B comparison.
