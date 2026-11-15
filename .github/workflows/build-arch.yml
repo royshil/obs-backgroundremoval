@@ -35,7 +35,7 @@ jobs:
       - name: Install build dependencies (Arch)
         shell: /bin/sh -eu {0}
         run: |
-          pacman --disable-sandbox --needed --noconfirm -Sy \
+          pacman --disable-sandbox --needed --noconfirm -Syu \
             base-devel \
             cmake \
             curl \
@@ -72,7 +72,7 @@ jobs:
 
       - name: Install test dependencies (Arch)
         shell: /bin/sh -eu {0}
-        run: pacman --disable-sandbox --needed --noconfirm -Sy openbsd-netcat ruby ruby-base64 xorg-server-xvfb
+        run: pacman --disable-sandbox --needed --noconfirm -S openbsd-netcat ruby ruby-base64 xorg-server-xvfb
 
       - name: Test (Arch)
         shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
