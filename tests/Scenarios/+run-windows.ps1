@@ -61,6 +61,12 @@ New-Item -ItemType Junction -Path (Join-Path $portableRoot 'bin') `
     -Target (Join-Path $installedObsRoot 'bin') | Out-Null
 New-Item -ItemType Junction -Path (Join-Path $portableRoot 'obs-plugins') `
     -Target (Join-Path $installedObsRoot 'obs-plugins') | Out-Null
+# OBS Studio 33 and later load core modules from <root>\core\<module>\<module>.dll.
+$installedCoreRoot = Join-Path $installedObsRoot 'core'
+if (Test-Path -LiteralPath $installedCoreRoot -PathType Container) {
+    New-Item -ItemType Junction -Path (Join-Path $portableRoot 'core') `
+        -Target $installedCoreRoot | Out-Null
+}
 foreach ($dataDirectory in @('libobs', 'obs-scripting', 'obs-studio')) {
     New-Item -ItemType Junction -Path (Join-Path $portableRoot "data\$dataDirectory") `
         -Target (Join-Path $installedObsRoot "data\$dataDirectory") | Out-Null
@@ -78,9 +84,16 @@ $resultPath = Join-Path $artifacts 'result.txt'
 $status = 1
 $previousPluginsPath = $env:OBS_PLUGINS_PATH
 $previousPluginsDataPath = $env:OBS_PLUGINS_DATA_PATH
+$previousLegacyPluginsPath = $env:OBS_LEGACY_PLUGINS_PATH
+$previousLegacyPluginsDataPath = $env:OBS_LEGACY_PLUGINS_DATA_PATH
 try {
+    # OBS Studio 32 and earlier read the flat plugin layout from OBS_PLUGINS_PATH and
+    # OBS_PLUGINS_DATA_PATH. OBS Studio 33 and later read it from OBS_LEGACY_PLUGINS_PATH
+    # and OBS_LEGACY_PLUGINS_DATA_PATH.
     $env:OBS_PLUGINS_PATH = $portablePluginBin
     $env:OBS_PLUGINS_DATA_PATH = $portablePluginDataRoot
+    $env:OBS_LEGACY_PLUGINS_PATH = $portablePluginBin
+    $env:OBS_LEGACY_PLUGINS_DATA_PATH = $portablePluginDataRoot
     & (Join-Path $scenarioDir '2000_windows-about-dialog.test.ps1') `
         -ObsExecutable $portableObsExecutable `
         -SourceDir $sourceDir `
@@ -94,6 +107,8 @@ try {
 } finally {
     $env:OBS_PLUGINS_PATH = $previousPluginsPath
     $env:OBS_PLUGINS_DATA_PATH = $previousPluginsDataPath
+    $env:OBS_LEGACY_PLUGINS_PATH = $previousLegacyPluginsPath
+    $env:OBS_LEGACY_PLUGINS_DATA_PATH = $previousLegacyPluginsDataPath
     "exit_code=$status" | Set-Content -LiteralPath $resultPath -Encoding ascii
     if (Test-Path -LiteralPath $obsConfig) {
         $savedConfig = Join-Path $artifacts 'config'
