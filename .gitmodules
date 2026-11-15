@@ -5,9 +5,3 @@
 [submodule "vendor/obs-studio"]
 	path = vendor/obs-studio
 	url = https://github.com/obsproject/obs-studio.git
-[submodule "vendor/onnxruntime"]
-	path = vendor/onnxruntime
-	url = https://github.com/microsoft/onnxruntime.git
-[submodule "vendor/vcpkg"]
-	path = vendor/vcpkg
-	url = https://github.com/microsoft/vcpkg.git

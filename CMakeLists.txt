@@ -232,7 +232,7 @@ block()
 endblock()
 
 block(PROPAGATE OpenCV_FOUND)
-  if(NOT APPLE)
+  if(NOT APPLE AND NOT WIN32)
     find_package(OpenCV CONFIG QUIET)
 
     if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
@@ -263,7 +263,7 @@ block(PROPAGATE OpenCV_FOUND)
 endblock()
 
 block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM_EP)
-  if(NOT APPLE)
+  if(NOT APPLE AND NOT WIN32)
     set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON)
 
     find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc HINTS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES tools/protobuf)
@@ -380,6 +380,14 @@ if(APPLE)
     PROPERTIES MACOSX_PACKAGE_LOCATION "Resources" XCODE_EXPLICIT_FILE_TYPE "folder.mlpackage"
   )
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${MEDIAPIPE_LANDSCAPE_MODEL}")
+elseif(WIN32)
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE
+      src/plugin-main-windows.cpp
+      src/BackgroundRemoval/windows/FilterContext.cpp
+      src/BackgroundRemoval/windows/ModuleText.cpp
+  )
 else()
   target_sources(
     ${CMAKE_PROJECT_NAME}
@@ -523,7 +531,6 @@ elseif(MSVC)
   )
   install(FILES ${EFFECTS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/effects")
   install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
-  install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(OBS_PLUGIN_DATA_DIR "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}")
   set(OBS_PLUGIN_DOC_DIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${CMAKE_PROJECT_NAME}")
