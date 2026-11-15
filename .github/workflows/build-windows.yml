@@ -17,10 +17,6 @@ on:
         description: Builds a release.
         required: true
         type: boolean
-      runs-on:
-        description: GitHub Actions runner label.
-        required: true
-        type: string
     outputs:
       zip-artifact:
         description: ZIP artifact for Windows.
@@ -31,7 +27,7 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ inputs.runs-on }}
+    runs-on: windows-2025-vs2026
     timeout-minutes: 180
 
     environment: ${{ inputs.release-build && 'release-windows' || null }}
@@ -42,7 +38,7 @@ jobs:
 
     steps:
       - name: Enable Windows long paths
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        shell: pwsh
         run: Set-ItemProperty -LiteralPath 'HKLM:\System\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -Value 1
 
       - name: Print Windows build version
@@ -182,7 +178,7 @@ jobs:
           if-no-files-found: error
 
       - name: Install OBS Studio (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
+        shell: pwsh
         run: winget install --id OBSProject.OBSStudio --exact --silent --accept-package-agreements --accept-source-agreements
 
       - name: Run scenario tests (Windows)
