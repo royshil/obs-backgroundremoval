@@ -142,8 +142,12 @@ function Set-UpdateState([string[]] $Lines) {
 
 function Assert-UpdateState([string] $Pattern) {
     Wait-Until "update.ini to match $Pattern" {
-        (Test-Path -LiteralPath $UpdateConfig -PathType Leaf) -and
-        ((Get-Content -LiteralPath $UpdateConfig -Raw) -match "(?m)^$Pattern\r?$")
+        try {
+            [IO.File]::ReadAllText($UpdateConfig) -match "(?m)^$Pattern\r?$"
+        } catch [IO.IOException] {
+            # OBS may be replacing or still writing update.ini; try again.
+            $false
+        }
     } -TimeoutSeconds 3 | Out-Null
 }
 
