@@ -13,6 +13,7 @@
 #include "ProgramTestSession.hpp"
 #include <BaselineDml/DmlProgramExecutor.hpp>
 #include <BaselineDml/DmlProgramCompiler.hpp>
+#include <BaselineDml/DmlProgramInitializer.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -59,21 +60,21 @@ public:
 		      "Create test commands");
 		check(device_->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_)), "Create test fence");
 		BaselineDml::DmlProgramCompiler compiler(dmlDevice_.Get(), definition_);
-		compiler.beginProgram();
 		for (std::size_t index = 0; index < definition_.nodes.size(); ++index) {
 			compiler.beginNode(static_cast<std::int64_t>(index));
 			std::visit(compiler, definition_.nodes[index]);
 			compiler.endNode(static_cast<std::int64_t>(index));
 		}
-		compiler.endProgram();
-		compiler.prepareInitialization();
-		compiler.recordInitialization();
-		compiler.submitAndWait();
 		program_ = compiler.build();
+		{
+			BaselineDml::DmlProgramInitializer initializer(device_.Get(), dmlDevice_.Get(), definition_,
+								       *program_);
+			initializer.recordInitialization(commands_.Get());
+			submitAndWait();
+		}
 		program_->weightUpload.reset();
 		executor_ = std::make_unique<BaselineDml::DmlProgramExecutor>(device_.Get(), dmlDevice_.Get(),
 									      definition_, *program_);
-		check(commands_->Close(), "Close unused test command list");
 	}
 
 	auto device() const noexcept -> ID3D12Device * { return device_.Get(); }

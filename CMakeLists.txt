@@ -388,6 +388,7 @@ elseif(WIN32)
       src/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp
       src/BaselineDml/DmlProgramExecutor.cpp
       src/BaselineDml/DmlProgramCompiler.cpp
+      src/BaselineDml/DmlProgramInitializer.cpp
       src/BackgroundRemoval/windows/TraceLoggingProvider.cpp
       src/plugin-main-windows.cpp
       src/plugin-support.c

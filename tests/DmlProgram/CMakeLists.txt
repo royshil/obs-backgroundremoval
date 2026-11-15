@@ -9,6 +9,7 @@ add_executable(
   ProgramTestSession.cpp
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramExecutor.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramInitializer.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
 )
 target_include_directories(DmlProgramTest PRIVATE "${PLUGIN_SOURCE_DIR}")
@@ -29,6 +30,7 @@ add_executable(
   ProgramTestSession.cpp
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramExecutor.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramInitializer.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
   "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp"
 )
@@ -41,6 +43,7 @@ add_executable(
   ProgramTestSession.cpp
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramExecutor.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramInitializer.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
 )
 target_include_directories(OperatorFixtureTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
@@ -120,6 +123,7 @@ add_executable(
   ProgramTestSession.cpp
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramExecutor.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramInitializer.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
 )
 target_include_directories(GpuImageInferenceTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/vendor/doctest")
@@ -135,6 +139,7 @@ add_executable(
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramExecutor.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramInitializer.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
   "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp"
 )

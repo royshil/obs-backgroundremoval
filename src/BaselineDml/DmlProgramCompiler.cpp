@@ -267,10 +267,6 @@ struct DmlProgramCompiler::Impl final {
 
 	Impl(IDMLDevice *device, const DmlProgramDefinition &definition);
 
-	void describeInitializationInputs(std::vector<DML_BINDING_DESC> &inputs);
-	void describeInitializationOutputs(std::vector<DML_BINDING_DESC> &outputs);
-	auto signalCompletion() const noexcept -> HRESULT;
-	void waitForCompletion() const;
 	auto makeNodeTensorResource(std::int64_t nodeIndex, D3D12_RESOURCE_STATES initialState)
 		-> std::shared_ptr<ID3D12Resource>;
 
@@ -288,27 +284,8 @@ struct DmlProgramCompiler::Impl final {
 	NodeVector<std::unique_ptr<IDMLCompiledOperator, IUnknownReleaser>> operations_;
 	NodeVector<std::unique_ptr<ID3D12RootSignature, IUnknownReleaser>> rootSignatures_;
 	NodeVector<std::unique_ptr<ID3D12PipelineState, IUnknownReleaser>> pipelines_;
-	// Non-owning pointers in initializer order; operations_ owns the operators.
-	std::vector<IDMLCompiledOperator *> operatorsToReset_;
-
-	// Node-indexed storage for descriptors passed to the batched initializer.
-	NodeVector<std::vector<DML_BUFFER_BINDING>> initializationInputBuffers_;
-	NodeVector<DML_BUFFER_ARRAY_BINDING> initializationInputArrays_;
-	NodeVector<DML_BUFFER_BINDING> initializationPersistentBuffers_;
-
-	// DML initialization dependencies. The binding table is declared last so it is released first.
-	std::unique_ptr<IDMLCommandRecorder, IUnknownReleaser> recorder_;
+	// Client-owned upload staging transferred to DmlProgram by build().
 	std::unique_ptr<ID3D12Resource, IUnknownReleaser> weightUpload_;
-	std::unique_ptr<ID3D12Resource, IUnknownReleaser> initializationTemporary_;
-	std::unique_ptr<IDMLOperatorInitializer, IUnknownReleaser> initializer_;
-	std::unique_ptr<ID3D12DescriptorHeap, IUnknownReleaser> initializationHeap_;
-	std::unique_ptr<IDMLBindingTable, IUnknownReleaser> initializationTable_;
-
-	// Submission context. Declared last so command recording objects are released before their resources.
-	std::unique_ptr<ID3D12CommandQueue, IUnknownReleaser> queue_;
-	std::unique_ptr<ID3D12Fence, IUnknownReleaser> fence_;
-	std::unique_ptr<ID3D12CommandAllocator, IUnknownReleaser> allocator_;
-	std::unique_ptr<ID3D12GraphicsCommandList, IUnknownReleaser> commandList_;
 };
 
 auto DmlProgramCompiler::makeImpl(IDMLDevice *device, const DmlProgramDefinition &definition) -> std::unique_ptr<Impl>
@@ -355,123 +332,6 @@ auto getParentDevice(IDMLDevice *device) -> std::unique_ptr<ID3D12Device, IUnkno
 	}
 
 	return std::unique_ptr<ID3D12Device, IUnknownReleaser>{p};
-}
-
-auto makeCommandQueue(ID3D12Device *device) -> std::unique_ptr<ID3D12CommandQueue, IUnknownReleaser>
-{
-	if (device == nullptr) {
-		throw std::invalid_argument("device is null");
-	}
-
-	ID3D12CommandQueue *p = nullptr;
-
-	D3D12_COMMAND_QUEUE_DESC description{
-		.Type = D3D12_COMMAND_LIST_TYPE_DIRECT,
-	};
-	if (const HRESULT hr = device->CreateCommandQueue(&description, IID_PPV_ARGS(&p)); FAILED(hr)) {
-		if (p != nullptr) {
-			p->Release();
-		}
-		throw DmlProgramCompiler::WinError("Failed to create command queue", hr);
-	}
-
-	return std::unique_ptr<ID3D12CommandQueue, IUnknownReleaser>{p};
-}
-
-auto makeCommandAllocator(ID3D12Device *device) -> std::unique_ptr<ID3D12CommandAllocator, IUnknownReleaser>
-{
-	if (device == nullptr) {
-		throw std::invalid_argument("device is null");
-	}
-
-	ID3D12CommandAllocator *p = nullptr;
-
-	if (const HRESULT hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&p));
-	    FAILED(hr)) {
-		if (p != nullptr) {
-			p->Release();
-		}
-		throw DmlProgramCompiler::WinError("Failed to create command allocator", hr);
-	}
-
-	return std::unique_ptr<ID3D12CommandAllocator, IUnknownReleaser>{p};
-}
-
-auto makeCommandList(ID3D12Device *device, ID3D12CommandAllocator *allocator)
-	-> std::unique_ptr<ID3D12GraphicsCommandList, IUnknownReleaser>
-{
-	if (device == nullptr) {
-		throw std::invalid_argument("device is null");
-	} else if (allocator == nullptr) {
-		throw std::invalid_argument("allocator is null");
-	}
-
-	ID3D12GraphicsCommandList *p = nullptr;
-
-	if (const HRESULT hr =
-		    device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, allocator, nullptr, IID_PPV_ARGS(&p));
-	    FAILED(hr)) {
-		if (p != nullptr) {
-			p->Release();
-		}
-		throw DmlProgramCompiler::WinError("Failed to create command list", hr);
-	}
-
-	return std::unique_ptr<ID3D12GraphicsCommandList, IUnknownReleaser>{p};
-}
-
-auto makeFence(ID3D12Device *device) -> std::unique_ptr<ID3D12Fence, IUnknownReleaser>
-{
-	if (device == nullptr) {
-		throw std::invalid_argument("device is null");
-	}
-
-	ID3D12Fence *p = nullptr;
-
-	if (const HRESULT hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&p)); FAILED(hr)) {
-		if (p != nullptr) {
-			p->Release();
-		}
-		throw DmlProgramCompiler::WinError("Failed to create fence", hr);
-	}
-
-	return std::unique_ptr<ID3D12Fence, IUnknownReleaser>{p};
-}
-
-auto makeCommandRecorder(IDMLDevice *device) -> std::unique_ptr<IDMLCommandRecorder, IUnknownReleaser>
-{
-	if (device == nullptr) {
-		throw std::invalid_argument("device is null");
-	}
-
-	IDMLCommandRecorder *p = nullptr;
-
-	if (const HRESULT hr = device->CreateCommandRecorder(IID_PPV_ARGS(&p)); FAILED(hr)) {
-		if (p != nullptr) {
-			p->Release();
-		}
-		throw DmlProgramCompiler::WinError("Failed to create command recorder", hr);
-	}
-
-	return std::unique_ptr<IDMLCommandRecorder, IUnknownReleaser>{p};
-}
-
-auto makeOperatorInitializer(IDMLDevice *device) -> std::unique_ptr<IDMLOperatorInitializer, IUnknownReleaser>
-{
-	if (device == nullptr) {
-		throw std::invalid_argument("device is null");
-	}
-
-	IDMLOperatorInitializer *p = nullptr;
-
-	if (const HRESULT hr = device->CreateOperatorInitializer(0, nullptr, IID_PPV_ARGS(&p)); FAILED(hr)) {
-		if (p != nullptr) {
-			p->Release();
-		}
-		throw DmlProgramCompiler::WinError("Failed to create operator initializer", hr);
-	}
-
-	return std::unique_ptr<IDMLOperatorInitializer, IUnknownReleaser>{p};
 }
 
 auto makeWeightUpload(ID3D12Device *device, std::uint64_t size) -> std::unique_ptr<ID3D12Resource, IUnknownReleaser>
@@ -588,100 +448,6 @@ auto makeTensor(ID3D12Device *device, std::uint64_t size, D3D12_RESOURCE_STATES 
 	return std::unique_ptr<ID3D12Resource, IUnknownReleaser>{p};
 }
 
-auto makeInitializationHeap(ID3D12Device *device, UINT descriptorCount)
-	-> std::unique_ptr<ID3D12DescriptorHeap, IUnknownReleaser>
-{
-	if (device == nullptr) {
-		throw std::invalid_argument("device is null");
-	}
-
-	ID3D12DescriptorHeap *p = nullptr;
-
-	D3D12_DESCRIPTOR_HEAP_DESC description{
-		.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-		.NumDescriptors = descriptorCount,
-		.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-	};
-	if (const HRESULT hr = device->CreateDescriptorHeap(&description, IID_PPV_ARGS(&p)); FAILED(hr)) {
-		if (p != nullptr) {
-			p->Release();
-		}
-		throw DmlProgramCompiler::WinError("Failed to create initialization heap", hr);
-	}
-
-	return std::unique_ptr<ID3D12DescriptorHeap, IUnknownReleaser>{p};
-}
-
-auto makeInitializationTable(IDMLDevice *device, const DML_BINDING_TABLE_DESC &description)
-	-> std::unique_ptr<IDMLBindingTable, IUnknownReleaser>
-{
-	if (device == nullptr) {
-		throw std::invalid_argument("device is null");
-	}
-
-	IDMLBindingTable *p = nullptr;
-
-	if (const HRESULT hr = device->CreateBindingTable(&description, IID_PPV_ARGS(&p)); FAILED(hr)) {
-		if (p != nullptr) {
-			p->Release();
-		}
-		throw DmlProgramCompiler::WinError("Failed to create initialization binding table", hr);
-	}
-
-	return std::unique_ptr<IDMLBindingTable, IUnknownReleaser>{p};
-}
-
-auto makeInitializationTemporary(ID3D12Device *device, std::uint64_t size)
-	-> std::unique_ptr<ID3D12Resource, IUnknownReleaser>
-{
-	if (device == nullptr) {
-		throw std::invalid_argument("device is null");
-	}
-
-	if (size < 4) {
-		size = 4;
-	}
-
-	ID3D12Resource *p = nullptr;
-
-	D3D12_HEAP_PROPERTIES heap{
-		.Type = D3D12_HEAP_TYPE_DEFAULT,
-	};
-	const D3D12_RESOURCE_DESC description{
-		.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
-		.Width = size,
-		.Height = 1,
-		.DepthOrArraySize = 1,
-		.MipLevels = 1,
-		.SampleDesc = {1, 0},
-		.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-		.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-	};
-
-	if (const HRESULT hr = device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &description,
-							       D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
-							       IID_PPV_ARGS(&p));
-	    FAILED(hr)) {
-		if (p != nullptr) {
-			p->Release();
-		}
-		throw DmlProgramCompiler::WinError("Failed to create DML initialization temporary buffer", hr);
-	}
-
-	return std::unique_ptr<ID3D12Resource, IUnknownReleaser>{p};
-}
-
-auto makeInitializationInputBuffers(const DmlProgramDefinition &definition)
-	-> std::vector<std::vector<DML_BUFFER_BINDING>>
-{
-	std::vector<std::vector<DML_BUFFER_BINDING>> buffers;
-	buffers.reserve(definition.params.steps.size());
-	for (const auto &step : definition.params.steps) {
-		buffers.emplace_back(step.inputCount);
-	}
-	return buffers;
-}
-
 } // namespace
 
 auto DmlProgramCompiler::Impl::makeNodeTensorResource(std::int64_t nodeIndex, D3D12_RESOURCE_STATES initialState)
@@ -701,18 +467,8 @@ DmlProgramCompiler::Impl::Impl(IDMLDevice *device, const DmlProgramDefinition &d
 	  operations_(definition_.nodes.size()),
 	  rootSignatures_(definition_.nodes.size()),
 	  pipelines_(definition_.nodes.size()),
-	  initializationInputBuffers_(makeInitializationInputBuffers(definition_)),
-	  initializationInputArrays_(definition_.params.steps.size()),
-	  initializationPersistentBuffers_(definition_.params.steps.size()),
-	  recorder_(makeCommandRecorder(device)),
-	  weightUpload_(makeWeightUpload(d3dDevice_.get(), definition_.params.weightBytes)),
-	  initializer_(makeOperatorInitializer(device)),
-	  queue_(makeCommandQueue(d3dDevice_.get())),
-	  fence_(makeFence(d3dDevice_.get())),
-	  allocator_(makeCommandAllocator(d3dDevice_.get())),
-	  commandList_(makeCommandList(d3dDevice_.get(), allocator_.get()))
+	  weightUpload_(makeWeightUpload(d3dDevice_.get(), definition_.params.weightBytes))
 {
-	operatorsToReset_.reserve(definition_.nodes.size());
 	void *mapped = nullptr;
 	if (const HRESULT hr = weightUpload_->Map(0, nullptr, &mapped); FAILED(hr)) {
 		throw DmlProgramCompiler::WinError("Failed to map weight upload buffer", hr);
@@ -721,28 +477,6 @@ DmlProgramCompiler::Impl::Impl(IDMLDevice *device, const DmlProgramDefinition &d
 	const auto weightBytes = std::as_bytes(definition_.weights);
 	std::memcpy(mapped, weightBytes.data(), weightBytes.size());
 	weightUpload_->Unmap(0, nullptr);
-}
-
-void DmlProgramCompiler::beginProgram()
-{
-	// Copy the prepared weight bytes into the GPU buffer before DirectML binds it as a UAV.
-
-	impl_->commandList_->CopyBufferRegion(impl_->weight_.get(), 0, impl_->weightUpload_.get(), 0,
-					      impl_->definition_.params.weightBytes);
-
-	const D3D12_RESOURCE_BARRIER weightBarrier{
-		.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-		.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
-		.Transition =
-			{
-				.pResource = impl_->weight_.get(),
-				.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-				.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
-				.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			},
-	};
-
-	impl_->commandList_->ResourceBarrier(1, &weightBarrier);
 }
 
 void DmlProgramCompiler::beginNode(std::int64_t nodeIndex)
@@ -763,94 +497,11 @@ void DmlProgramCompiler::endNode(std::int64_t nodeIndex)
 	impl_->nodeIndex_ = -1;
 }
 
-void DmlProgramCompiler::endProgram()
-{
-	if (impl_->operatorsToReset_.empty()) {
-		throw std::logic_error("No DirectML operators to initialize");
-	}
-
-	if (impl_->operatorsToReset_.size() > std::numeric_limits<UINT>::max()) {
-		throw std::invalid_argument("Too many operators for initialization");
-	}
-}
-
-void DmlProgramCompiler::prepareInitialization()
-{
-	// Configure the initializer for the compiled operators and create its binding table.
-	if (const HRESULT result = impl_->initializer_->Reset(static_cast<UINT>(impl_->operatorsToReset_.size()),
-							      impl_->operatorsToReset_.data());
-	    FAILED(result)) {
-		throw DmlProgramCompilerError("Set initializer operators failed", result);
-	}
-
-	const auto properties = impl_->initializer_->GetBindingProperties();
-	const auto descriptorCount = std::max<UINT>(1, properties.RequiredDescriptorCount);
-	impl_->initializationHeap_ = makeInitializationHeap(impl_->d3dDevice_.get(), descriptorCount);
-	const DML_BINDING_TABLE_DESC description{
-		.Dispatchable = impl_->initializer_.get(),
-		.CPUDescriptorHandle = impl_->initializationHeap_->GetCPUDescriptorHandleForHeapStart(),
-		.GPUDescriptorHandle = impl_->initializationHeap_->GetGPUDescriptorHandleForHeapStart(),
-		.SizeInDescriptors = descriptorCount,
-	};
-	impl_->initializationTable_ = makeInitializationTable(impl_->dmlDevice_, description);
-
-	// Bind weights as inputs and the operators' persistent resources as outputs.
-	{
-		std::vector<DML_BINDING_DESC> inputs;
-		inputs.reserve(impl_->operatorsToReset_.size());
-		impl_->describeInitializationInputs(inputs);
-		impl_->initializationTable_->BindInputs(static_cast<UINT>(inputs.size()), inputs.data());
-	}
-	{
-		std::vector<DML_BINDING_DESC> outputs;
-		outputs.reserve(impl_->operatorsToReset_.size());
-		impl_->describeInitializationOutputs(outputs);
-		impl_->initializationTable_->BindOutputs(static_cast<UINT>(outputs.size()), outputs.data());
-	}
-	if (properties.TemporaryResourceSize) {
-		impl_->initializationTemporary_ =
-			makeInitializationTemporary(impl_->d3dDevice_.get(), properties.TemporaryResourceSize);
-		const DML_BUFFER_BINDING buffer{impl_->initializationTemporary_.get(), 0,
-						properties.TemporaryResourceSize};
-		const DML_BINDING_DESC binding{DML_BINDING_TYPE_BUFFER, &buffer};
-		impl_->initializationTable_->BindTemporaryResource(&binding);
-	}
-	if (const HRESULT result = impl_->dmlDevice_->GetDeviceRemovedReason(); FAILED(result))
-		throw DmlProgramCompilerError("Bind batched initializer resources failed", result);
-}
-
-void DmlProgramCompiler::recordInitialization()
-{
-	// Record initialization after the weight upload and order subsequent UAV accesses.
-	ID3D12DescriptorHeap *heaps[]{impl_->initializationHeap_.get()};
-	impl_->commandList_->SetDescriptorHeaps(1, heaps);
-	impl_->recorder_->RecordDispatch(impl_->commandList_.get(), impl_->initializer_.get(),
-					 impl_->initializationTable_.get());
-	D3D12_RESOURCE_BARRIER barrier{};
-	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-	impl_->commandList_->ResourceBarrier(1, &barrier);
-}
-
-void DmlProgramCompiler::submitAndWait()
-{
-	// Submit the upload and initialization, then retain their resources until completion.
-	if (const HRESULT result = impl_->commandList_->Close(); FAILED(result))
-		throw DmlProgramCompilerError("Close compiler commands failed", result);
-	ID3D12CommandList *lists[]{impl_->commandList_.get()};
-	impl_->queue_->ExecuteCommandLists(1, lists);
-	const HRESULT signal = impl_->signalCompletion();
-	impl_->waitForCompletion();
-	if (FAILED(signal))
-		throw DmlProgramCompilerError("Signal compiler completion failed", signal);
-	if (const HRESULT result = impl_->dmlDevice_->GetDeviceRemovedReason(); FAILED(result))
-		throw DmlProgramCompilerError("Compiler DirectML completion failed", result);
-}
-
 auto DmlProgramCompiler::build() -> std::unique_ptr<DmlProgram>
 {
 	auto program = std::make_unique<DmlProgram>();
 	program->tensorResources = std::move(impl_->tensorResources_);
-	impl_->weight_.reset();
+	program->weight = std::move(impl_->weight_);
 	program->dmlPersistentResources.reserve(impl_->dmlPersistentResources_.size());
 	for (auto &resource : impl_->dmlPersistentResources_)
 		program->dmlPersistentResources.emplace_back(resource.release(), Impl::releaseIUnknown);
@@ -865,68 +516,6 @@ auto DmlProgramCompiler::build() -> std::unique_ptr<DmlProgram>
 		program->pipelines.emplace_back(pipeline.release(), Impl::releaseIUnknown);
 	program->weightUpload = {impl_->weightUpload_.release(), Impl::releaseIUnknown};
 	return program;
-}
-
-void DmlProgramCompiler::Impl::describeInitializationInputs(std::vector<DML_BINDING_DESC> &inputs)
-{
-	for (std::size_t nodeIndex = 0; nodeIndex < operations_.size(); ++nodeIndex) {
-		if (!operations_[nodeIndex])
-			continue;
-		const auto &step = definition_.params.steps[nodeIndex];
-		auto &buffers = initializationInputBuffers_[nodeIndex];
-		for (std::size_t input = 0; input < step.inputCount; ++input) {
-			const auto tensorIndex = step.inputs[input];
-			if (tensorIndex == -1 || !isWeightTensor(definition_.params.tensors[tensorIndex]))
-				continue;
-			const auto &tensor = definition_.params.tensors[tensorIndex];
-			buffers[input] = DML_BUFFER_BINDING{weight_.get(),
-							    static_cast<std::uint64_t>(tensorByteOffset(tensor)),
-							    tensorSize(tensor)};
-		}
-		initializationInputArrays_[nodeIndex] = {static_cast<UINT>(buffers.size()), buffers.data()};
-		inputs.push_back({DML_BINDING_TYPE_BUFFER_ARRAY, &initializationInputArrays_[nodeIndex]});
-	}
-}
-
-void DmlProgramCompiler::Impl::describeInitializationOutputs(std::vector<DML_BINDING_DESC> &outputs)
-{
-	for (std::size_t nodeIndex = 0; nodeIndex < operations_.size(); ++nodeIndex) {
-		if (!operations_[nodeIndex])
-			continue;
-		if (const auto &persistentResource = dmlPersistentResources_[nodeIndex]; persistentResource) {
-			initializationPersistentBuffers_[nodeIndex] = DML_BUFFER_BINDING{
-				persistentResource.get(), 0,
-				operations_[nodeIndex]->GetBindingProperties().PersistentResourceSize};
-			outputs.push_back({DML_BINDING_TYPE_BUFFER, &initializationPersistentBuffers_[nodeIndex]});
-		} else {
-			outputs.push_back({DML_BINDING_TYPE_NONE, nullptr});
-		}
-	}
-}
-
-auto DmlProgramCompiler::Impl::signalCompletion() const noexcept -> HRESULT
-{
-	const HRESULT signal = queue_->Signal(fence_.get(), 1);
-	if (FAILED(signal) && FAILED(queue_->Signal(fence_.get(), 1)) &&
-	    SUCCEEDED(d3dDevice_->GetDeviceRemovedReason()))
-		std::terminate(); // A live queue with no completion marker cannot safely release its resources.
-	return signal;
-}
-
-void DmlProgramCompiler::Impl::waitForCompletion() const
-{
-	// After submission, only completion or device removal permits resource destruction.
-	for (;;) {
-		const auto completed = fence_->GetCompletedValue();
-		if (completed == std::numeric_limits<std::uint64_t>::max())
-			throw DmlProgramCompilerError("Compiler GPU device removed",
-						      d3dDevice_->GetDeviceRemovedReason());
-		if (completed >= 1)
-			break;
-		if (const HRESULT result = d3dDevice_->GetDeviceRemovedReason(); FAILED(result))
-			throw DmlProgramCompilerError("Compiler GPU completion failed", result);
-		Sleep(1);
-	}
 }
 
 // MARK: - Node visitors (CreateOperator and CompileOperator are written per node)
@@ -1004,7 +593,6 @@ auto DmlProgramCompiler::operator()(const BiasedConv2dRelu &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const HardSwishGate &node) -> void
@@ -1039,7 +627,6 @@ auto DmlProgramCompiler::operator()(const HardSwishGate &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 // Custom shader resources and output tensor are created by the node visitor.
@@ -1099,7 +686,6 @@ auto DmlProgramCompiler::operator()(const AveragePool2d &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const BiasedConv2d &node) -> void
@@ -1162,7 +748,6 @@ auto DmlProgramCompiler::operator()(const BiasedConv2d &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const BiasedConvTranspose2d &node) -> void
@@ -1225,7 +810,6 @@ auto DmlProgramCompiler::operator()(const BiasedConvTranspose2d &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const DepthToSpace &node) -> void
@@ -1260,7 +844,6 @@ auto DmlProgramCompiler::operator()(const DepthToSpace &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const ClipFloat32 &node) -> void
@@ -1299,7 +882,6 @@ auto DmlProgramCompiler::operator()(const ClipFloat32 &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const Resize &node) -> void
@@ -1338,7 +920,6 @@ auto DmlProgramCompiler::operator()(const Resize &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const Sigmoid &node) -> void
@@ -1375,7 +956,6 @@ auto DmlProgramCompiler::operator()(const Sigmoid &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const Reshape &node) -> void
@@ -1423,7 +1003,6 @@ auto DmlProgramCompiler::operator()(const Add &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const Mul &node) -> void
@@ -1461,7 +1040,6 @@ auto DmlProgramCompiler::operator()(const Mul &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const Relu &node) -> void
@@ -1498,7 +1076,6 @@ auto DmlProgramCompiler::operator()(const Relu &node) -> void
 	impl_->operations_[impl_->nodeIndex_] = std::move(compiledOperation);
 	impl_->dmlPersistentResources_[impl_->nodeIndex_] =
 		makeDmlPersistentResource(impl_->d3dDevice_.get(), impl_->operations_[impl_->nodeIndex_].get());
-	impl_->operatorsToReset_.push_back(impl_->operations_[impl_->nodeIndex_].get());
 }
 
 auto DmlProgramCompiler::operator()(const FusedNode &nodes) -> void

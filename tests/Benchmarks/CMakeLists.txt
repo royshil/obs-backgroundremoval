@@ -18,6 +18,7 @@ add_executable(
   "${PROJECT_SOURCE_DIR}/tests/DmlProgram/ProgramTestSession.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramExecutor.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramInitializer.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
   "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp"
 )
@@ -35,6 +36,7 @@ add_executable(
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/MediaPipeLandscapeDirectML10/MPLD10Engine.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramExecutor.cpp"
   "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+  "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramInitializer.cpp"
   "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/TraceLoggingProvider.cpp"
   "${LANDSCAPE_GENERATED}/MediaPipeLandscapeDmlProgram.generated.cpp"
 )

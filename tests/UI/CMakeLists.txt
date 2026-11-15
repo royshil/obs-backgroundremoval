@@ -63,6 +63,7 @@ if(WIN32)
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/windows/generated/MediaPipeLandscapeDmlProgram.generated.cpp"
     "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramExecutor.cpp"
     "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramCompiler.cpp"
+    "${PLUGIN_SOURCE_DIR}/BaselineDml/DmlProgramInitializer.cpp"
   )
 
   set_target_properties(BRPropUI PROPERTIES AUTOMOC ON AUTORCC ON)

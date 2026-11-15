@@ -27,7 +27,8 @@ struct GpuInput final {
  * DmlProgram and the definition backing arrays must outlive this session.
  * Retain this session through completion of every GPU execution using its descriptor heaps,
  * including replays of recorded command lists. Drain old work before destroying an old session.
- * Compiler returns an initialized program; recreating a session never repeats initialization.
+ * The program may be borrowed before initialization, but no run may be submitted until DmlProgramInitializer's
+ * recorded initialization has completed; recreating a session never repeats initialization.
  * Devices, command lists, queues, allocators, submission and synchronization belong to the caller.
  */
 class DmlProgramExecutor final {
@@ -45,7 +46,7 @@ public:
  * Output is a DEFAULT or READBACK buffer in COPY_DEST with room at outputOffset.
  * A non-null predicate provides eight bytes at offset zero in PREDICATION; zero preserves output.
  *
- * Compiler initialization must have completed first. A closed execution-only list can be replayed without recording again.
+ * Program initialization must have completed first. A closed execution-only list can be replayed without recording again.
  * Wait for previous GPU execution before changing CPU-written input/predicate contents or resubmitting.
  * Keep this session, program resources and the allocator's recorded contents alive for every execution; resetting the
  * allocator invalidates its recordings. Re-record when resource identities or offsets change.

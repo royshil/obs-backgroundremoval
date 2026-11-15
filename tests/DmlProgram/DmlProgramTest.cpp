@@ -14,6 +14,7 @@
 TRACELOGGING_DECLARE_PROVIDER(g_hProvider);
 
 #include <BaselineDml/DmlProgramCompiler.hpp>
+#include <BaselineDml/DmlProgramInitializer.hpp>
 #include "ProgramTestSession.hpp"
 #include <BaselineDml/DmlProgramExecutor.hpp>
 #include "TensorSpecFixture.hpp"
@@ -148,17 +149,17 @@ auto compileProgram(IDMLDevice *dmlDevice, std::span<const TensorSpec> specs, st
 		weights = unusedWeight;
 	const auto tables = makeModelParamsStorage(specs, nodes, barriers, outputIndex, weights.size());
 	DmlProgramCompiler compiler(dmlDevice, makeDmlProgramDefinition(nodes, tables.params(), weights));
-	compiler.beginProgram();
 	for (std::size_t index = 0; index < nodes.size(); ++index) {
 		compiler.beginNode(static_cast<std::int64_t>(index));
 		std::visit(compiler, nodes[index]);
 		compiler.endNode(static_cast<std::int64_t>(index));
 	}
-	compiler.endProgram();
-	compiler.prepareInitialization();
-	compiler.recordInitialization();
-	compiler.submitAndWait();
-	return compiler.build();
+	auto program = compiler.build();
+	ComPtr<ID3D12Device> d3d;
+	DmlProgramTest::check(dmlDevice->GetParentDevice(IID_PPV_ARGS(&d3d)), "Get test parent device");
+	DmlProgramInitializer initializer(d3d.Get(), dmlDevice,
+					  makeDmlProgramDefinition(nodes, tables.params(), weights), *program);
+	return program;
 }
 
 auto compile(std::span<const TensorSpec> tensorSpecs, std::span<const Node> graphNodes,
@@ -202,16 +203,11 @@ int testExplicitShapeNodes()
 	const auto tables = makeModelParamsStorage(specs, nodes, barriers, 8, unusedWeight.size());
 	DmlProgramCompiler resourceOwnerCompiler(device.Get(),
 						 makeDmlProgramDefinition(nodes, tables.params(), unusedWeight));
-	resourceOwnerCompiler.beginProgram();
 	for (std::size_t index = 0; index < nodes.size(); ++index) {
 		resourceOwnerCompiler.beginNode(static_cast<std::int64_t>(index));
 		std::visit(resourceOwnerCompiler, nodes[index]);
 		resourceOwnerCompiler.endNode(static_cast<std::int64_t>(index));
 	}
-	resourceOwnerCompiler.endProgram();
-	resourceOwnerCompiler.prepareInitialization();
-	resourceOwnerCompiler.recordInitialization();
-	resourceOwnerCompiler.submitAndWait();
 	auto resourceOwner = resourceOwnerCompiler.build();
 	expect(resourceOwner->tensorResources.size() == nodes.size(), "tensor resources must be indexed by NodeIndex");
 	for (const auto &resource : resourceOwner->tensorResources)
@@ -668,16 +664,11 @@ auto exerciseRecordedExecution(bool releaseUploadBeforeExecution) -> int
 	const auto tables = makeModelParamsStorage(std::span(specs), std::span(nodes), {}, 2, sizeof(weight));
 	const auto definition = makeDmlProgramDefinition(nodes, tables.params(), std::as_bytes(std::span(&weight, 1)));
 	DmlProgramCompiler originalCompiler(device.Get(), definition);
-	originalCompiler.beginProgram();
 	for (std::size_t index = 0; index < definition.nodes.size(); ++index) {
 		originalCompiler.beginNode(static_cast<std::int64_t>(index));
 		std::visit(originalCompiler, definition.nodes[index]);
 		originalCompiler.endNode(static_cast<std::int64_t>(index));
 	}
-	originalCompiler.endProgram();
-	originalCompiler.prepareInitialization();
-	originalCompiler.recordInitialization();
-	originalCompiler.submitAndWait();
 	auto original = originalCompiler.build();
 	const auto nodeCount = definition.nodes.size();
 	expect(definition.params.steps.size() == nodeCount, "execution slots must match node indices");
@@ -742,8 +733,18 @@ auto exerciseRecordedExecution(bool releaseUploadBeforeExecution) -> int
 	static_assert(noexcept(inputInfo(definition, 0)));
 
 	expect(program->weightUpload != nullptr, "build must transfer upload ownership to the client");
+	{
+		// The client submits initialization and waits before the first execution.
+		const DmlProgramInitializer initializer(d3d.Get(), device.Get(), definition, *program);
+		static_assert(noexcept(initializer.recordInitialization(commands.Get())));
+		initializer.recordInitialization(commands.Get());
+		DmlProgramTest::check(commands->Close(), "Close initialization commands");
+		submitAndWait();
+	}
+	DmlProgramTest::check(allocator->Reset(), "Reset initialization allocator");
+	DmlProgramTest::check(commands->Reset(allocator.Get(), nullptr), "Reset execution commands");
 	if (releaseUploadBeforeExecution)
-		program->weightUpload.reset(); // endProgram has already completed the upload.
+		program->weightUpload.reset(); // Initialization has already completed the upload.
 	const std::array inputs{GpuInput{upload.get(), inputOffset, sizeof(float)}};
 	static_assert(noexcept(executor->recordGpuRun(commands.Get(), inputs, nullptr, output.get(), outputOffset)));
 	executor->recordGpuRun(commands.Get(), inputs, nullptr, output.get(), outputOffset);
@@ -889,16 +890,11 @@ int testCompileErrorsAreExceptions()
 			makeModelParamsStorage(std::span(specs), std::span(badClip), {}, 1, unusedWeight.size());
 		DmlProgramCompiler programCompiler(device.Get(),
 						   makeDmlProgramDefinition(badClip, tables.params(), unusedWeight));
-		programCompiler.beginProgram();
 		for (std::size_t index = 0; index < std::span(badClip).size(); ++index) {
 			programCompiler.beginNode(static_cast<std::int64_t>(index));
 			std::visit(programCompiler, std::span(badClip)[index]);
 			programCompiler.endNode(static_cast<std::int64_t>(index));
 		}
-		programCompiler.endProgram();
-		programCompiler.prepareInitialization();
-		programCompiler.recordInitialization();
-		programCompiler.submitAndWait();
 		auto program = programCompiler.build();
 		throw std::runtime_error("invalid program construction succeeded");
 	} catch (const DmlCompilationError &error) {

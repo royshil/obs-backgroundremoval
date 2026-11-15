@@ -17,6 +17,7 @@
 #include <cassert>
 #include <cstring>
 #include <cmath>
+#include <exception>
 #include <stdexcept>
 #include <string>
 
@@ -29,6 +30,7 @@
 
 #include <BaselineDml/DmlProgramExecutor.hpp>
 #include <BaselineDml/DmlProgramCompiler.hpp>
+#include <BaselineDml/DmlProgramInitializer.hpp>
 
 #include <TraceLoggingActivity.h>
 #include <TraceLoggingProvider.h>
@@ -217,18 +219,12 @@ MPLD10Engine::Impl::Impl(ID3D11Device *native, bool gpuOutput) : gpuOutput_(gpuO
 	programDefinition_.params.outputTensor = gpuOutput ? MPLD10Detail::maskOutputIndex
 							   : MPLD10Detail::rawOutputIndex;
 	BaselineDml::DmlProgramCompiler compiler(dmlDevice_.Get(), programDefinition_);
-	compiler.beginProgram();
 	for (std::size_t index = 0; index < programDefinition_.nodes.size(); ++index) {
 		compiler.beginNode(static_cast<std::int64_t>(index));
 		std::visit(compiler, programDefinition_.nodes[index]);
 		compiler.endNode(static_cast<std::int64_t>(index));
 	}
-	compiler.endProgram();
-	compiler.prepareInitialization();
-	compiler.recordInitialization();
-	compiler.submitAndWait();
 	program_ = compiler.build();
-	program_->weightUpload.reset();
 	executor_ = std::make_unique<BaselineDml::DmlProgramExecutor>(device_.Get(), dmlDevice_.Get(),
 								      programDefinition_, *program_);
 	auto *d = device_.Get();
@@ -348,7 +344,30 @@ MPLD10Engine::Impl::Impl(ID3D11Device *native, bool gpuOutput) : gpuOutput_(gpuO
 			throw std::runtime_error("Invalid timing frequency");
 #endif
 	}
-	check(commands_->Close(), "Close unused engine initialization list");
+
+	// Upload the weights and initialize the program before the first inference can be recorded.
+	BaselineDml::DmlProgramInitializer initializer(d, dmlDevice_.Get(), programDefinition_, *program_);
+	initializer.recordInitialization(commands_.Get());
+	check(commands_->Close(), "Close engine initialization list");
+	ID3D12CommandList *lists[]{commands_.Get()};
+	q->ExecuteCommandLists(1, lists);
+	const uint64_t initialized = fenceValue_ + 1;
+	HRESULT signal = q->Signal(completion_.Get(), initialized);
+	if (FAILED(signal))
+		signal = q->Signal(completion_.Get(), initialized);
+	// Submitted initialization resources may be released only after completion or device removal.
+	if (FAILED(signal) && SUCCEEDED(d->GetDeviceRemovedReason()))
+		std::terminate();
+	check(signal, "Signal engine initialization");
+	fenceValue_ = initialized;
+	if (FAILED(blockCpuUntilFenceValueReached(completion_.Get(), fenceValue_, event_.get())) &&
+	    SUCCEEDED(d->GetDeviceRemovedReason()))
+		std::terminate();
+	check(d->GetDeviceRemovedReason(), "Engine program initialization");
+	program_->weightUpload.reset();
+#ifdef MPLD10_GPU_DIAGNOSTICS
+	timingReportedValue_ = fenceValue_; // The initialization submission records no timing queries.
+#endif
 }
 
 auto MPLD10Engine::Impl::isDone(bool &done) const noexcept -> HRESULT
