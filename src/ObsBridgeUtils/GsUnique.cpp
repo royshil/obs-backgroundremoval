@@ -50,6 +50,16 @@ void drain()
 	schedule(DrainTag{});
 }
 
+GraphicsGuard::GraphicsGuard() noexcept
+{
+	obs_enter_graphics();
+}
+
+GraphicsGuard::~GraphicsGuard() noexcept
+{
+	obs_leave_graphics();
+}
+
 void StagesurfaceDeleter::operator()(gs_stagesurf_t *surface) const noexcept
 {
 	if (surface) {

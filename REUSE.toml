@@ -1,6 +1,11 @@
 version = 1
 
 [[annotations]]
+path = ["**/LICENSE", "**/LICENSE.txt"]
+SPDX-FileCopyrightText = ""
+SPDX-License-Identifier = "LicenseRef-Not-Copyrightable"
+
+[[annotations]]
 path = "NOTICE"
 SPDX-FileCopyrightText = ""
 SPDX-License-Identifier = "LicenseRef-Not-Copyrightable"
@@ -9,11 +14,12 @@ SPDX-License-Identifier = "LicenseRef-Not-Copyrightable"
 path = [
   ".github/workflows/actions.lock",
   ".python-version",
+  "**/*.upstream",
   "CMakePresets.json",
   "compile_flags.txt",
+  "probe-cases.csv",
   "scripts/windows/*",
-  "vcpkg-configuration.json",
-  "vcpkg.json",
+  "vendor/*/.gitattributes",
   "VERSION",
 ]
 SPDX-FileCopyrightText = "2026 Kaito Udagawa <umireon@kaito.tokyo>"

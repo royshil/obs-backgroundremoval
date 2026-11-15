@@ -20,6 +20,9 @@ Feature: About dialog on startup
     And it shows "Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement"
     And the displayed version equals the installed plugin version
     And it shows text containing "Copyright © 2021–2026 Roy Shilkrot"
+    And it shows text containing "© 2023–2026 Kaito Udagawa"
+    And it explains that updates are shown on the Filter Properties screen
+    And it states that the plugin never downloads or installs updates
     And the update-notification checkbox is checked
     And the "Licenses", "About Qt", and "OK" actions are available
 
@@ -28,6 +31,7 @@ Feature: About dialog on startup
     When the user selects "Licenses"
     Then the "Licenses" dialog is displayed
     And it contains "GNU General Public License"
+    And it contains "Apache License"
     When the user closes the Licenses dialog
     Then the Licenses dialog is no longer displayed
 
@@ -70,7 +74,7 @@ Feature: About dialog on startup
     Then the About dialog is no longer displayed
     And OBS continues running
     And the persisted update state is unchanged
-    And OBS records "[obs-backgroundremoval] Failed to save update config"
+    And OBS records "[obs-backgroundremoval] Failed to save the update notification setting to update.ini"
 
   Scenario: ST-2000.8 Continue when update state cannot be opened
     Given the update state cannot be opened or created
@@ -78,7 +82,7 @@ Feature: About dialog on startup
     Then OBS continues running
     And the About dialog is never displayed
     And no update state is created
-    And OBS records "[obs-backgroundremoval] Failed to open update config"
+    And OBS records "Failed to open update config"
 
   Scenario: ST-2000.9 Continue when the current version cannot be recorded
     Given an earlier plugin version is recorded in the update state
@@ -87,7 +91,7 @@ Feature: About dialog on startup
     Then OBS continues running
     And the About dialog is never displayed
     And the earlier plugin version remains recorded
-    And OBS records "[obs-backgroundremoval] Failed to save update config"
+    And OBS records "Failed to save update config"
 
   Scenario: ST-2000.10 Do not display while a stale temporary file is not writable
     Given an earlier plugin version is recorded in the update state
@@ -95,7 +99,7 @@ Feature: About dialog on startup
     When OBS finishes loading twice with a newer plugin version
     Then the About dialog is never displayed
     And the earlier plugin version remains recorded
-    And OBS records "[obs-backgroundremoval] Failed to save update config"
+    And OBS records "Failed to save update config"
 
   Scenario: ST-2000.11 Do not display while a stale temporary directory blocks saving
     Given an earlier plugin version is recorded in the update state
@@ -103,7 +107,7 @@ Feature: About dialog on startup
     When OBS finishes loading twice with a newer plugin version
     Then the About dialog is never displayed
     And the earlier plugin version remains recorded
-    And OBS records "[obs-backgroundremoval] Failed to save update config"
+    And OBS records "Failed to save update config"
 
   Scenario: ST-2000.12 Display once after update-state storage recovers
     Given saving the current plugin version previously failed

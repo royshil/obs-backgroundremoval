@@ -55,7 +55,6 @@ jobs:
     with:
       attest-artifacts: true
       release-build: ${{ inputs.release-build || false }}
-      runs-on: windows-2025-vs2026
 
   build-macos:
     uses: ./.github/workflows/build-macos.yml

@@ -15,6 +15,17 @@ namespace GsUnique {
 
 void drain();
 
+class GraphicsGuard final {
+public:
+	GraphicsGuard() noexcept;
+	~GraphicsGuard() noexcept;
+
+	GraphicsGuard(const GraphicsGuard &) = delete;
+	GraphicsGuard(GraphicsGuard &&) = delete;
+	auto operator=(const GraphicsGuard &) -> GraphicsGuard & = delete;
+	auto operator=(GraphicsGuard &&) -> GraphicsGuard & = delete;
+};
+
 struct StagesurfaceDeleter {
 	void operator()(gs_stagesurf_t *surface) const noexcept;
 };

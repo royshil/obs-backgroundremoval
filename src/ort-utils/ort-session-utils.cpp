@@ -163,7 +163,11 @@ int createOrtSession(filter_data *tf)
 
 bool runFilterModelInference(filter_data *tf, const cv::Mat &imageBGRA, cv::Mat &output)
 {
-	if (tf->session.get() == nullptr) {
+	if (tf->session.get() == nullptr
+#if defined(_WIN32)
+	    && !tf->directML
+#endif
+	) {
 		// Onnx runtime session is not initialized. Problem in initialization
 		return false;
 	}
@@ -192,7 +196,15 @@ bool runFilterModelInference(filter_data *tf, const cv::Mat &imageBGRA, cv::Mat 
 	tf->model->loadInputToTensor(preprocessedImage, inputWidth, inputHeight, tf->inputTensorValues);
 
 	// Run network inference
-	tf->model->runNetworkInference(tf->session, tf->inputNames, tf->outputNames, tf->inputTensor, tf->outputTensor);
+#if defined(_WIN32)
+	if (tf->directML) {
+		tf->directML->run(tf->inputTensorValues[0], tf->outputTensorValues[0]);
+	} else
+#endif
+	{
+		tf->model->runNetworkInference(tf->session, tf->inputNames, tf->outputNames, tf->inputTensor,
+					       tf->outputTensor);
+	}
 
 	// Get output
 	// Map network output to cv::Mat
