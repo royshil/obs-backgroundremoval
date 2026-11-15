@@ -185,28 +185,17 @@ jobs:
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: winget install --id OBSProject.OBSStudio --exact --silent --accept-package-agreements --accept-source-agreements
 
-      - name: Install scenario test dependencies (Windows)
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          Add-Content -LiteralPath $env:GITHUB_ENV -Value 'GUI_SCENARIO_OBS_EXECUTABLE=C:\Program Files\obs-studio\bin\64bit\obs64.exe' -Encoding utf8
-
       - name: Run scenario tests (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
-          $PACKAGE_ZIP = Join-Path $env:GITHUB_WORKSPACE '${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}'
-          if (-not (Test-Path -LiteralPath $PACKAGE_ZIP -PathType Leaf)) { throw 'The Windows plugin ZIP was not found.' }
-
-          $PACKAGE_ROOT = '${{ runner.temp }}/${{ github.job }}/plugin-extracted'
-          Expand-Archive -LiteralPath $PACKAGE_ZIP -DestinationPath $PACKAGE_ROOT
-          $PLUGIN_ROOT = Join-Path $PACKAGE_ROOT 'obs-studio\plugins\obs-backgroundremoval'
-          if (-not (Test-Path $PLUGIN_ROOT)) { throw "The plugin directory was not found in the ZIP: $PLUGIN_ROOT" }
-
-          ./tests/Scenarios/+run-windows.ps1 -PluginRoot $PLUGIN_ROOT
+          ./.github/ci_scripts/run_scenario_tests_windows.ps1 `
+            -PluginZip '${{ steps.package-zip.outputs.ZIP_ARTIFACT_NAME }}' `
+            -Artifacts '${{ runner.temp }}/scenario-tests-windows'
 
       - name: Upload scenario test artifacts (Windows)
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
           name: scenario-test-results-windows-x64
-          path: artifacts/scenario-tests/windows
+          path: ${{ runner.temp }}/scenario-tests-windows
           if-no-files-found: warn
