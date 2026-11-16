@@ -124,7 +124,8 @@ function Get-RunLogs {
 # Starts OBS, runs $Body with its main window, kills OBS, and returns the log of this run.
 function Invoke-Obs([string] $Name, [scriptblock] $Body) {
     Write-Host "--- OBS run: $Name"
-    $script:LogsBefore = @(Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' -ErrorAction SilentlyContinue).Name
+    $script:LogsBefore = @(Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' -ErrorAction SilentlyContinue |
+            ForEach-Object Name)  # .Name on an empty array fails under strict mode
     $obs = Start-Process -FilePath $ObsExe -WorkingDirectory (Split-Path $ObsExe) -PassThru -ArgumentList (
         @('--multi', '--disable-updater', '--disable-missing-files-check', '--disable-shutdown-check') + $ObsArgs)
     try {
