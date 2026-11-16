@@ -17,6 +17,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ($env:CI -ne 'true' -and -not $PSBoundParameters.ContainsKey('ObsConfig')) {
+    throw 'This script resets the OBS profile in -ObsConfig. Outside CI, pass -ObsConfig for a disposable profile.'
+}
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $UIA = [Windows.Automation.AutomationElement]
 $Scope = [Windows.Automation.TreeScope]
@@ -28,6 +31,7 @@ $State = Join-Path $ObsConfig 'plugin_config\obs-backgroundremoval'
 $Ini = Join-Path $State 'update.ini'
 $About = 'About obs-backgroundremoval'
 $Notify = 'Notify me about new versions on its Filter Properties screen'
+$Obs = $null  # the OBS process of the current run, watched by Wait-For
 
 # --- Setup -------------------------------------------------------------------
 
@@ -47,6 +51,9 @@ Copy-Item (Join-Path $Repo 'tests\Scenarios\0011-720p-user.ini') (Join-Path $Obs
 function Wait-For([string] $What, [scriptblock] $Test, [int] $Seconds = 30) {
     $deadline = (Get-Date).AddSeconds($Seconds)
     while ((Get-Date) -lt $deadline) {
+        if ($script:Obs -and $script:Obs.HasExited) {
+            throw "OBS exited with code $($script:Obs.ExitCode) while waiting for $What."
+        }
         try {
             if ($result = & $Test) { return $result }
         } catch [Windows.Automation.ElementNotAvailableException] {
@@ -61,7 +68,7 @@ function Wait-For([string] $What, [scriptblock] $Test, [int] $Seconds = 30) {
 
 # Replaces the plugin state with $Bytes as update.ini.
 function Reset-State([byte[]] $Bytes) {
-    Remove-Item -LiteralPath $State -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $State) { Remove-Item -LiteralPath $State -Recurse -Force }
     New-Item -ItemType Directory -Path $State | Out-Null
     [IO.File]::WriteAllBytes($Ini, $Bytes)
 }
@@ -74,9 +81,19 @@ function Find($Root, [string] $Name, $Type) {
             [Windows.Automation.PropertyCondition]::new($UIA::ControlTypeProperty, $Type)))
 }
 
-function Wait-Window($Main, [string] $Name) { Wait-For $Name { Find $Main $Name $ControlType::Window } }
+# Dialogs are nested windows under the OBS main window, so walk only window children
+# instead of searching the whole main-window tree.
+function Find-Window($Root, [string] $Name) {
+    $isWindow = [Windows.Automation.PropertyCondition]::new($UIA::ControlTypeProperty, $ControlType::Window)
+    foreach ($window in $Root.FindAll($Scope::Children, $isWindow)) {
+        if ($window.Current.Name -eq $Name) { return $window }
+        if ($found = Find-Window $window $Name) { return $found }
+    }
+}
 
-function Wait-Closed($Main, [string] $Name) { Wait-For "$Name to close" { -not (Find $Main $Name $ControlType::Window) } | Out-Null }
+function Wait-Window($Main, [string] $Name) { Wait-For $Name { Find-Window $Main $Name } }
+
+function Wait-Closed($Main, [string] $Name) { Wait-For "$Name to close" { -not (Find-Window $Main $Name) } | Out-Null }
 
 function Click($Root, [string] $Name) {
     $button = Find $Root $Name $ControlType::Button
@@ -128,14 +145,15 @@ function Invoke-Obs([string] $Name, [scriptblock] $Body) {
             ForEach-Object Name)  # .Name on an empty array fails under strict mode
     $obs = Start-Process -FilePath $ObsExe -WorkingDirectory (Split-Path $ObsExe) -PassThru -ArgumentList (
         @('--multi', '--disable-updater', '--disable-missing-files-check', '--disable-shutdown-check') + $ObsArgs)
+    $script:Obs = $obs
     try {
         $main = Wait-For 'OBS main window' {
             $obs.Refresh()
-            if ($obs.HasExited) { throw 'OBS exited unexpectedly.' }
             if ($obs.MainWindowHandle -ne [IntPtr]::Zero) { $UIA::FromHandle($obs.MainWindowHandle) }
         }
         & $Body $main | Out-Null
     } finally {
+        $script:Obs = $null
         if (-not $obs.HasExited) { $obs.Kill(); $obs.WaitForExit() }
     }
     # A log that existed before this run would hide a crash, so require exactly one new log.
@@ -156,7 +174,8 @@ function Assert-NoAbout($Main) {
     } | Out-Null
     $deadline = (Get-Date).AddSeconds(3)
     while ((Get-Date) -lt $deadline) {
-        if (Find $Main $About $ControlType::Window) { throw "$About was unexpectedly displayed." }
+        if ($script:Obs -and $script:Obs.HasExited) { throw "OBS exited with code $($script:Obs.ExitCode)." }
+        if (Find-Window $Main $About) { throw "$About was unexpectedly displayed." }
         Start-Sleep -Milliseconds 100
     }
 }
@@ -185,8 +204,9 @@ function Scenario([string] $Name, [scriptblock] $Body) {
 
 # Runs a table row: OBS starts twice from the row's state with the row's fault in place.
 # Shown rows expect the dialog on the first start only; other rows never expect it.
-function Invoke-Row([hashtable] $Row) {
-    Reset-State $Row.Ini
+# -KeepState continues from the state the previous row left behind.
+function Invoke-Row([hashtable] $Row, [switch] $KeepState) {
+    if (-not $KeepState) { Reset-State $Row.Ini }
     $lock = $null
     switch ($Row['Fault']) {
         'ini-is-directory' { Remove-Item -LiteralPath $Ini; New-Item -ItemType Directory -Path $Ini | Out-Null }
@@ -274,9 +294,7 @@ $rows = @(
     @{ Name = 'ST-2000.6 Notification preference is kept for a new version'; Ini = $NewVersion; Shown = $true; Checked = $false }
     @{ Name = 'ST-2000.8 Update state cannot be opened'; Ini = $NewVersion; Fault = 'ini-is-directory'; Shown = $false; Log = 'Failed to open update config' }
     @{ Name = 'ST-2000.9 Current version cannot be recorded'; Ini = $NewVersion; Fault = 'ini-read-only'; Shown = $false; Log = 'Failed to save update config'; IniAfter = 'version=0.0.0' }
-    @{ Name = 'ST-2000.10 Stale temporary file is not writable'; Ini = $NewVersion; Fault = 'temp-locked'; Shown = $false; Log = 'Failed to save update config' }
-    @{ Name = 'ST-2000.11 Stale temporary directory'; Ini = $NewVersion; Fault = 'temp-is-directory'; Shown = $false; Log = 'Failed to save update config' }
-    @{ Name = 'ST-2000.12 Recovered storage'; Ini = $NewVersion; Shown = $true; Checked = $false }
+    @{ Name = 'ST-2000.10 Stale temporary file is not writable'; Ini = $NewVersion; Fault = 'temp-locked'; Shown = $false; Log = 'Failed to save update config'; IniAfter = 'version=0.0.0' }
     @{ Name = 'ST-2000.13 Empty update state'; Ini = [byte[]]@(); Shown = $true }
     @{ Name = 'ST-2000.14 No update section'; Ini = (Ini '[other]', 'version=0.0.0'); Shown = $true }
     @{ Name = 'ST-2000.15 No recorded version'; Ini = (Ini '[update]', 'check_for_updates=false'); Shown = $true }
@@ -285,6 +303,12 @@ $rows = @(
     @{ Name = 'ST-2000.20 Downgrade is shown once'; Ini = (Ini '[update]', 'version=9999.0.0', 'check_for_updates=false'); Shown = $true; Checked = $false }
 )
 foreach ($row in $rows) { Scenario $row.Name { Invoke-Row $row } }
+
+Scenario 'ST-2000.11-12 Stale temporary directory, then recovered storage' {
+    Invoke-Row @{ Name = 'ST-2000.11 Stale temporary directory'; Ini = $NewVersion; Fault = 'temp-is-directory'; Shown = $false; Log = 'Failed to save update config'; IniAfter = 'version=0.0.0' }
+    Remove-Item -LiteralPath "$Ini.tmp" -Recurse -Force
+    Invoke-Row -KeepState @{ Name = 'ST-2000.12 Recovered storage'; Shown = $true; Checked = $false }
+}
 
 Scenario 'ST-2000.18 Dismiss without OK' {
     Reset-State $NewVersion
@@ -299,6 +323,7 @@ Scenario 'ST-2000.18 Dismiss without OK' {
 
 Scenario 'ST-2000.19 OBS exits while the dialog is shown' {
     Reset-State $NewVersion
+    # OBS is killed: closing its main window is ignored while the modal dialog is shown.
     Invoke-Obs 'exit-while-shown' { param($main) Wait-Window $main $About | Out-Null; Assert-Ini "version=$Version" } | Out-Null
     Invoke-Obs 'exit-while-shown-repeat' { param($main) Assert-NoAbout $main } | Out-Null
 }
