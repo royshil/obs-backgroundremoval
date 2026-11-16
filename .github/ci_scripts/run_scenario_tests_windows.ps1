@@ -280,7 +280,7 @@ try {
                 Click $about 'OK'
                 Wait-WindowClosed $p $AboutTitle
             } finally { $lock.Dispose() }
-            if (Compare-Object $before ([IO.File]::ReadAllBytes($UpdateConfig))) {
+            if (-not [Linq.Enumerable]::SequenceEqual([byte[]]$before, [byte[]][IO.File]::ReadAllBytes($UpdateConfig))) {
                 throw 'update.ini changed although saving should have failed.'
             }
         }
