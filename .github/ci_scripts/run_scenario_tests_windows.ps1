@@ -3,123 +3,96 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Runs the ST-2000 scenarios (tests/Scenarios/2000-about-dialog-on-startup.feature)
-# on a GitHub Actions Windows runner. It installs the plugin ZIP into
-# C:\ProgramData as users do and uses the runner's own OBS profile.
+# on a disposable Windows machine. It installs the plugin ZIP into C:\ProgramData
+# as users do, uses the machine's own OBS profile, and does not clean up after
+# itself. Pass -ObsExe, -ObsConfig and -ObsArgs to run against another OBS.
 
 param(
-    [Parameter(Mandatory)][string] $PluginZip,
-    [Parameter(Mandatory)][string] $Artifacts
+    [string] $PluginZip,
+    [Parameter(Mandatory)][string] $Artifacts,
+    [string] $ObsExe = 'C:\Program Files\obs-studio\bin\64bit\obs64.exe',
+    [string] $ObsConfig = (Join-Path $env:APPDATA 'obs-studio'),
+    [string[]] $ObsArgs = @()
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-
-$ObsExecutable = 'C:\Program Files\obs-studio\bin\64bit\obs64.exe'
-$ObsConfig = Join-Path $env:APPDATA 'obs-studio'
-$PluginConfig = Join-Path $ObsConfig 'plugin_config\obs-backgroundremoval'
-$UpdateConfig = Join-Path $PluginConfig 'update.ini'
-$UpdateTemp = "$UpdateConfig.tmp"
-$Version = (Get-Content -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'VERSION') -Raw).Trim()
-$AboutTitle = 'About obs-backgroundremoval'
-
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
-Add-Type -TypeDefinition @'
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Text;
+$UIA = [Windows.Automation.AutomationElement]
+$Scope = [Windows.Automation.TreeScope]
+$ControlType = [Windows.Automation.ControlType]
 
-public static class TopLevelWindows
-{
-    private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
-    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
-    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetWindowText(IntPtr window, StringBuilder text, int maximumCount);
-
-    public static IntPtr Find(uint processId, string title, bool contains)
-    {
-        IntPtr found = IntPtr.Zero;
-        EnumWindows((window, parameter) => {
-            GetWindowThreadProcessId(window, out uint windowProcessId);
-            if (windowProcessId != processId) return true;
-            var text = new StringBuilder(1024);
-            GetWindowText(window, text, text.Capacity);
-            string actual = text.ToString();
-            if (contains ? actual.Contains(title) : actual == title) { found = window; return false; }
-            return true;
-        }, IntPtr.Zero);
-        return found;
-    }
-}
-'@
-$UIA = [System.Windows.Automation.AutomationElement]
-$Scope = [System.Windows.Automation.TreeScope]
-$ControlType = [System.Windows.Automation.ControlType]
+$Repo = Resolve-Path (Join-Path $PSScriptRoot '..\..')
+$Version = (Get-Content -LiteralPath (Join-Path $Repo 'VERSION') -Raw).Trim()
+$State = Join-Path $ObsConfig 'plugin_config\obs-backgroundremoval'
+$Ini = Join-Path $State 'update.ini'
+$About = 'About obs-backgroundremoval'
+$Notify = 'Notify me about new versions on its Filter Properties screen'
 
 # --- Setup -------------------------------------------------------------------
 
 New-Item -ItemType Directory -Force -Path $Artifacts | Out-Null
-$Extracted = Join-Path $env:RUNNER_TEMP 'scenario-plugin-zip'
-Expand-Archive -LiteralPath $PluginZip -DestinationPath $Extracted -Force
-Copy-Item -LiteralPath (Join-Path $Extracted 'obs-studio') -Destination $env:ProgramData -Recurse -Force
-
-$ProfileDir = Join-Path $ObsConfig 'basic\profiles\obs-backgroundremoval-dev-720p'
-New-Item -ItemType Directory -Force -Path $ProfileDir, (Join-Path $ObsConfig 'basic\scenes'), $PluginConfig | Out-Null
-Copy-Item (Join-Path $env:GITHUB_WORKSPACE 'tests\Scenarios\0010-profile-720p-basic.ini') (Join-Path $ProfileDir 'basic.ini')
-Copy-Item (Join-Path $env:GITHUB_WORKSPACE 'tests\Scenarios\0011-720p-user.ini') (Join-Path $ObsConfig 'user.ini')
+if ($PluginZip) {
+    $extracted = Join-Path ([IO.Path]::GetTempPath()) 'scenario-plugin-zip'
+    Expand-Archive -LiteralPath $PluginZip -DestinationPath $extracted -Force
+    Copy-Item -LiteralPath (Join-Path $extracted 'obs-studio') -Destination $env:ProgramData -Recurse -Force
+}
+$profileDir = Join-Path $ObsConfig 'basic\profiles\obs-backgroundremoval-dev-720p'
+New-Item -ItemType Directory -Force -Path $profileDir, (Join-Path $ObsConfig 'basic\scenes') | Out-Null
+Copy-Item (Join-Path $Repo 'tests\Scenarios\0010-profile-720p-basic.ini') (Join-Path $profileDir 'basic.ini')
+Copy-Item (Join-Path $Repo 'tests\Scenarios\0011-720p-user.ini') (Join-Path $ObsConfig 'user.ini')
 
 # --- Helpers -----------------------------------------------------------------
 
-function Wait-Until([string] $Description, [scriptblock] $Condition, [int] $TimeoutSeconds = 30) {
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    while ([DateTime]::UtcNow -lt $deadline) {
+function Wait-For([string] $What, [scriptblock] $Test, [int] $Seconds = 30) {
+    $deadline = (Get-Date).AddSeconds($Seconds)
+    while ((Get-Date) -lt $deadline) {
         try {
-            $result = & $Condition
-            if ($result) { return $result }
-        } catch [System.Windows.Automation.ElementNotAvailableException] {
+            if ($result = & $Test) { return $result }
+        } catch [Windows.Automation.ElementNotAvailableException] {
             # Qt can rebuild its accessibility tree while a dialog changes.
+        } catch [IO.IOException] {
+            # OBS may be replacing update.ini.
         }
         Start-Sleep -Milliseconds 100
     }
-    throw "Timed out waiting for $Description."
+    throw "Timed out waiting for $What."
 }
 
-function Find-Window([Diagnostics.Process] $Process, [string] $Title, [switch] $Contains) {
-    $handle = [TopLevelWindows]::Find($Process.Id, $Title, $Contains.IsPresent)
-    if ($handle -eq [IntPtr]::Zero) { return $null }
-    return $UIA::FromHandle($handle)
+# Replaces the plugin state with $Bytes as update.ini.
+function Reset-State([byte[]] $Bytes) {
+    Remove-Item -LiteralPath $State -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path $State | Out-Null
+    [IO.File]::WriteAllBytes($Ini, $Bytes)
 }
 
-function Wait-Window([Diagnostics.Process] $Process, [string] $Title) {
-    Wait-Until $Title { Find-Window $Process $Title }
+function Ini([string[]] $Lines) { , [Text.Encoding]::UTF8.GetBytes(($Lines -join "`n") + "`n") }
+
+function Find($Root, [string] $Name, $Type) {
+    $Root.FindFirst($Scope::Descendants, [Windows.Automation.AndCondition]::new(
+            [Windows.Automation.PropertyCondition]::new($UIA::NameProperty, $Name),
+            [Windows.Automation.PropertyCondition]::new($UIA::ControlTypeProperty, $Type)))
 }
 
-function Wait-WindowClosed([Diagnostics.Process] $Process, [string] $Title) {
-    Wait-Until "$Title to close" { -not (Find-Window $Process $Title) } | Out-Null
-}
+function Wait-Window($Main, [string] $Name) { Wait-For $Name { Find $Main $Name $ControlType::Window } }
 
-function Find-Control($Root, [string] $Name, $Type) {
-    $Root.FindFirst($Scope::Descendants, [System.Windows.Automation.AndCondition]::new(
-            [System.Windows.Automation.PropertyCondition]::new($UIA::NameProperty, $Name),
-            [System.Windows.Automation.PropertyCondition]::new($UIA::ControlTypeProperty, $Type)))
-}
+function Wait-Closed($Main, [string] $Name) { Wait-For "$Name to close" { -not (Find $Main $Name $ControlType::Window) } | Out-Null }
 
 function Click($Root, [string] $Name) {
-    $button = Find-Control $Root $Name $ControlType::Button
+    $button = Find $Root $Name $ControlType::Button
     if (-not $button) { throw "Button not found: $Name" }
-    $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
 }
 
 function Get-Text($Window) {
-    $parts = foreach ($element in $Window.FindAll($Scope::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
+    $parts = foreach ($element in $Window.FindAll($Scope::Descendants, [Windows.Automation.Condition]::TrueCondition)) {
         $element.Current.Name
         $pattern = $null
-        if ($element.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref] $pattern)) {
+        if ($element.TryGetCurrentPattern([Windows.Automation.TextPattern]::Pattern, [ref] $pattern)) {
             $pattern.DocumentRange.GetText(-1)
         }
     }
-    return $parts -join "`n"
+    $parts -join "`n"
 }
 
 function Assert-Contains([string] $Text, [string] $Expected, [string] $Where) {
@@ -127,84 +100,66 @@ function Assert-Contains([string] $Text, [string] $Expected, [string] $Where) {
 }
 
 function Get-Checkbox($Dialog) {
-    $checkbox = Find-Control $Dialog 'Notify me about new versions on its Filter Properties screen' $ControlType::CheckBox
+    $checkbox = Find $Dialog $Notify $ControlType::CheckBox
     if (-not $checkbox) { throw 'The update-notification checkbox was not found.' }
-    return $checkbox.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+    $checkbox.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
 }
 
-function Test-Checked($Toggle) {
-    $Toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On
+function Test-Checked($Toggle) { $Toggle.Current.ToggleState -eq [Windows.Automation.ToggleState]::On }
+
+function Assert-Ini([string] $Line) {
+    Wait-For "update.ini to contain $Line" {
+        ([IO.File]::ReadAllText($Ini) -split '\r?\n') -contains $Line
+    } -Seconds 3 | Out-Null
 }
 
-function Set-UpdateState([string[]] $Lines) {
-    [IO.File]::WriteAllText($UpdateConfig, (($Lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
-}
-
-function Assert-UpdateState([string] $Pattern) {
-    Wait-Until "update.ini to match $Pattern" {
-        try {
-            [IO.File]::ReadAllText($UpdateConfig) -match "(?m)^$Pattern\r?$"
-        } catch [IO.IOException] {
-            # OBS may be replacing or still writing update.ini; try again.
-            $false
-        }
-    } -TimeoutSeconds 3 | Out-Null
-}
-
-function Assert-Acknowledged([string] $Expected = $Version) {
-    Assert-UpdateState "version=$([regex]::Escape($Expected))"
-}
-
-# Starts OBS, runs $Action with the process, stops OBS, and returns the OBS log text.
-function Invoke-Obs([string] $Name, [scriptblock] $Action) {
+# Starts OBS, runs $Body with its main window, kills OBS, and returns the log of this run.
+function Invoke-Obs([string] $Name, [scriptblock] $Body) {
     Write-Host "--- OBS run: $Name"
-    $process = Start-Process -FilePath $ObsExecutable -WorkingDirectory (Split-Path $ObsExecutable) -PassThru `
-        -ArgumentList '--multi', '--disable-updater', '--disable-missing-files-check', '--disable-shutdown-check'
+    $started = Get-Date
+    $obs = Start-Process -FilePath $ObsExe -WorkingDirectory (Split-Path $ObsExe) -PassThru -ArgumentList (
+        @('--multi', '--disable-updater', '--disable-missing-files-check', '--disable-shutdown-check') + $ObsArgs)
     try {
-        & $Action $process | Out-Null
+        $main = Wait-For 'OBS main window' {
+            $obs.Refresh()
+            if ($obs.HasExited) { throw 'OBS exited unexpectedly.' }
+            if ($obs.MainWindowHandle -ne [IntPtr]::Zero) { $UIA::FromHandle($obs.MainWindowHandle) }
+        }
+        & $Body $main | Out-Null
     } finally {
-        if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force; $process.WaitForExit() }
+        if (-not $obs.HasExited) { $obs.Kill(); $obs.WaitForExit() }
     }
-    $log = Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' |
-        Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-    Copy-Item -LiteralPath $log.FullName -Destination (Join-Path $Artifacts "obs-$Name.log")
-    $text = Get-Content -LiteralPath $log.FullName -Raw
+    # A log that existed before this run would hide a crash, so require exactly one new log.
+    $logs = @(Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' | Where-Object CreationTime -ge $started)
+    if ($logs.Count -ne 1) { throw "$Name wrote $($logs.Count) new OBS logs instead of one." }
+    Copy-Item -LiteralPath $logs[0].FullName -Destination (Join-Path $Artifacts "obs-$Name.log")
+    $text = Get-Content -LiteralPath $logs[0].FullName -Raw
     Assert-Contains $text '[obs-backgroundremoval] Plugin loaded successfully' "OBS log of $Name"
-    return $text
+    $text
 }
 
-function Assert-AboutAbsent([Diagnostics.Process] $Process) {
-    Wait-Until 'OBS main window' { Find-Window $Process 'OBS' -Contains } | Out-Null
-    $deadline = [DateTime]::UtcNow.AddSeconds(2)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        if ($Process.HasExited) { throw 'OBS exited unexpectedly.' }
-        if (Find-Window $Process $AboutTitle) { throw "$AboutTitle was unexpectedly displayed." }
+# The dialog is shown on OBS_FRONTEND_EVENT_FINISHED_LOADING, which comes after
+# "Startup complete" in the log, so wait for that line and then watch a while.
+function Assert-NoAbout($Main) {
+    Wait-For 'OBS startup to complete' {
+        Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' | Sort-Object CreationTime |
+            Select-Object -Last 1 | Select-String -SimpleMatch 'Startup complete' -Quiet
+    } | Out-Null
+    $deadline = (Get-Date).AddSeconds(3)
+    while ((Get-Date) -lt $deadline) {
+        if (Find $Main $About $ControlType::Window) { throw "$About was unexpectedly displayed." }
         Start-Sleep -Milliseconds 100
     }
 }
 
-function Accept-About([Diagnostics.Process] $Process, $ExpectChecked = $null) {
-    $about = Wait-Window $Process $AboutTitle
-    if ($null -ne $ExpectChecked -and (Test-Checked (Get-Checkbox $about)) -ne $ExpectChecked) {
+function Accept-About($Main, $ExpectChecked = $null) {
+    $dialog = Wait-Window $Main $About
+    if ($null -ne $ExpectChecked -and (Test-Checked (Get-Checkbox $dialog)) -ne $ExpectChecked) {
         throw 'The update-notification checkbox did not keep its saved state.'
     }
-    Click $about 'OK'
-    Wait-WindowClosed $Process $AboutTitle
-    Assert-Acknowledged
-}
-
-# Runs OBS twice: the About dialog is shown and accepted once, then not shown again.
-function Assert-ShownOnce([string] $Name, $ExpectChecked = $null) {
-    Invoke-Obs $Name { param($p) Accept-About $p $ExpectChecked } | Out-Null
-    Invoke-Obs "$Name-repeat" { param($p) Assert-AboutAbsent $p } | Out-Null
-}
-
-# Runs OBS twice while saving update.ini fails: the About dialog never appears.
-function Assert-NeverShown([string] $Name, [string] $ExpectedLog) {
-    foreach ($attempt in 1, 2) {
-        $log = Invoke-Obs "$Name-$attempt" { param($p) Assert-AboutAbsent $p }
-        Assert-Contains $log $ExpectedLog "OBS log of $Name-$attempt"
-    }
+    Click $dialog 'OK'
+    Wait-Closed $Main $About
+    Assert-Ini "version=$Version"
 }
 
 function Scenario([string] $Name, [scriptblock] $Body) {
@@ -212,155 +167,131 @@ function Scenario([string] $Name, [scriptblock] $Body) {
     try {
         & $Body
     } catch {
-        Write-Host "::endgroup::"
+        Write-Host '::endgroup::'
         Write-Host "::error::$Name failed: $_"
         throw
     }
-    Write-Host "::endgroup::"
+    Write-Host '::endgroup::'
+}
+
+# Runs a table row: OBS starts twice from the row's state with the row's fault in place.
+# Shown rows expect the dialog on the first start only; other rows never expect it.
+function Invoke-Row([hashtable] $Row) {
+    Reset-State $Row.Ini
+    $lock = $null
+    switch ($Row['Fault']) {
+        'ini-is-directory' { Remove-Item -LiteralPath $Ini; New-Item -ItemType Directory -Path $Ini | Out-Null }
+        'ini-read-only' { Set-ItemProperty -LiteralPath $Ini -Name IsReadOnly -Value $true }
+        'temp-locked' { [IO.File]::WriteAllText("$Ini.tmp", 'stale'); $lock = [IO.File]::Open("$Ini.tmp", 'Open', 'Read', 'None') }
+        'temp-is-directory' { New-Item -ItemType Directory -Path "$Ini.tmp" | Out-Null }
+    }
+    try {
+        $tag = $Row.Name -replace '\W+', '-'
+        foreach ($attempt in 1, 2) {
+            $expectShown = $Row.Shown -and $attempt -eq 1
+            $log = Invoke-Obs "$tag-$attempt" {
+                param($main)
+                if ($expectShown) { Accept-About $main $Row['Checked'] } else { Assert-NoAbout $main }
+            }
+            if ($Row['Log']) { Assert-Contains $log $Row.Log "OBS log of $tag-$attempt" }
+        }
+    } finally {
+        if ($lock) { $lock.Dispose() }
+    }
+    if ($Row['IniAfter']) { Assert-Ini $Row.IniAfter }
 }
 
 # --- Scenarios ---------------------------------------------------------------
 
-try {
-    Set-UpdateState '[update]', 'check_for_updates=true'
+$NewVersion = Ini '[update]', 'version=0.0.0', 'check_for_updates=false'
 
-    Scenario 'ST-2000.1-4 About dialog, Licenses, About Qt, disable notifications' {
-        Invoke-Obs 'initial' {
-            param($p)
-            $about = Wait-Window $p $AboutTitle
-            $text = Get-Text $about
-            foreach ($expected in 'Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement',
-                "Version $Version", 'Copyright © 2021–2026 Roy Shilkrot', '© 2023–2026 Kaito Udagawa',
-                'The plugin never downloads or installs updates.') {
-                Assert-Contains $text $expected $AboutTitle
-            }
-            $checkbox = Get-Checkbox $about
-            if (-not (Test-Checked $checkbox)) { throw 'The update-notification checkbox should start checked.' }
-
-            Click $about 'Licenses'
-            $licenses = Wait-Window $p 'Licenses'
-            $licensesText = Get-Text $licenses
-            Assert-Contains $licensesText 'GNU General Public License' 'Licenses'
-            Assert-Contains $licensesText 'Apache License' 'Licenses'
-            Click $licenses 'Close'
-            Wait-WindowClosed $p 'Licenses'
-
-            Click $about 'About Qt'
-            $qt = Wait-Window $p 'About Qt'
-            Assert-Contains (Get-Text $qt) 'Qt' 'About Qt'
-            Click $qt 'OK'
-            Wait-WindowClosed $p 'About Qt'
-
-            $checkbox.Toggle()
-            Wait-Until 'the checkbox to clear' { -not (Test-Checked $checkbox) } | Out-Null
-            Click $about 'OK'
-            Wait-WindowClosed $p $AboutTitle
-            Assert-Acknowledged
-            Assert-UpdateState 'check_for_updates=false'
-        } | Out-Null
-    }
-
-    Scenario 'ST-2000.5 Acknowledged version is not shown again' {
-        Invoke-Obs 'acknowledged' { param($p) Assert-AboutAbsent $p } | Out-Null
-    }
-
-    Scenario 'ST-2000.6 Notification preference is kept for a new version' {
-        Set-UpdateState '[update]', 'version=0.0.0', 'check_for_updates=false'
-        Invoke-Obs 'new-version' { param($p) Accept-About $p $false } | Out-Null
-    }
-
-    Scenario 'ST-2000.7 Notification preference cannot be saved' {
-        Set-UpdateState '[update]', 'version=0.0.0', 'check_for_updates=false'
-        $log = Invoke-Obs 'notification-save-failure' {
-            param($p)
-            $about = Wait-Window $p $AboutTitle
-            $before = [IO.File]::ReadAllBytes($UpdateConfig)
-            $lock = [IO.File]::Open($UpdateConfig, 'Open', 'Read', 'Read')
-            try {
-                Click $about 'OK'
-                Wait-WindowClosed $p $AboutTitle
-            } finally { $lock.Dispose() }
-            if (-not [Linq.Enumerable]::SequenceEqual([byte[]]$before, [byte[]][IO.File]::ReadAllBytes($UpdateConfig))) {
-                throw 'update.ini changed although saving should have failed.'
-            }
+Scenario 'ST-2000.1-5 About dialog, Licenses, About Qt, disable notifications, not shown again' {
+    Reset-State (Ini '[update]', 'check_for_updates=true')
+    Invoke-Obs 'initial' {
+        param($main)
+        $dialog = Wait-Window $main $About
+        $text = Get-Text $dialog
+        foreach ($expected in 'Portrait Background Removal / Virtual Green-screen and Low-Light Enhancement',
+            "Version $Version", 'Copyright © 2021–2026 Roy Shilkrot', '© 2023–2026 Kaito Udagawa',
+            'The plugin never downloads or installs updates.') {
+            Assert-Contains $text $expected $About
         }
-        Assert-Contains $log '[obs-backgroundremoval] Failed to save the update notification setting to update.ini' 'OBS log'
-    }
+        $checkbox = Get-Checkbox $dialog
+        if (-not (Test-Checked $checkbox)) { throw 'The update-notification checkbox should start checked.' }
 
-    Scenario 'ST-2000.8 Update state cannot be opened' {
-        Remove-Item -LiteralPath $UpdateConfig -Force -ErrorAction SilentlyContinue
-        New-Item -ItemType Directory -Path $UpdateConfig | Out-Null
-        try { Assert-NeverShown 'update-open-failure' 'Failed to open update config' }
-        finally { Remove-Item -LiteralPath $UpdateConfig -Recurse -Force }
-    }
+        Click $dialog 'Licenses'
+        $licenses = Wait-Window $main 'Licenses'
+        $licensesText = Get-Text $licenses
+        Assert-Contains $licensesText 'GNU General Public License' 'Licenses'
+        Assert-Contains $licensesText 'Apache License' 'Licenses'
+        Click $licenses 'Close'
+        Wait-Closed $main 'Licenses'
 
-    Scenario 'ST-2000.9 Current version cannot be recorded' {
-        Set-UpdateState '[update]', 'version=0.0.0', 'check_for_updates=false'
-        Set-ItemProperty -LiteralPath $UpdateConfig -Name IsReadOnly -Value $true
-        try { Assert-NeverShown 'update-save-failure' 'Failed to save update config' }
-        finally { Set-ItemProperty -LiteralPath $UpdateConfig -Name IsReadOnly -Value $false }
-        Assert-Acknowledged '0.0.0'
-    }
+        Click $dialog 'About Qt'
+        $qt = Wait-Window $main 'About Qt'
+        Assert-Contains (Get-Text $qt) 'Qt' 'About Qt'
+        Click $qt 'OK'
+        Wait-Closed $main 'About Qt'
 
-    Scenario 'ST-2000.10 Stale temporary file is not writable' {
-        Set-UpdateState '[update]', 'version=0.0.0', 'check_for_updates=false'
-        [IO.File]::WriteAllText($UpdateTemp, 'stale')
-        $lock = [IO.File]::Open($UpdateTemp, 'Open', 'Read', 'None')
-        try { Assert-NeverShown 'unwritable-temporary-file' 'Failed to save update config' }
-        finally { $lock.Dispose(); Remove-Item -LiteralPath $UpdateTemp -Force }
-    }
-
-    Scenario 'ST-2000.11-12 Stale temporary directory, then recovery' {
-        Set-UpdateState '[update]', 'version=0.0.0', 'check_for_updates=false'
-        New-Item -ItemType Directory -Path $UpdateTemp | Out-Null
-        try { Assert-NeverShown 'temporary-directory' 'Failed to save update config' }
-        finally { Remove-Item -LiteralPath $UpdateTemp -Recurse -Force }
-        Assert-ShownOnce 'storage-recovered' $false
-    }
-
-    $brokenStates = [ordered]@{
-        'ST-2000.13 Empty update state'          = [byte[]]@()
-        'ST-2000.14 No update section'           = [Text.Encoding]::UTF8.GetBytes("[other]`nversion=0.0.0`n")
-        'ST-2000.15 No recorded version'         = [Text.Encoding]::UTF8.GetBytes("[update]`ncheck_for_updates=false`n")
-        'ST-2000.16 Truncated update state'      = [Text.Encoding]::UTF8.GetBytes("[update`nversion=0.0.0`n")
-        'ST-2000.17 Invalid bytes in update state' = [byte[]](0xff, 0xfe, 0x00, 0x69)
-    }
-    foreach ($state in $brokenStates.GetEnumerator()) {
-        Scenario $state.Key {
-            [IO.File]::WriteAllBytes($UpdateConfig, $state.Value)
-            Assert-ShownOnce ($state.Key -replace '\W+', '-')
-        }
-    }
-
-    Scenario 'ST-2000.18 Dismiss without OK' {
-        Set-UpdateState '[update]', 'version=0.0.0', 'check_for_updates=false'
-        Invoke-Obs 'dismiss-without-ok' {
-            param($p)
-            $about = Wait-Window $p $AboutTitle
-            $about.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
-            Wait-WindowClosed $p $AboutTitle
-            Assert-Acknowledged
-        } | Out-Null
-        Invoke-Obs 'dismiss-without-ok-repeat' { param($p) Assert-AboutAbsent $p } | Out-Null
-    }
-
-    Scenario 'ST-2000.19 OBS exits while the dialog is shown' {
-        Set-UpdateState '[update]', 'version=0.0.0', 'check_for_updates=false'
-        Invoke-Obs 'exit-while-shown' { param($p) Wait-Window $p $AboutTitle | Out-Null; Assert-Acknowledged } | Out-Null
-        Invoke-Obs 'exit-while-shown-repeat' { param($p) Assert-AboutAbsent $p } | Out-Null
-    }
-
-    Scenario 'ST-2000.20 Downgrade is shown once' {
-        Set-UpdateState '[update]', 'version=9999.0.0', 'check_for_updates=false'
-        Assert-ShownOnce 'downgrade' $false
-    }
-
-    Write-Host 'All ST-2000 scenarios passed.'
-} finally {
-    foreach ($path in 'logs', 'plugin_config', 'user.ini') {
-        $source = Join-Path $ObsConfig $path
-        if (Test-Path -LiteralPath $source) {
-            Copy-Item -LiteralPath $source -Destination (Join-Path $Artifacts "config-$path") -Recurse -Force
-        }
-    }
+        $checkbox.Toggle()
+        Wait-For 'the checkbox to clear' { -not (Test-Checked $checkbox) } | Out-Null
+        Click $dialog 'OK'
+        Wait-Closed $main $About
+        Assert-Ini "version=$Version"
+        Assert-Ini 'check_for_updates=false'
+    } | Out-Null
+    Invoke-Obs 'acknowledged' { param($main) Assert-NoAbout $main } | Out-Null
 }
+
+Scenario 'ST-2000.7 Notification preference cannot be saved' {
+    Reset-State $NewVersion
+    $log = Invoke-Obs 'notification-save-failure' {
+        param($main)
+        $dialog = Wait-Window $main $About
+        $before = [IO.File]::ReadAllBytes($Ini)
+        $lock = [IO.File]::Open($Ini, 'Open', 'Read', 'Read')
+        try {
+            Click $dialog 'OK'
+            Wait-Closed $main $About
+        } finally { $lock.Dispose() }
+        if (-not [Linq.Enumerable]::SequenceEqual($before, [IO.File]::ReadAllBytes($Ini))) {
+            throw 'update.ini changed although saving should have failed.'
+        }
+    }
+    Assert-Contains $log '[obs-backgroundremoval] Failed to save the update notification setting to update.ini' 'OBS log'
+}
+
+$rows = @(
+    @{ Name = 'ST-2000.6 Notification preference is kept for a new version'; Ini = $NewVersion; Shown = $true; Checked = $false }
+    @{ Name = 'ST-2000.8 Update state cannot be opened'; Ini = $NewVersion; Fault = 'ini-is-directory'; Shown = $false; Log = 'Failed to open update config' }
+    @{ Name = 'ST-2000.9 Current version cannot be recorded'; Ini = $NewVersion; Fault = 'ini-read-only'; Shown = $false; Log = 'Failed to save update config'; IniAfter = 'version=0.0.0' }
+    @{ Name = 'ST-2000.10 Stale temporary file is not writable'; Ini = $NewVersion; Fault = 'temp-locked'; Shown = $false; Log = 'Failed to save update config' }
+    @{ Name = 'ST-2000.11 Stale temporary directory'; Ini = $NewVersion; Fault = 'temp-is-directory'; Shown = $false; Log = 'Failed to save update config' }
+    @{ Name = 'ST-2000.12 Recovered storage'; Ini = $NewVersion; Shown = $true; Checked = $false }
+    @{ Name = 'ST-2000.13 Empty update state'; Ini = [byte[]]@(); Shown = $true }
+    @{ Name = 'ST-2000.14 No update section'; Ini = (Ini '[other]', 'version=0.0.0'); Shown = $true }
+    @{ Name = 'ST-2000.15 No recorded version'; Ini = (Ini '[update]', 'check_for_updates=false'); Shown = $true }
+    @{ Name = 'ST-2000.16 Truncated update state'; Ini = (Ini '[update', 'version=0.0.0'); Shown = $true }
+    @{ Name = 'ST-2000.17 Invalid bytes in update state'; Ini = [byte[]](0xff, 0xfe, 0x00, 0x69); Shown = $true }
+    @{ Name = 'ST-2000.20 Downgrade is shown once'; Ini = (Ini '[update]', 'version=9999.0.0', 'check_for_updates=false'); Shown = $true; Checked = $false }
+)
+foreach ($row in $rows) { Scenario $row.Name { Invoke-Row $row } }
+
+Scenario 'ST-2000.18 Dismiss without OK' {
+    Reset-State $NewVersion
+    Invoke-Obs 'dismiss-without-ok' {
+        param($main)
+        (Wait-Window $main $About).GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()
+        Wait-Closed $main $About
+        Assert-Ini "version=$Version"
+    } | Out-Null
+    Invoke-Obs 'dismiss-without-ok-repeat' { param($main) Assert-NoAbout $main } | Out-Null
+}
+
+Scenario 'ST-2000.19 OBS exits while the dialog is shown' {
+    Reset-State $NewVersion
+    Invoke-Obs 'exit-while-shown' { param($main) Wait-Window $main $About | Out-Null; Assert-Ini "version=$Version" } | Out-Null
+    Invoke-Obs 'exit-while-shown-repeat' { param($main) Assert-NoAbout $main } | Out-Null
+}
+
+Write-Host 'All ST-2000 scenarios passed.'
