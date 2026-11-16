@@ -8,14 +8,10 @@ SPDX-License-Identifier: Apache-2.0
 
 - **Debian:** Place the plugin where OBS can load it, then run
   `+run-debian.sh run-all`.
-- **Windows:** Build the plugin, install OBS Studio, then run
-  `+run-windows.ps1` from PowerShell. The runner finds the standard OBS Studio
-  installation and the `release/obs-backgroundremoval` build automatically.
-  Use `-ObsExecutable` and `-PluginRoot`, or the matching
-  `GUI_SCENARIO_OBS_EXECUTABLE` and `GUI_SCENARIO_PLUGIN_ROOT` environment
-  variables, for non-standard locations. Tests use an isolated OBS portable
-  configuration and do not modify the user's OBS profile or installed plugins.
-  Windows CI downloads the official portable OBS archive declared in
-  `buildspec.props` in a separate test job, verifies its SHA-256 digest,
-  downloads the plugin produced by the build job, runs ST-2000, and always
-  uploads the scenario logs.
+- **Windows:** ST-2000 runs only on GitHub Actions, from
+  `.github/ci_scripts/run_scenario_tests_windows.ps1` in the Windows test job.
+  The job installs the latest OBS Studio with winget, the script installs the
+  plugin ZIP produced by the build job into `C:\ProgramData` and uses the
+  runner's own OBS profile, and the job always uploads the OBS logs. Do not run
+  the script on your own computer, because it overwrites your OBS profile and
+  installed plugin.
