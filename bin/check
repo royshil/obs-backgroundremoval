@@ -1,52 +1,72 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
 # SPDX-License-Identifier: Apache-2.0
 
-set -eu
+if command -v pipx >/dev/null 2>&1; then
+  run_gersemi() {
+    pipx run --python 3.14 'gersemi==0.29.2' "$@"
+  }
+  run_reuse() {
+    pipx run --python 3.14 'reuse[charset-normalizer]==6.3.0' "$@"
+  }
+  run_clang_format() {
+    pipx run --python 3.14 'clang-format==21.1.8' "$@"
+  }
+elif command -v py >/dev/null 2>&1; then
+  run_gersemi() {
+    py -m pipx run --python 3.14 'gersemi==0.29.2' "$@"
+  }
+  run_reuse() {
+    py -m pipx run --python 3.14 'reuse[charset-normalizer]==6.3.0' "$@"
+  }
+  run_clang_format() {
+    py -m pipx run --python 3.14 'clang-format==21.1.8' "$@"
+  }
+else
+  if command -v gersemi >/dev/null 2>&1; then
+    run_gersemi() {
+      gersemi "$@"
+    }
+  else
+    run_gersemi() {
+      printf 'Error: gersemi not found\n' >&2
+    }
+  fi
 
-check_clang_format()
-{
-	if [ "$(uname -s)" = "Darwin" ]; then
-		xcrun clang-format --version
-		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' |
-			xargs -0 -n 20 xcrun clang-format --dry-run --Werror
-	else
-		clang-format-21 --version
-		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' |
-			xargs -0 -n 20 clang-format-21 --dry-run --Werror
-	fi
-}
+  if command -v reuse >/dev/null 2>&1; then
+    run_reuse() {
+      reuse "$@"
+    }
+  else
+    run_reuse() {
+      printf 'Error: reuse not found\n' >&2
+    }
+  fi
 
-check_gersemi()
-{
-	git ls-files -z CMakeLists.txt '*.cmake' |
-		xargs -0 -n 1 gersemi --config .gersemirc --check
-}
+  if command -v clang-format >/dev/null 2>&1; then
+    run_clang_format() {
+      clang-format "$@"
+    }
+  elif command -v xcrun >/dev/null 2>&1; then
+    run_clang_format() {
+      xcrun clang-format "$@"
+    }
+  else
+    run_clang_format() {
+      printf 'Error: clang-format not found\n' >&2
+    }
+  fi
+fi
 
-check_reuse()
-{
-	reuse --no-multiprocessing lint
-}
-
-case "${1:-all}" in
-all)
-	check_clang_format
-	check_gersemi
-	check_reuse
-	;;
-clang-format)
-	check_clang_format
-	;;
-gersemi)
-	check_gersemi
-	;;
-reuse)
-	check_reuse
-	;;
-*)
-	printf 'Usage: %s [all|clang-format|gersemi|reuse]\n' "$0" >&2
-	exit 2
-	;;
+case "${1:-check}" in
+check)
+  run_reuse lint && \
+  run_gersemi $(git ls-files ':/CMakeLists.txt' ':/cmake/*.cmake' ':/src/*CMakeLists.txt' ':/tests/*CMakeLists.txt') --check && \
+  run_clang_format $(git ls-files :/{src,tests}'/*.'{cpp,hpp,c,h,m,mm}) --dry-run --Werror
+  ;;
+fix)
+  run_gersemi $(git ls-files ':/CMakeLists.txt' ':/cmake/*.cmake' ':/src/*CMakeLists.txt' ':/tests/*CMakeLists.txt') -i && \
+  run_clang_format $(git ls-files :/{src,tests}'/*.'{cpp,hpp,c,h,m,mm}) -i
 esac
