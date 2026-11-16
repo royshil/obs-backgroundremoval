@@ -10,7 +10,7 @@ namespace BackgroundRemoval {
 
 const char *tBackgroundRemoval()
 {
-	return obs_module_text("Background Removal");
+	return obs_module_text("BackgroundRemoval");
 }
 
 const char *tUpToDate()
