@@ -113,10 +113,18 @@ function Assert-Ini([string] $Line) {
     } -Seconds 3 | Out-Null
 }
 
+# Logs that the current OBS run created. File times cannot tell this: OBS deletes
+# its oldest log before creating a new one, and NTFS name tunneling can give the
+# new file the deleted file's creation time.
+function Get-RunLogs {
+    @(Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' -ErrorAction SilentlyContinue |
+            Where-Object { $script:LogsBefore -notcontains $_.Name })
+}
+
 # Starts OBS, runs $Body with its main window, kills OBS, and returns the log of this run.
 function Invoke-Obs([string] $Name, [scriptblock] $Body) {
     Write-Host "--- OBS run: $Name"
-    $started = Get-Date
+    $script:LogsBefore = @(Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' -ErrorAction SilentlyContinue).Name
     $obs = Start-Process -FilePath $ObsExe -WorkingDirectory (Split-Path $ObsExe) -PassThru -ArgumentList (
         @('--multi', '--disable-updater', '--disable-missing-files-check', '--disable-shutdown-check') + $ObsArgs)
     try {
@@ -130,7 +138,7 @@ function Invoke-Obs([string] $Name, [scriptblock] $Body) {
         if (-not $obs.HasExited) { $obs.Kill(); $obs.WaitForExit() }
     }
     # A log that existed before this run would hide a crash, so require exactly one new log.
-    $logs = @(Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' | Where-Object CreationTime -ge $started)
+    $logs = @(Get-RunLogs)
     if ($logs.Count -ne 1) { throw "$Name wrote $($logs.Count) new OBS logs instead of one." }
     Copy-Item -LiteralPath $logs[0].FullName -Destination (Join-Path $Artifacts "obs-$Name.log")
     $text = Get-Content -LiteralPath $logs[0].FullName -Raw
@@ -142,8 +150,8 @@ function Invoke-Obs([string] $Name, [scriptblock] $Body) {
 # "Startup complete" in the log, so wait for that line and then watch a while.
 function Assert-NoAbout($Main) {
     Wait-For 'OBS startup to complete' {
-        Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' | Sort-Object CreationTime |
-            Select-Object -Last 1 | Select-String -SimpleMatch 'Startup complete' -Quiet
+        $logs = @(Get-RunLogs)
+        $logs.Count -eq 1 -and (Select-String -LiteralPath $logs[0].FullName -SimpleMatch 'Startup complete' -Quiet)
     } | Out-Null
     $deadline = (Get-Date).AddSeconds(3)
     while ((Get-Date) -lt $deadline) {
