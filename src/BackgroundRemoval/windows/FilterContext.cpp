@@ -14,31 +14,15 @@
 
 #include "ModuleText.hpp"
 
+#ifndef PLUGIN_VERSION_STR
+#define PLUGIN_VERSION_STR "0.0.0"
+#endif
+
+#ifndef OBS_LOG_HEADER
+#define OBS_LOG_HEADER "[obs-backgroundremoval] "
+#endif
+
 namespace BackgroundRemoval {
-
-namespace {
-
-auto tVersionNotice() -> std::string
-{
-	std::string versionNotice = "<a href=\"https://github.com/royshil/obs-backgroundremoval/releases\">";
-	versionNotice += tBackgroundRemoval();
-	versionNotice += " ";
-	versionNotice += PLUGIN_VERSION_STR;
-	if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion();
-	    latestVersion.has_value()) {
-		versionNotice += " (";
-		if (UpdateConfig::isSemverNewer(latestVersion.value(), PLUGIN_VERSION_STR)) {
-			versionNotice += tNewVersionsAvailable();
-		} else {
-			versionNotice += tUpToDate();
-		}
-		versionNotice += ")";
-	}
-	versionNotice += "</a>";
-	return versionNotice;
-}
-
-} // namespace
 
 const obs_source_info FilterContext::kSourceInfo = {
 	.id = "background_removal",
@@ -59,21 +43,22 @@ FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : sourc
 	}
 }
 
-auto FilterContext::getName(void *) noexcept -> const char *
+const char *FilterContext::getName(void *) noexcept
 {
 	return tBackgroundRemoval();
 }
 
-auto FilterContext::create(obs_data_t *settings, obs_source_t *source) noexcept -> void *
+void *FilterContext::create(obs_data_t *settings, obs_source_t *source) noexcept
 {
 	try {
 		return new FilterContext(settings, source);
 	} catch (const std::exception &exception) {
 		blog(LOG_ERROR, OBS_LOG_HEADER "Failed to create Windows FilterContext: %s", exception.what());
+		return nullptr;
 	} catch (...) {
-		blog(LOG_ERROR, OBS_LOG_HEADER "Failed to create Windows FilterContext");
+		blog(LOG_ERROR, OBS_LOG_HEADER "Failed to create Windows FilterContext: Unknown error");
+		return nullptr;
 	}
-	return nullptr;
 }
 
 void FilterContext::destroy(void *data) noexcept
@@ -97,13 +82,42 @@ void FilterContext::getDefaults(obs_data_t *settings) noexcept
 	obs_data_set_default_double(settings, "v2_BlurBg_FocusDepth", 0.0);
 }
 
-auto FilterContext::getProperties(void *data) noexcept -> obs_properties_t *
+std::string FilterContext::getVersionNotice()
+{
+	std::string versionNotice = "<a href=\"https://github.com/royshil/obs-backgroundremoval/releases\">";
+	versionNotice += tBackgroundRemoval();
+	versionNotice += " ";
+	versionNotice += PLUGIN_VERSION_STR;
+	if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion();
+	    latestVersion.has_value()) {
+		versionNotice += " (";
+		if (UpdateConfig::isSemverNewer(latestVersion.value(), PLUGIN_VERSION_STR)) {
+			versionNotice += tNewVersionsAvailable();
+		} else {
+			versionNotice += tUpToDate();
+		}
+		versionNotice += ")";
+	}
+	versionNotice += "</a>";
+	return versionNotice;
+}
+
+obs_properties_t *FilterContext::getProperties(void *data) noexcept
 {
 	obs_properties_t *const p = obs_properties_create();
 
 	// MARK: - Header
 
-	obs_properties_add_text(p, "v2_VersionNotice", tVersionNotice().c_str(), OBS_TEXT_INFO);
+	try {
+		std::string versionNotice = getVersionNotice();
+		obs_properties_add_text(p, "v2_VersionNotice", versionNotice.c_str(), OBS_TEXT_INFO);
+	} catch (const std::exception &exception) {
+		blog(LOG_ERROR, OBS_LOG_HEADER "Failed to get version info: %s", exception.what());
+		obs_properties_add_text(p, "v2_VersionNotice", tBackgroundRemoval(), OBS_TEXT_INFO);
+	} catch (...) {
+		blog(LOG_ERROR, OBS_LOG_HEADER "Failed to get version info: Unknown error");
+		obs_properties_add_text(p, "v2_VersionNotice", tBackgroundRemoval(), OBS_TEXT_INFO);
+	}
 
 	// MARK: - General Properties
 

@@ -4,36 +4,39 @@
 
 #pragma once
 
-#include <obs-module.h>
+#include <obs.h>
+
+#include <string>
 
 namespace BackgroundRemoval {
 
-/// Windows background-removal filter.
-///
-/// This filter currently provides only its properties. It passes video through unchanged.
 class FilterContext final {
 public:
+	static const obs_source_info kSourceInfo;
+
 	FilterContext(obs_data_t *settings, obs_source_t *source);
 	~FilterContext() noexcept = default;
 
+	// No copying allowed
 	FilterContext(const FilterContext &) = delete;
-	FilterContext(FilterContext &&) = delete;
-	auto operator=(const FilterContext &) -> FilterContext & = delete;
-	auto operator=(FilterContext &&) -> FilterContext & = delete;
+	FilterContext &operator=(const FilterContext &) = delete;
 
-	static auto getName(void *) noexcept -> const char *;
-	static auto create(obs_data_t *settings, obs_source_t *source) noexcept -> void *;
+	// No moving allowed
+	FilterContext(FilterContext &&) = delete;
+	FilterContext &operator=(FilterContext &&) = delete;
+
+	static const char *getName(void *) noexcept;
+	static void *create(obs_data_t *settings, obs_source_t *source) noexcept;
 	static void destroy(void *data) noexcept;
 	static void getDefaults(obs_data_t *settings) noexcept;
-	static auto getProperties(void *data) noexcept -> obs_properties_t *;
+	static obs_properties_t *getProperties(void *data) noexcept;
 	static void videoRender(void *data, gs_effect_t *effect) noexcept;
-
-	static const obs_source_info kSourceInfo;
 
 private:
 	obs_source_t *const source_;
 
-	static auto handleAboutButtonClicked(obs_properties_t *, obs_property_t *, void *) -> bool;
+	static std::string getVersionNotice();
+	static bool handleAboutButtonClicked(obs_properties_t *, obs_property_t *, void *);
 };
 
 } // namespace BackgroundRemoval

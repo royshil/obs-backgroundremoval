@@ -6,18 +6,18 @@
 
 namespace BackgroundRemoval {
 
-auto tBackgroundRemoval() -> const char *;
-auto tUpToDate() -> const char *;
-auto tNewVersionsAvailable() -> const char *;
-auto tGeneral() -> const char *;
-auto tMaskAdjustment() -> const char *;
-auto tMaskAdjustmentDescription() -> const char *;
-auto tMotionSuppression() -> const char *;
-auto tMotionSuppressionDescription() -> const char *;
-auto tBlurBg() -> const char *;
-auto tBlurBgStrength() -> const char *;
-auto tBlurBgFocusPoint() -> const char *;
-auto tBlurBgFocusDepth() -> const char *;
-auto tAboutThisPlugin() -> const char *;
+const char *tBackgroundRemoval();
+const char *tUpToDate();
+const char *tNewVersionsAvailable();
+const char *tGeneral();
+const char *tMaskAdjustment();
+const char *tMaskAdjustmentDescription();
+const char *tMotionSuppression();
+const char *tMotionSuppressionDescription();
+const char *tBlurBg();
+const char *tBlurBgStrength();
+const char *tBlurBgFocusPoint();
+const char *tBlurBgFocusDepth();
+const char *tAboutThisPlugin();
 
 } // namespace BackgroundRemoval
