@@ -60,15 +60,30 @@ else
   fi
 fi
 
+cmake_files=$(git ls-files ':/CMakeLists.txt' ':/cmake/*.cmake' ':/src/*CMakeLists.txt' ':/tests/*CMakeLists.txt' 2>/dev/null)
+sources=$(git ls-files :/{src,tests}'/*.'{cpp,hpp,c,h,m,mm} 2>/dev/null)
+
+# Without files, the tools would wait for standard input.
+if [ -z "$cmake_files" ]; then
+  run_gersemi() {
+    printf 'Warning: no CMake files found; skipping\n' >&2
+  }
+fi
+if [ -z "$sources" ]; then
+  run_clang_format() {
+    printf 'Warning: no source files found; skipping\n' >&2
+  }
+fi
+
 case "${1:-check}" in
 check)
   run_reuse lint && \
-  run_gersemi $(git ls-files ':/CMakeLists.txt' ':/cmake/*.cmake' ':/src/*CMakeLists.txt' ':/tests/*CMakeLists.txt') --check && \
-  run_clang_format $(git ls-files :/{src,tests}'/*.'{cpp,hpp,c,h,m,mm}) --dry-run --Werror
+  run_gersemi $cmake_files --check && \
+  run_clang_format $sources --dry-run --Werror
   ;;
 fix)
-  run_gersemi $(git ls-files ':/CMakeLists.txt' ':/cmake/*.cmake' ':/src/*CMakeLists.txt' ':/tests/*CMakeLists.txt') -i && \
-  run_clang_format $(git ls-files :/{src,tests}'/*.'{cpp,hpp,c,h,m,mm}) -i
+  run_gersemi $cmake_files -i && \
+  run_clang_format $sources -i
   ;;
 *)
   printf 'Usage: %s [check|fix]\n' "${0##*/}" >&2
