@@ -147,19 +147,29 @@ function Invoke-Obs([string] $Name, [scriptblock] $Body) {
         @('--multi', '--disable-updater', '--disable-missing-files-check', '--disable-shutdown-check') + $ObsArgs)
     $script:Obs = $obs
     try {
-        $main = Wait-For 'OBS main window' {
-            $obs.Refresh()
-            if ($obs.MainWindowHandle -ne [IntPtr]::Zero) { $UIA::FromHandle($obs.MainWindowHandle) }
+        try {
+            $main = Wait-For 'OBS main window' {
+                $obs.Refresh()
+                if ($obs.MainWindowHandle -ne [IntPtr]::Zero) { $UIA::FromHandle($obs.MainWindowHandle) }
+            }
+        } catch {
+            $windows = $UIA::RootElement.FindAll($Scope::Children,
+                [Windows.Automation.PropertyCondition]::new($UIA::ProcessIdProperty, $obs.Id)) |
+                ForEach-Object { "'$($_.Current.Name)'" }
+            throw "$_ OBS top-level windows: $(if ($windows) { $windows -join ', ' } else { 'none' })"
         }
         & $Body $main | Out-Null
     } finally {
         $script:Obs = $null
         if (-not $obs.HasExited) { $obs.Kill(); $obs.WaitForExit() }
+        # Keep this run's logs even when it failed.
+        foreach ($log in Get-RunLogs) {
+            Copy-Item -LiteralPath $log.FullName -Destination (Join-Path $Artifacts "obs-$Name-$($log.Name)")
+        }
     }
     # A log that existed before this run would hide a crash, so require exactly one new log.
     $logs = @(Get-RunLogs)
     if ($logs.Count -ne 1) { throw "$Name wrote $($logs.Count) new OBS logs instead of one." }
-    Copy-Item -LiteralPath $logs[0].FullName -Destination (Join-Path $Artifacts "obs-$Name.log")
     $text = Get-Content -LiteralPath $logs[0].FullName -Raw
     Assert-Contains $text '[obs-backgroundremoval] Plugin loaded successfully' "OBS log of $Name"
     $text
