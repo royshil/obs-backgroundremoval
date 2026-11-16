@@ -141,6 +141,9 @@ function Get-RunLogs {
 # Starts OBS, runs $Body with its main window, kills OBS, and returns the log of this run.
 function Invoke-Obs([string] $Name, [scriptblock] $Body) {
     Write-Host "--- OBS run: $Name"
+    # OBS names its log after the start time in whole seconds, so a run that starts in
+    # the same second as the previous one would reuse its log name. Start in a new second.
+    Start-Sleep -Milliseconds (1050 - (Get-Date).Millisecond)
     $script:LogsBefore = @(Get-ChildItem -LiteralPath (Join-Path $ObsConfig 'logs') -Filter '*.txt' -ErrorAction SilentlyContinue |
             ForEach-Object Name)  # .Name on an empty array fails under strict mode
     $obs = Start-Process -FilePath $ObsExe -WorkingDirectory (Split-Path $ObsExe) -PassThru -ArgumentList (
