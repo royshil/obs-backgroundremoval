@@ -42,7 +42,19 @@ bool getRGBAFromStageSurface(filter_data *tf, uint32_t &width, uint32_t &height)
 	gs_ortho(0.0f, static_cast<float>(width), 0.0f, static_cast<float>(height), -100.0f, 100.0f);
 	gs_blend_state_push();
 	gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
-	obs_source_video_render(target);
+	/* Sources such as the image source or a PipeWire screen capture draw with the
+	 * currently bound effect instead of their own, so a technique pass has to be
+	 * active while the source renders. Without it the draw fails with
+	 * "No vertex shader specified" and the staged frame stays black. */
+	gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+	gs_technique_t *tech = gs_effect_get_technique(default_effect, "Draw");
+	size_t passes = gs_technique_begin(tech);
+	for (size_t i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		obs_source_video_render(target);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
 	gs_blend_state_pop();
 	gs_texrender_end(tf->texrender);
 
