@@ -9,18 +9,22 @@
 
 #include <obs.h>
 
-namespace ObsBridgeUtils {
+namespace ObsBridgeUtils
+{
 
-namespace GsUnique {
+namespace GsUnique
+{
 
 void drain();
 
-struct StagesurfaceDeleter {
-	void operator()(gs_stagesurf_t *surface) const noexcept;
+struct StagesurfaceDeleter
+{
+    void operator()(gs_stagesurf_t *surface) const noexcept;
 };
 
-struct TextureDeleter {
-	void operator()(gs_texture_t *texture) const noexcept;
+struct TextureDeleter
+{
+    void operator()(gs_texture_t *texture) const noexcept;
 };
 
 } // namespace GsUnique
@@ -30,6 +34,6 @@ using UniqueTexturePtr = std::unique_ptr<gs_texture_t, GsUnique::TextureDeleter>
 
 auto makeUniqueStagesurf(std::uint32_t width, std::uint32_t height, gs_color_format format) -> UniqueStagesurfPtr;
 auto makeUniqueTexture(std::uint32_t width, std::uint32_t height, gs_color_format format, std::uint32_t flags)
-	-> UniqueTexturePtr;
+    -> UniqueTexturePtr;
 
 } // namespace ObsBridgeUtils

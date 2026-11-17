@@ -8,12 +8,14 @@
 #include <cstdint>
 #include <memory>
 
-namespace Memory {
+namespace Memory
+{
 
-struct AlignedByteDeleter final {
-	std::size_t alignment = 32;
+struct AlignedByteDeleter final
+{
+    std::size_t alignment = 32;
 
-	void operator()(std::uint8_t *data) const noexcept;
+    void operator()(std::uint8_t *data) const noexcept;
 };
 
 using AlignedBufferPtr = std::unique_ptr<std::uint8_t[], AlignedByteDeleter>;

@@ -5,7 +5,7 @@
 @echo off
 
 if not exist "buildspec.props" (
-    echo ERROR: buildspec.props not found. The working directory MUST be the root of the project. & exit /b 1
+	echo ERROR: buildspec.props not found. The working directory MUST be the root of the project. & exit /b 1
 )
 
 setlocal

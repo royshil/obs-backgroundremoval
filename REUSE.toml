@@ -7,14 +7,14 @@ SPDX-License-Identifier = "LicenseRef-Not-Copyrightable"
 
 [[annotations]]
 path = [
-  ".github/workflows/actions.lock",
-  ".python-version",
-  "CMakePresets.json",
-  "compile_flags.txt",
-  "scripts/windows/*",
-  "vcpkg-configuration.json",
-  "vcpkg.json",
-  "VERSION",
+    ".github/workflows/actions.lock",
+    ".python-version",
+    "CMakePresets.json",
+    "compile_flags.txt",
+    "scripts/windows/*",
+    "vcpkg-configuration.json",
+    "vcpkg.json",
+    "VERSION",
 ]
 SPDX-FileCopyrightText = "2026 Kaito Udagawa <umireon@kaito.tokyo>"
 SPDX-License-Identifier = "Apache-2.0"

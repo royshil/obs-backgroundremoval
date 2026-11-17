@@ -7,5 +7,5 @@ add_library(UpdateConfig STATIC UpdateConfigCommon.cpp UpdateConfigCurl.cpp Upda
 target_link_libraries(UpdateConfig PRIVATE BuildOptions OBS::libobs CURL::libcurl)
 
 if(APPLE)
-  target_link_libraries(UpdateConfig PRIVATE jthread::jthread)
+    target_link_libraries(UpdateConfig PRIVATE jthread::jthread)
 endif()

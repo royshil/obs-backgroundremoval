@@ -14,17 +14,17 @@ const char *PLUGIN_VERSION = "1.5.1";
 
 void obs_log(int log_level, const char *format, ...)
 {
-	size_t length = 4 + strlen(PLUGIN_NAME) + strlen(format);
+    size_t length = 4 + strlen(PLUGIN_NAME) + strlen(format);
 
-	char *template = malloc(length + 1);
+    char *template = malloc(length + 1);
 
-	snprintf(template, length, "[%s] %s", PLUGIN_NAME, format);
+    snprintf(template, length, "[%s] %s", PLUGIN_NAME, format);
 
-	va_list(args);
+    va_list(args);
 
-	va_start(args, format);
-	blogva(log_level, template, args);
-	va_end(args);
+    va_start(args, format);
+    blogva(log_level, template, args);
+    va_end(args);
 
-	free(template);
+    free(template);
 }
