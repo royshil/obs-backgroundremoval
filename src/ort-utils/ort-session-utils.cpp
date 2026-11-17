@@ -54,9 +54,85 @@
 
 #include <obs-module.h>
 
+#include <cstdlib>
+#include <cstring>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
 #include "ort-session-utils.hpp"
 #include "../consts.h"
 #include "../plugin-support.h"
+
+#ifdef HAVE_ONNXRUNTIME_MIGRAPHX_EP_PLUGIN
+namespace {
+
+constexpr const char *kMigraphxEpName = "MIGraphXExecutionProvider";
+
+std::string migraphxEpLibraryPath()
+{
+	const char *overridePath = std::getenv("OBS_BGREMOVAL_MIGRAPHX_EP_LIB");
+	if (overridePath != nullptr && overridePath[0] != '\0')
+		return overridePath;
+
+#ifdef MIGRAPHX_EP_LIBRARY_PATH
+	return MIGRAPHX_EP_LIBRARY_PATH;
+#else
+	return std::string();
+#endif
+}
+
+// Registration is per Ort::Env and every filter instance owns its own env.
+std::mutex migraphxRegistrationMutex;
+std::unordered_set<const Ort::Env *> migraphxRegisteredEnvs;
+
+bool registerMigraphxExecutionProvider(Ort::Env &env)
+{
+	std::lock_guard<std::mutex> lock(migraphxRegistrationMutex);
+
+	const Ort::Env *key = &env;
+	if (migraphxRegisteredEnvs.find(key) != migraphxRegisteredEnvs.end())
+		return true;
+
+	const std::string libraryPath = migraphxEpLibraryPath();
+	if (libraryPath.empty()) {
+		obs_log(LOG_ERROR, "The MIGraphX execution provider library is not configured. "
+				   "Set OBS_BGREMOVAL_MIGRAPHX_EP_LIB or build with -DMIGRAPHX_EP_LIBRARY=.");
+		return false;
+	}
+
+	try {
+		env.RegisterExecutionProviderLibrary(kMigraphxEpName, libraryPath);
+	} catch (const std::exception &e) {
+		obs_log(LOG_ERROR, "Failed to load the MIGraphX execution provider from '%s': %s", libraryPath.c_str(),
+			e.what());
+		return false;
+	}
+
+	migraphxRegisteredEnvs.insert(key);
+	return true;
+}
+
+std::vector<Ort::ConstEpDevice> migraphxDevices(Ort::Env &env)
+{
+	std::vector<Ort::ConstEpDevice> devices;
+
+	if (!registerMigraphxExecutionProvider(env))
+		return devices;
+
+	for (const Ort::ConstEpDevice &device : env.GetEpDevices()) {
+		const char *epName = device.EpName();
+		if (epName != nullptr && std::strcmp(epName, kMigraphxEpName) == 0)
+			devices.push_back(device);
+	}
+
+	return devices;
+}
+
+} // namespace
+#endif // HAVE_ONNXRUNTIME_MIGRAPHX_EP_PLUGIN
 
 int createOrtSession(filter_data *tf)
 {
@@ -106,7 +182,23 @@ int createOrtSession(filter_data *tf)
 			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_ROCM(sessionOptions, 0));
 		}
 #endif
-#ifdef HAVE_ONNXRUNTIME_MIGRAPHX_EP
+#ifdef HAVE_ONNXRUNTIME_MIGRAPHX_EP_PLUGIN
+		if (tf->useGPU == USEGPU_MIGRAPHX) {
+			const std::vector<Ort::ConstEpDevice> devices = migraphxDevices(*tf->env);
+			if (devices.empty()) {
+				obs_log(LOG_ERROR,
+					"No MIGraphX device is available. "
+					"Make sure MIGraphX and the MIGraphX execution provider are installed.");
+				return OBS_BGREMOVAL_ORT_SESSION_ERROR_STARTUP;
+			}
+
+			std::unordered_map<std::string, std::string> epOptions{
+				{"device_id", "0"},
+				{"migraphx_exhaustive_tune", "false"},
+			};
+			sessionOptions.AppendExecutionProvider_V2(*tf->env, devices, epOptions);
+		}
+#elif defined(HAVE_ONNXRUNTIME_MIGRAPHX_EP)
 		if (tf->useGPU == USEGPU_MIGRAPHX) {
 			Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_MIGraphX(sessionOptions, 0));
 		}
