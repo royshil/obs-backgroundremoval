@@ -147,7 +147,7 @@ if(APPLE)
     PROPERTIES
       INTERFACE_COMPILE_DEFINITIONS "SIMDE_ENABLE_OPENMP;ENABLE_HEVC"
       INTERFACE_COMPILE_OPTIONS "-fopenmp-simd"
-      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/libobs"
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obsproject/obs-studio/libobs"
       INTERFACE_LINK_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-macos/lib/libobs.tbd"
   )
 
@@ -155,7 +155,7 @@ if(APPLE)
   set_target_properties(
     OBS::obs-frontend-api
     PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/UI/obs-frontend-api"
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obsproject/obs-studio/UI/obs-frontend-api"
       INTERFACE_LINK_LIBRARIES
         "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-macos/lib/obs-frontend-api.tbd;OBS::libobs"
   )
@@ -164,7 +164,7 @@ elseif(WIN32)
   set_target_properties(
     OBS::libobs
     PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/libobs"
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obsproject/obs-studio/libobs"
       INTERFACE_LINK_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-windows/lib/obs.lib"
   )
 
@@ -172,7 +172,7 @@ elseif(WIN32)
   set_target_properties(
     OBS::obs-frontend-api
     PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/UI/obs-frontend-api"
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obsproject/obs-studio/UI/obs-frontend-api"
       INTERFACE_LINK_LIBRARIES
         "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-windows/lib/obs-frontend-api.lib;OBS::libobs"
   )

@@ -9,7 +9,7 @@ FROM ubuntu:resolute
 RUN apt-get update && apt-get install -y --no-install-recommends \
   build-essential \
   ca-certificates \
-  clang-format-19 \
+  clang-format-21 \
   clangd \
   cmake \
   curl \

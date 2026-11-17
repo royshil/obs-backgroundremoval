@@ -7,7 +7,7 @@
 macos() {
   : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
 
-  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
+  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/microsoft/vcpkg}"
 
   JOB_TEMP="$(mktemp -d -t "obs-backgroundremoval-setup.XXXXXXX")"
   export JOB_TEMP

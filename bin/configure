@@ -7,7 +7,7 @@
 macos() {
   : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
   : "${CMAKE_OSX_DEPLOYMENT_TARGET:=13.0}"
-  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
+  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/microsoft/vcpkg}"
 
   if [[ "${X86_64+set}" != 'set' ]] && [[ "$(uname -m)" == 'x86_64' ]]; then
     X86_64=1

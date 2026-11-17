@@ -5,12 +5,12 @@
 function(collect_licenses output_header)
   set(license_files "${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_SOURCE_DIR}/NOTICE")
 
-  if(EXISTS "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/LICENSE")
-    list(APPEND license_files "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/LICENSE")
+  if(EXISTS "${CMAKE_SOURCE_DIR}/vendor/microsoft/onnxruntime/LICENSE")
+    list(APPEND license_files "${CMAKE_SOURCE_DIR}/vendor/microsoft/onnxruntime/LICENSE")
   endif()
 
-  if(EXISTS "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/ThirdPartyNotices.txt")
-    list(APPEND license_files "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/ThirdPartyNotices.txt")
+  if(EXISTS "${CMAKE_SOURCE_DIR}/vendor/microsoft/onnxruntime/ThirdPartyNotices.txt")
+    list(APPEND license_files "${CMAKE_SOURCE_DIR}/vendor/microsoft/onnxruntime/ThirdPartyNotices.txt")
   endif()
 
   foreach(prefix IN LISTS CMAKE_PREFIX_PATH)
@@ -31,9 +31,9 @@ function(collect_licenses output_header)
       set(license_name "obs-backgroundremoval")
     elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/NOTICE")
       set(license_name "obs-backgroundremoval notices")
-    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/LICENSE")
+    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/vendor/microsoft/onnxruntime/LICENSE")
       set(license_name "onnxruntime")
-    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/vendor/onnxruntime/ThirdPartyNotices.txt")
+    elseif(license_file STREQUAL "${CMAKE_SOURCE_DIR}/vendor/microsoft/onnxruntime/ThirdPartyNotices.txt")
       set(license_name "onnxruntime third-party notices")
     endif()
 

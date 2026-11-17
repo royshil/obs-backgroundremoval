@@ -48,7 +48,7 @@ jobs:
       CCACHE_ORT_DIR: .ccache_ort
       VCPKG_FORCE_DOWNLOADED_BINARIES: '1'
       VCPKG_ORT_TARGET_TRIPLET: x64-windows-static-md-obs-ort
-      VCPKG_ROOT: ${{ github.workspace }}/vendor/vcpkg
+      VCPKG_ROOT: ${{ github.workspace }}/vendor/microsoft/vcpkg
       VCPKG_TARGET_TRIPLET: x64-windows-static-md-obs
 
     steps:
@@ -71,7 +71,7 @@ jobs:
 
       - name: Checkout submodules
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg vendor/onnxruntime
+        run: git submodule update --init --filter=blob:none vendor/obsproject/obs-studio vendor/microsoft/vcpkg vendor/microsoft/onnxruntime
 
       - name: Load buildspec.props and VERSION
         id: buildspec
@@ -144,7 +144,7 @@ jobs:
             --triplet $env:VCPKG_ORT_TARGET_TRIPLET `
             --overlay-triplets (Join-Path $env:GITHUB_WORKSPACE 'vcpkg-triplets') `
             --x-install-root (Join-Path $env:GITHUB_WORKSPACE 'vcpkg_ort_installed') `
-            --x-manifest-root (Join-Path $env:GITHUB_WORKSPACE 'vendor' 'onnxruntime' 'cmake')
+            --x-manifest-root (Join-Path $env:GITHUB_WORKSPACE 'vendor' 'microsoft' 'onnxruntime' 'cmake')
 
       - name: Restore ccache_ort (Windows)
         id: ccache-ort
@@ -186,7 +186,7 @@ jobs:
           $env:CCACHE_BASEDIR = $env:GITHUB_WORKSPACE
           $env:CCACHE_DIR = Join-Path $env:GITHUB_WORKSPACE $env:CCACHE_ORT_DIR
           $env:CCACHE_SLOPPINESS = 'include_file_mtime,time_macros'
-          cmake -S vendor/onnxruntime/cmake -B build_ort -G Ninja --compile-no-warning-as-error `
+          cmake -S vendor/microsoft/onnxruntime/cmake -B build_ort -G Ninja --compile-no-warning-as-error `
             "-DCMAKE_BUILD_TYPE=Release" `
             "-DCMAKE_C_COMPILER_LAUNCHER=$env:CCACHE_COMMAND" `
             "-DCMAKE_CXX_COMPILER_LAUNCHER=$env:CCACHE_COMMAND" `

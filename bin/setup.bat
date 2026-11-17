@@ -11,11 +11,11 @@ if not exist "buildspec.props" (
 setlocal
 
 set "VCPKG_FORCE_DOWNLOADED_BINARIES=1"
-set "VCPKG_ROOT=%CD%\vendor\vcpkg"
+set "VCPKG_ROOT=%CD%\vendor\microsoft\vcpkg"
 
 echo == Ensure vcpkg and its toolchains ==
 
-git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg vendor/onnxruntime || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
+git submodule update --init --filter=blob:none vendor/obsproject/obs-studio vendor/microsoft/vcpkg vendor/microsoft/onnxruntime || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
 
 call "%VCPKG_ROOT%\bootstrap-vcpkg.bat" -disableMetrics || (echo ERROR: vcpkg bootstrap failed. & endlocal & exit /b 1)
 

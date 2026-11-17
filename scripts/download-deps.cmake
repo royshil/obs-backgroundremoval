@@ -51,13 +51,13 @@ if(WIN32)
 
   download_dep(obs-deps "${prebuilt_windows_x64_url}" "${prebuilt_windows_x64_sha256}")
   file(
-    WRITE "${CMAKE_SOURCE_DIR}/vendor/obs-studio/.deps/.dependency_prebuilt_x64.sha256"
+    WRITE "${CMAKE_SOURCE_DIR}/vendor/obsproject/obs-studio/.deps/.dependency_prebuilt_x64.sha256"
     "${prebuilt_windows_x64_sha256}"
   )
   set_output(OBS_DEPS_PREFIX "${CMAKE_SOURCE_DIR}/.deps/obs-deps")
 
   download_dep(obs-deps-qt6 "${qt6_windows_x64_url}" "${qt6_windows_x64_sha256}")
-  file(WRITE "${CMAKE_SOURCE_DIR}/vendor/obs-studio/.deps/.dependency_qt6_x64.sha256" "${qt6_windows_x64_sha256}")
+  file(WRITE "${CMAKE_SOURCE_DIR}/vendor/obsproject/obs-studio/.deps/.dependency_qt6_x64.sha256" "${qt6_windows_x64_sha256}")
   set_output(OBS_DEPS_QT6_PREFIX "${CMAKE_SOURCE_DIR}/.deps/obs-deps-qt6")
 
   download_dep(ccache "${ccache_windows_url}" "${ccache_windows_sha256}")

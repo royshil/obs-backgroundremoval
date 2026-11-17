@@ -55,13 +55,13 @@ targets=(
   "${PLUGIN_BUILD_DIR}/release"
   "${PLUGIN_BUILD_DIR}/vcpkg_installed"
   "${PLUGIN_BUILD_DIR}/vcpkg_ort_installed"
-  "${PLUGIN_BUILD_DIR}/vendor/obs-studio/.deps"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/buildtrees"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/downloads"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/installed"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/packages"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/vcpkg"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg/vcpkg.disable-metrics"
+  "${PLUGIN_BUILD_DIR}/vendor/obsproject/obs-studio/.deps"
+  "${PLUGIN_BUILD_DIR}/vendor/microsoft/vcpkg/buildtrees"
+  "${PLUGIN_BUILD_DIR}/vendor/microsoft/vcpkg/downloads"
+  "${PLUGIN_BUILD_DIR}/vendor/microsoft/vcpkg/installed"
+  "${PLUGIN_BUILD_DIR}/vendor/microsoft/vcpkg/packages"
+  "${PLUGIN_BUILD_DIR}/vendor/microsoft/vcpkg/vcpkg"
+  "${PLUGIN_BUILD_DIR}/vendor/microsoft/vcpkg/vcpkg.disable-metrics"
 )
 
 if ! [[ "${OPT_FORCE:-0}" == 1 ]]; then
