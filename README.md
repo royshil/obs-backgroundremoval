@@ -69,6 +69,27 @@ The supported platforms are:
 
 We plan to add building scripts for popular platforms such as Windows, Mac, and various distributions of Linux.
 
+### AMD GPUs: the MIGraphX execution provider
+
+ONNX Runtime removed the ROCm execution provider in 1.23. Some ONNX Runtime builds (1.22 and
+newer) provide MIGraphX as a separately loaded execution provider, `libmigraphx-ep.so`, which is
+registered at runtime instead of being linked into `libonnxruntime`.
+
+The plugin always links against the ONNX Runtime that CMake or pkg-config resolves, i.e. the one
+provided by your package manager. If that ONNX Runtime ships the MIGraphX EP library, the plugin
+detects it and adds `MIGraphX` to the *Inference Device* list. If it does not, the option is not
+built at all and the behaviour is unchanged. If the library is installed in a non-standard
+location, point the build at it:
+
+```bash
+cmake -S . -B build -DMIGRAPHX_EP_LIBRARY=/path/to/libmigraphx-ep.so
+```
+
+`OBS_BGREMOVAL_MIGRAPHX_EP_LIB` overrides the location at runtime.
+
+The model is compiled for the GPU the first time a filter is created; that can take up to a
+minute for small models and is cached in `~/.cache/migraphx` afterwards.
+
 ## Introduction
 
 This plugin is meant to make it easy to replace the background in portrait images and video.
@@ -95,7 +116,7 @@ GPU support:
 
 - On Windows, we plan to support WinML acceleration.
 - On Mac we support CoreML for acceleration, which is efficient on Apple Silicon. **Note:** This plugin does not support cross-architecture translation (Rosetta2). Intel binaries on Apple Silicon or Apple Silicon binaries on Intel will crash.
-- On Linux CUDA, ROCM (deprecated in ONNX Runtime 1.23.0), and MIGraphX are supported if this plugin is built from source. Ensure your ONNX Runtime installation has CUDA, ROCM, or MIGraphX support. For AMD GPUs, MIGraphX is recommended as ROCM was removed from ONNX Runtime starting with version 1.23.0.
+- On Linux CUDA, ROCM (deprecated in ONNX Runtime 1.23.0), and MIGraphX are supported if this plugin is built from source. Ensure your ONNX Runtime installation has CUDA, ROCM, or MIGraphX support. For AMD GPUs, MIGraphX is recommended as ROCM was removed from ONNX Runtime starting with version 1.23.0. See [AMD GPUs: building with the MIGraphX execution provider](#amd-gpus-building-with-the-migraphx-execution-provider) for the EP plugin layout used by ONNX Runtime 1.22 and newer.
 - The goal of this plugin is to be available for everyone on every system, even if they don't own a GPU.
 
 Number of CPU threads is controllable through the UI settings. A 2-thread setting works best.
