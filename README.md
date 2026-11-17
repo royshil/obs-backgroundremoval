@@ -20,9 +20,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
 A plugin for [OBS Studio](https://obsproject.com/) that allows you to replace the background in portrait images and video, as well as enhance low-light scenes.
 
 <p align="center">
-  <a href="https://royshil.github.io/obs-backgroundremoval/">
-    <b>⬇️ Download & Install OBS Background Removal ⬇️</b>
-  </a>
+    <a href="https://royshil.github.io/obs-backgroundremoval/">
+        <b>⬇️ Download & Install OBS Background Removal ⬇️</b>
+    </a>
 </p>
 
 Or, browse versions on [releases page](https://github.com/royshil/obs-backgroundremoval/releases).
@@ -121,9 +121,9 @@ Some more information about how I built it: https://www.morethantechnical.com/20
 This video on YouTube will take you through the major parts of the code and explain them.
 
 <div align="center">
-  <a href="https://youtu.be/iFQtcJg0Wsk" target="_blank">
-    <img width="50%" src="https://img.youtube.com/vi/iFQtcJg0Wsk/maxresdefault.jpg"/>
-  </a>
+    <a href="https://youtu.be/iFQtcJg0Wsk" target="_blank">
+        <img width="50%" src="https://img.youtube.com/vi/iFQtcJg0Wsk/maxresdefault.jpg"/>
+    </a>
 </div>
 
 ## Download Trends and Star History

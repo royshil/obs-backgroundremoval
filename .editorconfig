@@ -1,29 +1,87 @@
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
-# SPDX-License-Identifier: CC0-1.0
+# SPDX-License-Identifier: Apache-2.0
 
 root = true
 
 [*]
+indent_style = space
+indent_size = 4
+end_of_line = unset
 charset = utf-8
-end_of_line = lf
-insert_final_newline = true
 trim_trailing_whitespace = true
+insert_final_newline = true
+
+[{CMakeLists.txt,*.cmake}]
+end_of_line = lf
+
+[*.{cpp,hpp,c,h,m,mm}]
+end_of_line = lf
+
+[*.py]
+end_of_line = lf
+
+[*.rb]
 indent_style = space
 indent_size = 2
+end_of_line = lf
 
-[*.bat]
+[*.{js,mjs,ts,mts}]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+
+[Dockerfile]
+end_of_line = lf
+
+[*.ini]
 end_of_line = crlf
+
+[*.effect]
 indent_style = tab
 indent_size = tab
 tab_width = 8
-
-[*.{ps1,psm1}]
-indent_style = space
-indent_size = 4
+end_of_line = lf
 
 [*.md]
 trim_trailing_whitespace = false
 
+[{*.{yml,yaml},.clang-format,.clangd}]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+
+[*.json]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+
+[*.toml]
+end_of_line = lf
+
+[*.svg]
+indent_style = space
+indent_size = 2
+
 [VERSION]
+end_of_line = crlf
 insert_final_newline = false
+
+[{*.sh,bin/*}]
+end_of_line = lf
+
+[*.{bat,cmd,ps1}]
+indent_style = tab
+indent_size = tab
+tab_width = 8
+end_of_line = crlf
+
+[{LICENSE,*.{license,upstream,onnx,mlmodel}}]
+indent_style = unset
+indent_size = unset
+tab_width = unset
+end_of_line = unset
+charset = unset
+spelling_language = unset
+trim_trailing_whitespace = unset
+insert_final_newline = unset

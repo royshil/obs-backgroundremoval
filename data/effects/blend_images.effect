@@ -36,8 +36,8 @@ VertDataOut VSDefault(VertDataIn v_in)
 }
 
 /**
-  * Kawase High Pass Filter
-  */
+ * Kawase High Pass Filter
+ */
 float4 KawaseHighPass(VertDataOut v_in)
 {
 	float4 sum = float4(0.0, 0.0, 0.0, 0.0);
@@ -52,7 +52,7 @@ float4 KawaseHighPass(VertDataOut v_in)
 float4 PSBlend(VertDataOut v_in) : TARGET
 {
 	float4 imageRGBA = image.Sample(textureSampler, v_in.uv);
-  // Add high pass filter back to the blend image because the blend image is usually blurry
+	// Add high pass filter back to the blend image because the blend image is usually blurry
 	float4 blendimageRGBA = blendimage.Sample(textureSampler, v_in.uv) + KawaseHighPass(v_in);
 	return imageRGBA * (1.0 - blendFactor) + blendimageRGBA * blendFactor;
 }

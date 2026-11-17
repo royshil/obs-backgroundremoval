@@ -18,8 +18,8 @@ sudo pacman -Syu --needed base-devel cmake curl git ninja obs-studio onnxruntime
 git clone https://github.com/royshil/obs-backgroundremoval.git
 cd obs-backgroundremoval
 cmake -S . -B build -G Ninja \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_INSTALL_PREFIX=/usr
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build build --config RelWithDebInfo --parallel
 sudo cmake --install build --config RelWithDebInfo --prefix /usr
 </code></pre>

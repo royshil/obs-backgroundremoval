@@ -12,7 +12,7 @@ setlocal
 
 set "VCPKG_BINARY_SOURCES=clear;files,%CD%\.vcpkg_archives,readwrite"
 set "VCPKG_FORCE_DOWNLOADED_BINARIES=1"
-set "VCPKG_ROOT=%CD%\vendor\vcpkg"
+set "VCPKG_ROOT=%CD%\vendor\microsoft\vcpkg"
 
 set "HOST_PROCESSOR_ARCHITECTURE=%PROCESSOR_ARCHITECTURE%"
 if defined PROCESSOR_ARCHITEW6432 set "HOST_PROCESSOR_ARCHITECTURE=%PROCESSOR_ARCHITEW6432%"
@@ -62,7 +62,7 @@ set "VCPKG_COMMAND=%VCPKG_ROOT%\vcpkg.exe"
 if not exist "%VCPKG_COMMAND%" (
 	echo ERROR: Visual Studio vcpkg was not found. & endlocal & exit /b 1
 )
-set "VCPKG_ROOT=%CD%\vendor\vcpkg"
+set "VCPKG_ROOT=%CD%\vendor\microsoft\vcpkg"
 
 for /f "delims=" %%i in ('""%VSWHERE_COMMAND%" -find "Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe""') do set "CMAKE_COMMAND=%%i"
 if not defined CMAKE_COMMAND (
@@ -97,7 +97,7 @@ echo == Install vcpkg dependencies ==
 
 echo == Install vcpkg_ort dependencies ==
 
-"%VCPKG_COMMAND%" install --vcpkg-root "%VCPKG_ROOT%" --triplet x64-windows-static-md-obs-ort --host-triplet "%VCPKG_HOST_TRIPLET%" --overlay-triplets "%CD%\vcpkg-triplets" --x-install-root vcpkg_ort_installed --x-manifest-root vendor\onnxruntime\cmake || (echo ERROR: ONNX Runtime vcpkg dependency installation failed. & endlocal & exit /b 1)
+"%VCPKG_COMMAND%" install --vcpkg-root "%VCPKG_ROOT%" --triplet x64-windows-static-md-obs-ort --host-triplet "%VCPKG_HOST_TRIPLET%" --overlay-triplets "%CD%\vcpkg-triplets" --x-install-root vcpkg_ort_installed --x-manifest-root vendor\microsoft\onnxruntime\cmake || (echo ERROR: ONNX Runtime vcpkg dependency installation failed. & endlocal & exit /b 1)
 
 echo == Build ONNX Runtime ==
 
@@ -105,7 +105,7 @@ set "CCACHE_DIR=%CD%\.ccache_ort"
 set "CCACHE_SLOPPINESS=include_file_mtime,time_macros"
 set "CCACHE_BASEDIR=%CD%"
 
-"%CMAKE_COMMAND%" --fresh -S vendor\onnxruntime\cmake -B build_ort -G Ninja --compile-no-warning-as-error ^
+"%CMAKE_COMMAND%" --fresh -S vendor\microsoft\onnxruntime\cmake -B build_ort -G Ninja --compile-no-warning-as-error ^
 	"-DCMAKE_BUILD_TYPE=Release" ^
 	"-DCMAKE_C_COMPILER_LAUNCHER=%CCACHE_COMMAND%" ^
 	"-DCMAKE_CXX_COMPILER_LAUNCHER=%CCACHE_COMMAND%" ^

@@ -12,6 +12,7 @@ RUN sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf \
     && pacman --sync --needed --noconfirm \
         ca-certificates \
         clang \
+        clang21 \
         cmake \
         curl \
         file \
@@ -27,7 +28,8 @@ RUN sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf \
         tar \
         unzip \
         zip \
-    && pacman --sync --clean --clean --noconfirm
+    && pacman --sync --clean --clean --noconfirm \
+    && ln -s /usr/lib/llvm21/bin/clang-format /usr/local/bin/clang-format-21
 
 COPY --chmod=400 <<'EOF' /etc/sudoers.d/vscode
 vscode ALL=(ALL) NOPASSWD: ALL

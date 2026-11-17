@@ -20,61 +20,61 @@ $EXTRACT_DIR = Join-Path $WORK_DIR 'obs'
 New-Item -ItemType Directory -Force -Path $DOWNLOAD_DIR, $EXTRACT_DIR, $OUTPUT_DIR | Out-Null
 
 try {
-  if (-not (Test-Path -LiteralPath $OBS_ZIP_PATH -PathType Leaf)) {
-    curl.exe -fL --retry 3 -o $OBS_ZIP_PATH $OBS_ZIP_URL
-  }
+	if (-not (Test-Path -LiteralPath $OBS_ZIP_PATH -PathType Leaf)) {
+		curl.exe -fL --retry 3 -o $OBS_ZIP_PATH $OBS_ZIP_URL
+	}
 
-  if ((Get-FileHash -Algorithm SHA256 -LiteralPath $OBS_ZIP_PATH).Hash -ne $OBS_ZIP_SHA256) {
-    throw "Checksum verification failed for $OBS_ZIP_PATH"
-  }
+	if ((Get-FileHash -Algorithm SHA256 -LiteralPath $OBS_ZIP_PATH).Hash -ne $OBS_ZIP_SHA256) {
+		throw "Checksum verification failed for $OBS_ZIP_PATH"
+	}
 
-  Expand-Archive -LiteralPath $OBS_ZIP_PATH -DestinationPath $EXTRACT_DIR
+	Expand-Archive -LiteralPath $OBS_ZIP_PATH -DestinationPath $EXTRACT_DIR
 
-  $DUMPBIN_COMMAND = (Get-Command dumpbin.exe -ErrorAction Stop).Source
-  $LIB_COMMAND = (Get-Command lib.exe -ErrorAction Stop).Source
-  $LIBRARIES = [ordered]@{
-    'obs.lib' = 'obs.dll'
-    'obs-frontend-api.lib' = 'obs-frontend-api.dll'
-  }
+	$DUMPBIN_COMMAND = (Get-Command dumpbin.exe -ErrorAction Stop).Source
+	$LIB_COMMAND = (Get-Command lib.exe -ErrorAction Stop).Source
+	$LIBRARIES = [ordered]@{
+		'obs.lib' = 'obs.dll'
+		'obs-frontend-api.lib' = 'obs-frontend-api.dll'
+	}
 
-  foreach ($LIBRARY in $LIBRARIES.GetEnumerator()) {
-    $DLL_PATH = Join-Path $EXTRACT_DIR "bin\64bit\$($LIBRARY.Value)"
-    $DEF_PATH = Join-Path $WORK_DIR "$($LIBRARY.Value).def"
-    $GENERATED_LIB_PATH = Join-Path $WORK_DIR $LIBRARY.Key
-    $LIB_PATH = Join-Path $OUTPUT_DIR $LIBRARY.Key
-    $DUMPBIN_OUTPUT = & $DUMPBIN_COMMAND /exports $DLL_PATH
+	foreach ($LIBRARY in $LIBRARIES.GetEnumerator()) {
+		$DLL_PATH = Join-Path $EXTRACT_DIR "bin\64bit\$($LIBRARY.Value)"
+		$DEF_PATH = Join-Path $WORK_DIR "$($LIBRARY.Value).def"
+		$GENERATED_LIB_PATH = Join-Path $WORK_DIR $LIBRARY.Key
+		$LIB_PATH = Join-Path $OUTPUT_DIR $LIBRARY.Key
+		$DUMPBIN_OUTPUT = & $DUMPBIN_COMMAND /exports $DLL_PATH
 
-    if ($LASTEXITCODE -ne 0) {
-      throw "dumpbin failed for $DLL_PATH"
-    }
+		if ($LASTEXITCODE -ne 0) {
+			throw "dumpbin failed for $DLL_PATH"
+		}
 
-    $SYMBOLS = @(
-      foreach ($LINE in $DUMPBIN_OUTPUT) {
-        if ($LINE -match '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(\S+)') {
-          $Matches[1]
-        }
-      }
-    )
+		$SYMBOLS = @(
+			foreach ($LINE in $DUMPBIN_OUTPUT) {
+				if ($LINE -match '^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(\S+)') {
+					$Matches[1]
+				}
+			}
+		)
 
-    if ($SYMBOLS.Count -eq 0) {
-      throw "No exported symbols were found in $DLL_PATH"
-    }
+		if ($SYMBOLS.Count -eq 0) {
+			throw "No exported symbols were found in $DLL_PATH"
+		}
 
-    @(
-      "LIBRARY `"$($LIBRARY.Value)`""
-      'EXPORTS'
-      $SYMBOLS | ForEach-Object { "  $_" }
-    ) | Set-Content -LiteralPath $DEF_PATH -Encoding ascii
+		@(
+			"LIBRARY `"$($LIBRARY.Value)`""
+			'EXPORTS'
+			$SYMBOLS | ForEach-Object { "	$_" }
+		) | Set-Content -LiteralPath $DEF_PATH -Encoding ascii
 
-    & $LIB_COMMAND /nologo /Brepro /machine:x64 "/def:$DEF_PATH" "/out:$GENERATED_LIB_PATH"
+		& $LIB_COMMAND /nologo /Brepro /machine:x64 "/def:$DEF_PATH" "/out:$GENERATED_LIB_PATH"
 
-    if ($LASTEXITCODE -ne 0) {
-      throw "lib.exe failed for $DEF_PATH"
-    }
+		if ($LASTEXITCODE -ne 0) {
+			throw "lib.exe failed for $DEF_PATH"
+		}
 
-    Copy-Item -LiteralPath $GENERATED_LIB_PATH -Destination $LIB_PATH -Force
-    Write-Host "Generated $LIB_PATH ($($SYMBOLS.Count) exports)"
-  }
+		Copy-Item -LiteralPath $GENERATED_LIB_PATH -Destination $LIB_PATH -Force
+		Write-Host "Generated $LIB_PATH ($($SYMBOLS.Count) exports)"
+	}
 } finally {
-  Remove-Item -LiteralPath $WORK_DIR -Recurse -Force -ErrorAction SilentlyContinue
+	Remove-Item -LiteralPath $WORK_DIR -Recurse -Force -ErrorAction SilentlyContinue
 }

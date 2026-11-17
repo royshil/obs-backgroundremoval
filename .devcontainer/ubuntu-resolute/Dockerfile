@@ -7,26 +7,26 @@
 FROM ubuntu:resolute
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  build-essential \
-  ca-certificates \
-  clang-format-19 \
-  clangd \
-  cmake \
-  curl \
-  file \
-  git \
-  libcurl4-openssl-dev \
-  libobs-dev \
-  libonnxruntime-dev \
-  libopencv-dev \
-  ninja-build \
-  python3.14-venv \
-  qt6-base-dev \
-  sudo \
-  tar \
-  unzip \
-  zip \
-  && rm -rf /var/lib/apt/lists/*
+    build-essential \
+    ca-certificates \
+    clang-format-21 \
+    clangd \
+    cmake \
+    curl \
+    file \
+    git \
+    libcurl4-openssl-dev \
+    libobs-dev \
+    libonnxruntime-dev \
+    libopencv-dev \
+    ninja-build \
+    python3.14-venv \
+    qt6-base-dev \
+    sudo \
+    tar \
+    unzip \
+    zip \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --chmod=400 <<'EOF' /etc/sudoers.d/vscode
 vscode ALL=(ALL) NOPASSWD: ALL

@@ -1,113 +1,15 @@
-# SPDX-FileCopyrightText: 2018-2026 OBS Project and its contributors
-# SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
-# SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+# SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 
-# please use clang-format version 21
-
+InsertNewlineAtEOF: true
+---
+Language: C
+BasedOnStyle: Microsoft
+---
+Language: Cpp
+BasedOnStyle: Microsoft
 Standard: c++20
-AccessModifierOffset: -8
-AlignAfterOpenBracket: Align
-AlignConsecutiveAssignments: false
-AlignConsecutiveDeclarations: false
-AlignEscapedNewlines: Left
-AlignOperands: true
-AlignTrailingComments: true
-AllowAllArgumentsOnNextLine: false
-AllowAllConstructorInitializersOnNextLine: false
-AllowAllParametersOfDeclarationOnNextLine: false
-AllowShortBlocksOnASingleLine: false
-AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Inline
-AllowShortIfStatementsOnASingleLine: false
-AllowShortLambdasOnASingleLine: Inline
-AllowShortLoopsOnASingleLine: false
-AlwaysBreakAfterDefinitionReturnType: None
-AlwaysBreakAfterReturnType: None
-AlwaysBreakBeforeMultilineStrings: false
-AlwaysBreakTemplateDeclarations: false
-BinPackArguments: true
-BinPackParameters: true
-BraceWrapping:
-  AfterClass: false
-  AfterControlStatement: false
-  AfterEnum: false
-  AfterFunction: true
-  AfterNamespace: false
-  AfterObjCDeclaration: false
-  AfterStruct: false
-  AfterUnion: false
-  AfterExternBlock: false
-  BeforeCatch: false
-  BeforeElse: false
-  IndentBraces: false
-  SplitEmptyFunction: true
-  SplitEmptyRecord: true
-  SplitEmptyNamespace: true
-BreakBeforeBinaryOperators: None
-BreakBeforeBraces: Custom
-BreakBeforeTernaryOperators: true
-BreakConstructorInitializers: BeforeColon
-BreakStringLiterals: false  # apparently unpredictable
-ColumnLimit: 120
-CompactNamespaces: false
-ConstructorInitializerAllOnOneLineOrOnePerLine: true
-ConstructorInitializerIndentWidth: 8
-ContinuationIndentWidth: 8
-Cpp11BracedListStyle: true
-DerivePointerAlignment: false
-DisableFormat: false
-FixNamespaceComments: true
-ForEachMacros:
-  - 'json_object_foreach'
-  - 'json_object_foreach_safe'
-  - 'json_array_foreach'
-  - 'HASH_ITER'
-IncludeBlocks: Preserve
-IndentCaseLabels: false
-IndentPPDirectives: None
-IndentWidth: 8
-IndentWrappedFunctionNames: false
-KeepEmptyLinesAtTheStartOfBlocks: true
-MaxEmptyLinesToKeep: 1
-NamespaceIndentation: None
-ObjCBinPackProtocolList: Auto
-ObjCBlockIndentWidth: 8
-ObjCSpaceAfterProperty: true
-ObjCSpaceBeforeProtocolList: true
-
-PenaltyBreakAssignment: 10
-PenaltyBreakBeforeFirstCallParameter: 30
-PenaltyBreakComment: 10
-PenaltyBreakFirstLessLess: 0
-PenaltyBreakString: 10
-PenaltyExcessCharacter: 100
-PenaltyReturnTypeOnItsOwnLine: 60
-
-PointerAlignment: Right
-ReflowComments: false
-SkipMacroDefinitionBody: true
-SortIncludes: false
-SortUsingDeclarations: false
-SpaceAfterCStyleCast: false
-SpaceAfterLogicalNot: false
-SpaceAfterTemplateKeyword: false
-SpaceBeforeAssignmentOperators: true
-SpaceBeforeCtorInitializerColon: true
-SpaceBeforeInheritanceColon: true
-SpaceBeforeParens: ControlStatements
-SpaceBeforeRangeBasedForLoopColon: true
-SpaceInEmptyParentheses: false
-SpacesBeforeTrailingComments: 1
-SpacesInAngles: false
-SpacesInCStyleCastParentheses: false
-SpacesInContainerLiterals: false
-SpacesInParentheses: false
-SpacesInSquareBrackets: false
-StatementMacros:
-  - 'Q_OBJECT'
-TabWidth: 8
-TypenameMacros:
-  - 'DARRAY'
-UseTab: ForContinuationAndIndentation
+---
+Language: ObjC
+BasedOnStyle: WebKit

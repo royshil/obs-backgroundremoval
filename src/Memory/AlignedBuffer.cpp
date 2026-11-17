@@ -6,17 +6,18 @@
 
 #include <new>
 
-namespace Memory {
+namespace Memory
+{
 
 void AlignedByteDeleter::operator()(std::uint8_t *data) const noexcept
 {
-	::operator delete[](data, std::align_val_t{alignment});
+    ::operator delete[](data, std::align_val_t{alignment});
 }
 
 auto makeAlignedBytes(std::size_t size, std::size_t alignment) -> AlignedBufferPtr
 {
-	auto *data = static_cast<std::uint8_t *>(::operator new[](size, std::align_val_t{alignment}));
-	return AlignedBufferPtr(data, AlignedByteDeleter{alignment});
+    auto *data = static_cast<std::uint8_t *>(::operator new[](size, std::align_val_t{alignment}));
+    return AlignedBufferPtr(data, AlignedByteDeleter{alignment});
 }
 
 } // namespace Memory

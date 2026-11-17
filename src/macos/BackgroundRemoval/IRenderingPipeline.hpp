@@ -8,17 +8,19 @@
 
 #include <obs-module.h>
 
-namespace BackgroundRemoval {
+namespace BackgroundRemoval
+{
 
-class IRenderingPipeline {
-public:
-	virtual ~IRenderingPipeline() noexcept = default;
+class IRenderingPipeline
+{
+  public:
+    virtual ~IRenderingPipeline() noexcept = default;
 
-	virtual void update(obs_data_t *settings) noexcept = 0;
-	virtual void videoTick(float seconds) = 0;
-	virtual void videoRender(gs_effect_t *effect) = 0;
-	virtual auto getWidth() const noexcept -> std::uint32_t = 0;
-	virtual auto getHeight() const noexcept -> std::uint32_t = 0;
+    virtual void update(obs_data_t *settings) noexcept = 0;
+    virtual void videoTick(float seconds) = 0;
+    virtual void videoRender(gs_effect_t *effect) = 0;
+    virtual auto getWidth() const noexcept -> std::uint32_t = 0;
+    virtual auto getHeight() const noexcept -> std::uint32_t = 0;
 };
 
 } // namespace BackgroundRemoval

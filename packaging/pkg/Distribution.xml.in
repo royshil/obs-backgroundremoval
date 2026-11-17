@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-  <title>@PLUGIN_DISPLAY_NAME@</title>
-  <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64"/>
-  <domains enable_localSystem="false" enable_currentUserHome="true" enable_anywhere="false"/>
-  <license file="LICENSE" mime-type="text/plain"/>
-  <choices-outline>
-    <line choice="default"/>
-  </choices-outline>
-  <choice id="default" title="@CMAKE_PROJECT_NAME@" visible="false">
-    <pkg-ref id="@PLUGIN_BUNDLE_ID@"/>
-  </choice>
-  <pkg-ref id="@PLUGIN_BUNDLE_ID@" version="@PLUGIN_VERSION@" onConclusion="none" auth="none">component.pkg</pkg-ref>
+    <title>@PLUGIN_DISPLAY_NAME@</title>
+    <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64"/>
+    <domains enable_localSystem="false" enable_currentUserHome="true" enable_anywhere="false"/>
+    <license file="LICENSE" mime-type="text/plain"/>
+    <choices-outline>
+        <line choice="default"/>
+    </choices-outline>
+    <choice id="default" title="@CMAKE_PROJECT_NAME@" visible="false">
+        <pkg-ref id="@PLUGIN_BUNDLE_ID@"/>
+    </choice>
+    <pkg-ref id="@PLUGIN_BUNDLE_ID@" version="@PLUGIN_VERSION@" onConclusion="none" auth="none">component.pkg</pkg-ref>
 </installer-gui-script>

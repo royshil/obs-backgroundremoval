@@ -12,42 +12,48 @@
 #include <utility>
 #include <variant>
 
-namespace UpdateConfig {
+namespace UpdateConfig
+{
 
 [[nodiscard]] std::optional<std::uint64_t> getSemverMajor(std::string_view version);
 [[nodiscard]] std::optional<std::uint64_t> getSemverMinor(std::string_view version);
 [[nodiscard]] std::optional<std::uint64_t> getSemverPatch(std::string_view version);
 [[nodiscard]] bool isSemverNewer(std::string_view candidate, std::string_view current);
 
-struct HandleFirstRunRequest final {
-	std::string pluginVersion;
+struct HandleFirstRunRequest final
+{
+    std::string pluginVersion;
 };
 
-struct SetCheckForUpdatesFlagRequest final {
-	bool enabled;
+struct SetCheckForUpdatesFlagRequest final
+{
+    bool enabled;
 };
 
-struct GetCheckForUpdatesEnabledRequest final {};
+struct GetCheckForUpdatesEnabledRequest final
+{
+};
 
 using Request = std::variant<HandleFirstRunRequest, SetCheckForUpdatesFlagRequest, GetCheckForUpdatesEnabledRequest>;
 
 [[nodiscard]] bool doRequest(Request &request);
 
-class LatestVersionClient {
-public:
-	virtual ~LatestVersionClient() = default;
+class LatestVersionClient
+{
+  public:
+    virtual ~LatestVersionClient() = default;
 
-	LatestVersionClient(const LatestVersionClient &) = delete;
-	LatestVersionClient &operator=(const LatestVersionClient &) = delete;
-	LatestVersionClient(LatestVersionClient &&) = delete;
-	LatestVersionClient &operator=(LatestVersionClient &&) = delete;
+    LatestVersionClient(const LatestVersionClient &) = delete;
+    LatestVersionClient &operator=(const LatestVersionClient &) = delete;
+    LatestVersionClient(LatestVersionClient &&) = delete;
+    LatestVersionClient &operator=(LatestVersionClient &&) = delete;
 
-	virtual void fetchAsync(std::string url, std::string userAgent) = 0;
-	virtual std::optional<std::string> getLatestVersion() = 0;
-	virtual void reset() noexcept = 0;
+    virtual void fetchAsync(std::string url, std::string userAgent) = 0;
+    virtual std::optional<std::string> getLatestVersion() = 0;
+    virtual void reset() noexcept = 0;
 
-protected:
-	LatestVersionClient() = default;
+  protected:
+    LatestVersionClient() = default;
 };
 
 std::unique_ptr<LatestVersionClient> createLatestVersionClient();
@@ -60,13 +66,13 @@ void resetLatestVersion() noexcept;
 #if defined(PLUGIN_NAME_STR) && defined(PLUGIN_VERSION_STR)
 inline void fetchLatestVersionAsync(std::string url)
 {
-	fetchLatestVersionAsync(std::move(url), PLUGIN_NAME_STR "/" PLUGIN_VERSION_STR);
+    fetchLatestVersionAsync(std::move(url), PLUGIN_NAME_STR "/" PLUGIN_VERSION_STR);
 }
 
 #ifdef PLUGIN_LATEST_VERSION_URL
 inline void fetchLatestVersionAsync()
 {
-	fetchLatestVersionAsync(PLUGIN_LATEST_VERSION_URL, PLUGIN_NAME_STR "/" PLUGIN_VERSION_STR);
+    fetchLatestVersionAsync(PLUGIN_LATEST_VERSION_URL, PLUGIN_NAME_STR "/" PLUGIN_VERSION_STR);
 }
 #endif
 #endif

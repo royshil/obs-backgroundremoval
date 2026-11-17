@@ -29,11 +29,13 @@ jobs:
           persist-credentials: false
 
       - name: Check with clang-format
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: bin/check clang-format
+        shell: bash --noprofile --norc -euo pipefail {0}
+        run: |
+          clang-format-21 --version
+          git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.m' '*.mm' ':!vendor/' | xargs -0 clang-format-21 --dry-run --Werror
 
   check-gersemi:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
 
     steps:
@@ -42,21 +44,30 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v7.0.0
-        with:
-          python-version: '3.12'
-
-      - name: Install check requirements
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: python -m pip install 'gersemi==0.27.7'
+      - name: Install gersemi
+        run: /home/linuxbrew/.linuxbrew/bin/brew install gersemi
 
       - name: Check with gersemi
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: bin/check gersemi
+        run: /home/linuxbrew/.linuxbrew/bin/gersemi . --check --diff
+
+  check-editorconfig-checker:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install editorconfig
+        run: /home/linuxbrew/.linuxbrew/bin/brew install editorconfig-checker
+
+      - name: Check with editorconfig-checker
+        run: /home/linuxbrew/.linuxbrew/bin/editorconfig-checker -exclude editorconfig-checker -exclude '\.(cpp|hpp|c|h|m|mm)$' -format github-actions
 
   check-reuse:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
 
     steps:
@@ -83,8 +94,9 @@ jobs:
     needs:
       - check-clang-format
       - check-gersemi
+      - check-editorconfig-checker
       - check-reuse
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: {}
     steps:

@@ -5,32 +5,32 @@
 # SPDX-License-Identifier: Apache-2.0
 
 macos() {
-  : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
+    : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
 
-  : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/vcpkg}"
+    : "${VCPKG_ROOT:=${PLUGIN_BUILD_DIR:?}/vendor/microsoft/vcpkg}"
 
-  JOB_TEMP="$(mktemp -d -t "obs-backgroundremoval-setup.XXXXXXX")"
-  export JOB_TEMP
-  mkdir -p "${JOB_TEMP:?}"
+    JOB_TEMP="$(mktemp -d -t "obs-backgroundremoval-setup.XXXXXXX")"
+    export JOB_TEMP
+    mkdir -p "${JOB_TEMP:?}"
 
-  if ! [[ -e "${VCPKG_ROOT:?}/vcpkg" ]]; then
-    "${VCPKG_ROOT:?}/bootstrap-vcpkg.sh" -disableMetrics
-    printf 'INFO: vcpkg was bootstrapped\n' >&2
-  fi
+    if ! [[ -e "${VCPKG_ROOT:?}/vcpkg" ]]; then
+        "${VCPKG_ROOT:?}/bootstrap-vcpkg.sh" -disableMetrics
+        printf 'INFO: vcpkg was bootstrapped\n' >&2
+    fi
 
-  cmake -P scripts/download-deps.cmake
+    cmake -P scripts/download-deps.cmake
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  set -euo pipefail
-  shopt -s nullglob
+    set -euo pipefail
+    shopt -s nullglob
 
-  if ! [[ -f buildspec.props ]]; then
-    printf 'ERROR: buildspec.props not found. The working directory MUST be the root of the project.\n' >&2
-    exit 1
-  fi
+    if ! [[ -f buildspec.props ]]; then
+        printf 'ERROR: buildspec.props not found. The working directory MUST be the root of the project.\n' >&2
+        exit 1
+    fi
 
-  if [[ "$(uname -s)" == Darwin ]]; then
-    macos
-  fi
+    if [[ "$(uname -s)" == Darwin ]]; then
+        macos
+    fi
 fi
