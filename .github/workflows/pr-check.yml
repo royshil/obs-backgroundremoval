@@ -77,6 +77,11 @@ jobs:
     with:
       release-build: false
 
+  check-migraphx-ep:
+    uses: ./.github/workflows/check-migraphx-ep.yml
+    permissions:
+      contents: read
+
   accept-pr-check:
     if: always()
     needs:
@@ -87,6 +92,7 @@ jobs:
       - build-ubuntu-amd64
       - build-ubuntu-arm64
       - build-windows-x64
+      - check-migraphx-ep
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions: {}

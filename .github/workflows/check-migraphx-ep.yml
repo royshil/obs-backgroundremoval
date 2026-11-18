@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+# SPDX-FileCopyrightText: 2026 Gavroche
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Check MIGraphX EP paths
+
+on:
+  workflow_call:
+
+jobs:
+  build-paths:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Install dependencies (MIGraphX EP)
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          sudo apt-get update && sudo apt-get -y --no-install-recommends install \
+            build-essential \
+            cmake \
+            git \
+            libcurl4-openssl-dev \
+            libobs-dev \
+            libonnxruntime-dev \
+            libopencv-dev \
+            qt6-base-dev
+
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # The EP library is detected at configure time and registered at run time,
+      # it is never linked. A stub therefore covers the build paths without a
+      # GPU, a ROCm installation or access to AMD's package index.
+      - name: Create MIGraphX EP library stub
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          mkdir -p "${RUNNER_TEMP:?}/migraphx-ep"
+          : > "${RUNNER_TEMP:?}/migraphx-ep/libmigraphx-ep.so"
+
+      - name: Configure with the MIGraphX EP plugin
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          cmake -S "${GITHUB_WORKSPACE:?}" -B build-ep -DCMAKE_BUILD_TYPE=Release \
+            "-DMIGRAPHX_EP_LIBRARY=${RUNNER_TEMP:?}/migraphx-ep/libmigraphx-ep.so" \
+            2>&1 | tee configure-ep.log
+          grep -Fq 'Building with ONNX Runtime MIGraphX EP plugin' configure-ep.log
+
+      - name: Build with the MIGraphX EP plugin
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: cmake --build build-ep --parallel
+
+      - name: Check the MIGraphX EP is compiled in
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: grep -aq 'MIGraphXExecutionProvider' build-ep/obs-backgroundremoval.so
+
+      - name: Configure without the MIGraphX EP plugin
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          cmake -S "${GITHUB_WORKSPACE:?}" -B build-no-ep -DCMAKE_BUILD_TYPE=Release \
+            2>&1 | tee configure-no-ep.log
+          grep -Fq 'Building without ONNX Runtime MIGraphX EP' configure-no-ep.log
+
+      - name: Build without the MIGraphX EP plugin
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: cmake --build build-no-ep --parallel
+
+      - name: Check the MIGraphX EP is not compiled in
+        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        run: |
+          if grep -aq 'MIGraphXExecutionProvider' build-no-ep/obs-backgroundremoval.so; then
+            echo 'MIGraphX EP must not be compiled in without the EP plugin' >&2
+            exit 1
+          fi

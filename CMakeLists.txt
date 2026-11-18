@@ -334,6 +334,50 @@ block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM
       message(STATUS "Building without ONNX Runtime ROCm EP.")
     endif()
 
+    ### MIGraphX EP
+    # Older ONNX Runtime builds link MIGraphX in and export a factory function.
+    check_onnxruntime_execution_provider(
+      HAVE_ONNXRUNTIME_MIGRAPHX_EP
+      OrtSessionOptionsAppendExecutionProvider_MIGraphX
+      onnxruntime_c_api.h
+      onnxruntime/onnxruntime_c_api.h
+      onnxruntime/core/session/onnxruntime_c_api.h
+      migraphx_provider_factory.h
+      onnxruntime/migraphx_provider_factory.h
+      onnxruntime/core/providers/migraphx/migraphx_provider_factory.h
+    )
+
+    # ONNX Runtime >= 1.22 ships MIGraphX as a separately loaded EP library
+    # ("EP plugin") that is registered at runtime through RegisterExecutionProviderLibrary().
+    if(NOT HAVE_ONNXRUNTIME_MIGRAPHX_EP)
+      set(MIGRAPHX_EP_LIBRARY "" CACHE FILEPATH "Path to the ONNX Runtime MIGraphX EP plugin (libmigraphx-ep.so)")
+      if(NOT MIGRAPHX_EP_LIBRARY)
+        find_library(
+          MIGRAPHX_EP_LIBRARY_FOUND
+          NAMES migraphx-ep libmigraphx-ep.so
+          HINTS $ENV{MIGRAPHX_EP_LIBRARY_DIR} $ENV{OBS_BGREMOVAL_MIGRAPHX_EP_LIB_DIR}
+          PATH_SUFFIXES lib
+        )
+        if(MIGRAPHX_EP_LIBRARY_FOUND)
+          set(MIGRAPHX_EP_LIBRARY ${MIGRAPHX_EP_LIBRARY_FOUND})
+        endif()
+      endif()
+      if(MIGRAPHX_EP_LIBRARY AND EXISTS "${MIGRAPHX_EP_LIBRARY}")
+        message(STATUS "Building with ONNX Runtime MIGraphX EP plugin: ${MIGRAPHX_EP_LIBRARY}")
+        target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_MIGRAPHX_EP_PLUGIN)
+        target_compile_definitions(BuildOptions INTERFACE MIGRAPHX_EP_LIBRARY_PATH="${MIGRAPHX_EP_LIBRARY}")
+      else()
+        message(STATUS "Building without ONNX Runtime MIGraphX EP.")
+      endif()
+    else()
+      message(STATUS "Building with ONNX Runtime MIGraphX EP.")
+      target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_MIGRAPHX_EP)
+    endif()
+
+    if(HAVE_ONNXRUNTIME_MIGRAPHX_EP OR HAVE_ONNXRUNTIME_MIGRAPHX_EP_PLUGIN)
+      target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_MIGRAPHX_ANY_EP)
+    endif()
+
     cmake_pop_check_state()
   endif()
 endblock()
