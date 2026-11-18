@@ -3,9 +3,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include <mutex>
-
 #include <array>
+#include <mutex>
 #include <string_view>
 
 #include <QResource>
@@ -13,11 +12,81 @@
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 
-#include "UI/AboutDialogIntegration.hpp"
-#include "UpdateConfig/UpdateConfig.hpp"
+#include <UI/AboutDialogIntegration.hpp>
+#include <UpdateConfig/UpdateConfig.hpp>
+
+// obs_register_source() copies each obs_source_info, so getSourceInfos() can
+// return temporaries.
+#if defined(__APPLE__) || defined(_WIN32)
+
+#if defined(__APPLE__)
+#include <macos/BackgroundRemoval/FilterContext.hpp>
+#else
+#include <BackgroundRemoval/windows/FilterContext.hpp>
+#endif
+
+namespace {
+
+auto getSourceInfos() -> std::array<obs_source_info, 1>
+{
+	return {BackgroundRemoval::FilterContext::getSourceInfo()};
+}
+
+} // namespace
+
+#else
 
 #include "background-filter.h"
 #include "enhance-filter.h"
+
+namespace {
+
+obs_source_info getBackgroundRemovalSourceInfo()
+{
+	obs_source_info si{};
+	si.id = "background_removal";
+	si.type = OBS_SOURCE_TYPE_FILTER;
+	si.output_flags = OBS_SOURCE_VIDEO;
+	si.get_name = background_filter_getname;
+	si.create = background_filter_create;
+	si.destroy = background_filter_destroy;
+	si.get_defaults = background_filter_defaults;
+	si.get_properties = background_filter_properties;
+	si.update = background_filter_update;
+	si.activate = background_filter_activate;
+	si.deactivate = background_filter_deactivate;
+	si.video_tick = background_filter_video_tick;
+	si.video_render = background_filter_video_render;
+	return si;
+}
+
+obs_source_info getEnhanceFilterSourceInfo()
+{
+	obs_source_info si{};
+	si.id = "enhanceportrait";
+	si.type = OBS_SOURCE_TYPE_FILTER;
+	si.output_flags = OBS_SOURCE_VIDEO;
+	si.get_name = enhance_filter_getname;
+	si.create = enhance_filter_create;
+	si.destroy = enhance_filter_destroy;
+	si.get_defaults = enhance_filter_defaults;
+	si.get_properties = enhance_filter_properties;
+	si.update = enhance_filter_update;
+	si.activate = enhance_filter_activate;
+	si.deactivate = enhance_filter_deactivate;
+	si.video_tick = enhance_filter_video_tick;
+	si.video_render = enhance_filter_video_render;
+	return si;
+}
+
+auto getSourceInfos() -> std::array<obs_source_info, 2>
+{
+	return {getBackgroundRemovalSourceInfo(), getEnhanceFilterSourceInfo()};
+}
+
+} // namespace
+
+#endif
 
 #ifndef PLUGIN_VERSION_STR
 #error PLUGIN_VERSION_STR must be defined by the build system
@@ -72,62 +141,20 @@ void showStartupDialogHandler(enum obs_frontend_event event, void *)
 	}
 }
 
-obs_source_info getBackgroundRemovalSourceInfo()
-{
-	obs_source_info si{};
-	si.id = "background_removal";
-	si.type = OBS_SOURCE_TYPE_FILTER;
-	si.output_flags = OBS_SOURCE_VIDEO;
-	si.get_name = background_filter_getname;
-	si.create = background_filter_create;
-	si.destroy = background_filter_destroy;
-	si.get_defaults = background_filter_defaults;
-	si.get_properties = background_filter_properties;
-	si.update = background_filter_update;
-	si.activate = background_filter_activate;
-	si.deactivate = background_filter_deactivate;
-	si.video_tick = background_filter_video_tick;
-	si.video_render = background_filter_video_render;
-	return si;
-}
-
-obs_source_info getEnhanceFilterSourceInfo()
-{
-	obs_source_info si{};
-	si.id = "enhanceportrait";
-	si.type = OBS_SOURCE_TYPE_FILTER;
-	si.output_flags = OBS_SOURCE_VIDEO;
-	si.get_name = enhance_filter_getname;
-	si.create = enhance_filter_create;
-	si.destroy = enhance_filter_destroy;
-	si.get_defaults = enhance_filter_defaults;
-	si.get_properties = enhance_filter_properties;
-	si.update = enhance_filter_update;
-	si.activate = enhance_filter_activate;
-	si.deactivate = enhance_filter_deactivate;
-	si.video_tick = enhance_filter_video_tick;
-	si.video_render = enhance_filter_video_render;
-	return si;
-}
-
 } // namespace
 
 bool obs_module_load(void)
 {
-	static obs_source_info background_removal_source_info = getBackgroundRemovalSourceInfo();
-	static obs_source_info enhance_filter_source_info = getEnhanceFilterSourceInfo();
-
-	std::array<std::string_view, 2> registeringSourceIds{
-		background_removal_source_info.id,
-		enhance_filter_source_info.id,
-	};
+	const auto sourceInfos = getSourceInfos();
 
 	const char *sourceId = nullptr;
-	for (std::size_t i = 0; obs_enum_source_types(i, &sourceId); i++) {
-		if (sourceId && (registeringSourceIds[0] == sourceId || registeringSourceIds[1] == sourceId)) {
-			blog(LOG_ERROR, OBS_LOG_HEADER "Source ID '%s' is already registered by another plugin",
-			     sourceId);
-			return false;
+	for (std::size_t index = 0; obs_enum_source_types(index, &sourceId); ++index) {
+		for (const obs_source_info &sourceInfo : sourceInfos) {
+			if (sourceId && std::string_view(sourceInfo.id) == sourceId) {
+				blog(LOG_ERROR, OBS_LOG_HEADER "Source ID '%s' is already registered by another plugin",
+				     sourceId);
+				return false;
+			}
 		}
 	}
 
@@ -138,8 +165,9 @@ bool obs_module_load(void)
 		~GlobalQResourceGuard() { Q_CLEANUP_RESOURCE(resources); }
 	} globalQResourceGuard;
 
-	obs_register_source(&background_removal_source_info);
-	obs_register_source(&enhance_filter_source_info);
+	for (const obs_source_info &sourceInfo : sourceInfos) {
+		obs_register_source(&sourceInfo);
+	}
 
 	static struct GlobalStartupGuard {
 		bool scheduled{false};
@@ -156,7 +184,6 @@ bool obs_module_load(void)
 	}
 
 	blog(LOG_INFO, OBS_LOG_HEADER "Plugin loaded successfully (version %s)", PLUGIN_VERSION_STR);
-
 	return true;
 }
 
