@@ -12,8 +12,6 @@ path = [
   "CMakePresets.json",
   "compile_flags.txt",
   "scripts/windows/*",
-  "vcpkg-configuration.json",
-  "vcpkg.json",
   "VERSION",
 ]
 SPDX-FileCopyrightText = "2026 Kaito Udagawa <umireon@kaito.tokyo>"

@@ -10,21 +10,16 @@ if not exist "buildspec.props" (
 
 setlocal
 
-set "VCPKG_FORCE_DOWNLOADED_BINARIES=1"
-set "VCPKG_ROOT=%CD%\vendor\vcpkg"
+echo == Initialize submodules ==
 
-echo == Ensure vcpkg and its toolchains ==
+git submodule update --init --filter=blob:none vendor/obs-studio || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
 
-git submodule update --init --filter=blob:none vendor/obs-studio vendor/vcpkg vendor/onnxruntime || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
+echo == Ensure Visual Studio toolchain ==
 
-call "%VCPKG_ROOT%\bootstrap-vcpkg.bat" -disableMetrics || (echo ERROR: vcpkg bootstrap failed. & endlocal & exit /b 1)
+set "PATH=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer;%PATH%"
+where /q vswhere.exe || (echo ERROR: Vswhere was not found. & endlocal & exit /b 1)
 
-for /f "delims=" %%i in ('""%VCPKG_ROOT%\vcpkg.exe" fetch vswhere"') do set "VSWHERE_COMMAND=%%i"
-if not defined VSWHERE_COMMAND (
-	echo ERROR: Vswhere was not found. & endlocal & exit /b 1
-)
-
-for /f "delims=" %%i in ('""%VSWHERE_COMMAND%" -latest -version 18 -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath"') do set "VS_INSTALL_PATH=%%i"
+for /f "delims=" %%i in ('vswhere.exe -latest -version "[18,19)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath') do set "VS_INSTALL_PATH=%%i"
 if not defined VS_INSTALL_PATH (
 	echo ERROR: Visual Studio 18 with the MSVC x64/x86 build tools was not found. & endlocal & exit /b 1
 )
