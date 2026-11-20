@@ -5,26 +5,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 macos() {
-  : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
-
-  JOB_TEMP="$(mktemp -d -t "obs-backgroundremoval-setup.XXXXXXX")"
-  export JOB_TEMP
-  mkdir -p "${JOB_TEMP:?}"
-
   command -v cmake >/dev/null || {
     printf 'ERROR: CMake was not found. Run bin/bootstrap first.\n' >&2
     return 1
   }
-
-  cmake -P scripts/download-deps.cmake
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   set -euo pipefail
   shopt -s nullglob
 
-  if ! [[ -f buildspec.props ]]; then
-    printf 'ERROR: buildspec.props not found. The working directory MUST be the root of the project.\n' >&2
+  if ! [[ -f VERSION ]]; then
+    printf 'ERROR: VERSION not found. The working directory MUST be the root of the project.\n' >&2
     exit 1
   fi
 

@@ -28,20 +28,21 @@ endif()
 include(CheckCXXSymbolExists)
 include(CMakePushCheckState)
 include(CTest)
+include(FetchContent)
 include(GNUInstallDirs)
 
 include(./cmake/collect_licenses.cmake OPTIONAL)
 
-block(
-  PROPAGATE PLUGIN_DISPLAY_NAME PLUGIN_AUTHOR PLUGIN_EMAIL PLUGIN_BUNDLE_ID PLUGIN_LATEST_VERSION_URL
+set(PLUGIN_DISPLAY_NAME "OBS Background Removal" CACHE STRING "Display name for plugin")
+set(PLUGIN_AUTHOR "Roy Shilkrot" CACHE STRING "Author of the plugin")
+set(PLUGIN_EMAIL "roy.shil@gmail.com" CACHE STRING "Email of the plugin author")
+set(PLUGIN_BUNDLE_ID "com.royshilkrot.obs-backgroundremoval" CACHE STRING "Bundle ID for the plugin")
+set(
+  PLUGIN_LATEST_VERSION_URL
+  "https://royshil.github.io/obs-backgroundremoval/metadata/latest-version.txt"
+  CACHE STRING
+  "URL for the latest plugin version"
 )
-  file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.props" BUILDSPEC_LINES)
-  foreach(LINE IN LISTS BUILDSPEC_LINES)
-    if(LINE MATCHES "^([a-zA-Z][a-zA-Z0-9_]*)=(.*)$")
-      set("${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}")
-    endif()
-  endforeach()
-endblock()
 
 if(DEFINED ENV{GITHUB_RUN_ID})
   set(PLUGIN_BUILD_NUMBER "$ENV{GITHUB_RUN_ID}")
@@ -138,6 +139,27 @@ function(check_onnxruntime_execution_provider result symbol)
 endfunction()
 
 ### Package dependencies
+
+if(WIN32)
+  FetchContent_Declare(
+    obs-deps-qt6
+    URL https://github.com/obsproject/obs-deps/releases/download/2024-05-08/windows-deps-qt6-2024-05-08-x64.zip
+    URL_HASH SHA256=8f459af5115ce081ae24b108712327e113893f250e14a902b1bd188b43873ed1
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+elseif(APPLE)
+  FetchContent_Declare(
+    obs-deps-qt6
+    URL https://github.com/obsproject/obs-deps/releases/download/2026-07-15/macos-deps-qt6-2026-07-15-universal.tar.xz
+    URL_HASH SHA256=d4b8058612a7067e44b2205fe7925ee24e9ec6b15ac8c29d3e6230c70030b102
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+endif()
+if(WIN32 OR APPLE)
+  FetchContent_MakeAvailable(obs-deps-qt6)
+  list(PREPEND CMAKE_PREFIX_PATH "${obs-deps-qt6_SOURCE_DIR}")
+endif()
+
 find_package(PkgConfig QUIET)
 
 if(APPLE)

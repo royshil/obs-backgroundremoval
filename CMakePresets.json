@@ -12,8 +12,7 @@
       "generator": "Xcode",
       "cacheVariables": {
         "CMAKE_OSX_ARCHITECTURES": "arm64",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "13.0",
-        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/obs-deps;${sourceDir}/.deps/obs-deps-qt6;${sourceDir}/obs_installed;${sourceDir}/obs_installed/Frameworks"
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "13.0"
       },
       "warnings": {
         "dev": false

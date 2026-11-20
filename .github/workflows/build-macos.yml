@@ -93,29 +93,18 @@ jobs:
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         run: git submodule update --init --filter=blob:none vendor/obsproject/obs-studio
 
-      - name: Load buildspec.props and VERSION
-        id: buildspec
+      - name: Load VERSION
+        id: version
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
-          foreach ($entry in (Get-Content -LiteralPath buildspec.props -Raw | ConvertFrom-StringData).GetEnumerator()) {
-            Add-Content -Value "$($entry.Key)=$($entry.Value)" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
-          }
-
           $PLUGIN_VERSION = (Get-Content -Raw -LiteralPath VERSION).Trim()
           "PLUGIN_VERSION=$PLUGIN_VERSION"
           Add-Content -Value "PLUGIN_VERSION=$PLUGIN_VERSION" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
-      - name: Set up buildspec dependencies (macOS)
-        id: setup-buildspec-deps
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          "${CMAKE_COMMAND:?}" -P scripts/download-deps.cmake
-
       - name: Configure (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          CMAKE_OSX_DEPLOYMENT_TARGET: ${{ steps.buildspec.outputs.osx_deployment_target }}
-          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }}
+          CMAKE_OSX_DEPLOYMENT_TARGET: "13.0"
         run: |
           ENVS=(
             DEVELOPER_DIR="${DEVELOPER_DIR:?}"
@@ -127,8 +116,7 @@ jobs:
           /usr/bin/env -i "${ENVS[@]}" \
             "${CMAKE_COMMAND:?}" -S . -B build -G Xcode \
             '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:?}"
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}"
 
       - name: Build (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
@@ -159,7 +147,7 @@ jobs:
         id: archive-dsym
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
-          PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
+          PLUGIN_VERSION: ${{ steps.version.outputs.PLUGIN_VERSION }}
         run: |
           DSYM_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos.plugin.dSYM.tar.xz"
           dsymutil build/RelWithDebInfo/obs-backgroundremoval.plugin/Contents/MacOS/obs-backgroundremoval -o obs-backgroundremoval.plugin.dSYM
@@ -195,8 +183,8 @@ jobs:
           BUILD_PREFIX: ${{ github.workspace }}/build_prefix
           MACOS_SIGNING_APPLICATION_IDENTITY: ${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}
           MACOS_SIGNING_INSTALLER_IDENTITY: ${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}
-          PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.PLUGIN_BUNDLE_ID }}
-          PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
+          PLUGIN_BUNDLE_ID: com.royshilkrot.obs-backgroundremoval
+          PLUGIN_VERSION: ${{ steps.version.outputs.PLUGIN_VERSION }}
         run: |
           PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos.pkg"
 
@@ -257,8 +245,8 @@ jobs:
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           BUILD_PREFIX: ${{ github.workspace }}/build_prefix
-          PLUGIN_BUNDLE_ID: ${{ steps.buildspec.outputs.PLUGIN_BUNDLE_ID }}
-          PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
+          PLUGIN_BUNDLE_ID: com.royshilkrot.obs-backgroundremoval
+          PLUGIN_VERSION: ${{ steps.version.outputs.PLUGIN_VERSION }}
         run: |
           PKG_ARTIFACT_NAME="obs-backgroundremoval-${PLUGIN_VERSION:?}-macos.unsigned.pkg"
 

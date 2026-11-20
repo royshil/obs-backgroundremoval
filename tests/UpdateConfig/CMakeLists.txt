@@ -19,7 +19,11 @@ function(configure_update_config_test TARGET_NAME)
   add_test(NAME "${TARGET_NAME}" COMMAND "${TARGET_NAME}")
 endfunction()
 
-add_executable(UpdateConfigSemverTest UpdateConfigSemverTest.cpp "${PLUGIN_SOURCE_DIR}/UpdateConfig/UpdateConfigSemver.cpp")
+add_executable(
+  UpdateConfigSemverTest
+  UpdateConfigSemverTest.cpp
+  "${PLUGIN_SOURCE_DIR}/UpdateConfig/UpdateConfigSemver.cpp"
+)
 configure_update_config_test(UpdateConfigSemverTest)
 
 add_executable(
@@ -46,7 +50,6 @@ endif()
 if(WIN32)
   set_tests_properties(
     UpdateConfigCurlTest
-    PROPERTIES ENVIRONMENT_MODIFICATION
-               "PATH=path_list_prepend:${CMAKE_SOURCE_DIR}/.deps/obs-deps/bin;PATH=path_list_prepend:${CMAKE_SOURCE_DIR}/obs_installed/bin/64bit"
+    PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
   )
 endif()
