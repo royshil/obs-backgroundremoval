@@ -417,6 +417,9 @@ elseif(WIN32)
     ${CMAKE_PROJECT_NAME}
     PRIVATE
       src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp
+      src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp
+      src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp
+      src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
       src/BackgroundRemoval/windows/FilterContext.cpp
       src/BackgroundRemoval/windows/ModuleText.cpp
   )
