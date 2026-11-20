@@ -10,17 +10,16 @@
 #include <string>
 #include <string_view>
 
+#include <BackgroundRemoval/IRenderingPipeline.hpp>
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
+#include <plugin-support.h>
 
 #include "ModuleText.hpp"
+#include "PipelineFactory.hpp"
 
 #ifndef PLUGIN_VERSION_STR
 #error PLUGIN_VERSION_STR must be defined by the build system
-#endif
-
-#ifndef OBS_LOG_HEADER
-#error OBS_LOG_HEADER must be defined by the build system
 #endif
 
 namespace {
@@ -57,6 +56,14 @@ FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : sourc
 	if (!settings || !source_) {
 		throw std::invalid_argument("Invalid Windows background-removal context arguments");
 	}
+	readSettings(settings);
+}
+
+FilterContext::~FilterContext() noexcept
+{
+	obs_enter_graphics();
+	pipeline_.reset();
+	obs_leave_graphics();
 }
 
 const char *FilterContext::getName(void *) noexcept
@@ -69,10 +76,10 @@ void *FilterContext::create(obs_data_t *settings, obs_source_t *source) noexcept
 	try {
 		return new FilterContext(settings, source);
 	} catch (const std::exception &exception) {
-		blog(LOG_ERROR, OBS_LOG_HEADER "Failed to create Windows FilterContext: %s", exception.what());
+		obs_log(LOG_ERROR, "Failed to create Windows FilterContext: %s", exception.what());
 		return nullptr;
 	} catch (...) {
-		blog(LOG_ERROR, OBS_LOG_HEADER "Failed to create Windows FilterContext: Unknown error");
+		obs_log(LOG_ERROR, "Failed to create Windows FilterContext: Unknown error");
 		return nullptr;
 	}
 }
@@ -88,14 +95,42 @@ auto FilterContext::handleAboutButtonClicked(obs_properties_t *, obs_property_t 
 	return false;
 }
 
+void FilterContext::update(void *data, obs_data_t *settings) noexcept
+{
+	if (auto *context = static_cast<FilterContext *>(data)) {
+		context->readSettings(settings);
+	}
+}
+
+void FilterContext::readSettings(obs_data_t *settings) noexcept
+{
+	pipelineId_.store(obs_data_get_int(settings, "v2_PipelineId"));
+	outputDownscaleFactor_.store(
+		validOutputDownscaleFactor(obs_data_get_int(settings, "v2_OutputDownscaleFactor")));
+	maskAdjustment_.store(obs_data_get_double(settings, "v2_MaskAdjustment"));
+	blurBgEnabled_.store(obs_data_get_bool(settings, "v2_BlurBg"));
+	// v2_BlurBg_Factor was an integer iteration count; obs_data reads stored integers as doubles.
+	blurBgStrength_.store(obs_data_get_double(settings, "v2_BlurBg_Factor"));
+	blurBgFocusPoint_.store(obs_data_get_double(settings, "v2_BlurBg_FocusPoint"));
+}
+
+void FilterContext::applySettings(IRenderingPipeline &pipeline) const noexcept
+{
+	pipeline.setMaskAdjustment(maskAdjustment_.load());
+	pipeline.setBlurBgEnabled(blurBgEnabled_.load());
+	pipeline.setBlurBgStrength(blurBgStrength_.load());
+	pipeline.setBlurBgFocusPoint(blurBgFocusPoint_.load());
+}
+
 void FilterContext::getDefaults(obs_data_t *settings) noexcept
 {
+	obs_data_set_default_int(settings, "v2_OutputDownscaleFactor", 1);
+	obs_data_set_default_int(settings, "v2_PipelineId", kAutoPipelineId);
 	obs_data_set_default_double(settings, "v2_MotionSuppression", 0.0);
 	obs_data_set_default_double(settings, "v2_MaskAdjustment", 0.0);
 	obs_data_set_default_bool(settings, "v2_BlurBg", false);
-	obs_data_set_default_int(settings, "v2_BlurBg_Factor", 4);
+	obs_data_set_default_double(settings, "v2_BlurBg_Factor", 4.0);
 	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", 0.1);
-	obs_data_set_default_double(settings, "v2_BlurBg_FocusDepth", 0.0);
 }
 
 std::string FilterContext::getVersionNotice()
@@ -128,10 +163,10 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
 		std::string versionNotice = getVersionNotice();
 		obs_properties_add_text(p, "v2_VersionNotice", versionNotice.c_str(), OBS_TEXT_INFO);
 	} catch (const std::exception &exception) {
-		blog(LOG_ERROR, OBS_LOG_HEADER "Failed to get version info: %s", exception.what());
+		obs_log(LOG_ERROR, "Failed to get version info: %s", exception.what());
 		obs_properties_add_text(p, "v2_VersionNotice", tBackgroundRemoval(), OBS_TEXT_INFO);
 	} catch (...) {
-		blog(LOG_ERROR, OBS_LOG_HEADER "Failed to get version info: Unknown error");
+		obs_log(LOG_ERROR, "Failed to get version info: Unknown error");
 		obs_properties_add_text(p, "v2_VersionNotice", tBackgroundRemoval(), OBS_TEXT_INFO);
 	}
 
@@ -139,6 +174,20 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
 
 	obs_properties_t *const pGeneral = obs_properties_create();
 	obs_properties_add_group(p, "v2_GeneralGroup", tGeneral(), OBS_GROUP_NORMAL, pGeneral);
+
+	obs_property_t *const outputDownscaleFactor =
+		obs_properties_add_list(pGeneral, "v2_OutputDownscaleFactor", tOutputDownscaleFactor(),
+					OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(outputDownscaleFactor, "1", 1);
+	obs_property_list_add_int(outputDownscaleFactor, "2", 2);
+	obs_property_list_add_int(outputDownscaleFactor, "4", 4);
+	obs_property_set_long_description(outputDownscaleFactor, tOutputDownscaleFactorDescription());
+
+	obs_property_t *const pipeline = obs_properties_add_list(pGeneral, "v2_PipelineId", tPipeline(),
+								 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(pipeline, tPipelineAuto(), kAutoPipelineId);
+	obs_property_list_add_int(pipeline, tPipelineMPLS(), kMPLSPipelineId);
+	obs_property_set_long_description(pipeline, tPipelineDescription());
 
 	obs_property_t *const maskAdjustment =
 		obs_properties_add_float_slider(pGeneral, "v2_MaskAdjustment", tMaskAdjustment(), -50.0, 50.0, 0.01);
@@ -153,9 +202,12 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
 	obs_properties_t *const blurProperties = obs_properties_create();
 	obs_properties_add_group(p, "v2_BlurBg", tBlurBg(), OBS_GROUP_CHECKABLE, blurProperties);
 
-	obs_properties_add_int_slider(blurProperties, "v2_BlurBg_Factor", tBlurBgStrength(), 0, 20, 1);
-	obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusPoint", tBlurBgFocusPoint(), 0.0, 1.0, 0.05);
-	obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusDepth", tBlurBgFocusDepth(), 0.0, 0.3, 0.02);
+	obs_property_t *const blurStrength =
+		obs_properties_add_float_slider(blurProperties, "v2_BlurBg_Factor", tBlurBgStrength(), 0.0, 20.0, 0.1);
+	obs_property_set_long_description(blurStrength, tBlurBgStrengthDescription());
+	obs_property_t *const blurFocusPoint = obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusPoint",
+									       tBlurBgFocusPoint(), 0.0, 1.0, 0.05);
+	obs_property_set_long_description(blurFocusPoint, tBlurBgFocusPointDescription());
 
 	// MARK: - Footer
 
@@ -164,11 +216,100 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
 	return p;
 }
 
+// The output size is the one of the current pipeline, as video_tick created it, or 0 without one.
+// These callbacks query no source size: for the parent source, obs_source_get_width/height() return
+// the size of its first filter, which may be this filter, under the parent's filter mutex.
+std::uint32_t FilterContext::getWidth(void *data) noexcept
+{
+	const auto *context = static_cast<FilterContext *>(data);
+	return context ? context->outputWidth_.load() : 0;
+}
+
+std::uint32_t FilterContext::getHeight(void *data) noexcept
+{
+	const auto *context = static_cast<FilterContext *>(data);
+	return context ? context->outputHeight_.load() : 0;
+}
+
+void FilterContext::videoTick(void *data, float) noexcept
+{
+	if (auto *context = static_cast<FilterContext *>(data)) {
+		context->tick();
+	}
+}
+
+// Recreates the pipeline whenever the selection, the output downscale factor or the target's size changes, as
+// live-backgroundremoval-lite does, with the target's base size. It works while the parent source is
+// showing anywhere, not only while it is active in the program output, so that the Studio Mode
+// preview, the filter properties preview and projectors show the source with the background
+// removed. A key that failed is not retried until something changes again. video_tick runs on the
+// graphics thread outside the graphics context, so enter it to create or destroy the pipeline.
+void FilterContext::tick() noexcept
+{
+	obs_source_t *const parent = obs_filter_get_parent(source_);
+	obs_source_t *const target = obs_filter_get_target(source_);
+	if (!parent || !obs_source_showing(parent) || !target) {
+		return;
+	}
+	const PipelineKey key{
+		.pipelineId = pipelineId_.load(),
+		.outputDownscaleFactor = outputDownscaleFactor_.load(),
+		.sourceWidth = obs_source_get_base_width(target),
+		.sourceHeight = obs_source_get_base_height(target),
+	};
+	if (key.sourceWidth == 0 || key.sourceHeight == 0) {
+		resetPipeline();
+		return;
+	}
+	if (pipelineKey_ == key) {
+		return;
+	}
+	pipelineKey_ = key;
+
+	obs_enter_graphics();
+	pipeline_.reset();
+	try {
+		pipeline_ = createRenderingPipeline(key.pipelineId, source_, key.sourceWidth, key.sourceHeight,
+						    key.outputDownscaleFactor);
+	} catch (const std::exception &exception) {
+		obs_log(LOG_ERROR, "Failed to create the rendering pipeline: %s", exception.what());
+	} catch (...) {
+		obs_log(LOG_ERROR, "Failed to create the rendering pipeline: Unknown error");
+	}
+	obs_leave_graphics();
+	outputWidth_.store(pipeline_ ? pipeline_->width() : 0);
+	outputHeight_.store(pipeline_ ? pipeline_->height() : 0);
+}
+
+void FilterContext::resetPipeline() noexcept
+{
+	if (pipeline_) {
+		obs_enter_graphics();
+		pipeline_.reset();
+		obs_leave_graphics();
+	}
+	pipelineKey_.reset();
+	outputWidth_.store(0);
+	outputHeight_.store(0);
+}
+
 void FilterContext::videoRender(void *data, gs_effect_t *) noexcept
 {
 	if (auto *context = static_cast<FilterContext *>(data)) {
-		obs_source_skip_video_filter(context->source_);
+		context->render();
 	}
+}
+
+// Draws nothing when the parent is not shown or there is no pipeline, as live-backgroundremoval-lite
+// does, so that the unfiltered background is never disclosed.
+void FilterContext::render() noexcept
+{
+	obs_source_t *const parent = obs_filter_get_parent(source_);
+	if (!parent || !obs_source_showing(parent) || !pipeline_) {
+		return;
+	}
+	applySettings(*pipeline_);
+	pipeline_->videoRender();
 }
 
 } // namespace BackgroundRemoval

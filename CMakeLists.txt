@@ -422,6 +422,7 @@ elseif(WIN32)
       src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
       src/BackgroundRemoval/windows/FilterContext.cpp
       src/BackgroundRemoval/windows/ModuleText.cpp
+      src/BackgroundRemoval/windows/PipelineFactory.cpp
   )
 else()
   target_sources(
