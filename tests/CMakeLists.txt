@@ -16,5 +16,6 @@ if(WIN32)
   set(OBS_TEST_BIN_DIR "${OBS_TEST_ROOT}/bin/64bit")
 endif()
 
+add_subdirectory(BackgroundRemoval)
 add_subdirectory(UI)
 add_subdirectory(UpdateConfig)

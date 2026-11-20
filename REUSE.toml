@@ -9,6 +9,7 @@ SPDX-License-Identifier = "LicenseRef-Not-Copyrightable"
 path = [
   ".github/workflows/actions.lock",
   ".python-version",
+  "**/*.upstream",
   "CMakePresets.json",
   "compile_flags.txt",
   "scripts/windows/*",

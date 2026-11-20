@@ -2,6 +2,7 @@
 -Ivendor/obsproject/obs-studio/libobs
 -Ivendor/obsproject/obs-studio/UI/obs-frontend-api
 -Ivendor/curl/curl/include
+-Itests/vendor/doctest
 -Ibuild/_deps/obs-deps-qt6-src/include
 -Ibuild/_deps/obs-deps-qt6-src/include/QtCore
 -Ibuild/_deps/obs-deps-qt6-src/include/QtGui
