@@ -52,30 +52,15 @@ jobs:
 
       - name: Checkout submodules
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: git submodule update --init --filter=blob:none vendor/obs-studio
+        run: git submodule update --init --filter=blob:none vendor/obsproject/obs-studio vendor/curl/curl
 
-      - name: Load buildspec.props and VERSION
-        id: buildspec
+      - name: Load VERSION
+        id: version
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         run: |
-          foreach ($entry in (Get-Content -LiteralPath buildspec.props -Raw | ConvertFrom-StringData).GetEnumerator()) {
-            "$($entry.Key)=$($entry.Value)"
-            Add-Content -Value "$($entry.Key)=$($entry.Value)" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
-          }
-
           $PLUGIN_VERSION = (Get-Content -Raw -LiteralPath VERSION).Trim()
           "PLUGIN_VERSION=$PLUGIN_VERSION"
           Add-Content -Value "PLUGIN_VERSION=$PLUGIN_VERSION" -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
-
-      - name: Set up buildspec dependencies (Windows)
-        id: setup-buildspec-deps
-        shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: |
-          $LAUNCH_DEVSHELL = Join-Path (vswhere -version '[18,19)' -property installationPath) 'Common7' 'Tools' 'Launch-VsDevShell.ps1'
-          $env:Path = 'C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32;C:\Windows'
-          & $LAUNCH_DEVSHELL -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-
-          cmake -P scripts/download-deps.cmake
 
       - name: Use Visual Studio CMake (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
@@ -89,11 +74,9 @@ jobs:
       - name: Configure (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         env:
-          CMAKE_PREFIX_PATH: ${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_PREFIX }};${{ steps.setup-buildspec-deps.outputs.OBS_DEPS_QT6_PREFIX }}
-          CMAKE_SYSTEM_VERSION: ${{ steps.buildspec.outputs.windows_sdk_version }}
+          CMAKE_SYSTEM_VERSION: "10.0.26100"
         run: |
           cmake -S . -B build -G 'Visual Studio 18 2026' -A x64 `
-            "-DCMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH" `
             "-DCMAKE_SYSTEM_VERSION=$env:CMAKE_SYSTEM_VERSION"
 
       - name: Build (Windows)
@@ -104,7 +87,7 @@ jobs:
         id: package-zip
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         env:
-          PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
+          PLUGIN_VERSION: ${{ steps.version.outputs.PLUGIN_VERSION }}
         run: |
           $ZIP_ARTIFACT_NAME = "obs-backgroundremoval-$($env:PLUGIN_VERSION)-windows-x64.zip"
 
@@ -126,7 +109,7 @@ jobs:
         id: package-pdb
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         env:
-          PLUGIN_VERSION: ${{ steps.buildspec.outputs.PLUGIN_VERSION }}
+          PLUGIN_VERSION: ${{ steps.version.outputs.PLUGIN_VERSION }}
         run: |
           $PDB_ARTIFACT_NAME = "obs-backgroundremoval-$($env:PLUGIN_VERSION)-windows-x64-pdb.7z"
           $DLL_FILES = @(Get-ChildItem -LiteralPath build -Filter 'obs-backgroundremoval.dll' -File -Recurse)

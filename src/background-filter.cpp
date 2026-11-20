@@ -392,12 +392,12 @@ void background_filter_update(void *data, obs_data_t *settings)
 	obs_log(LOG_INFO, "  Threshold: %f", tf->threshold);
 	obs_log(LOG_INFO, "  Contour Filter: %f", tf->contourFilter);
 	obs_log(LOG_INFO, "  Smooth Contour: %f", tf->smoothContour);
-	obs_log(LOG_INFO, "  Mask Expansion: %f", tf->maskExpansion);
+	obs_log(LOG_INFO, "  Mask Expansion: %d", tf->maskExpansion);
 	obs_log(LOG_INFO, "  Feather: %f", tf->feather);
 	obs_log(LOG_INFO, "  Mask Every X Frames: %d", tf->maskEveryXFrames);
 	obs_log(LOG_INFO, "  Enable Image Similarity: %s", tf->enableImageSimilarity ? "true" : "false");
 	obs_log(LOG_INFO, "  Image Similarity Threshold: %f", tf->imageSimilarityThreshold);
-	obs_log(LOG_INFO, "  Blur Background: %d", tf->blurBackground);
+	obs_log(LOG_INFO, "  Blur Background: %lld", static_cast<long long>(tf->blurBackground));
 	obs_log(LOG_INFO, "  Enable Focal Blur: %s", tf->enableFocalBlur ? "true" : "false");
 	obs_log(LOG_INFO, "  Blur Focus Point: %f", tf->blurFocusPoint);
 	obs_log(LOG_INFO, "  Blur Focus Depth: %f", tf->blurFocusDepth);

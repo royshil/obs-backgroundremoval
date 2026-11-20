@@ -23,8 +23,7 @@ macos() {
     -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
     -G Xcode \
     -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-    -DCMAKE_PREFIX_PATH="${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps;${PLUGIN_BUILD_DIR:-${PWD:?}}/.deps/obs-deps-qt6;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed;${PLUGIN_BUILD_DIR:-${PWD:?}}/obs_installed/Frameworks"
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}"
   printf "INFO: plugin was configured\n" >&2
 }
 
@@ -32,8 +31,8 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   set -euo pipefail
   shopt -s nullglob
 
-  if ! [[ -f buildspec.props ]]; then
-    printf 'ERROR: buildspec.props not found. The working directory MUST be the root of the project.\n' >&2
+  if ! [[ -f VERSION ]]; then
+    printf 'ERROR: VERSION not found. The working directory MUST be the root of the project.\n' >&2
     exit 1
   fi
 

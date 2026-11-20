@@ -32,16 +32,14 @@ arch() {
 }
 
 macos() {
-  local osx_deployment_target
-  osx_deployment_target="$(awk -F= '$1 == "osx_deployment_target" { print $2; exit }' buildspec.props)"
+  local osx_deployment_target=13.0
 
   cmake \
     -S "${PWD:?}" \
     -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
     -G Xcode \
     "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" \
-    "-DCMAKE_OSX_DEPLOYMENT_TARGET=${osx_deployment_target:?}" \
-    "-DCMAKE_PREFIX_PATH=${PWD:?}/.deps/obs-deps-qt6"
+    "-DCMAKE_OSX_DEPLOYMENT_TARGET=${osx_deployment_target:?}"
   printf "INFO: plugin was configured\n" >&2
 
   cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --config RelWithDebInfo --parallel
@@ -53,11 +51,6 @@ macos() {
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   set -euo pipefail
   shopt -s nullglob
-
-  if ! [[ -f buildspec.props ]]; then
-    printf 'ERROR: buildspec.props not found. The working directory MUST be the root of the project.\n' >&2
-    exit 1
-  fi
 
   [[ -f /etc/os-release ]] && . /etc/os-release
   if [[ "$(uname -s)" == Darwin ]]; then

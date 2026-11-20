@@ -25,8 +25,8 @@ case "${1:-}" in
   ;;
 esac
 
-if [[ ! -f buildspec.props ]]; then
-  printf 'ERROR: buildspec.props not found. The working directory MUST be the root of the project.\n' >&2
+if [[ ! -f VERSION ]]; then
+  printf 'ERROR: VERSION not found. The working directory MUST be the root of the project.\n' >&2
   exit 1
 fi
 
@@ -51,8 +51,8 @@ targets=(
   "${PLUGIN_BUILD_DIR}/build"
   "${PLUGIN_BUILD_DIR}/build_prefix"
   "${PLUGIN_BUILD_DIR}/release"
-  "${PLUGIN_BUILD_DIR}/vendor/obs-studio/.deps"
   # Former submodules left behind by older checkouts
+  "${PLUGIN_BUILD_DIR}/vendor/obs-studio/.deps"
   "${PLUGIN_BUILD_DIR}/vendor/onnxruntime"
   "${PLUGIN_BUILD_DIR}/vendor/vcpkg"
 )

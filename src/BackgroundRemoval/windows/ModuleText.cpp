@@ -28,6 +28,38 @@ const char *tGeneral()
 	return obs_module_text("General");
 }
 
+const char *tOutputDownscaleFactor()
+{
+	return obs_module_text("Downscale factor");
+}
+
+const char *tOutputDownscaleFactorDescription()
+{
+	return obs_module_text("Outputs the image at 1 / this factor of the source size. The image is processed at the "
+			       "full source size either way. Use a larger factor when the source is shown small.");
+}
+
+const char *tPipeline()
+{
+	return obs_module_text("Pipeline");
+}
+
+const char *tPipelineAuto()
+{
+	return obs_module_text("Auto (MediaPipe)");
+}
+
+const char *tPipelineMPLS()
+{
+	return obs_module_text("MediaPipe (Landscape) - Default GPU");
+}
+
+const char *tPipelineDescription()
+{
+	return obs_module_text(
+		"Auto selects the recommended pipeline. Select a specific pipeline to use it explicitly.");
+}
+
 const char *tMaskAdjustment()
 {
 	return obs_module_text("Mask adjustment");
@@ -60,14 +92,21 @@ const char *tBlurBgStrength()
 	return obs_module_text("Strength");
 }
 
+const char *tBlurBgStrengthDescription()
+{
+	return obs_module_text("How strongly the parts farthest from the focus point are blurred. "
+			       "0 leaves the image sharp. The default is 4.");
+}
+
 const char *tBlurBgFocusPoint()
 {
 	return obs_module_text("Focus point");
 }
 
-const char *tBlurBgFocusDepth()
+const char *tBlurBgFocusPointDescription()
 {
-	return obs_module_text("Focus depth");
+	return obs_module_text("Where the image stays sharp: 0 keeps the person sharp, 1 keeps the background "
+			       "sharp. The blur grows with the distance from this point. The default is 0.1.");
 }
 
 auto tAboutThisPlugin() -> const char *

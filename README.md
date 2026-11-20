@@ -50,6 +50,8 @@ Additional tutorial videos:
 
 ```pwsh
 git clone https://github.com/royshil/obs-backgroundremoval.git
+cd obs-backgroundremoval
+git submodule update --init
 ```
 
 **Platforms we support building from source officially:**
