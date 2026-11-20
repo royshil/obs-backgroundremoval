@@ -2,6 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-[submodule "vendor/obs-studio"]
-	path = vendor/obs-studio
+[submodule "vendor/obsproject/obs-studio"]
+	path = vendor/obsproject/obs-studio
 	url = https://github.com/obsproject/obs-studio.git
+[submodule "vendor/curl/curl"]
+	path = vendor/curl/curl
+	url = https://github.com/curl/curl.git

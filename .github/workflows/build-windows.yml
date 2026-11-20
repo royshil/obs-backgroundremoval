@@ -52,7 +52,7 @@ jobs:
 
       - name: Checkout submodules
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
-        run: git submodule update --init --filter=blob:none vendor/obs-studio
+        run: git submodule update --init --filter=blob:none vendor/obsproject/obs-studio vendor/curl/curl
 
       - name: Load buildspec.props and VERSION
         id: buildspec

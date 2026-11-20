@@ -6,13 +6,13 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-$OBS_VERSION = '29.1.3'
-$OBS_ZIP_SHA256 = '45d7ea580137fe50a19bdc62e12dcfc1406d74c51341308010d7b6d197339524'
+$OBS_VERSION = '30.2.3'
+$OBS_ZIP_SHA256 = 'c5bf721258f6d8b2342ed39f04e65cdd3a07a9d1300654471d4be91d87fee65b'
 $REPOSITORY_DIR = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$OUTPUT_DIR = Join-Path $REPOSITORY_DIR "vendor\sdk\obs-$OBS_VERSION-windows\lib"
+$OUTPUT_DIR = Join-Path $REPOSITORY_DIR "vendor\obs-deps\lib\x64-windows"
 $WORK_DIR = Join-Path ([System.IO.Path]::GetTempPath()) "obs-windows-import-libs.$([guid]::NewGuid())"
 $DOWNLOAD_DIR = if ($env:OBS_SDK_DOWNLOAD_DIR) { $env:OBS_SDK_DOWNLOAD_DIR } else { $WORK_DIR }
-$OBS_ZIP_NAME = "OBS-Studio-$OBS_VERSION.zip"
+$OBS_ZIP_NAME = "OBS-Studio-$OBS_VERSION-Windows.zip"
 $OBS_ZIP_URL = "https://github.com/obsproject/obs-studio/releases/download/$OBS_VERSION/$OBS_ZIP_NAME"
 $OBS_ZIP_PATH = Join-Path $DOWNLOAD_DIR $OBS_ZIP_NAME
 $EXTRACT_DIR = Join-Path $WORK_DIR 'obs'

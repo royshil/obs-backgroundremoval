@@ -12,7 +12,7 @@ setlocal
 
 echo == Initialize submodules ==
 
-git submodule update --init --filter=blob:none vendor/obs-studio || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
+git submodule update --init --filter=blob:none vendor/obsproject/obs-studio vendor/curl/curl || (echo ERROR: submodule initialization failed. & endlocal & exit /b 1)
 
 echo == Ensure Visual Studio toolchain ==
 

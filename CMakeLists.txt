@@ -147,7 +147,7 @@ if(APPLE)
     PROPERTIES
       INTERFACE_COMPILE_DEFINITIONS "SIMDE_ENABLE_OPENMP;ENABLE_HEVC"
       INTERFACE_COMPILE_OPTIONS "-fopenmp-simd"
-      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/libobs"
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obsproject/obs-studio/libobs"
       INTERFACE_LINK_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-macos/lib/libobs.tbd"
   )
 
@@ -155,7 +155,7 @@ if(APPLE)
   set_target_properties(
     OBS::obs-frontend-api
     PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/UI/obs-frontend-api"
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obsproject/obs-studio/UI/obs-frontend-api"
       INTERFACE_LINK_LIBRARIES
         "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-macos/lib/obs-frontend-api.tbd;OBS::libobs"
   )
@@ -164,17 +164,26 @@ elseif(WIN32)
   set_target_properties(
     OBS::libobs
     PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/libobs"
-      INTERFACE_LINK_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-windows/lib/obs.lib"
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obsproject/obs-studio/libobs"
+      INTERFACE_LINK_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-deps/lib/x64-windows/obs.lib"
   )
 
   add_library(OBS::obs-frontend-api INTERFACE IMPORTED)
   set_target_properties(
     OBS::obs-frontend-api
     PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-studio/UI/obs-frontend-api"
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obsproject/obs-studio/UI/obs-frontend-api"
       INTERFACE_LINK_LIBRARIES
-        "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-windows/lib/obs-frontend-api.lib;OBS::libobs"
+        "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-deps/lib/x64-windows/obs-frontend-api.lib;OBS::libobs"
+  )
+
+  # The libcurl.dll that OBS Studio ships.
+  add_library(CURL::libcurl INTERFACE IMPORTED)
+  set_target_properties(
+    CURL::libcurl
+    PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/curl/curl/include"
+      INTERFACE_LINK_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-deps/lib/x64-windows/libcurl_imp.lib"
   )
 else()
   find_package(libobs REQUIRED)
@@ -207,27 +216,29 @@ block()
 endblock()
 
 block()
-  if(APPLE)
-    # WORKAROUND: Prefer system curl on macOS
-    find_package(CURL MODULE QUIET)
+  if(NOT WIN32)
+    if(APPLE)
+      # WORKAROUND: Prefer system curl on macOS
+      find_package(CURL MODULE QUIET)
+
+      if(NOT CURL_FOUND)
+        find_package(CURL CONFIG QUIET)
+      endif()
+    else()
+      find_package(CURL QUIET)
+    endif()
+
+    if(NOT CURL_FOUND AND PkgConfig_FOUND)
+      pkg_check_modules(PC_CURL libcurl IMPORTED_TARGET)
+      if(PC_CURL_FOUND)
+        add_library(CURL::libcurl ALIAS PkgConfig::PC_CURL)
+        set(CURL_FOUND TRUE)
+      endif()
+    endif()
 
     if(NOT CURL_FOUND)
-      find_package(CURL CONFIG QUIET)
+      message(FATAL_ERROR "cURL not found.")
     endif()
-  else()
-    find_package(CURL QUIET)
-  endif()
-
-  if(NOT CURL_FOUND AND PkgConfig_FOUND)
-    pkg_check_modules(PC_CURL libcurl IMPORTED_TARGET)
-    if(PC_CURL_FOUND)
-      add_library(CURL::libcurl ALIAS PkgConfig::PC_CURL)
-      set(CURL_FOUND TRUE)
-    endif()
-  endif()
-
-  if(NOT CURL_FOUND)
-    message(FATAL_ERROR "cURL not found.")
   endif()
 endblock()
 
