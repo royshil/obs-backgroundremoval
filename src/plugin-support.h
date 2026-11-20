@@ -7,19 +7,30 @@
 
 #pragma once
 
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <util/base.h>
+
+#ifndef OBS_LOG_HEADER
+#error OBS_LOG_HEADER must be defined by the build system
+#endif
+
+/*
+ * Logs through blog() with the plugin's prefix, as obs_log() of the OBS plugin template does. The
+ * format must be a string literal: the prefix is joined to it at compile time, so blog() checks the
+ * arguments against it and nothing is allocated.
+ */
+#define obs_log(log_level, format, ...) blog(log_level, OBS_LOG_HEADER format, ##__VA_ARGS__)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-
 extern const char *PLUGIN_NAME;
 extern const char *PLUGIN_VERSION;
-
-void obs_log(int log_level, const char *format, ...);
 
 #ifdef __cplusplus
 }
