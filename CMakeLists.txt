@@ -415,7 +415,10 @@ if(APPLE)
 elseif(WIN32)
   target_sources(
     ${CMAKE_PROJECT_NAME}
-    PRIVATE src/BackgroundRemoval/windows/FilterContext.cpp src/BackgroundRemoval/windows/ModuleText.cpp
+    PRIVATE
+      src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp
+      src/BackgroundRemoval/windows/FilterContext.cpp
+      src/BackgroundRemoval/windows/ModuleText.cpp
   )
 else()
   target_sources(
