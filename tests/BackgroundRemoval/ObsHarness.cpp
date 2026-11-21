@@ -81,21 +81,17 @@ void writeUpdateConfig()
 		<< "[update]\nversion=" << PLUGIN_VERSION_STR << "\ncheck_for_updates=false\n";
 }
 
-auto createSource(const char *id, const char *name, const std::string &settingsJson) -> obs_source_t *
+auto createSource(const char *id, const char *name, const std::string &settingsJson) -> OBSSourceAutoRelease
 {
-	obs_data_t *settings = obs_data_create_from_json(settingsJson.c_str());
-	obs_source_t *source = obs_source_create(id, name, settings, nullptr);
-	obs_data_release(settings);
-	return source;
+	const OBSDataAutoRelease settings = obs_data_create_from_json(settingsJson.c_str());
+	return obs_source_create(id, name, settings, nullptr);
 }
 
-auto createImageSource(const std::string &imageFile, const char *name) -> obs_source_t *
+auto createImageSource(const std::string &imageFile, const char *name) -> OBSSourceAutoRelease
 {
-	obs_data_t *settings = obs_data_create();
+	const OBSDataAutoRelease settings = obs_data_create();
 	obs_data_set_string(settings, "file", imageFile.c_str());
-	obs_source_t *source = obs_source_create("image_source", name, settings, nullptr);
-	obs_data_release(settings);
-	return source;
+	return obs_source_create("image_source", name, settings, nullptr);
 }
 
 } // namespace
@@ -307,9 +303,9 @@ Scene::Scene(const std::string &imageFile, std::vector<FilterSpec> filters, Visi
 	int index = 0;
 	for (const FilterSpec &spec : filters) {
 		const std::string name = spec.id + " " + std::to_string(index++);
-		obs_source_t *filter = createSource(spec.id.c_str(), name.c_str(), spec.settingsJson);
+		OBSSourceAutoRelease filter = createSource(spec.id.c_str(), name.c_str(), spec.settingsJson);
 		obs_source_filter_add(source_, filter);
-		filters_.push_back(filter);
+		filters_.push_back(std::move(filter));
 	}
 	scene_ = obs_scene_create("Scene");
 	obs_scene_add(scene_, source_);
@@ -329,21 +325,22 @@ Scene::~Scene()
 		obs_source_dec_showing(obs_scene_get_source(scene_));
 	}
 	waitFrames(2);
-	for (obs_source_t *filter : filters_) {
+	for (const OBSSourceAutoRelease &filter : filters_) {
 		obs_source_filter_remove(source_, filter);
-		obs_source_release(filter);
 	}
-	obs_scene_release(scene_);
-	obs_source_release(source_);
-	for (obs_source_t *source : extraSources_) {
-		obs_source_release(source);
-	}
+	filters_.clear();
+	// Since OBS Studio 31, the main canvas keeps every scene obs_scene_create() made until the
+	// scene is removed, as OBS Studio does when a scene is deleted.
+	obs_source_remove(obs_scene_get_source(scene_));
+	scene_ = nullptr;
+	source_ = nullptr;
+	extraSources_.clear();
 	waitFrames(2);
 }
 
 auto Scene::backgroundRemoval() const -> obs_source_t *
 {
-	for (obs_source_t *filter : filters_) {
+	for (const OBSSourceAutoRelease &filter : filters_) {
 		if (std::string(obs_source_get_id(filter)) == kBackgroundRemovalId) {
 			return filter;
 		}
@@ -353,9 +350,8 @@ auto Scene::backgroundRemoval() const -> obs_source_t *
 
 void Scene::update(obs_source_t *filter, const std::string &settingsJson)
 {
-	obs_data_t *settings = obs_data_create_from_json(settingsJson.c_str());
+	const OBSDataAutoRelease settings = obs_data_create_from_json(settingsJson.c_str());
 	obs_source_update(filter, settings);
-	obs_data_release(settings);
 	waitFrames(10);
 }
 
@@ -367,16 +363,15 @@ void Scene::setEnabled(obs_source_t *filter, bool enabled)
 
 void Scene::addSecondSource(const std::string &imageFile, const std::vector<FilterSpec> &filters)
 {
-	obs_source_t *source = createImageSource(imageFile, "Second portrait");
+	OBSSourceAutoRelease source = createImageSource(imageFile, "Second portrait");
 	int index = 0;
 	for (const FilterSpec &spec : filters) {
 		const std::string name = "second " + spec.id + " " + std::to_string(index++);
-		obs_source_t *filter = createSource(spec.id.c_str(), name.c_str(), spec.settingsJson);
+		const OBSSourceAutoRelease filter = createSource(spec.id.c_str(), name.c_str(), spec.settingsJson);
 		obs_source_filter_add(source, filter);
-		obs_source_release(filter);
 	}
 	obs_scene_add(scene_, source);
-	extraSources_.push_back(source);
+	extraSources_.push_back(std::move(source));
 }
 
 auto captureUnfiltered(const std::string &imageFile) -> Image

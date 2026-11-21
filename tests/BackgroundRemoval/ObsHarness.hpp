@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <obs.h>
+#include <obs.hpp>
 
 namespace ObsHarness {
 
@@ -106,11 +107,11 @@ public:
 	void addSecondSource(const std::string &imageFile, const std::vector<FilterSpec> &filters);
 
 private:
-	obs_source_t *source_ = nullptr;
-	std::vector<obs_source_t *> filters_;
-	obs_scene_t *scene_ = nullptr;
+	OBSSourceAutoRelease source_;
+	std::vector<OBSSourceAutoRelease> filters_;
+	OBSSceneAutoRelease scene_;
 	Visibility visibility_;
-	std::vector<obs_source_t *> extraSources_;
+	std::vector<OBSSourceAutoRelease> extraSources_;
 };
 
 /// The image source alone, without filters, rendered at its own size.
