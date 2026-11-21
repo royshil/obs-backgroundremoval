@@ -43,9 +43,10 @@ add_spec_tests(
 
 # MARK: On the GPU through libobs
 
-# libobs and its D3D11 backend from the OBS Studio release fetched in tests/CMakeLists.txt, linked
-# through the vendored import library.
-if(WIN32)
+# On Windows, libobs and its D3D11 backend from the OBS Studio release fetched in
+# tests/CMakeLists.txt, linked through the vendored import library. On Linux, the system libobs and
+# its OpenGL backend, rendering on the X display in DISPLAY.
+if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable(
     BackgroundRemovalGpuTest
     MaskRefinementGpuTest.cpp
@@ -55,26 +56,61 @@ if(WIN32)
     BackgroundRemovalGpuTest
     PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest"
   )
-  target_compile_definitions(
-    BackgroundRemovalGpuTest
-    PRIVATE OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}" TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data"
-  )
+  target_compile_definitions(BackgroundRemovalGpuTest PRIVATE TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data")
   target_link_libraries(BackgroundRemovalGpuTest PRIVATE BuildOptions OBS::libobs)
   target_compile_features(BackgroundRemovalGpuTest PRIVATE cxx_std_20)
   add_spec_tests(BackgroundRemovalGpuTest SP-01004.1 SP-01004.2 SP-01004.4)
-  foreach(SPEC_CASE IN ITEMS SP-01004.1 SP-01004.2 SP-01004.4)
+  set_tests_properties(SP-01004.1 SP-01004.2 SP-01004.4 PROPERTIES TIMEOUT 120)
+  if(WIN32)
+    target_compile_definitions(BackgroundRemovalGpuTest PRIVATE OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}")
     set_tests_properties(
-      "${SPEC_CASE}"
-      PROPERTIES TIMEOUT 120 ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
+      SP-01004.1
+      SP-01004.2
+      SP-01004.4
+      PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
     )
-  endforeach()
+  endif()
 endif()
 
 # MARK: The filter running in libobs
 
-# libobs started headless from the OBS Studio release, with its image source and filters and the
-# built plugin loaded.
+# libobs started headless, with its image source and filters and the built plugin loaded: from the
+# OBS Studio release on Windows, and from the system on Linux, rendering on the X display in
+# DISPLAY. OBS Studio 33 moved its own modules on Linux from obs-plugins to obs-modules/core.
 if(WIN32)
+  set(OBS_TEST_MODULE_DIR "${OBS_TEST_ROOT}/obs-plugins/64bit")
+  set(OBS_TEST_MODULE_DATA_DIR "${OBS_TEST_ROOT}/data/obs-plugins")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  # Not cached, so that the modules are found again after OBS Studio is upgraded. The data is looked
+  # for first in the prefix libobs is installed in, as lib or lib/<multiarch>.
+  get_target_property(LIBOBS_FILE OBS::libobs LOCATION)
+  cmake_path(GET LIBOBS_FILE PARENT_PATH LIBOBS_DIR)
+  unset(OBS_TEST_MODULE_DIR CACHE)
+  unset(OBS_TEST_MODULE_DATA_DIR CACHE)
+  find_path(
+    OBS_TEST_MODULE_DIR
+    NAMES image-source.so
+    PATHS "${LIBOBS_DIR}/obs-modules/core" "${LIBOBS_DIR}/obs-plugins"
+    NO_DEFAULT_PATH
+    NO_CACHE
+  )
+  find_path(
+    OBS_TEST_MODULE_DATA_DIR
+    NAMES image-source
+    PATHS "${LIBOBS_DIR}/.." "${LIBOBS_DIR}/../.." ${CMAKE_PREFIX_PATH} ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATH_SUFFIXES share/obs/obs-modules/core share/obs/obs-plugins
+    NO_DEFAULT_PATH
+    NO_CACHE
+  )
+  if(NOT OBS_TEST_MODULE_DIR OR NOT OBS_TEST_MODULE_DATA_DIR)
+    message(
+      WARNING
+      "The modules of OBS Studio or their data were not found next to ${LIBOBS_FILE}, so the tests running the filter in libobs are not built."
+    )
+  endif()
+endif()
+
+if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
   # The shader pipeline is also built in, so that SP-01005 can run it on its own.
   add_executable(
     BackgroundRemovalObsTest
@@ -96,7 +132,9 @@ if(WIN32)
   target_compile_definitions(
     BackgroundRemovalObsTest
     PRIVATE
-      OBS_TEST_ROOT="${OBS_TEST_ROOT}"
+      OBS_TEST_MODULE_DIR="${OBS_TEST_MODULE_DIR}"
+      OBS_TEST_MODULE_DATA_DIR="${OBS_TEST_MODULE_DATA_DIR}"
+      OBS_TEST_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}"
       PLUGIN_FILE="$<TARGET_FILE:obs-backgroundremoval>"
       PLUGIN_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
       PLUGIN_VERSION_STR="${PLUGIN_VERSION}"
@@ -145,11 +183,14 @@ if(WIN32)
   add_spec_tests(BackgroundRemovalObsTest ${OBS_PERFORMANCE_CASES})
   set_tests_properties(${OBS_PERFORMANCE_CASES} PROPERTIES TIMEOUT 300 LABELS performance)
 
-  set_tests_properties(
-    ${OBS_SPEC_CASES}
-    ${OBS_PERFORMANCE_CASES}
-    PROPERTIES
-      WORKING_DIRECTORY "${OBS_TEST_BIN_DIR}"
-      ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
-  )
+  if(WIN32)
+    target_compile_definitions(BackgroundRemovalObsTest PRIVATE OBS_TEST_ROOT="${OBS_TEST_ROOT}")
+    set_tests_properties(
+      ${OBS_SPEC_CASES}
+      ${OBS_PERFORMANCE_CASES}
+      PROPERTIES
+        WORKING_DIRECTORY "${OBS_TEST_BIN_DIR}"
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
+    )
+  endif()
 endif()

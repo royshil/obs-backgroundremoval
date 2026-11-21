@@ -68,7 +68,10 @@ jobs:
             git \
             libcurl4-openssl-dev \
             libobs-dev \
-            qt6-base-dev
+            obs-studio \
+            qt6-base-dev \
+            xauth \
+            xvfb
 
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -102,7 +105,7 @@ jobs:
       - name: Test (Debian)
         shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
         working-directory: /home/runner
-        run: ctest --test-dir build --output-on-failure
+        run: xvfb-run -a ctest --test-dir build --output-on-failure -LE performance
 
       - name: Package (Debian)
         shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}

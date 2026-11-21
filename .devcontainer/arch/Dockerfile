@@ -24,6 +24,7 @@ RUN sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf \
         sudo \
         tar \
         unzip \
+        xorg-server-xvfb \
         zip \
     && pacman --sync --clean --clean --noconfirm
 
