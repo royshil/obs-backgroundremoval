@@ -9,7 +9,7 @@
 
 #include <obs.h>
 
-#include "../IRenderingPipeline.hpp"
+#include "IRenderingPipeline.hpp"
 
 namespace BackgroundRemoval {
 

@@ -25,8 +25,6 @@ if(APPLE)
   enable_language(OBJCXX)
 endif()
 
-include(CheckCXXSymbolExists)
-include(CMakePushCheckState)
 include(CTest)
 include(FetchContent)
 include(GNUInstallDirs)
@@ -118,24 +116,6 @@ function(map_imported_executable_to_release TARGET_NAME FALLBACK_LOCATION)
         MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release
     )
   endif()
-endfunction()
-
-function(check_onnxruntime_execution_provider result symbol)
-  set(found FALSE)
-  set(index 0)
-
-  foreach(header IN LISTS ARGN)
-    math(EXPR index "${index} + 1")
-    set(check_variable "${result}_${index}")
-    check_cxx_symbol_exists("${symbol}" "${header}" "${check_variable}")
-
-    if(${check_variable})
-      set(found TRUE)
-      break()
-    endif()
-  endforeach()
-
-  set(${result} "${found}" PARENT_SCOPE)
 endfunction()
 
 ### Package dependencies
@@ -264,113 +244,6 @@ block()
   endif()
 endblock()
 
-block(PROPAGATE OpenCV_FOUND)
-  if(NOT APPLE AND NOT WIN32)
-    find_package(OpenCV CONFIG QUIET)
-
-    if(NOT OpenCV_FOUND AND PkgConfig_FOUND)
-      pkg_check_modules(PC_OPENCV opencv4 IMPORTED_TARGET)
-      if(PC_OPENCV_FOUND)
-        add_library(OpenCV::opencv_core ALIAS PkgConfig::PC_OPENCV)
-        add_library(OpenCV::opencv_imgproc ALIAS PkgConfig::PC_OPENCV)
-        set(OpenCV_FOUND TRUE)
-      endif()
-    endif()
-
-    if(NOT OpenCV_FOUND)
-      message(FATAL_ERROR "OpenCV not found via CMake or pkg-config.")
-    endif()
-
-    if(NOT TARGET OpenCV::opencv_core)
-      add_library(OpenCV::opencv_core ALIAS opencv_core)
-    endif()
-
-    if(NOT TARGET OpenCV::opencv_imgproc)
-      add_library(OpenCV::opencv_imgproc ALIAS opencv_imgproc)
-    endif()
-
-    if(TARGET opencv_geometry AND NOT TARGET OpenCV::opencv_geometry)
-      add_library(OpenCV::opencv_geometry ALIAS opencv_geometry)
-    endif()
-  endif()
-endblock()
-
-block(PROPAGATE onnxruntime_FOUND HAVE_ONNXRUNTIME_CUDA_EP HAVE_ONNXRUNTIME_ROCM_EP)
-  if(NOT APPLE AND NOT WIN32)
-    set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON)
-
-    find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc HINTS ${CMAKE_PREFIX_PATH} PATH_SUFFIXES tools/protobuf)
-
-    find_package(onnxruntime CONFIG)
-
-    # WORKAROUND: CMake 4 compatibility
-    if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
-      map_imported_executable_to_release(protobuf::protoc "${Protobuf_PROTOC_EXECUTABLE}")
-    endif()
-
-    if(NOT onnxruntime_FOUND AND PkgConfig_FOUND)
-      pkg_check_modules(PC_onnxruntime onnxruntime IMPORTED_TARGET)
-      if(PC_onnxruntime_FOUND)
-        add_library(onnxruntime::onnxruntime ALIAS PkgConfig::PC_onnxruntime)
-        set(onnxruntime_FOUND TRUE)
-      endif()
-    endif()
-
-    if(NOT onnxruntime_FOUND)
-      message(FATAL_ERROR "ONNX Runtime not found via CMake or pkg-config.")
-    endif()
-
-    if(NOT TARGET onnxruntime::onnxruntime)
-      add_library(onnxruntime::onnxruntime ALIAS onnxruntime)
-    endif()
-
-    ### Check execution provider availability
-    set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
-
-    cmake_push_check_state(RESET)
-    set(CMAKE_REQUIRED_LIBRARIES onnxruntime::onnxruntime)
-    set(CMAKE_REQUIRED_QUIET TRUE)
-
-    check_onnxruntime_execution_provider(
-      HAVE_ONNXRUNTIME_CUDA_EP
-      OrtSessionOptionsAppendExecutionProvider_CUDA
-      onnxruntime_c_api.h
-      onnxruntime/onnxruntime_c_api.h
-      onnxruntime/core/session/onnxruntime_c_api.h
-      cuda_provider_factory.h
-      onnxruntime/cuda_provider_factory.h
-      onnxruntime/core/providers/cuda/cuda_provider_factory.h
-    )
-
-    if(HAVE_ONNXRUNTIME_CUDA_EP)
-      message(STATUS "Building with ONNX Runtime CUDA EP.")
-      target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_CUDA_EP)
-    else()
-      message(STATUS "Building without ONNX Runtime CUDA EP.")
-    endif()
-
-    check_onnxruntime_execution_provider(
-      HAVE_ONNXRUNTIME_ROCM_EP
-      OrtSessionOptionsAppendExecutionProvider_ROCM
-      onnxruntime_c_api.h
-      onnxruntime/onnxruntime_c_api.h
-      onnxruntime/core/session/onnxruntime_c_api.h
-      rocm_provider_factory.h
-      onnxruntime/rocm_provider_factory.h
-      onnxruntime/core/providers/rocm/rocm_provider_factory.h
-    )
-
-    if(HAVE_ONNXRUNTIME_ROCM_EP)
-      message(STATUS "Building with ONNX Runtime ROCm EP.")
-      target_compile_definitions(BuildOptions INTERFACE HAVE_ONNXRUNTIME_ROCM_EP)
-    else()
-      message(STATUS "Building without ONNX Runtime ROCm EP.")
-    endif()
-
-    cmake_pop_check_state()
-  endif()
-endblock()
-
 ### Plugin main
 add_subdirectory(vendor/josuttis-jthread)
 add_subdirectory(src/UpdateConfig)
@@ -412,35 +285,17 @@ if(APPLE)
     PROPERTIES MACOSX_PACKAGE_LOCATION "Resources" XCODE_EXPLICIT_FILE_TYPE "folder.mlpackage"
   )
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${MEDIAPIPE_LANDSCAPE_MODEL}")
-elseif(WIN32)
-  target_sources(
-    ${CMAKE_PROJECT_NAME}
-    PRIVATE
-      src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp
-      src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp
-      src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp
-      src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
-      src/BackgroundRemoval/windows/FilterContext.cpp
-      src/BackgroundRemoval/windows/ModuleText.cpp
-      src/BackgroundRemoval/windows/PipelineFactory.cpp
-  )
 else()
   target_sources(
     ${CMAKE_PROJECT_NAME}
     PRIVATE
-      src/background-filter.cpp
-      src/plugin-support.c
-      src/ort-utils/ort-session-utils.cpp
-      src/obs-utils/obs-utils.cpp
-      src/enhance-filter.cpp
-  )
-  target_link_libraries(
-    ${CMAKE_PROJECT_NAME}
-    PRIVATE
-      onnxruntime::onnxruntime
-      OpenCV::opencv_core
-      OpenCV::opencv_imgproc
-      $<$<TARGET_EXISTS:OpenCV::opencv_geometry>:OpenCV::opencv_geometry>
+      src/BackgroundRemoval/FilterContext.cpp
+      src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp
+      src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp
+      src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp
+      src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
+      src/BackgroundRemoval/ModuleText.cpp
+      src/BackgroundRemoval/PipelineFactory.cpp
   )
 endif()
 
@@ -475,13 +330,6 @@ endif()
 
 ### Install configurations
 set(
-  EFFECTS_FILES
-  data/effects/blend_images.effect
-  data/effects/kawase_blur.effect
-  data/effects/mask_alpha_filter.effect
-)
-
-set(
   LOCALE_FILES
   data/locale/ar-EG.ini
   data/locale/bn-IN.ini
@@ -497,30 +345,6 @@ set(
   data/locale/ta-IN.ini
   data/locale/tr-TR.ini
   data/locale/zh-CN.ini
-)
-
-set(
-  MODELS_FILES
-  data/models/mediapipe.onnx
-  data/models/mediapipe.onnx.license
-  data/models/pphumanseg_fp32.onnx
-  data/models/pphumanseg_fp32.onnx.license
-  data/models/rvm_mobilenetv3_fp32.onnx
-  data/models/rvm_mobilenetv3_fp32.onnx.license
-  data/models/selfie_multiclass_256x256.onnx
-  data/models/selfie_multiclass_256x256.onnx.license
-  data/models/selfie_segmentation.onnx
-  data/models/selfie_segmentation.onnx.license
-  data/models/semantic_guided_llie_180x324.onnx
-  data/models/semantic_guided_llie_180x324.onnx.license
-  data/models/SINet_Softmax_simple.onnx
-  data/models/SINet_Softmax_simple.onnx.license
-  data/models/tbefn_fp32.onnx
-  data/models/tbefn_fp32.onnx.license
-  data/models/tcmonodepth_tcsmallnet_192x320.onnx
-  data/models/tcmonodepth_tcsmallnet_192x320.onnx.license
-  data/models/uretinex_net_180x320.onnx
-  data/models/uretinex_net_180x320.onnx.license
 )
 
 configure_file(
@@ -545,10 +369,8 @@ if(APPLE)
       XCODE_ATTRIBUTE_INFOPLIST_KEY_NSHumanReadableCopyright
         "Copyright © 2021-2026 Roy Shilkrot; Copyright © 2023-2026 Kaito Udagawa"
   )
-  set_source_files_properties(${EFFECTS_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/effects")
   set_source_files_properties(${LOCALE_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/locale")
-  set_source_files_properties(${MODELS_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/models")
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${EFFECTS_FILES} ${LOCALE_FILES} ${MODELS_FILES})
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${LOCALE_FILES})
 
   install(
     TARGETS "${CMAKE_PROJECT_NAME}"
@@ -577,16 +399,12 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     BUNDLE DESTINATION "${OBS_PLUGIN_LIB_DIR}"
     LIBRARY DESTINATION "${OBS_PLUGIN_LIB_DIR}"
   )
-  install(FILES ${EFFECTS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/effects")
   install(FILES ${LOCALE_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/locale")
-  install(FILES ${MODELS_FILES} DESTINATION "${OBS_PLUGIN_DATA_DIR}/models" OPTIONAL)
   install(FILES LICENSE DESTINATION "${OBS_PLUGIN_DOC_DIR}" RENAME copyright)
 
   # User plugin
   install(TARGETS "${CMAKE_PROJECT_NAME}" LIBRARY DESTINATION "bin/64bit" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
-  install(FILES ${EFFECTS_FILES} DESTINATION "data/effects" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
   install(FILES ${LOCALE_FILES} DESTINATION "data/locale" COMPONENT UserPlugin EXCLUDE_FROM_ALL)
-  install(FILES ${MODELS_FILES} DESTINATION "data/models" COMPONENT UserPlugin EXCLUDE_FROM_ALL OPTIONAL)
 else()
   message("Installing on this platform is not supported officially.")
 endif()

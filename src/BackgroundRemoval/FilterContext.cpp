@@ -54,7 +54,7 @@ namespace BackgroundRemoval {
 FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : source_(source)
 {
 	if (!settings || !source_) {
-		throw std::invalid_argument("Invalid Windows background-removal context arguments");
+		throw std::invalid_argument("Invalid background-removal context arguments");
 	}
 	readSettings(settings);
 }
@@ -76,10 +76,10 @@ void *FilterContext::create(obs_data_t *settings, obs_source_t *source) noexcept
 	try {
 		return new FilterContext(settings, source);
 	} catch (const std::exception &exception) {
-		obs_log(LOG_ERROR, "Failed to create Windows FilterContext: %s", exception.what());
+		obs_log(LOG_ERROR, "Failed to create FilterContext: %s", exception.what());
 		return nullptr;
 	} catch (...) {
-		obs_log(LOG_ERROR, "Failed to create Windows FilterContext: Unknown error");
+		obs_log(LOG_ERROR, "Failed to create FilterContext: Unknown error");
 		return nullptr;
 	}
 }

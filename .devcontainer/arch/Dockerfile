@@ -17,8 +17,6 @@ RUN sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf \
         file \
         git \
         ninja \
-        onnxruntime-cpu \
-        opencv \
         obs-studio \
         pkgconf \
         python \
