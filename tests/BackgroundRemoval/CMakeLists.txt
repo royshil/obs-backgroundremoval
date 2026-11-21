@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Plugin unit test cases, docs/specs/SP-01xxx. Each CTest test runs one scenario by its tag.
+# Plugin unit test cases, docs/specs/SP-01xxx, and plugin performance test cases, SP-03xxx. Each
+# CTest test runs one scenario by its tag.
 
 function(add_spec_tests TARGET_NAME)
   foreach(SPEC_CASE IN LISTS ARGN)
@@ -82,6 +83,7 @@ if(WIN32)
     FilterSizeObsTest.cpp
     FilterOutputObsTest.cpp
     InferenceObsTest.cpp
+    PerformanceObsTest.cpp
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp"
     "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp"
@@ -121,7 +123,6 @@ if(WIN32)
     SP-01014.1
     SP-01014.2
     SP-01015.1
-    SP-01015.2
     SP-01016.1
     SP-01016.2
     SP-01016.3
@@ -136,10 +137,18 @@ if(WIN32)
     SP-01019.3
   )
   add_spec_tests(BackgroundRemovalObsTest ${OBS_SPEC_CASES})
+  set_tests_properties(${OBS_SPEC_CASES} PROPERTIES TIMEOUT 300)
+
+  # Plugin performance test cases, docs/specs/SP-03xxx. They need a hardware GPU, so they are
+  # labeled performance, for CI to leave out.
+  set(OBS_PERFORMANCE_CASES SP-03001.1 SP-03001.2)
+  add_spec_tests(BackgroundRemovalObsTest ${OBS_PERFORMANCE_CASES})
+  set_tests_properties(${OBS_PERFORMANCE_CASES} PROPERTIES TIMEOUT 300 LABELS performance)
+
   set_tests_properties(
     ${OBS_SPEC_CASES}
+    ${OBS_PERFORMANCE_CASES}
     PROPERTIES
-      TIMEOUT 300
       WORKING_DIRECTORY "${OBS_TEST_BIN_DIR}"
       ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
   )
