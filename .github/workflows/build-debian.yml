@@ -70,6 +70,7 @@ jobs:
             libobs-dev \
             obs-studio \
             qt6-base-dev \
+            xauth \
             xvfb
 
       - name: Checkout
