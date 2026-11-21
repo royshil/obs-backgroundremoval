@@ -81,21 +81,32 @@ if(WIN32)
   set(OBS_TEST_MODULE_DIR "${OBS_TEST_ROOT}/obs-plugins/64bit")
   set(OBS_TEST_MODULE_DATA_DIR "${OBS_TEST_ROOT}/data/obs-plugins")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  # Not cached, so that the modules are found again after OBS Studio is upgraded. The data is looked
+  # for first in the prefix libobs is installed in, as lib or lib/<multiarch>.
   get_target_property(LIBOBS_FILE OBS::libobs LOCATION)
   cmake_path(GET LIBOBS_FILE PARENT_PATH LIBOBS_DIR)
+  unset(OBS_TEST_MODULE_DIR CACHE)
+  unset(OBS_TEST_MODULE_DATA_DIR CACHE)
   find_path(
     OBS_TEST_MODULE_DIR
     NAMES image-source.so
     PATHS "${LIBOBS_DIR}/obs-modules/core" "${LIBOBS_DIR}/obs-plugins"
     NO_DEFAULT_PATH
+    NO_CACHE
   )
-  set(OBS_MODULE_DATA_CANDIDATES)
-  foreach(PREFIX IN LISTS CMAKE_SYSTEM_PREFIX_PATH)
-    list(APPEND OBS_MODULE_DATA_CANDIDATES "${PREFIX}/share/obs/obs-modules/core" "${PREFIX}/share/obs/obs-plugins")
-  endforeach()
-  find_path(OBS_TEST_MODULE_DATA_DIR NAMES image-source PATHS ${OBS_MODULE_DATA_CANDIDATES} NO_DEFAULT_PATH)
+  find_path(
+    OBS_TEST_MODULE_DATA_DIR
+    NAMES image-source
+    PATHS "${LIBOBS_DIR}/.." "${LIBOBS_DIR}/../.." ${CMAKE_PREFIX_PATH} ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATH_SUFFIXES share/obs/obs-modules/core share/obs/obs-plugins
+    NO_DEFAULT_PATH
+    NO_CACHE
+  )
   if(NOT OBS_TEST_MODULE_DIR OR NOT OBS_TEST_MODULE_DATA_DIR)
-    message(WARNING "OBS Studio is not installed, so the tests running the filter in libobs are not built.")
+    message(
+      WARNING
+      "The modules of OBS Studio or their data were not found next to ${LIBOBS_FILE}, so the tests running the filter in libobs are not built."
+    )
   endif()
 endif()
 

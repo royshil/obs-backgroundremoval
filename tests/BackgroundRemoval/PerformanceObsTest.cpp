@@ -50,7 +50,7 @@ TEST_CASE("SP-03001.1 Changing the output downscale factor does not stall render
 TEST_CASE("SP-03001.2 A second filter does not stall rendering")
 {
 	Scene scene(kPortrait, {backgroundRemoval()});
-	waitFrames(30);
+	waitFrames(300);
 	const std::uint32_t laggedBefore = obs_get_lagged_frames();
 	scene.addSecondSource(kPortrait, {backgroundRemoval()});
 	waitFrames(30);

@@ -12,7 +12,6 @@ Feature: Repeated downscale factor changes
     And a 1280 x 720 image source of the portrait test image
     And the source has the Background Removal filter only, with default settings
     And the source is shown in the program output, so it is active and showing
-    And the video thread of libobs has rendered for at least 10 seconds
 
   @SP-01015.1
   Scenario: Changing the output downscale factor recreates the pipeline

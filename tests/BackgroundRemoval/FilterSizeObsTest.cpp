@@ -243,7 +243,6 @@ TEST_CASE("SP-01014.2 Selecting Auto recovers")
 TEST_CASE("SP-01015.1 Changing the output downscale factor recreates the pipeline")
 {
 	Scene scene(kPortrait, {backgroundRemoval()});
-	waitFrames(300);
 	clearLog();
 	const int factors[] = {2, 4, 1};
 	std::size_t created = 0;
@@ -251,7 +250,6 @@ TEST_CASE("SP-01015.1 Changing the output downscale factor recreates the pipelin
 		const int factor = factors[change % 3];
 		CAPTURE(change);
 		scene.update(scene.backgroundRemoval(), outputDownscaleFactor(factor));
-		waitFrames(5);
 		created += countLogLines(pipelineCreatedLine(1280, 720, factor));
 		clearLog();
 	}

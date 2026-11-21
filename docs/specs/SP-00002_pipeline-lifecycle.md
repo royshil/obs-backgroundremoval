@@ -56,3 +56,4 @@ output size in `video_tick` from the target's base size, and `get_width`/`get_he
 - SP-01013: Shown outside the program output
 - SP-01015: Repeated downscale factor changes
 - SP-02001: Preview only
+- SP-03001: Rendering does not stall
