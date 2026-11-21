@@ -43,3 +43,8 @@
 
 - [SP-02000: Plugin user scenario cases](SP-02000_plugin-user-scenario-cases.md)
 - [SP-02001: Preview only](SP-02001_bgrm-preview-only.feature)
+
+## Plugin performance test cases
+
+- [SP-03000: Plugin performance test cases](SP-03000_plugin-performance-test-cases.md)
+- [SP-03001: Rendering does not stall](SP-03001_bgrm-rendering-does-not-stall.feature)
