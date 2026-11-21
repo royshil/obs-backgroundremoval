@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// libobs, started headless from an OBS Studio release with the plugin and the OBS Studio filters
-// loaded, and the scenes the cases of SP-01006 to SP-01019 build on it.
+// libobs, started headless with the plugin and the OBS Studio filters loaded, and the scenes the
+// cases of SP-01006 to SP-01019 and SP-03001 build on it. libobs comes from an OBS Studio release
+// on Windows and from the system on Linux.
 
 #pragma once
 
@@ -13,6 +14,7 @@
 #include <vector>
 
 #include <obs.h>
+#include <obs.hpp>
 
 namespace ObsHarness {
 
@@ -106,11 +108,11 @@ public:
 	void addSecondSource(const std::string &imageFile, const std::vector<FilterSpec> &filters);
 
 private:
-	obs_source_t *source_ = nullptr;
-	std::vector<obs_source_t *> filters_;
-	obs_scene_t *scene_ = nullptr;
+	OBSSourceAutoRelease source_;
+	std::vector<OBSSourceAutoRelease> filters_;
+	OBSSceneAutoRelease scene_;
 	Visibility visibility_;
-	std::vector<obs_source_t *> extraSources_;
+	std::vector<OBSSourceAutoRelease> extraSources_;
 };
 
 /// The image source alone, without filters, rendered at its own size.

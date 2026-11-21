@@ -17,8 +17,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   git \
   libcurl4-openssl-dev \
   libobs-dev \
-  libonnxruntime-dev \
-  libopencv-dev \
   ninja-build \
   python3.13-venv \
   qt6-base-dev \

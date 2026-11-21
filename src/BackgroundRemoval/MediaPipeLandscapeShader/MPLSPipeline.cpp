@@ -462,6 +462,14 @@ auto MPLSPipeline::layerTextures(const Layer &layer, const Tensor &a) const -> P
 	};
 }
 
+// GCC cannot take ConvInputs{} as a default argument inside MPLSPipeline, where ConvInputs is not
+// complete yet, so the overload without extra inputs forwards here.
+auto MPLSPipeline::conv(const Layer &layer, const Tensor &a, std::uint32_t channels, std::uint32_t width,
+			std::uint32_t height) -> const Tensor &
+{
+	return conv(layer, a, channels, width, height, ConvInputs{});
+}
+
 // A dense layer. Its technique fixes all shapes; the weight texture shape is checked against A
 // and the output so that a wrong layer cannot be wired in silently.
 auto MPLSPipeline::conv(const Layer &layer, const Tensor &a, std::uint32_t channels, std::uint32_t width,

@@ -20,8 +20,17 @@
 #include <graphics/vec4.h>
 #include <util/base.h>
 
-#ifndef OBS_TEST_ROOT
+#if defined(_WIN32) && !defined(OBS_TEST_ROOT)
 #error OBS_TEST_ROOT must be defined by the build system
+#endif
+#ifndef OBS_TEST_MODULE_DIR
+#error OBS_TEST_MODULE_DIR must be defined by the build system
+#endif
+#ifndef OBS_TEST_MODULE_DATA_DIR
+#error OBS_TEST_MODULE_DATA_DIR must be defined by the build system
+#endif
+#ifndef OBS_TEST_MODULE_SUFFIX
+#error OBS_TEST_MODULE_SUFFIX must be defined by the build system
 #endif
 #ifndef PLUGIN_FILE
 #error PLUGIN_FILE must be defined by the build system
@@ -81,21 +90,17 @@ void writeUpdateConfig()
 		<< "[update]\nversion=" << PLUGIN_VERSION_STR << "\ncheck_for_updates=false\n";
 }
 
-auto createSource(const char *id, const char *name, const std::string &settingsJson) -> obs_source_t *
+auto createSource(const char *id, const char *name, const std::string &settingsJson) -> OBSSourceAutoRelease
 {
-	obs_data_t *settings = obs_data_create_from_json(settingsJson.c_str());
-	obs_source_t *source = obs_source_create(id, name, settings, nullptr);
-	obs_data_release(settings);
-	return source;
+	const OBSDataAutoRelease settings = obs_data_create_from_json(settingsJson.c_str());
+	return obs_source_create(id, name, settings, nullptr);
 }
 
-auto createImageSource(const std::string &imageFile, const char *name) -> obs_source_t *
+auto createImageSource(const std::string &imageFile, const char *name) -> OBSSourceAutoRelease
 {
-	obs_data_t *settings = obs_data_create();
+	const OBSDataAutoRelease settings = obs_data_create();
 	obs_data_set_string(settings, "file", imageFile.c_str());
-	obs_source_t *source = obs_source_create("image_source", name, settings, nullptr);
-	obs_data_release(settings);
-	return source;
+	return obs_source_create("image_source", name, settings, nullptr);
 }
 
 } // namespace
@@ -109,15 +114,20 @@ auto start(std::string &error) -> bool
 			   std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 	writeUpdateConfig();
 
-	const std::string root = OBS_TEST_ROOT;
 	if (!obs_startup("en-US", configDirectory.string().c_str(), nullptr)) {
 		error = "obs_startup failed";
 		return false;
 	}
-	obs_add_data_path((root + "/data/libobs/").c_str());
 
 	obs_video_info ovi{};
+#ifdef _WIN32
+	obs_add_data_path((std::string(OBS_TEST_ROOT) + "/data/libobs/").c_str());
 	ovi.graphics_module = "libobs-d3d11";
+#else
+	// libobs finds its own effects on Linux, and renders through EGL on the X display in
+	// DISPLAY.
+	ovi.graphics_module = "libobs-opengl";
+#endif
 	ovi.fps_num = 30;
 	ovi.fps_den = 1;
 	ovi.base_width = 1280;
@@ -136,8 +146,8 @@ auto start(std::string &error) -> bool
 	}
 
 	for (const char *name : {"image-source", "obs-filters"}) {
-		if (!openModule(root + "/obs-plugins/64bit/" + name + ".dll", root + "/data/obs-plugins/" + name,
-				error)) {
+		if (!openModule(std::string(OBS_TEST_MODULE_DIR) + "/" + name + OBS_TEST_MODULE_SUFFIX,
+				std::string(OBS_TEST_MODULE_DATA_DIR) + "/" + name, error)) {
 			return false;
 		}
 	}
@@ -307,9 +317,9 @@ Scene::Scene(const std::string &imageFile, std::vector<FilterSpec> filters, Visi
 	int index = 0;
 	for (const FilterSpec &spec : filters) {
 		const std::string name = spec.id + " " + std::to_string(index++);
-		obs_source_t *filter = createSource(spec.id.c_str(), name.c_str(), spec.settingsJson);
+		OBSSourceAutoRelease filter = createSource(spec.id.c_str(), name.c_str(), spec.settingsJson);
 		obs_source_filter_add(source_, filter);
-		filters_.push_back(filter);
+		filters_.push_back(std::move(filter));
 	}
 	scene_ = obs_scene_create("Scene");
 	obs_scene_add(scene_, source_);
@@ -329,21 +339,22 @@ Scene::~Scene()
 		obs_source_dec_showing(obs_scene_get_source(scene_));
 	}
 	waitFrames(2);
-	for (obs_source_t *filter : filters_) {
+	for (const OBSSourceAutoRelease &filter : filters_) {
 		obs_source_filter_remove(source_, filter);
-		obs_source_release(filter);
 	}
-	obs_scene_release(scene_);
-	obs_source_release(source_);
-	for (obs_source_t *source : extraSources_) {
-		obs_source_release(source);
-	}
+	filters_.clear();
+	// Since OBS Studio 31, the main canvas keeps every scene obs_scene_create() made until the
+	// scene is removed, as OBS Studio does when a scene is deleted.
+	obs_source_remove(obs_scene_get_source(scene_));
+	scene_ = nullptr;
+	source_ = nullptr;
+	extraSources_.clear();
 	waitFrames(2);
 }
 
 auto Scene::backgroundRemoval() const -> obs_source_t *
 {
-	for (obs_source_t *filter : filters_) {
+	for (const OBSSourceAutoRelease &filter : filters_) {
 		if (std::string(obs_source_get_id(filter)) == kBackgroundRemovalId) {
 			return filter;
 		}
@@ -353,9 +364,8 @@ auto Scene::backgroundRemoval() const -> obs_source_t *
 
 void Scene::update(obs_source_t *filter, const std::string &settingsJson)
 {
-	obs_data_t *settings = obs_data_create_from_json(settingsJson.c_str());
+	const OBSDataAutoRelease settings = obs_data_create_from_json(settingsJson.c_str());
 	obs_source_update(filter, settings);
-	obs_data_release(settings);
 	waitFrames(10);
 }
 
@@ -367,16 +377,15 @@ void Scene::setEnabled(obs_source_t *filter, bool enabled)
 
 void Scene::addSecondSource(const std::string &imageFile, const std::vector<FilterSpec> &filters)
 {
-	obs_source_t *source = createImageSource(imageFile, "Second portrait");
+	OBSSourceAutoRelease source = createImageSource(imageFile, "Second portrait");
 	int index = 0;
 	for (const FilterSpec &spec : filters) {
 		const std::string name = "second " + spec.id + " " + std::to_string(index++);
-		obs_source_t *filter = createSource(spec.id.c_str(), name.c_str(), spec.settingsJson);
+		const OBSSourceAutoRelease filter = createSource(spec.id.c_str(), name.c_str(), spec.settingsJson);
 		obs_source_filter_add(source, filter);
-		obs_source_release(filter);
 	}
 	obs_scene_add(scene_, source);
-	extraSources_.push_back(source);
+	extraSources_.push_back(std::move(source));
 }
 
 auto captureUnfiltered(const std::string &imageFile) -> Image

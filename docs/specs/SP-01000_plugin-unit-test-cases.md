@@ -19,9 +19,9 @@ separated from OBS, so a category of cases without libobs would carry no meaning
 
 ## How they are tested
 
-The cases are tested with doctest. Cases that need libobs start it from an OBS Studio release,
-headless, and load the plugin and the OBS Studio modules they use. A test names the case it
-implements by its tag, such as `SP-01001.1`, so that each scenario maps to a test case.
+The cases are tested with doctest. Cases that need libobs start it headless and load the plugin and
+the OBS Studio modules they use. A test names the case it implements by its tag, such as
+`SP-01001.1`, so that each scenario maps to a test case.
 
 ## What to write
 

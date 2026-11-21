@@ -146,7 +146,9 @@ private:
 	auto layerTextures(const Layer &layer, const Tensor &a) const -> PassTextures;
 
 	auto conv(const Layer &layer, const Tensor &a, std::uint32_t channels, std::uint32_t width,
-		  std::uint32_t height, const ConvInputs &inputs = {}) -> const Tensor &;
+		  std::uint32_t height) -> const Tensor &;
+	auto conv(const Layer &layer, const Tensor &a, std::uint32_t channels, std::uint32_t width,
+		  std::uint32_t height, const ConvInputs &inputs) -> const Tensor &;
 	auto depthwise(const Layer &layer, const Tensor &a, std::uint32_t width, std::uint32_t height)
 		-> const Tensor &;
 	auto mean(const Tensor &a, const Tensor *b = nullptr) -> const Tensor &;

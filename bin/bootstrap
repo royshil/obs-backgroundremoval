@@ -15,8 +15,6 @@ debian_forky() {
     git \
     libcurl4-openssl-dev \
     libobs-dev \
-    libonnxruntime-dev \
-    libopencv-dev \
     ninja-build \
     qt6-base-dev \
     tar \
@@ -35,8 +33,6 @@ ubuntu_resolute() {
     git \
     libcurl4-openssl-dev \
     libobs-dev \
-    libonnxruntime-dev \
-    libopencv-dev \
     ninja-build \
     tar \
     unzip \
