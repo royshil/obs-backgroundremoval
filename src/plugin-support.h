@@ -24,14 +24,3 @@
  * arguments against it and nothing is allocated.
  */
 #define obs_log(log_level, format, ...) blog(log_level, OBS_LOG_HEADER format, ##__VA_ARGS__)
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-extern const char *PLUGIN_NAME;
-extern const char *PLUGIN_VERSION;
-
-#ifdef __cplusplus
-}
-#endif

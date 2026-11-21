@@ -42,8 +42,6 @@ jobs:
             git \
             ninja \
             obs-studio \
-            onnxruntime \
-            opencv \
             simde
 
       - name: Checkout
@@ -106,8 +104,8 @@ jobs:
           ruby -I "${GITHUB_WORKSPACE:?}/scripts" -r ws_client -e '
           WSClient.open("127.0.0.1", 4455, "DUMMY_PASSWORD") do |client|
             filters = client.call("GetSourceFilterKindList")["sourceFilterKinds"]
-            abort filters.inspect unless %w[background_removal enhanceportrait].all? { filters.include?(_1) }
-            puts "Plugin loaded successfully: background_removal, enhanceportrait"
+            abort filters.inspect unless filters.include?("background_removal")
+            puts "Plugin loaded successfully: background_removal"
           end
           '
 
