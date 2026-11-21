@@ -102,6 +102,9 @@ auto refine(const std::vector<std::uint8_t> &probability, std::uint32_t width = 
 	BackgroundRemoval::MaskCompositor compositor;
 	compositor.setThreshold(0.5F);
 	compositor.prepare(imageTexture.get(), probabilityTexture.get(), width, height);
+	// prepare() leaves its last target bound; unbind it, as the pipeline restores its own,
+	// before the compositor destroys that texture.
+	gs_set_render_target(nullptr, nullptr);
 	return readR8(compositor.refinedMask(), width, height);
 }
 
