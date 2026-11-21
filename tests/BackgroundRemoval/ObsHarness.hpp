@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// libobs, started headless from an OBS Studio release with the plugin and the OBS Studio filters
-// loaded, and the scenes the cases of SP-01006 to SP-01019 and SP-03001 build on it.
+// libobs, started headless with the plugin and the OBS Studio filters loaded, and the scenes the
+// cases of SP-01006 to SP-01019 and SP-03001 build on it. libobs comes from an OBS Studio release
+// on Windows and from the system on Linux.
 
 #pragma once
 

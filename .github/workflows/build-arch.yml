@@ -42,7 +42,8 @@ jobs:
             git \
             ninja \
             obs-studio \
-            simde
+            simde \
+            xorg-server-xvfb
 
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -63,6 +64,11 @@ jobs:
         working-directory: /home/runner
         run: cmake --build build --config RelWithDebInfo --parallel
 
+      - name: Run unit tests (Arch)
+        shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
+        working-directory: /home/runner
+        run: xvfb-run -a ctest --test-dir build --output-on-failure -LE performance
+
       - name: Install (Arch)
         shell: /bin/sh -eu {0}
         working-directory: /home/runner
@@ -70,7 +76,7 @@ jobs:
 
       - name: Install test dependencies (Arch)
         shell: /bin/sh -eu {0}
-        run: pacman --disable-sandbox --needed --noconfirm -S openbsd-netcat ruby ruby-base64 xorg-server-xvfb
+        run: pacman --disable-sandbox --needed --noconfirm -S openbsd-netcat ruby ruby-base64
 
       - name: Test (Arch)
         shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}

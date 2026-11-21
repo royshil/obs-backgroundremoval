@@ -22,7 +22,7 @@
 
 #include <BackgroundRemoval/MaskCompositor/MaskCompositor.hpp>
 
-#ifndef OBS_TEST_BIN_DIR
+#if defined(_WIN32) && !defined(OBS_TEST_BIN_DIR)
 #error OBS_TEST_BIN_DIR must be defined by the build system
 #endif
 
@@ -30,15 +30,26 @@ namespace {
 
 constexpr std::uint32_t kMaskSize = 16;
 
-/// A libobs graphics context on the D3D11 backend, entered for its lifetime.
+#ifdef _WIN32
+constexpr const char *kGraphicsModule = OBS_TEST_BIN_DIR "/libobs-d3d11.dll";
+#else
+// Renders through EGL on the X display in DISPLAY.
+constexpr const char *kGraphicsModule = "libobs-opengl";
+#endif
+
+/// A libobs graphics context on the D3D11 backend on Windows and the OpenGL backend on Linux,
+/// entered for its lifetime.
 class GraphicsContext final {
 public:
 	GraphicsContext()
 	{
-		if (gs_create(&graphics_, OBS_TEST_BIN_DIR "/libobs-d3d11.dll", 0) != GS_SUCCESS) {
+		if (gs_create(&graphics_, kGraphicsModule, 0) != GS_SUCCESS) {
 			throw std::runtime_error("gs_create failed");
 		}
 		gs_enter_context(graphics_);
+		// As the render loop of OBS does. The OpenGL backend flips the winding when it
+		// renders into a texture, so the default GS_BACK would cull every sprite.
+		gs_set_cull_mode(GS_NEITHER);
 	}
 	~GraphicsContext()
 	{

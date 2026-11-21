@@ -20,8 +20,17 @@
 #include <graphics/vec4.h>
 #include <util/base.h>
 
-#ifndef OBS_TEST_ROOT
+#if defined(_WIN32) && !defined(OBS_TEST_ROOT)
 #error OBS_TEST_ROOT must be defined by the build system
+#endif
+#ifndef OBS_TEST_MODULE_DIR
+#error OBS_TEST_MODULE_DIR must be defined by the build system
+#endif
+#ifndef OBS_TEST_MODULE_DATA_DIR
+#error OBS_TEST_MODULE_DATA_DIR must be defined by the build system
+#endif
+#ifndef OBS_TEST_MODULE_SUFFIX
+#error OBS_TEST_MODULE_SUFFIX must be defined by the build system
 #endif
 #ifndef PLUGIN_FILE
 #error PLUGIN_FILE must be defined by the build system
@@ -105,15 +114,20 @@ auto start(std::string &error) -> bool
 			   std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
 	writeUpdateConfig();
 
-	const std::string root = OBS_TEST_ROOT;
 	if (!obs_startup("en-US", configDirectory.string().c_str(), nullptr)) {
 		error = "obs_startup failed";
 		return false;
 	}
-	obs_add_data_path((root + "/data/libobs/").c_str());
 
 	obs_video_info ovi{};
+#ifdef _WIN32
+	obs_add_data_path((std::string(OBS_TEST_ROOT) + "/data/libobs/").c_str());
 	ovi.graphics_module = "libobs-d3d11";
+#else
+	// libobs finds its own effects on Linux, and renders through EGL on the X display in
+	// DISPLAY.
+	ovi.graphics_module = "libobs-opengl";
+#endif
 	ovi.fps_num = 30;
 	ovi.fps_den = 1;
 	ovi.base_width = 1280;
@@ -132,8 +146,8 @@ auto start(std::string &error) -> bool
 	}
 
 	for (const char *name : {"image-source", "obs-filters"}) {
-		if (!openModule(root + "/obs-plugins/64bit/" + name + ".dll", root + "/data/obs-plugins/" + name,
-				error)) {
+		if (!openModule(std::string(OBS_TEST_MODULE_DIR) + "/" + name + OBS_TEST_MODULE_SUFFIX,
+				std::string(OBS_TEST_MODULE_DATA_DIR) + "/" + name, error)) {
 			return false;
 		}
 	}
