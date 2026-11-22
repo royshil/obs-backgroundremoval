@@ -15,8 +15,9 @@
 #endif
 
 struct ORTModelData {
-	std::unique_ptr<Ort::Session> session;
+	// Destroy the session before the environment can unload its execution provider.
 	std::unique_ptr<Ort::Env> env;
+	std::unique_ptr<Ort::Session> session;
 	std::vector<Ort::AllocatedStringPtr> inputNames;
 	std::vector<Ort::AllocatedStringPtr> outputNames;
 	std::vector<Ort::Value> inputTensor;
