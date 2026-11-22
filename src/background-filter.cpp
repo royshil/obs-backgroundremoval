@@ -74,6 +74,7 @@ struct background_removal_filter : public filter_data, public std::enable_shared
 
 	gs_effect_t *effect;
 	gs_effect_t *kawaseBlurEffect;
+	gs_texture_t *maskTexture = nullptr;
 
 	std::mutex modelMutex;
 
@@ -489,6 +490,7 @@ void background_filter_destroy(void *data)
 			}
 			gs_effect_destroy((*ptr)->effect);
 			gs_effect_destroy((*ptr)->kawaseBlurEffect);
+			gs_texture_destroy((*ptr)->maskTexture);
 			obs_leave_graphics();
 		}
 		// Delete the pointer to shared_ptr
@@ -784,8 +786,20 @@ void background_filter_video_render(void *data, gs_effect_t *_effect)
 			return;
 		}
 
-		alphaTexture = gs_texture_create(tf->backgroundMask.cols, tf->backgroundMask.rows, GS_R8, 1,
-						 (const uint8_t **)&tf->backgroundMask.data, 0);
+		const auto maskWidth = static_cast<uint32_t>(tf->backgroundMask.cols);
+		const auto maskHeight = static_cast<uint32_t>(tf->backgroundMask.rows);
+		if (tf->maskTexture && (gs_texture_get_width(tf->maskTexture) != maskWidth ||
+					gs_texture_get_height(tf->maskTexture) != maskHeight)) {
+			gs_texture_destroy(tf->maskTexture);
+			tf->maskTexture = nullptr;
+		}
+		if (!tf->maskTexture)
+			tf->maskTexture = gs_texture_create(maskWidth, maskHeight, GS_R8, 1, nullptr, GS_DYNAMIC);
+
+		alphaTexture = tf->maskTexture;
+		if (alphaTexture)
+			gs_texture_set_image(alphaTexture, tf->backgroundMask.data,
+					     static_cast<uint32_t>(tf->backgroundMask.step[0]), false);
 
 		if (!alphaTexture) {
 			obs_log(LOG_ERROR, "Failed to create alpha texture");
@@ -803,7 +817,6 @@ void background_filter_video_render(void *data, gs_effect_t *_effect)
 		if (tf->source) {
 			obs_source_skip_video_filter(tf->source);
 		}
-		gs_texture_destroy(alphaTexture);
 		gs_texture_destroy(blurredTexture);
 		return;
 	}
@@ -834,6 +847,5 @@ void background_filter_video_render(void *data, gs_effect_t *_effect)
 
 	gs_blend_state_pop();
 
-	gs_texture_destroy(alphaTexture);
 	gs_texture_destroy(blurredTexture);
 }
