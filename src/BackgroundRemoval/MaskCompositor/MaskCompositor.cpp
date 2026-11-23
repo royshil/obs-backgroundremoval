@@ -122,6 +122,18 @@ float foregroundProbability(float2 uv)
 }
 
 /*
+ * The strength for a fragment: strength times its focus distance, the blend of the distances of the
+ * person (focus point 0) and the background (focus point 1) by its foreground probability; see
+ * PS_Upsample.
+ * Uniforms: mask, focusPoint, strength.
+ */
+float fragmentStrength(float2 uv)
+{
+	float foreground = foregroundProbability(uv);
+	return strength * (foreground * focusPoint + (1.0 - foreground) * (1.0 - focusPoint));
+}
+
+/*
  * A texel of the frame in straight alpha. The frame is rendered premultiplied, as
  * obs_source_process_filter_begin() renders a filter's target, and is blurred so, which is how
  * transparency blurs correctly. OBS blends what a filter draws by its alpha, so the final draws
@@ -180,9 +192,13 @@ technique Downsample { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS
  * Uniforms: blurred (the lower level), image (this level before the blur), mask, focusPoint,
  * halfPixel, strength, levelOffset, levelScale.
  */
-float4 PS_Upsample(VertData v_in) : TARGET
+/*
+ * The ring of the upsample filter of Dual filtering around the fragment, from the lower level in
+ * blurred; halfPixel is half a texel of it.
+ * Uniforms: blurred, halfPixel.
+ */
+float4 dualUpsample(float2 uv)
 {
-	float2 uv = v_in.uv;
 	float4 sum = blurred.Sample(linearSampler, uv + float2(-halfPixel.x * 2.0, 0.0));
 	sum += blurred.Sample(linearSampler, uv + float2(-halfPixel.x, halfPixel.y)) * 2.0;
 	sum += blurred.Sample(linearSampler, uv + float2(0.0, halfPixel.y * 2.0));
@@ -191,23 +207,52 @@ float4 PS_Upsample(VertData v_in) : TARGET
 	sum += blurred.Sample(linearSampler, uv + float2(halfPixel.x, -halfPixel.y)) * 2.0;
 	sum += blurred.Sample(linearSampler, uv + float2(0.0, -halfPixel.y * 2.0));
 	sum += blurred.Sample(linearSampler, uv + float2(-halfPixel.x, -halfPixel.y)) * 2.0;
-	float foreground = foregroundProbability(uv);
-	float focusDistance = foreground * focusPoint + (1.0 - foreground) * (1.0 - focusPoint);
-	float t = strength * focusDistance;
-	float weight = clamp((t * (2.0 * t * t + 1.0) - levelOffset) * levelScale, 0.0, 1.0);
-	return lerp(image.Sample(linearSampler, uv), sum / 12.0, weight);
+	return sum / 12.0;
+}
+
+/*
+ * The weight of a level for a fragment whose strength is t.
+ * Uniforms: levelOffset, levelScale.
+ */
+float levelWeight(float t)
+{
+	return clamp((t * (2.0 * t * t + 1.0) - levelOffset) * levelScale, 0.0, 1.0);
+}
+
+float4 PS_Upsample(VertData v_in) : TARGET
+{
+	float2 uv = v_in.uv;
+	return lerp(image.Sample(linearSampler, uv), dualUpsample(uv), levelWeight(fragmentStrength(uv)));
 }
 
 technique Upsample { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_Upsample(v_in); } }
 
 /*
- * The blurred image in straight alpha. Its alpha is the frame's, blurred with it, so an opaque
- * source stays opaque and a translucent one keeps its transparency.
- * Uniforms: blurred.
+ * The frame as it is, in straight alpha, for a blur of strength 0.
+ * Uniforms: image.
+ */
+float4 PS_DrawFrame(VertData v_in) : TARGET
+{
+	return straightAlpha(image.Sample(linearSampler, v_in.uv));
+}
+
+technique DrawFrame { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_DrawFrame(v_in); } }
+
+/*
+ * The blurred image in straight alpha: the frame blended with pyramid level kBlurStopLevel,
+ * magnified bilinearly, by the weight of levels 1 to kBlurStopLevel taken as one level,
+ * levelOffset 0 and levelScale blurStopScale(kBlurStopLevel), in linear space. A fragment in focus
+ * takes the frame as it is, so the subject keeps the frame's resolution; the bilinear magnification
+ * makes the strength approximate below the resolution of that level. The alpha is the frame's,
+ * blurred with it, so an opaque source stays opaque and a translucent one keeps its transparency.
+ * Uniforms: image (the frame), blurred (the level), mask, focusPoint, strength, levelOffset,
+ * levelScale.
  */
 float4 PS_DrawBlurred(VertData v_in) : TARGET
 {
-	return straightAlpha(blurred.Sample(linearSampler, v_in.uv));
+	float2 uv = v_in.uv;
+	return straightAlpha(lerp(image.Sample(linearSampler, uv), blurred.Sample(linearSampler, uv),
+				  levelWeight(fragmentStrength(uv))));
 }
 
 technique DrawBlurred { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_DrawBlurred(v_in); } }
@@ -260,7 +305,8 @@ MaskCompositorEffect::MaskCompositorEffect(gs_effect_t *effect)
 	  epLevelOffset(requireParam(effect, "levelOffset")),
 	  epLevelScale(requireParam(effect, "levelScale"))
 {
-	for (const char *technique : {"RefineMask", "RemoveBackground", "Downsample", "Upsample", "DrawBlurred"}) {
+	for (const char *technique :
+	     {"RefineMask", "RemoveBackground", "Downsample", "Upsample", "DrawFrame", "DrawBlurred"}) {
 		requireTechnique(effect, technique);
 	}
 }
@@ -300,6 +346,7 @@ void MaskCompositor::setBlurFocusPoint(float value) noexcept
 void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std::uint32_t width, std::uint32_t height)
 {
 	blurredFrame_ = nullptr;
+	blurredIsLevel_ = false;
 	const std::uint32_t maskWidth = gs_texture_get_width(probability);
 	const std::uint32_t maskHeight = gs_texture_get_height(probability);
 	ensureMaskTextures(maskWidth, maskHeight);
@@ -320,11 +367,15 @@ void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std
 	if (!blurEnabled_) {
 		return;
 	}
-	const std::size_t levels = blurLevels(blurStrength_);
-	if (levels == 0) {
+	const std::size_t neededLevels = blurLevels(blurStrength_);
+	if (neededLevels == 0) {
 		blurredFrame_ = image;
 		return;
 	}
+	// The upsampling stops at kBlurStopLevel, and draw() blends the frame with that level in linear
+	// space. The pyramid reaches it even when the strength needs fewer levels; the extra levels take
+	// weight 0.
+	const std::size_t levels = std::max(neededLevels, kBlurStopLevel);
 	ensurePyramid(width, height, levels);
 
 	// Downsample: level k from level k - 1, halfPixel of level k.
@@ -342,12 +393,12 @@ void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std
 	}
 
 	// Upsample: level k - 1 from level k, halfPixel of level k, blended with level k - 1 before the
-	// blur by the weight of level k.
+	// blur by the weight of level k, down to the final level.
 	gs_texture_t *lower = pyramid_[levels].down.get();
-	for (std::size_t k = levels; k >= 1; --k) {
+	for (std::size_t k = levels; k > kBlurStopLevel; --k) {
 		const BlurLevel &source = pyramid_[k];
 		const BlurLevel &target = pyramid_[k - 1];
-		gs_texture_t *const unblurred = k == 1 ? image : target.down.get();
+		gs_texture_t *const unblurred = target.down.get();
 		const auto levelOffset = static_cast<float>(blurLevelOffset(k));
 		const auto levelScale = static_cast<float>(blurLevelScale(k));
 		vec2 halfPixel;
@@ -366,7 +417,8 @@ void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std
 		}
 		lower = target.up.get();
 	}
-	blurredFrame_ = pyramid_[0].up.get();
+	blurredFrame_ = lower;
+	blurredIsLevel_ = true;
 }
 
 void MaskCompositor::draw(gs_texture_t *image, std::uint32_t width, std::uint32_t height) noexcept
@@ -377,9 +429,20 @@ void MaskCompositor::draw(gs_texture_t *image, std::uint32_t width, std::uint32_
 	const bool previousFramebufferSrgb = gs_framebuffer_srgb_enabled();
 	gs_enable_framebuffer_srgb(true);
 	gs_effect_t *const effect = effect_.effect;
-	if (blurredFrame_) {
+	if (blurredIsLevel_) {
 		while (gs_effect_loop(effect, "DrawBlurred")) {
+			gs_effect_set_texture_srgb(effect_.epImage, image);
 			gs_effect_set_texture_srgb(effect_.epBlurred, blurredFrame_);
+			gs_effect_set_texture(effect_.epMask, refinedMask_.get());
+			gs_effect_set_float(effect_.epFocusPoint, blurFocusPoint_);
+			gs_effect_set_float(effect_.epStrength, blurStrength_);
+			gs_effect_set_float(effect_.epLevelOffset, 0.0F);
+			gs_effect_set_float(effect_.epLevelScale, static_cast<float>(blurStopScale(kBlurStopLevel)));
+			gs_draw_sprite(nullptr, 0, width, height);
+		}
+	} else if (blurredFrame_) {
+		while (gs_effect_loop(effect, "DrawFrame")) {
+			gs_effect_set_texture_srgb(effect_.epImage, blurredFrame_);
 			gs_draw_sprite(nullptr, 0, width, height);
 		}
 	} else {
@@ -412,10 +475,6 @@ void MaskCompositor::ensurePyramid(std::uint32_t width, std::uint32_t height, st
 		BlurLevel top;
 		top.width = width;
 		top.height = height;
-		top.up.reset(gs_texture_create(width, height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET));
-		if (!top.up) {
-			throw std::runtime_error("Failed to create the MaskCompositor blur pyramid");
-		}
 		pyramid_.push_back(std::move(top));
 	}
 	while (pyramid_.size() <= levels) {

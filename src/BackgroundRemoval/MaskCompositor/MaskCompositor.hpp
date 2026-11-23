@@ -109,7 +109,8 @@ private:
 	using UniqueTexture = std::unique_ptr<gs_texture_t, TextureDeleter>;
 
 	/// One level of the blur pyramid: the downsampled level and the upsampled, blended level.
-	/// Level 0 is the frame itself and has only up.
+	/// Level 0 stands for the frame and has no textures: the final draw blends the frame with
+	/// level 1 or the stop level.
 	struct BlurLevel {
 		UniqueTexture down;
 		UniqueTexture up;
@@ -135,6 +136,9 @@ private:
 	std::vector<BlurLevel> pyramid_;
 	/// The blurred frame of the latest prepare(), or null when draw() removes the background.
 	gs_texture_t *blurredFrame_ = nullptr;
+	/// Whether blurredFrame_ is pyramid level kBlurStopLevel, which draw() blends the frame with, rather
+	/// than the frame itself.
+	bool blurredIsLevel_ = false;
 };
 
 } // namespace BackgroundRemoval

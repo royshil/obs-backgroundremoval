@@ -40,6 +40,11 @@ honest and simple to use.
    composited back sharp, so that the focus point keeps its meaning.
 5. The halo around the person is kept. It shows the user that the focus ratio is off.
 6. There is no focus depth setting.
+7. The upsampling stops at pyramid level 2. The final draw blends the frame with level 2, magnified
+   bilinearly, by the weight of levels 1 and 2 taken as one, in linear space; the pyramid itself
+   blurs the stored values. A pixel in focus keeps the frame's resolution. The blur is approximate
+   below the resolution of level 2: in particular, a light blur comes out lighter than requirement 1
+   gives. This is the variation of SP-00003 requirement 6, and there is no setting for it.
 
 ## Verified by
 
