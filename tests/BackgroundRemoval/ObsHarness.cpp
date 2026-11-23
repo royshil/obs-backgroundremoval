@@ -168,8 +168,11 @@ auto start(std::string &error) -> bool
 
 void stop()
 {
-	obs_set_output_source(0, nullptr);
-	obs_shutdown();
+	// Also called after start() failed, when obs_startup may have failed and libobs is not running.
+	if (obs_initialized()) {
+		obs_set_output_source(0, nullptr);
+		obs_shutdown();
+	}
 	std::error_code ignored;
 	std::filesystem::remove_all(configDirectory, ignored);
 }
