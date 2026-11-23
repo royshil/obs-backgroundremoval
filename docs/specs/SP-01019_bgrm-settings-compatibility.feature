@@ -30,3 +30,8 @@ Feature: Settings compatibility
   Scenario: The removed mask adjustment is ignored
     Given the Background Removal filter is created from saved settings with "v2_MaskAdjustment" stored as 30
     Then the output equals the output of the same settings without "v2_MaskAdjustment"
+
+  @SP-01019.5
+  Scenario: A saved focus point is read as the same focus ratio
+    Given the Background Removal filter is created from saved settings with "v2_BlurBg" true and "v2_BlurBg_FocusPoint" stored as 0.75
+    Then the output equals the output with "v2_BlurBg_FocusRatio" 50

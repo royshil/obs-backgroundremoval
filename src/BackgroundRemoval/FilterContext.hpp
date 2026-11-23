@@ -88,7 +88,7 @@ private:
 	std::atomic<std::uint32_t> outputHeight_{0};
 	std::atomic<bool> blurBgEnabled_{false};
 	std::atomic<double> blurBgStrength_{4.0};
-	std::atomic<double> blurBgFocusPoint_{0.1};
+	std::atomic<double> blurBgFocusRatio_{-100.0};
 
 	// Graphics thread only: video_tick and video_render both run there.
 	std::unique_ptr<IRenderingPipeline> pipeline_;

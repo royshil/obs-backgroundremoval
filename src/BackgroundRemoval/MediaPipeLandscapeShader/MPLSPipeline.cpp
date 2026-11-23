@@ -211,9 +211,10 @@ void MPLSPipeline::setBlurBgStrength(double value) noexcept
 	compositor_.setBlurStrength(static_cast<float>(value));
 }
 
-void MPLSPipeline::setBlurBgFocusPoint(double value) noexcept
+void MPLSPipeline::setBlurBgFocusRatio(double percent) noexcept
 {
-	compositor_.setBlurFocusPoint(static_cast<float>(value));
+	const double ratio = std::isfinite(percent) ? std::clamp(percent, -100.0, 100.0) : -100.0;
+	compositor_.setBlurFocusPoint(static_cast<float>(focusPointFromRatio(ratio)));
 }
 
 // MARK: - Rendering

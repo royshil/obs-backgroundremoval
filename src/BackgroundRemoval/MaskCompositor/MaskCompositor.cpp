@@ -44,7 +44,6 @@ uniform texture2d image;
 uniform texture2d blurred;
 uniform texture2d mask;
 uniform texture2d probability;
-uniform texture2d focus;
 
 uniform float threshold;
 uniform int maskWidth;
@@ -112,6 +111,17 @@ float foregroundAt(float2 uv)
 }
 
 /*
+ * The foreground probability of a fragment: the refined mask, transformed. The transform is the
+ * identity for now. The focus distance is measured against this, so changing what the blur follows
+ * is a change of this function alone.
+ * Uniforms: mask.
+ */
+float foregroundProbability(float2 uv)
+{
+	return mask.Sample(linearSampler, uv).r;
+}
+
+/*
  * The image with the background removed.
  * Uniforms: image, mask.
  */
@@ -142,37 +152,21 @@ float4 PS_Downsample(VertData v_in) : TARGET
 technique Downsample { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_Downsample(v_in); } }
 
 /*
- * The focus distance, at the size of the mask: the distance of the fragment from the focus point
- * in [0, 1], the background share of five taps of the mask against focusPoint (0 focuses on the
- * foreground, 1 on the background). It depends on the mask alone, so it is computed once per frame
- * and the upsample passes sample it.
- * Uniforms: mask, focusPoint.
- */
-float4 PS_FocusDistance(VertData v_in) : TARGET
-{
-	float2 uv = v_in.uv;
-	float foreground = foregroundAt(uv);
-	foreground += foregroundAt(uv + float2(0.01, 0.01));
-	foreground += foregroundAt(uv + float2(-0.01, 0.01));
-	foreground += foregroundAt(uv + float2(0.01, -0.01));
-	foreground += foregroundAt(uv + float2(-0.01, -0.01));
-	float background = 1.0 - foreground * 0.2;
-	float focusDistance = clamp(abs(background - focusPoint), 0.0, 1.0);
-	return float4(focusDistance, focusDistance, focusDistance, 1.0);
-}
-
-technique FocusDistance { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_FocusDistance(v_in); } }
-
-/*
  * The upsample filter of Dual filtering (Bjorge, SIGGRAPH 2015): four diagonal taps at 1/6 and four
  * axial taps twice as far at 1/12, a ring around the fragment. halfPixel is half a texel of the
  * input, the lower resolution, in uv. The result is blended with the same level before the blur by
  * the weight of this level for the fragment:
+ *   focus distance = q focusPoint + (1 - q) (1 - focusPoint), with q the foreground probability:
+ *     the person lies at focus point 0 and the background at 1, and a fragment is q of the one and
+ *     1 - q of the other, so its distance is the blend of theirs. The outline between them is not a
+ *     depth of its own, so it is never in focus by itself;
  *   t = strength * focus distance, the strength for the fragment;
  *   weight = clamp((t (2 t^2 + 1) - levelOffset) * levelScale, 0, 1).
+ * The distance is linear in q, so computing it here gives the same as at the size of the mask and
+ * magnified, without a pass of its own.
  * See MaskCompositor::prepare() for the derivation of levelOffset and levelScale.
- * Uniforms: blurred (the lower level), image (this level before the blur), focus (the focus
- * distance), halfPixel, strength, levelOffset, levelScale.
+ * Uniforms: blurred (the lower level), image (this level before the blur), mask, focusPoint,
+ * halfPixel, strength, levelOffset, levelScale.
  */
 float4 PS_Upsample(VertData v_in) : TARGET
 {
@@ -185,7 +179,9 @@ float4 PS_Upsample(VertData v_in) : TARGET
 	sum += blurred.Sample(linearSampler, uv + float2(halfPixel.x, -halfPixel.y)) * 2.0;
 	sum += blurred.Sample(linearSampler, uv + float2(0.0, -halfPixel.y * 2.0));
 	sum += blurred.Sample(linearSampler, uv + float2(-halfPixel.x, -halfPixel.y)) * 2.0;
-	float t = strength * focus.Sample(linearSampler, uv).r;
+	float foreground = foregroundProbability(uv);
+	float focusDistance = foreground * focusPoint + (1.0 - foreground) * (1.0 - focusPoint);
+	float t = strength * focusDistance;
 	float weight = clamp((t * (2.0 * t * t + 1.0) - levelOffset) * levelScale, 0.0, 1.0);
 	return lerp(image.Sample(linearSampler, uv), sum / 12.0, weight);
 }
@@ -241,7 +237,6 @@ MaskCompositorEffect::MaskCompositorEffect(gs_effect_t *effect)
 	  epImage(requireParam(effect, "image")),
 	  epBlurred(requireParam(effect, "blurred")),
 	  epMask(requireParam(effect, "mask")),
-	  epFocus(requireParam(effect, "focus")),
 	  epProbability(requireParam(effect, "probability")),
 	  epThreshold(requireParam(effect, "threshold")),
 	  epMaskWidth(requireParam(effect, "maskWidth")),
@@ -252,8 +247,7 @@ MaskCompositorEffect::MaskCompositorEffect(gs_effect_t *effect)
 	  epLevelOffset(requireParam(effect, "levelOffset")),
 	  epLevelScale(requireParam(effect, "levelScale"))
 {
-	for (const char *technique :
-	     {"RefineMask", "FocusDistance", "RemoveBackground", "Downsample", "Upsample", "DrawBlurred"}) {
+	for (const char *technique : {"RefineMask", "RemoveBackground", "Downsample", "Upsample", "DrawBlurred"}) {
 		requireTechnique(effect, technique);
 	}
 }
@@ -287,7 +281,7 @@ void MaskCompositor::setBlurStrength(float value) noexcept
 
 void MaskCompositor::setBlurFocusPoint(float value) noexcept
 {
-	blurFocusPoint_ = finiteClamp(value, 0.0F, 1.0F, 0.1F);
+	blurFocusPoint_ = finiteClamp(value, 0.0F, 1.0F, 0.0F);
 }
 
 void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std::uint32_t width, std::uint32_t height)
@@ -320,14 +314,6 @@ void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std
 	}
 	ensurePyramid(width, height, levels);
 
-	// The focus distance, once per frame at the size of the mask.
-	setTarget(focusDistance_.get(), maskWidth, maskHeight);
-	while (gs_effect_loop(effect, "FocusDistance")) {
-		gs_effect_set_texture(effect_.epMask, refinedMask_.get());
-		gs_effect_set_float(effect_.epFocusPoint, blurFocusPoint_);
-		gs_draw_sprite(nullptr, 0, maskWidth, maskHeight);
-	}
-
 	// Downsample: level k from level k - 1, halfPixel of level k.
 	for (std::size_t k = 1; k <= levels; ++k) {
 		const BlurLevel &level = pyramid_[k];
@@ -357,7 +343,8 @@ void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std
 		while (gs_effect_loop(effect, "Upsample")) {
 			gs_effect_set_texture(effect_.epBlurred, lower);
 			gs_effect_set_texture(effect_.epImage, unblurred);
-			gs_effect_set_texture(effect_.epFocus, focusDistance_.get());
+			gs_effect_set_texture(effect_.epMask, refinedMask_.get());
+			gs_effect_set_float(effect_.epFocusPoint, blurFocusPoint_);
 			gs_effect_set_vec2(effect_.epHalfPixel, &halfPixel);
 			gs_effect_set_float(effect_.epStrength, blurStrength_);
 			gs_effect_set_float(effect_.epLevelOffset, levelOffset);
@@ -392,8 +379,7 @@ void MaskCompositor::ensureMaskTextures(std::uint32_t width, std::uint32_t heigh
 		return;
 	}
 	refinedMask_.reset(gs_texture_create(width, height, GS_R8, 1, nullptr, GS_RENDER_TARGET));
-	focusDistance_.reset(gs_texture_create(width, height, GS_R8, 1, nullptr, GS_RENDER_TARGET));
-	if (!refinedMask_ || !focusDistance_) {
+	if (!refinedMask_) {
 		throw std::runtime_error("Failed to create the MaskCompositor mask textures");
 	}
 	maskTexturesWidth_ = width;

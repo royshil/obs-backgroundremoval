@@ -67,7 +67,28 @@ public:
 
 	void setBlurBgEnabled(bool value) noexcept override;
 	void setBlurBgStrength(double value) noexcept override;
-	void setBlurBgFocusPoint(double value) noexcept override;
+	/// Places the ratio at focusPointFromRatio().
+	void setBlurBgFocusRatio(double percent) noexcept override;
+
+	/// The focus point at focus ratio 0%, where the two blur modes balance for the distribution of
+	/// this model's output.
+	static constexpr double kBalanceFocusPoint = 0.5;
+
+	/// The focus point of a focus ratio in [-100, 100]. The refined mask puts the person at
+	/// background share 0 and the background at 1, so -100% is focus point 0, 0% is
+	/// kBalanceFocusPoint and 100% is 1, linear on each side.
+	static constexpr auto focusPointFromRatio(double ratio) noexcept -> double
+	{
+		return ratio < 0.0 ? kBalanceFocusPoint * (1.0 + ratio / 100.0)
+				   : kBalanceFocusPoint + (1.0 - kBalanceFocusPoint) * ratio / 100.0;
+	}
+
+	/// The focus ratio of a focus point in [0, 1]; the inverse of focusPointFromRatio().
+	static constexpr auto focusRatioFromPoint(double point) noexcept -> double
+	{
+		return point < kBalanceFocusPoint ? 100.0 * (point / kBalanceFocusPoint - 1.0)
+						  : 100.0 * (point - kBalanceFocusPoint) / (1.0 - kBalanceFocusPoint);
+	}
 
 	/// Renders the filtered source frame to the current render target at the output size. Draws
 	/// nothing after a GPU failure, or while the target's size differs from the one the pipeline

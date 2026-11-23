@@ -70,9 +70,11 @@ public:
 	/// quantity of this filter, not a physical aperture: the blur farthest from the focus point.
 	virtual void setBlurBgStrength(double value) noexcept = 0;
 
-	/// Sets where the frame is sharp in [0, 1], default 0.1: 0 focuses on the person and 1 on the
-	/// background. A position in mask space, not a physical distance.
-	virtual void setBlurBgFocusPoint(double value) noexcept = 0;
+	/// Sets where the frame is sharp as a percentage in [-100, 100], default -100: -100 focuses on
+	/// the person, 100 on the background, and 0 is the point where the two balance. A position in
+	/// mask space, not a physical distance. Each pipeline places it on its own mask, since where the
+	/// person, the background and the balance between them lie there depends on the model.
+	virtual void setBlurBgFocusRatio(double percent) noexcept = 0;
 
 	// MARK: - OBS lifecycle handlers
 

@@ -4,6 +4,7 @@
 
 #include "FilterContext.hpp"
 
+#include <algorithm>
 #include <exception>
 #include <optional>
 #include <stdexcept>
@@ -11,6 +12,7 @@
 #include <string_view>
 
 #include <BackgroundRemoval/IRenderingPipeline.hpp>
+#include <BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.hpp>
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 #include <plugin-support.h>
@@ -45,6 +47,21 @@ void appendHtmlEscaped(std::string &output, std::string_view text)
 			break;
 		}
 	}
+}
+
+/// The focus ratio in percent. Settings saved before v2_BlurBg_FocusRatio keep the focus point in
+/// [0, 1] in v2_BlurBg_FocusPoint; it is read as the ratio that the MPLS pipeline, whose mask those
+/// settings were made with, places at the same point. The old key is read only when the new one was
+/// never set.
+auto readFocusRatio(obs_data_t *settings) -> double
+{
+	using BackgroundRemoval::MPLSPipeline;
+	if (!obs_data_has_user_value(settings, "v2_BlurBg_FocusRatio") &&
+	    obs_data_has_user_value(settings, "v2_BlurBg_FocusPoint")) {
+		const double point = std::clamp(obs_data_get_double(settings, "v2_BlurBg_FocusPoint"), 0.0, 1.0);
+		return MPLSPipeline::focusRatioFromPoint(point);
+	}
+	return obs_data_get_double(settings, "v2_BlurBg_FocusRatio");
 }
 
 } // namespace
@@ -110,14 +127,14 @@ void FilterContext::readSettings(obs_data_t *settings) noexcept
 	blurBgEnabled_.store(obs_data_get_bool(settings, "v2_BlurBg"));
 	// v2_BlurBg_Factor was an integer iteration count; obs_data reads stored integers as doubles.
 	blurBgStrength_.store(obs_data_get_double(settings, "v2_BlurBg_Factor"));
-	blurBgFocusPoint_.store(obs_data_get_double(settings, "v2_BlurBg_FocusPoint"));
+	blurBgFocusRatio_.store(readFocusRatio(settings));
 }
 
 void FilterContext::applySettings(IRenderingPipeline &pipeline) const noexcept
 {
 	pipeline.setBlurBgEnabled(blurBgEnabled_.load());
 	pipeline.setBlurBgStrength(blurBgStrength_.load());
-	pipeline.setBlurBgFocusPoint(blurBgFocusPoint_.load());
+	pipeline.setBlurBgFocusRatio(blurBgFocusRatio_.load());
 }
 
 void FilterContext::getDefaults(obs_data_t *settings) noexcept
@@ -126,7 +143,7 @@ void FilterContext::getDefaults(obs_data_t *settings) noexcept
 	obs_data_set_default_int(settings, "v2_PipelineId", kAutoPipelineId);
 	obs_data_set_default_bool(settings, "v2_BlurBg", false);
 	obs_data_set_default_double(settings, "v2_BlurBg_Factor", 4.0);
-	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", 0.1);
+	obs_data_set_default_int(settings, "v2_BlurBg_FocusRatio", -100);
 }
 
 std::string FilterContext::getVersionNotice()
@@ -193,9 +210,10 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
 	obs_property_t *const blurStrength =
 		obs_properties_add_float_slider(blurProperties, "v2_BlurBg_Factor", tBlurBgStrength(), 0.0, 20.0, 0.1);
 	obs_property_set_long_description(blurStrength, tBlurBgStrengthDescription());
-	obs_property_t *const blurFocusPoint = obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusPoint",
-									       tBlurBgFocusPoint(), 0.0, 1.0, 0.05);
-	obs_property_set_long_description(blurFocusPoint, tBlurBgFocusPointDescription());
+	obs_property_t *const blurFocusRatio = obs_properties_add_int_slider(blurProperties, "v2_BlurBg_FocusRatio",
+									     tBlurBgFocusRatio(), -100, 100, 1);
+	obs_property_int_set_suffix(blurFocusRatio, "%");
+	obs_property_set_long_description(blurFocusRatio, tBlurBgFocusRatioDescription());
 
 	// MARK: - Footer
 

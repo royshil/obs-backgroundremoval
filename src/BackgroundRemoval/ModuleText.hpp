@@ -19,8 +19,8 @@ const char *tPipelineDescription();
 const char *tBlurBg();
 const char *tBlurBgStrength();
 const char *tBlurBgStrengthDescription();
-const char *tBlurBgFocusPoint();
-const char *tBlurBgFocusPointDescription();
+const char *tBlurBgFocusRatio();
+const char *tBlurBgFocusRatioDescription();
 const char *tAboutThisPlugin();
 
 } // namespace BackgroundRemoval

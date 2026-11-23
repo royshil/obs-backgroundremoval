@@ -27,7 +27,6 @@ struct MaskCompositorEffect final {
 	gs_eparam_t *const epImage;
 	gs_eparam_t *const epBlurred;
 	gs_eparam_t *const epMask;
-	gs_eparam_t *const epFocus;
 	gs_eparam_t *const epProbability;
 	gs_eparam_t *const epThreshold;
 	gs_eparam_t *const epMaskWidth;
@@ -82,7 +81,7 @@ public:
 	/// Strength s blurs as much (by variance) as s iterations of the Kawase blur this replaces.
 	void setBlurStrength(float value) noexcept;
 
-	/// Sets where the frame is sharp in [0, 1], default 0.1: 0 focuses on the foreground and 1 on the
+	/// Sets where the frame is sharp in [0, 1], default 0: 0 focuses on the foreground and 1 on the
 	/// background. The blur grows with the distance from it in mask space.
 	void setBlurFocusPoint(float value) noexcept;
 
@@ -123,13 +122,10 @@ private:
 
 	bool blurEnabled_ = false;
 	float blurStrength_ = 4.0F;
-	float blurFocusPoint_ = 0.1F;
+	float blurFocusPoint_ = 0.0F;
 
 	/// The share of the foreground in R8, at the size of the probability mask.
 	UniqueTexture refinedMask_;
-	/// The distance from the focus point in R8, at the size of the probability mask; written when
-	/// the frame is blurred.
-	UniqueTexture focusDistance_;
 	std::uint32_t maskTexturesWidth_ = 0;
 	std::uint32_t maskTexturesHeight_ = 0;
 
