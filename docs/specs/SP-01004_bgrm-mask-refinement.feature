@@ -5,7 +5,9 @@
 @SP-01004
 Feature: Mask refinement
   The refined mask is the share of the foreground in the 5 x 5 window around
-  each texel of the probability, counting only texels inside the mask.
+  each texel of the probability, counting only texels inside the mask. A texel
+  is foreground when its probability is at least 0.5, the threshold the model
+  is trained for; nothing adjusts it.
 
   @SP-01004.1
   Scenario: Interior texel
@@ -20,19 +22,6 @@ Feature: Mask refinement
     When the mask is refined
     Then the refined value of the corner texel is 5 / 9
     And padding outside the mask is not counted
-
-  @SP-01004.3
-  Scenario Outline: Mask adjustment moves the threshold
-    Given mask adjustment <adjustment>
-    Then the threshold is <threshold>
-
-    Examples:
-      | adjustment | threshold |
-      | 0          | 0.5       |
-      | 30         | 0.2       |
-      | -30        | 0.8       |
-      | 80         | 0         |
-      | -80        | 1         |
 
   @SP-01004.4
   Scenario: Agreement with the reference

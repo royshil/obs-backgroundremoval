@@ -86,7 +86,6 @@ private:
 	// the output size of pipeline_, or 0 without one.
 	std::atomic<std::uint32_t> outputWidth_{0};
 	std::atomic<std::uint32_t> outputHeight_{0};
-	std::atomic<double> maskAdjustment_{0.0};
 	std::atomic<bool> blurBgEnabled_{false};
 	std::atomic<double> blurBgStrength_{4.0};
 	std::atomic<double> blurBgFocusPoint_{0.1};

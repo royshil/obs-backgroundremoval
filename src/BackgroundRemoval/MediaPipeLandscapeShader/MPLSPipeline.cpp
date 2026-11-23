@@ -15,7 +15,6 @@
 
 #include <graphics/vec4.h>
 
-#include <BackgroundRemoval/MaskCompositor/MaskThreshold.hpp>
 #include <plugin-support.h>
 
 #include "MPLSEffect.hpp"
@@ -201,11 +200,6 @@ MPLSPipeline::MPLSPipeline(obs_source_t *source, std::uint32_t sourceWidth, std:
 }
 
 MPLSPipeline::~MPLSPipeline() noexcept = default;
-
-void MPLSPipeline::setMaskAdjustment(double degree) noexcept
-{
-	compositor_.setThreshold(maskThreshold(degree));
-}
 
 void MPLSPipeline::setBlurBgEnabled(bool value) noexcept
 {

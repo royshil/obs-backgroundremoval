@@ -107,7 +107,6 @@ void FilterContext::readSettings(obs_data_t *settings) noexcept
 	pipelineId_.store(obs_data_get_int(settings, "v2_PipelineId"));
 	outputDownscaleFactor_.store(
 		validOutputDownscaleFactor(obs_data_get_int(settings, "v2_OutputDownscaleFactor")));
-	maskAdjustment_.store(obs_data_get_double(settings, "v2_MaskAdjustment"));
 	blurBgEnabled_.store(obs_data_get_bool(settings, "v2_BlurBg"));
 	// v2_BlurBg_Factor was an integer iteration count; obs_data reads stored integers as doubles.
 	blurBgStrength_.store(obs_data_get_double(settings, "v2_BlurBg_Factor"));
@@ -116,7 +115,6 @@ void FilterContext::readSettings(obs_data_t *settings) noexcept
 
 void FilterContext::applySettings(IRenderingPipeline &pipeline) const noexcept
 {
-	pipeline.setMaskAdjustment(maskAdjustment_.load());
 	pipeline.setBlurBgEnabled(blurBgEnabled_.load());
 	pipeline.setBlurBgStrength(blurBgStrength_.load());
 	pipeline.setBlurBgFocusPoint(blurBgFocusPoint_.load());
@@ -126,8 +124,6 @@ void FilterContext::getDefaults(obs_data_t *settings) noexcept
 {
 	obs_data_set_default_int(settings, "v2_OutputDownscaleFactor", 1);
 	obs_data_set_default_int(settings, "v2_PipelineId", kAutoPipelineId);
-	obs_data_set_default_double(settings, "v2_MotionSuppression", 0.0);
-	obs_data_set_default_double(settings, "v2_MaskAdjustment", 0.0);
 	obs_data_set_default_bool(settings, "v2_BlurBg", false);
 	obs_data_set_default_double(settings, "v2_BlurBg_Factor", 4.0);
 	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", 0.1);
@@ -188,14 +184,6 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
 	obs_property_list_add_int(pipeline, tPipelineAuto(), kAutoPipelineId);
 	obs_property_list_add_int(pipeline, tPipelineMPLS(), kMPLSPipelineId);
 	obs_property_set_long_description(pipeline, tPipelineDescription());
-
-	obs_property_t *const maskAdjustment =
-		obs_properties_add_float_slider(pGeneral, "v2_MaskAdjustment", tMaskAdjustment(), -50.0, 50.0, 0.01);
-	obs_property_set_long_description(maskAdjustment, tMaskAdjustmentDescription());
-
-	obs_property_t *const motionSuppression = obs_properties_add_float_slider(
-		pGeneral, "v2_MotionSuppression", tMotionSuppression(), -50.0, 50.0, 0.01);
-	obs_property_set_long_description(motionSuppression, tMotionSuppressionDescription());
 
 	// MARK: - Blur Background Properties
 

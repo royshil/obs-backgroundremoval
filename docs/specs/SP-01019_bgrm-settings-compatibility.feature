@@ -25,3 +25,8 @@ Feature: Settings compatibility
   Scenario: Settings without the output downscale factor use downscale factor 1
     Given the Background Removal filter is created from saved settings without "v2_OutputDownscaleFactor"
     Then the source size is 1280 x 720
+
+  @SP-01019.4
+  Scenario: The removed mask adjustment is ignored
+    Given the Background Removal filter is created from saved settings with "v2_MaskAdjustment" stored as 30
+    Then the output equals the output of the same settings without "v2_MaskAdjustment"

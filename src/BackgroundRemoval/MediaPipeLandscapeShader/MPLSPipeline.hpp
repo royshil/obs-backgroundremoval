@@ -65,8 +65,6 @@ public:
 	auto width() const noexcept -> std::uint32_t override { return outputWidth_; }
 	auto height() const noexcept -> std::uint32_t override { return outputHeight_; }
 
-	/// The foreground probability threshold is 0.5 - degree / 100.
-	void setMaskAdjustment(double degree) noexcept override;
 	void setBlurBgEnabled(bool value) noexcept override;
 	void setBlurBgStrength(double value) noexcept override;
 	void setBlurBgFocusPoint(double value) noexcept override;

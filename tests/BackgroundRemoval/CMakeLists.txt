@@ -19,7 +19,6 @@ add_executable(
   OutputSizeTest.cpp
   DualFilterKernelTest.cpp
   BlurVarianceTest.cpp
-  MaskThresholdTest.cpp
 )
 target_include_directories(
   BackgroundRemovalUnitTest
@@ -38,7 +37,6 @@ add_spec_tests(
   SP-01003.2
   SP-01003.3
   SP-01003.4
-  SP-01004.3
 )
 
 # MARK: On the GPU through libobs
@@ -190,10 +188,10 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
     SP-01017.2
     SP-01017.3
     SP-01018.1
-    SP-01018.2
     SP-01019.1
     SP-01019.2
     SP-01019.3
+    SP-01019.4
   )
   add_spec_tests(BackgroundRemovalObsTest ${OBS_SPEC_CASES})
   set_tests_properties(${OBS_SPEC_CASES} PROPERTIES TIMEOUT 300)

@@ -129,24 +129,12 @@ TEST_CASE("SP-01017.3 Moving the focus moves the sharpness")
 	}
 }
 
-// MARK: SP-01018 Mask adjustment
+// MARK: SP-01018 Kept pixels
 
-TEST_CASE("SP-01018.1 Positive adjustment keeps more, negative keeps less")
-{
-	double previous = -1.0;
-	for (const int adjustment : {-30, 0, 30}) {
-		CAPTURE(adjustment);
-		const double share =
-			opaqueShare(outputWith(R"({"v2_MaskAdjustment": )" + std::to_string(adjustment) + "}"));
-		CHECK(share > previous);
-		previous = share;
-	}
-}
-
-TEST_CASE("SP-01018.2 Kept pixels are unchanged")
+TEST_CASE("SP-01018.1 Kept pixels are unchanged")
 {
 	const Image unfiltered = captureUnfiltered(kPortrait);
-	const Image output = outputWith(R"({"v2_MaskAdjustment": 0})");
+	const Image output = outputWith("{}");
 	int worst = 0;
 	for (std::size_t i = 0; i < output.pixelCount(); ++i) {
 		if (output.rgba[i * 4 + 3] != 255) {
@@ -181,4 +169,11 @@ TEST_CASE("SP-01019.3 Settings without the output downscale factor use downscale
 	const Scene scene(kPortrait, {{kBackgroundRemovalId, "{}"}});
 	CHECK(scene.width() == 1280);
 	CHECK(scene.height() == 720);
+}
+
+TEST_CASE("SP-01019.4 The removed mask adjustment is ignored")
+{
+	const Image saved = outputWith(R"({"v2_MaskAdjustment": 30})");
+	const Image current = outputWith("{}");
+	CHECK(maxDifference(saved, current) == 0);
 }

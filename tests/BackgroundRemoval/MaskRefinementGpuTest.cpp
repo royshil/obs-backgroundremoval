@@ -117,7 +117,8 @@ auto readR8(gs_texture_t *texture, std::uint32_t width = kMaskSize, std::uint32_
 	return texels;
 }
 
-/// Refines a probability mask of width x height at threshold 0.5 and returns the refined mask.
+/// Refines a probability mask of width x height at the fixed foreground threshold and returns the
+/// refined mask.
 auto refine(const std::vector<std::uint8_t> &probability, std::uint32_t width = kMaskSize,
 	    std::uint32_t height = kMaskSize) -> std::vector<std::uint8_t>
 {
@@ -125,7 +126,6 @@ auto refine(const std::vector<std::uint8_t> &probability, std::uint32_t width = 
 	UniqueTexture imageTexture = makeTexture(width, height, GS_BGRA, image.data());
 	UniqueTexture probabilityTexture = makeTexture(width, height, GS_R8, probability.data());
 	BackgroundRemoval::MaskCompositor compositor;
-	compositor.setThreshold(0.5F);
 	compositor.prepare(imageTexture.get(), probabilityTexture.get(), width, height);
 	// prepare() leaves its last target bound; unbind it, as the pipeline restores its own,
 	// before the compositor destroys that texture.

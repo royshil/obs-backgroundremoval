@@ -275,11 +275,6 @@ MaskCompositor::MaskCompositor() : effect_(makeMaskCompositorEffect()) {}
 
 MaskCompositor::~MaskCompositor() noexcept = default;
 
-void MaskCompositor::setThreshold(float value) noexcept
-{
-	thresholdValue_ = finiteClamp(value, 0.0F, 1.0F, 0.5F);
-}
-
 void MaskCompositor::setBlurEnabled(bool value) noexcept
 {
 	blurEnabled_ = value;
@@ -309,7 +304,7 @@ void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std
 	setTarget(refinedMask_.get(), maskWidth, maskHeight);
 	while (gs_effect_loop(effect, "RefineMask")) {
 		gs_effect_set_texture(effect_.epProbability, probability);
-		gs_effect_set_float(effect_.epThreshold, thresholdValue_);
+		gs_effect_set_float(effect_.epThreshold, kForegroundThreshold);
 		gs_effect_set_int(effect_.epMaskWidth, static_cast<int>(maskWidth));
 		gs_effect_set_int(effect_.epMaskHeight, static_cast<int>(maskHeight));
 		gs_draw_sprite(nullptr, 0, maskWidth, maskHeight);

@@ -60,28 +60,6 @@ const char *tPipelineDescription()
 		"Auto selects the recommended pipeline. Select a specific pipeline to use it explicitly.");
 }
 
-const char *tMaskAdjustment()
-{
-	return obs_module_text("Mask adjustment");
-}
-
-const char *tMaskAdjustmentDescription()
-{
-	return obs_module_text("Higher values expand the retained foreground mask. Lower values shrink it. "
-			       "The default is 0.");
-}
-
-const char *tMotionSuppression()
-{
-	return obs_module_text("Motion suppression");
-}
-
-const char *tMotionSuppressionDescription()
-{
-	return obs_module_text("Higher values keep the mask steadier by ignoring small changes. "
-			       "Lower values make the mask more responsive. The default is 0.");
-}
-
 const char *tBlurBg()
 {
 	return obs_module_text("Blur Background");

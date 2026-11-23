@@ -61,12 +61,6 @@ public:
 	/// Returns the height of the output, fixed when the pipeline is created.
 	virtual auto height() const noexcept -> std::uint32_t = 0;
 
-	// MARK: - General parameters
-
-	/// Sets mask adjustment degree; positive values expand the foreground.
-	/// @param degree [-50.0, 50.0]; 0.0 is neutral.
-	virtual void setMaskAdjustment(double degree) noexcept = 0;
-
 	// MARK: - Blur background parameters
 
 	/// Enables background blur instead of background transparency; default false.

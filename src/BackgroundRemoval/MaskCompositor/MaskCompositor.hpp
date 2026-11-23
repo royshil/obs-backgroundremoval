@@ -48,9 +48,9 @@ const MaskCompositorEffect &makeMaskCompositorEffect();
 /// Draws a source frame with a foreground probability mask, using OBS graphics only.
 ///
 /// The probability is first refined at its own size: each texel becomes the share of the
-/// foreground (probability >= threshold) in the 5x5 window around it, counting only the texels
-/// inside the mask. The refined mask is sampled bilinearly at the frame size, and a pixel is in
-/// the foreground when the share is at least 0.5.
+/// foreground (probability at least kForegroundThreshold) in the 5x5 window around it, counting
+/// only the texels inside the mask. The refined mask is sampled bilinearly at the frame size, and
+/// a pixel is in the foreground when the share is at least 0.5.
 ///
 /// The background is either removed (made transparent), or the whole frame is drawn opaque with a
 /// focal blur: Dual filtering (Bjorge, SIGGRAPH 2015) whose amount at each pixel grows with the
@@ -62,6 +62,9 @@ public:
 	/// The largest blur strength.
 	static constexpr float kMaxBlurStrength = 20.0F;
 
+	/// The foreground probability threshold of the refinement, the one the model is trained for.
+	static constexpr float kForegroundThreshold = 0.5F;
+
 	/// Draws with the shared effect of makeMaskCompositorEffect().
 	/// @throws std::runtime_error when the effect cannot be created.
 	MaskCompositor();
@@ -71,9 +74,6 @@ public:
 	auto operator=(const MaskCompositor &) -> MaskCompositor & = delete;
 	MaskCompositor(MaskCompositor &&) = delete;
 	auto operator=(MaskCompositor &&) -> MaskCompositor & = delete;
-
-	/// Sets the foreground probability threshold in [0, 1]; default 0.5.
-	void setThreshold(float value) noexcept;
 
 	/// Blurs instead of removing the background; default false.
 	void setBlurEnabled(bool value) noexcept;
@@ -121,7 +121,6 @@ private:
 
 	const MaskCompositorEffect &effect_;
 
-	float thresholdValue_ = 0.5F;
 	bool blurEnabled_ = false;
 	float blurStrength_ = 4.0F;
 	float blurFocusPoint_ = 0.1F;

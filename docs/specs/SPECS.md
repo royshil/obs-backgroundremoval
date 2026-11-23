@@ -36,7 +36,7 @@
 - [SP-01015: Repeated downscale factor changes](SP-01015_bgrm-repeated-downscale-factor-changes.feature)
 - [SP-01016: Blur strength](SP-01016_bgrm-blur-strength.feature)
 - [SP-01017: Blur focus point](SP-01017_bgrm-blur-focus-point.feature)
-- [SP-01018: Mask adjustment](SP-01018_bgrm-mask-adjustment.feature)
+- [SP-01018: Kept pixels](SP-01018_bgrm-kept-pixels.feature)
 - [SP-01019: Settings compatibility](SP-01019_bgrm-settings-compatibility.feature)
 
 ## Plugin user scenario cases
