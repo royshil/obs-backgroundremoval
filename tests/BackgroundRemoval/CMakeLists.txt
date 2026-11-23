@@ -185,6 +185,9 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
     SP-01019.3
     SP-01019.4
     SP-01019.5
+    SP-01020.1
+    SP-01020.2
+    SP-01020.3
   )
   add_spec_tests(BackgroundRemovalObsTest ${OBS_SPEC_CASES})
   set_tests_properties(${OBS_SPEC_CASES} PROPERTIES TIMEOUT 300)

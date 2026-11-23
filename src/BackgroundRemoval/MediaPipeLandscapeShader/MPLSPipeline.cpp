@@ -97,22 +97,27 @@ auto toInt(std::uint32_t value) noexcept -> int
 	return static_cast<int>(value);
 }
 
-/// Saves the render state that the pipeline changes and restores it on destruction.
+/// Saves the render state that the pipeline changes and restores it on destruction. Framebuffer
+/// sRGB is turned off meanwhile, so that the passes store values as they compute them, whatever the
+/// caller left enabled.
 class RenderStateGuard final {
 public:
 	RenderStateGuard() noexcept
 		: renderTarget_(gs_get_render_target()),
 		  zstencil_(gs_get_zstencil_target()),
-		  colorSpace_(gs_get_color_space())
+		  colorSpace_(gs_get_color_space()),
+		  framebufferSrgb_(gs_framebuffer_srgb_enabled())
 	{
 		gs_blend_state_push();
 		gs_matrix_push();
 		gs_projection_push();
 		gs_viewport_push();
+		gs_enable_framebuffer_srgb(false);
 	}
 
 	~RenderStateGuard() noexcept
 	{
+		gs_enable_framebuffer_srgb(framebufferSrgb_);
 		gs_viewport_pop();
 		gs_projection_pop();
 		gs_matrix_pop();
@@ -129,6 +134,7 @@ private:
 	gs_texture_t *const renderTarget_;
 	gs_zstencil_t *const zstencil_;
 	const gs_color_space colorSpace_;
+	const bool framebufferSrgb_;
 };
 
 // gs_effect_loop() draws nothing when a technique is missing, so check the names up front.

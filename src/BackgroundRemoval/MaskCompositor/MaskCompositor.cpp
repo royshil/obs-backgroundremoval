@@ -122,12 +122,24 @@ float foregroundProbability(float2 uv)
 }
 
 /*
- * The image with the background removed.
+ * A texel of the frame in straight alpha. The frame is rendered premultiplied, as
+ * obs_source_process_filter_begin() renders a filter's target, and is blurred so, which is how
+ * transparency blurs correctly. OBS blends what a filter draws by its alpha, so the final draws
+ * divide the color by it, as the filters of OBS Studio do.
+ */
+float4 straightAlpha(float4 premultiplied)
+{
+	premultiplied.rgb *= (premultiplied.a > 0.0) ? (1.0 / premultiplied.a) : 0.0;
+	return premultiplied;
+}
+
+/*
+ * The image with the background removed, in straight alpha.
  * Uniforms: image, mask.
  */
 float4 PS_RemoveBackground(VertData v_in) : TARGET
 {
-	return image.Sample(linearSampler, v_in.uv) * foregroundAt(v_in.uv);
+	return straightAlpha(image.Sample(linearSampler, v_in.uv)) * foregroundAt(v_in.uv);
 }
 
 technique RemoveBackground { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_RemoveBackground(v_in); } }
@@ -189,12 +201,13 @@ float4 PS_Upsample(VertData v_in) : TARGET
 technique Upsample { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_Upsample(v_in); } }
 
 /*
- * The blurred image, opaque.
+ * The blurred image in straight alpha. Its alpha is the frame's, blurred with it, so an opaque
+ * source stays opaque and a translucent one keeps its transparency.
  * Uniforms: blurred.
  */
 float4 PS_DrawBlurred(VertData v_in) : TARGET
 {
-	return float4(blurred.Sample(linearSampler, v_in.uv).rgb, 1.0);
+	return straightAlpha(blurred.Sample(linearSampler, v_in.uv));
 }
 
 technique DrawBlurred { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_DrawBlurred(v_in); } }
@@ -358,19 +371,25 @@ void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std
 
 void MaskCompositor::draw(gs_texture_t *image, std::uint32_t width, std::uint32_t height) noexcept
 {
+	// As render_filter_tex() draws an sRGB-aware filter: the sources and filters before this one
+	// premultiplied the frame in linear space, so it is decoded before straightAlpha() divides it,
+	// and the output is blended in linear space as theirs is.
+	const bool previousFramebufferSrgb = gs_framebuffer_srgb_enabled();
+	gs_enable_framebuffer_srgb(true);
 	gs_effect_t *const effect = effect_.effect;
 	if (blurredFrame_) {
 		while (gs_effect_loop(effect, "DrawBlurred")) {
-			gs_effect_set_texture(effect_.epBlurred, blurredFrame_);
+			gs_effect_set_texture_srgb(effect_.epBlurred, blurredFrame_);
 			gs_draw_sprite(nullptr, 0, width, height);
 		}
-		return;
+	} else {
+		while (gs_effect_loop(effect, "RemoveBackground")) {
+			gs_effect_set_texture_srgb(effect_.epImage, image);
+			gs_effect_set_texture(effect_.epMask, refinedMask_.get());
+			gs_draw_sprite(nullptr, 0, width, height);
+		}
 	}
-	while (gs_effect_loop(effect, "RemoveBackground")) {
-		gs_effect_set_texture(effect_.epImage, image);
-		gs_effect_set_texture(effect_.epMask, refinedMask_.get());
-		gs_draw_sprite(nullptr, 0, width, height);
-	}
+	gs_enable_framebuffer_srgb(previousFramebufferSrgb);
 }
 
 void MaskCompositor::ensureMaskTextures(std::uint32_t width, std::uint32_t height)

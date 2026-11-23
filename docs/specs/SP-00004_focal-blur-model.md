@@ -35,8 +35,9 @@ honest and simple to use.
    balance between them lie there depends on the distribution of the model's output.
 3. The distance from the focus point is computed from the foreground probability alone, which is
    the refined mask transformed. The transform is currently the identity.
-4. The output is the blurred frame alone, opaque. The person is not composited back sharp, so that
-   the focus point keeps its meaning.
+4. The output is the blurred frame alone, with the transparency of the frame blurred along with
+   it: an opaque source stays opaque and a translucent one stays translucent. The person is not
+   composited back sharp, so that the focus point keeps its meaning.
 5. The halo around the person is kept. It shows the user that the focus ratio is off.
 6. There is no focus depth setting.
 
@@ -45,3 +46,4 @@ honest and simple to use.
 - SP-01003: Blur variance
 - SP-01016: Blur strength
 - SP-01017: Blur focus ratio
+- SP-01020: Translucent source

@@ -93,7 +93,9 @@ public:
 	void prepare(gs_texture_t *image, gs_texture_t *probability, std::uint32_t width, std::uint32_t height);
 
 	/// Draws the composited frame of width x height, with the mask of the latest prepare(), to the
-	/// current render target with the current projection and blend state.
+	/// current render target with the current projection and blend state. Draws in linear space, as
+	/// OBS draws an sRGB-aware filter: the frame is sampled through sRGB decoding and written with
+	/// framebuffer sRGB, so its alpha divides and blends there.
 	void draw(gs_texture_t *image, std::uint32_t width, std::uint32_t height) noexcept;
 
 	/// The refined mask of the latest prepare(): the share of the foreground in R8, at the size of

@@ -104,6 +104,11 @@ public:
 	/// Renders the source with its filters at its own size.
 	[[nodiscard]] auto capture() const -> Image { return ObsHarness::capture(source_); }
 
+	/// Renders the scene at its own size, the size of the canvas, as OBS composites it into the
+	/// program output: the scene resets the blend state and blends each item onto the cleared
+	/// target, so transparency shows as it does in OBS Studio.
+	[[nodiscard]] auto captureScene() const -> Image { return ObsHarness::capture(obs_scene_get_source(scene_)); }
+
 	/// Adds another image source with the same filter chain to this scene.
 	void addSecondSource(const std::string &imageFile, const std::vector<FilterSpec> &filters);
 

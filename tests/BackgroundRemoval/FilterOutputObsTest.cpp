@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// SP-01016 to SP-01019: the rendered output of the filter and its settings, running in
+// SP-01016 to SP-01020: the rendered output of the filter and its settings, running in
 // libobs.
 
 #include <doctest.h>
@@ -79,6 +79,24 @@ auto outlineBand(const std::vector<bool> &person, std::uint32_t width, std::uint
 		}
 	}
 	return band;
+}
+
+/// A Color Correction filter that makes the portrait half transparent, ahead of Background Removal.
+const FilterSpec kHalfOpacity{"color_filter_v2", R"({"opacity": 0.5})"};
+
+/// The scene with the half transparent portrait, without Background Removal, as OBS composites it.
+auto translucentSource() -> Image
+{
+	const Scene scene(kPortrait, {kHalfOpacity});
+	return scene.captureScene();
+}
+
+/// The scene with the half transparent portrait through Background Removal with the settings, as
+/// OBS composites it.
+auto translucentWith(const std::string &settingsJson) -> Image
+{
+	const Scene scene(kPortrait, {kHalfOpacity, {kBackgroundRemovalId, settingsJson}});
+	return scene.captureScene();
 }
 
 } // namespace
@@ -230,4 +248,47 @@ TEST_CASE("SP-01019.5 A saved focus point is read as the same focus ratio")
 	const Image saved = outputWith(R"({"v2_BlurBg": true, "v2_BlurBg_FocusPoint": 0.75})");
 	const Image current = outputWith(R"({"v2_BlurBg": true, "v2_BlurBg_FocusRatio": 50})");
 	CHECK(maxDifference(saved, current) == 0);
+}
+
+// MARK: SP-01020 Translucent source
+
+TEST_CASE("SP-01020.1 Kept pixels keep their color and transparency")
+{
+	const Image source = translucentSource();
+	const Image output = translucentWith("{}");
+	REQUIRE(output.pixelCount() == source.pixelCount());
+	std::size_t kept = 0;
+	int worst = 0;
+	for (std::size_t i = 0; i < output.pixelCount(); ++i) {
+		if (output.rgba[i * 4 + 3] == 0) {
+			continue;
+		}
+		++kept;
+		for (std::size_t c = 0; c < 4; ++c) {
+			worst = std::max(worst, std::abs(static_cast<int>(output.rgba[i * 4 + c]) -
+							 static_cast<int>(source.rgba[i * 4 + c])));
+		}
+	}
+	CHECK(kept > output.pixelCount() / 10);
+	CHECK(worst <= 2);
+}
+
+TEST_CASE("SP-01020.2 Blur strength 0 leaves the source as it is")
+{
+	const Image source = translucentSource();
+	const Image output = translucentWith(blurSettings(0.0, -100));
+	CHECK(maxDifference(output, source) <= 2);
+}
+
+TEST_CASE("SP-01020.3 The blur keeps the transparency")
+{
+	const Image source = translucentSource();
+	const Image output = translucentWith(blurSettings(8.0, -100));
+	REQUIRE(output.pixelCount() == source.pixelCount());
+	int worst = 0;
+	for (std::size_t i = 0; i < output.pixelCount(); ++i) {
+		worst = std::max(worst, std::abs(static_cast<int>(output.rgba[i * 4 + 3]) -
+						 static_cast<int>(source.rgba[i * 4 + 3])));
+	}
+	CHECK(worst <= 2);
 }

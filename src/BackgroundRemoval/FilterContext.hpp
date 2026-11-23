@@ -36,7 +36,9 @@ public:
 		obs_source_info sourceInfo{};
 		sourceInfo.id = "background_removal";
 		sourceInfo.type = OBS_SOURCE_TYPE_FILTER;
-		sourceInfo.output_flags = OBS_SOURCE_VIDEO;
+		// Draws its output in linear space, as the sRGB-aware filters of OBS Studio do; see
+		// MaskCompositor::draw().
+		sourceInfo.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_SRGB;
 		sourceInfo.get_name = getName;
 		sourceInfo.create = create;
 		sourceInfo.destroy = destroy;
