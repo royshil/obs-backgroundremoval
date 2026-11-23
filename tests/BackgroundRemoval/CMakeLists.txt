@@ -82,7 +82,8 @@ if(WIN32)
   set(OBS_TEST_MODULE_DATA_DIR "${OBS_TEST_ROOT}/data/obs-plugins")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   # Not cached, so that the modules are found again after OBS Studio is upgraded. The data is looked
-  # for first in the prefix libobs is installed in, as lib or lib/<multiarch>.
+  # for only in the prefix libobs is installed in, as lib or lib/<multiarch>, and in the layout the
+  # modules were found in, so that both come from the same OBS Studio.
   get_target_property(LIBOBS_FILE OBS::libobs LOCATION)
   cmake_path(GET LIBOBS_FILE PARENT_PATH LIBOBS_DIR)
   unset(OBS_TEST_MODULE_DIR CACHE)
@@ -94,14 +95,21 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     NO_DEFAULT_PATH
     NO_CACHE
   )
-  find_path(
-    OBS_TEST_MODULE_DATA_DIR
-    NAMES image-source
-    PATHS "${LIBOBS_DIR}/.." "${LIBOBS_DIR}/../.." ${CMAKE_PREFIX_PATH} ${CMAKE_SYSTEM_PREFIX_PATH}
-    PATH_SUFFIXES share/obs/obs-modules/core share/obs/obs-plugins
-    NO_DEFAULT_PATH
-    NO_CACHE
-  )
+  if(OBS_TEST_MODULE_DIR)
+    if(OBS_TEST_MODULE_DIR MATCHES "/obs-modules/core/?$")
+      set(OBS_TEST_MODULE_DATA_SUFFIX share/obs/obs-modules/core)
+    else()
+      set(OBS_TEST_MODULE_DATA_SUFFIX share/obs/obs-plugins)
+    endif()
+    find_path(
+      OBS_TEST_MODULE_DATA_DIR
+      NAMES image-source
+      PATHS "${LIBOBS_DIR}/.." "${LIBOBS_DIR}/../.."
+      PATH_SUFFIXES ${OBS_TEST_MODULE_DATA_SUFFIX}
+      NO_DEFAULT_PATH
+      NO_CACHE
+    )
+  endif()
   if(NOT OBS_TEST_MODULE_DIR OR NOT OBS_TEST_MODULE_DATA_DIR)
     message(
       WARNING
