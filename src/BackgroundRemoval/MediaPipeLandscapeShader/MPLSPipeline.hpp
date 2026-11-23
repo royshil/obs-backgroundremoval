@@ -99,20 +99,6 @@ private:
 
 	using Layer = MPLSDetail::MPLSWeights::Layer;
 
-	/// Extra inputs of a layer. Each layer's technique reads only the inputs it needs:
-	/// scaleA for the gated projections, b and scaleB for final_blockN_conv4, residual for the
-	/// residual projections.
-	struct ConvInputs {
-		/// Per-channel scale of A, a 1x1 tensor.
-		const Tensor *scaleA = nullptr;
-		/// Added to A before the convolution; same size as A.
-		const Tensor *b = nullptr;
-		/// Per-channel scale of B, a 1x1 tensor.
-		const Tensor *scaleB = nullptr;
-		/// Added after the activation; same size as the output.
-		const Tensor *residual = nullptr;
-	};
-
 	/// The weight and bias textures of one layer, created once. The technique has the layer's name.
 	struct LayerResources {
 		UniqueTexture weights;
@@ -145,8 +131,19 @@ private:
 	void drawPass(const char *technique, const Tensor &output, const PassTextures &textures) noexcept;
 	auto layerTextures(const Layer &layer, const Tensor &a) const -> PassTextures;
 
+	// Dense layers, one per combination of inputs its technique reads.
 	auto conv(const Layer &layer, const Tensor &a, std::uint32_t channels, std::uint32_t width,
-		  std::uint32_t height, const ConvInputs &inputs = {}) -> const Tensor &;
+		  std::uint32_t height) -> const Tensor &;
+	auto scaledConv(const Layer &layer, const Tensor &a, const Tensor &scale, std::uint32_t channels,
+			std::uint32_t width, std::uint32_t height) -> const Tensor &;
+	auto residualConv(const Layer &layer, const Tensor &a, const Tensor &residual, std::uint32_t channels,
+			  std::uint32_t width, std::uint32_t height) -> const Tensor &;
+	auto scaledResidualConv(const Layer &layer, const Tensor &a, const Tensor &scale, const Tensor &residual,
+				std::uint32_t channels, std::uint32_t width, std::uint32_t height) -> const Tensor &;
+	auto mergeConv(const Layer &layer, const Tensor &a, const Tensor &b, const Tensor &scaleB,
+		       std::uint32_t channels, std::uint32_t width, std::uint32_t height) -> const Tensor &;
+	auto dense(const Layer &layer, const Tensor &a, std::uint32_t channels, std::uint32_t width,
+		   std::uint32_t height, const PassTextures &textures) -> const Tensor &;
 	auto depthwise(const Layer &layer, const Tensor &a, std::uint32_t width, std::uint32_t height)
 		-> const Tensor &;
 	auto mean(const Tensor &a, const Tensor *b = nullptr) -> const Tensor &;

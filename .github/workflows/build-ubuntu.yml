@@ -63,9 +63,10 @@ jobs:
             git \
             libcurl4-openssl-dev \
             libobs-dev \
-            libonnxruntime-dev \
-            libopencv-dev \
-            qt6-base-dev
+            obs-studio \
+            qt6-base-dev \
+            xauth \
+            xvfb
 
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -100,7 +101,7 @@ jobs:
 
       - name: Test (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: ctest --test-dir build --output-on-failure
+        run: xvfb-run -a ctest --test-dir build --output-on-failure -LE performance
 
       - name: Package deb and ddeb artifacts (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}

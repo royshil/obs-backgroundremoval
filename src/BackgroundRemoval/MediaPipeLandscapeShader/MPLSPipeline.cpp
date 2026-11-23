@@ -288,7 +288,7 @@ void MPLSPipeline::infer()
 	const Tensor &reduced1 = depthwise(W::conv2_2, expanded1, 64, 36);
 	const Tensor &gate1 = squeezeExcitation(W::conv3_1, W::conv3_2, 8, reduced1);
 	// Mul + conv3_3; also the 64x36 skip connection.
-	const Tensor &skip64x36 = conv(W::conv3_3, reduced1, 16, 64, 36, {.scaleA = &gate1});
+	const Tensor &skip64x36 = scaledConv(W::conv3_3, reduced1, gate1, 16, 64, 36);
 
 	const Tensor &expanded2 = conv(W::conv4_1, skip64x36, 72, 64, 36);
 	const Tensor &reduced2 = depthwise(W::conv4_2, expanded2, 32, 18);
@@ -297,12 +297,12 @@ void MPLSPipeline::infer()
 	const Tensor &expanded3 = conv(W::conv5_1, projected2, 88, 32, 18);
 	const Tensor &filtered3 = depthwise(W::conv5_2, expanded3, 32, 18);
 	// conv5_3 + Add; also the 32x18 skip connection.
-	const Tensor &skip32x18 = conv(W::conv5_3, filtered3, 24, 32, 18, {.residual = &projected2});
+	const Tensor &skip32x18 = residualConv(W::conv5_3, filtered3, projected2, 24, 32, 18);
 
 	const Tensor &expanded4 = conv(W::conv6_1, skip32x18, 96, 32, 18);
 	const Tensor &reduced4 = depthwise(W::conv6_2, expanded4, 16, 9);
 	const Tensor &gate4 = squeezeExcitation(W::sub_block1_conv1, W::sub_block1_conv2, 24, reduced4);
-	const Tensor *features = &conv(W::sub_block1_conv3, reduced4, 32, 16, 9, {.scaleA = &gate4});
+	const Tensor *features = &scaledConv(W::sub_block1_conv3, reduced4, gate4, 32, 16, 9);
 
 	// block1 .. block4: inverted residual blocks with squeeze-and-excitation at 16x9.
 	struct ResidualBlock {
@@ -329,7 +329,7 @@ void MPLSPipeline::infer()
 		const Tensor &filtered = depthwise(block.conv2, expanded, 16, 9);
 		const Tensor &gate = squeezeExcitation(block.reduce, block.expand, block.hidden, filtered);
 		// Mul + conv3 + Add
-		features = &conv(block.conv3, filtered, 32, 16, 9, {.scaleA = &gate, .residual = features});
+		features = &scaledResidualConv(block.conv3, filtered, gate, *features, 32, 16, 9);
 	}
 
 	// conv7 + Relu, gated by sigmoid(conv8(mean(block4))). The gate is applied when the decoder
@@ -363,13 +363,14 @@ auto MPLSPipeline::decoderBlock(const Layer &conv1, const Layer &conv2, const La
 	const std::uint32_t height = skip.height;
 
 	// interp/Resize + conv1
-	const Tensor &projected = conv(conv1, low, channels, width, height, {.scaleA = lowScale});
+	const Tensor &projected = lowScale ? scaledConv(conv1, low, *lowScale, channels, width, height)
+					   : conv(conv1, low, channels, width, height);
 	// Add + ReduceMean + conv2 + Relu + conv3 + Sigmoid
 	const Tensor &pooled = mean(projected, &skip);
 	const Tensor &hidden = conv(conv2, pooled, channels, 1, 1);
 	const Tensor &gate = conv(conv3, hidden, channels, 1, 1);
 	// Mul + Add_1 + conv4 + Relu_1
-	const Tensor &merged = conv(conv4, projected, channels, width, height, {.b = &skip, .scaleB = &gate});
+	const Tensor &merged = mergeConv(conv4, projected, skip, gate, channels, width, height);
 	// conv5 + Relu_2 + Add_2
 	return depthwise(conv5, merged, width, height);
 }
@@ -462,21 +463,62 @@ auto MPLSPipeline::layerTextures(const Layer &layer, const Tensor &a) const -> P
 	};
 }
 
-// A dense layer. Its technique fixes all shapes; the weight texture shape is checked against A
-// and the output so that a wrong layer cannot be wired in silently.
+// A dense layer reading A only.
 auto MPLSPipeline::conv(const Layer &layer, const Tensor &a, std::uint32_t channels, std::uint32_t width,
-			std::uint32_t height, const ConvInputs &inputs) -> const Tensor &
+			std::uint32_t height) -> const Tensor &
+{
+	return dense(layer, a, channels, width, height, layerTextures(layer, a));
+}
+
+// Mul + a dense layer: A scaled per channel by a 1x1 tensor.
+auto MPLSPipeline::scaledConv(const Layer &layer, const Tensor &a, const Tensor &scale, std::uint32_t channels,
+			      std::uint32_t width, std::uint32_t height) -> const Tensor &
+{
+	PassTextures textures = layerTextures(layer, a);
+	textures.scale = scale.texture.get();
+	return dense(layer, a, channels, width, height, textures);
+}
+
+// A dense layer + Add: a residual of the output size added after the activation.
+auto MPLSPipeline::residualConv(const Layer &layer, const Tensor &a, const Tensor &residual, std::uint32_t channels,
+				std::uint32_t width, std::uint32_t height) -> const Tensor &
+{
+	PassTextures textures = layerTextures(layer, a);
+	textures.tensorR = residual.texture.get();
+	return dense(layer, a, channels, width, height, textures);
+}
+
+// Mul + a dense layer + Add.
+auto MPLSPipeline::scaledResidualConv(const Layer &layer, const Tensor &a, const Tensor &scale, const Tensor &residual,
+				      std::uint32_t channels, std::uint32_t width, std::uint32_t height)
+	-> const Tensor &
+{
+	PassTextures textures = layerTextures(layer, a);
+	textures.scale = scale.texture.get();
+	textures.tensorR = residual.texture.get();
+	return dense(layer, a, channels, width, height, textures);
+}
+
+// Mul + Add + a dense layer: B, of the size of A, scaled per channel by a 1x1 tensor and added to A.
+auto MPLSPipeline::mergeConv(const Layer &layer, const Tensor &a, const Tensor &b, const Tensor &scaleB,
+			     std::uint32_t channels, std::uint32_t width, std::uint32_t height) -> const Tensor &
+{
+	PassTextures textures = layerTextures(layer, a);
+	textures.tensorB = b.texture.get();
+	textures.scaleB = scaleB.texture.get();
+	return dense(layer, a, channels, width, height, textures);
+}
+
+// Draws a dense layer. Its technique fixes all shapes; the weight texture shape is checked against
+// A and the output so that a wrong layer cannot be wired in silently.
+auto MPLSPipeline::dense(const Layer &layer, const Tensor &a, std::uint32_t channels, std::uint32_t width,
+			 std::uint32_t height, const PassTextures &textures) -> const Tensor &
 {
 	const std::uint32_t slices = slicesOf(channels);
 	if (layer.weightsHeight != slices || layer.weightsWidth % (a.slices * 4) != 0) {
 		throw std::logic_error(std::string("MediaPipeLandscape layer shape mismatch: ") + layer.name);
 	}
 	const Tensor &output = allocate(width, height, slices);
-	PassTextures textures = layerTextures(layer, a);
-	textures.scale = inputs.scaleA ? inputs.scaleA->texture.get() : nullptr;
-	textures.tensorB = inputs.b ? inputs.b->texture.get() : nullptr;
-	textures.scaleB = inputs.scaleB ? inputs.scaleB->texture.get() : nullptr;
-	textures.tensorR = inputs.residual ? inputs.residual->texture.get() : nullptr;
 	drawPass(layer.name, output, textures);
 	return output;
 }

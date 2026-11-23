@@ -17,14 +17,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   git \
   libcurl4-openssl-dev \
   libobs-dev \
-  libonnxruntime-dev \
-  libopencv-dev \
   ninja-build \
+  obs-studio \
   python3.14-venv \
   qt6-base-dev \
   sudo \
   tar \
   unzip \
+  xauth \
+  xvfb \
   zip \
   && rm -rf /var/lib/apt/lists/*
 
