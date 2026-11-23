@@ -44,6 +44,9 @@
 #ifndef TEST_DATA_DIR
 #error TEST_DATA_DIR must be defined by the build system
 #endif
+#if defined(__APPLE__) && !defined(OBS_MACOS_FRAMEWORKS_DIR)
+#error OBS_MACOS_FRAMEWORKS_DIR must be defined by the build system
+#endif
 
 namespace ObsHarness {
 
@@ -64,6 +67,27 @@ void logHandler(int level, const char *format, va_list args, void *)
 }
 
 std::filesystem::path configDirectory;
+
+/// The binary of an OBS Studio module. On macOS every module is an application-bundle plugin, the
+/// layout add_default_module_paths() of libobs looks for; elsewhere it is a shared module file.
+auto moduleFile(const char *name) -> std::string
+{
+#ifdef __APPLE__
+	return std::string(OBS_TEST_MODULE_DIR) + "/" + name + ".plugin/Contents/MacOS/" + name;
+#else
+	return std::string(OBS_TEST_MODULE_DIR) + "/" + name + OBS_TEST_MODULE_SUFFIX;
+#endif
+}
+
+/// The data directory of an OBS Studio module, next to its binary in the same layout.
+auto moduleDataPath(const char *name) -> std::string
+{
+#ifdef __APPLE__
+	return std::string(OBS_TEST_MODULE_DATA_DIR) + "/" + name + ".plugin/Contents/Resources";
+#else
+	return std::string(OBS_TEST_MODULE_DATA_DIR) + "/" + name;
+#endif
+}
 
 auto openModule(const std::string &file, const std::string &dataPath, std::string &error) -> bool
 {
@@ -99,7 +123,7 @@ auto createSource(const char *id, const char *name, const std::string &settingsJ
 /// On Linux, libobs needs an X display: says so when DISPLAY is unset.
 void explainMissingDisplay([[maybe_unused]] std::string &error)
 {
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
 	if (!std::getenv("DISPLAY")) {
 		error += ": DISPLAY is unset; run the tests under xvfb-run";
 	}
@@ -134,6 +158,10 @@ auto start(std::string &error) -> bool
 #ifdef _WIN32
 	obs_add_data_path((std::string(OBS_TEST_ROOT) + "/data/libobs/").c_str());
 	ovi.graphics_module = "libobs-d3d11";
+#elif defined(__APPLE__)
+	// libobs finds its own effects in its framework bundle. The backend is given by its full path:
+	// os_dlopen() appends .so to a name without an extension.
+	ovi.graphics_module = OBS_MACOS_FRAMEWORKS_DIR "/libobs-opengl.dylib";
 #else
 	// libobs finds its own effects on Linux, and renders through EGL on the X display in
 	// DISPLAY.
@@ -158,8 +186,7 @@ auto start(std::string &error) -> bool
 	}
 
 	for (const char *name : {"image-source", "obs-filters"}) {
-		if (!openModule(std::string(OBS_TEST_MODULE_DIR) + "/" + name + OBS_TEST_MODULE_SUFFIX,
-				std::string(OBS_TEST_MODULE_DATA_DIR) + "/" + name, error)) {
+		if (!openModule(moduleFile(name), moduleDataPath(name), error)) {
 			return false;
 		}
 	}

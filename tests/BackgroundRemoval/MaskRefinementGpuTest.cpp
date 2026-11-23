@@ -26,6 +26,9 @@
 #if defined(_WIN32) && !defined(OBS_TEST_BIN_DIR)
 #error OBS_TEST_BIN_DIR must be defined by the build system
 #endif
+#if defined(__APPLE__) && !defined(OBS_MACOS_FRAMEWORKS_DIR)
+#error OBS_MACOS_FRAMEWORKS_DIR must be defined by the build system
+#endif
 
 namespace {
 
@@ -33,19 +36,23 @@ constexpr std::uint32_t kMaskSize = 16;
 
 #ifdef _WIN32
 constexpr const char *kGraphicsModule = OBS_TEST_BIN_DIR "/libobs-d3d11.dll";
+#elif defined(__APPLE__)
+// The backend of the installed OBS Studio, by its full path: os_dlopen() appends .so to a name
+// without an extension.
+constexpr const char *kGraphicsModule = OBS_MACOS_FRAMEWORKS_DIR "/libobs-opengl.dylib";
 #else
 // Renders through EGL on the X display in DISPLAY.
 constexpr const char *kGraphicsModule = "libobs-opengl";
 #endif
 
-/// A libobs graphics context on the D3D11 backend on Windows and the OpenGL backend on Linux,
-/// entered for its lifetime.
+/// A libobs graphics context on the D3D11 backend on Windows and the OpenGL backend on macOS and
+/// Linux, entered for its lifetime.
 class GraphicsContext final {
 public:
 	GraphicsContext()
 	{
 		if (gs_create(&graphics_, kGraphicsModule, 0) != GS_SUCCESS) {
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
 			if (!std::getenv("DISPLAY")) {
 				throw std::runtime_error(
 					"gs_create failed: DISPLAY is unset; run the tests under xvfb-run");
