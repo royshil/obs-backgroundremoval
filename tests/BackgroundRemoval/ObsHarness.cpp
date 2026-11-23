@@ -96,6 +96,16 @@ auto createSource(const char *id, const char *name, const std::string &settingsJ
 	return obs_source_create(id, name, settings, nullptr);
 }
 
+/// On Linux, libobs needs an X display: says so when DISPLAY is unset.
+void explainMissingDisplay([[maybe_unused]] std::string &error)
+{
+#ifndef _WIN32
+	if (!std::getenv("DISPLAY")) {
+		error += ": DISPLAY is unset; run the tests under xvfb-run";
+	}
+#endif
+}
+
 auto createImageSource(const std::string &imageFile, const char *name) -> OBSSourceAutoRelease
 {
 	const OBSDataAutoRelease settings = obs_data_create();
@@ -116,6 +126,7 @@ auto start(std::string &error) -> bool
 
 	if (!obs_startup("en-US", configDirectory.string().c_str(), nullptr)) {
 		error = "obs_startup failed";
+		explainMissingDisplay(error);
 		return false;
 	}
 
@@ -142,6 +153,7 @@ auto start(std::string &error) -> bool
 	ovi.scale_type = OBS_SCALE_BICUBIC;
 	if (const int result = obs_reset_video(&ovi); result != OBS_VIDEO_SUCCESS) {
 		error = "obs_reset_video failed (" + std::to_string(result) + ")";
+		explainMissingDisplay(error);
 		return false;
 	}
 

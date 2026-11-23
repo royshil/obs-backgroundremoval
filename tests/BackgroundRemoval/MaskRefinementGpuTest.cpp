@@ -13,6 +13,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -44,6 +45,12 @@ public:
 	GraphicsContext()
 	{
 		if (gs_create(&graphics_, kGraphicsModule, 0) != GS_SUCCESS) {
+#ifndef _WIN32
+			if (!std::getenv("DISPLAY")) {
+				throw std::runtime_error(
+					"gs_create failed: DISPLAY is unset; run the tests under xvfb-run");
+			}
+#endif
 			throw std::runtime_error("gs_create failed");
 		}
 		gs_enter_context(graphics_);
