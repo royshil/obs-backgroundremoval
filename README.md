@@ -95,8 +95,8 @@ If you are looking for hands-on help or private consultation please select a [sp
 
 GPU support:
 
-- On Mac we support CoreML for acceleration, which is efficient on Apple Silicon. **Note:** This plugin does not support cross-architecture translation (Rosetta2). Intel binaries on Apple Silicon or Apple Silicon binaries on Intel will crash.
-- On Windows and Linux, the segmentation model runs on the GPU as OBS shaders.
+- On Windows, macOS and Linux, the segmentation model runs on the GPU as OBS shaders, so no inference runtime is needed.
+- On macOS, this plugin does not support cross-architecture translation (Rosetta2). Intel binaries on Apple Silicon or Apple Silicon binaries on Intel will crash.
 - The goal of this plugin is to be available for everyone on every system, even if they don't own a GPU.
 
 The pretrained model weights used for portrait foreground segmentation are taken from:
