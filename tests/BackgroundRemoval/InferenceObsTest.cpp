@@ -35,7 +35,7 @@ auto inferProbability(obs_source_t *filter) -> std::vector<std::uint8_t>
 	std::vector<std::uint8_t> probability(static_cast<std::size_t>(kWidth) * kHeight);
 	obs_enter_graphics();
 	{
-		BackgroundRemoval::MPLSPipeline pipeline(filter, kWidth, kHeight, 1);
+		BackgroundRemoval::MPLSPipeline pipeline(filter, kWidth, kHeight);
 
 		gs_texrender_t *texrender = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 		if (gs_texrender_begin(texrender, kWidth, kHeight)) {

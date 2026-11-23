@@ -22,8 +22,8 @@ Feature: Settings compatibility
     Then the output equals the output of the same settings without "v2_BlurBg_FocusDepth"
 
   @SP-01019.3
-  Scenario: Settings without the output downscale factor use downscale factor 1
-    Given the Background Removal filter is created from saved settings without "v2_OutputDownscaleFactor"
+  Scenario: The removed output downscale factor is ignored
+    Given the Background Removal filter is created from saved settings with "v2_OutputDownscaleFactor" stored as 4
     Then the source size is 1280 x 720
 
   @SP-01019.4

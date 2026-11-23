@@ -10,8 +10,6 @@ const char *tBackgroundRemoval();
 const char *tUpToDate();
 const char *tNewVersionsAvailable();
 const char *tGeneral();
-const char *tOutputDownscaleFactor();
-const char *tOutputDownscaleFactorDescription();
 const char *tPipeline();
 const char *tPipelineAuto();
 const char *tPipelineMPLS();

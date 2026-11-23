@@ -436,10 +436,10 @@ auto captureUnfiltered(const std::string &imageFile) -> Image
 	return scene.capture();
 }
 
-auto pipelineCreatedLine(std::uint32_t width, std::uint32_t height, int factor) -> std::string
+auto pipelineCreatedLine(std::uint32_t width, std::uint32_t height) -> std::string
 {
 	return "[obs-backgroundremoval] Creating the MediaPipe (Landscape) shader pipeline (" + std::to_string(width) +
-	       "x" + std::to_string(height) + ", downscale factor " + std::to_string(factor) + ")";
+	       "x" + std::to_string(height) + ")";
 }
 
 auto anyPipelineCreated() -> bool

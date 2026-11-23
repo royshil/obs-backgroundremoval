@@ -28,17 +28,6 @@ const char *tGeneral()
 	return obs_module_text("General");
 }
 
-const char *tOutputDownscaleFactor()
-{
-	return obs_module_text("Downscale factor");
-}
-
-const char *tOutputDownscaleFactorDescription()
-{
-	return obs_module_text("Outputs the image at 1 / this factor of the source size. The image is processed at the "
-			       "full source size either way. Use a larger factor when the source is shown small.");
-}
-
 const char *tPipeline()
 {
 	return obs_module_text("Pipeline");

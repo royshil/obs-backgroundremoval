@@ -122,8 +122,6 @@ void FilterContext::update(void *data, obs_data_t *settings) noexcept
 void FilterContext::readSettings(obs_data_t *settings) noexcept
 {
 	pipelineId_.store(obs_data_get_int(settings, "v2_PipelineId"));
-	outputDownscaleFactor_.store(
-		validOutputDownscaleFactor(obs_data_get_int(settings, "v2_OutputDownscaleFactor")));
 	blurBgEnabled_.store(obs_data_get_bool(settings, "v2_BlurBg"));
 	// v2_BlurBg_Factor was an integer iteration count; obs_data reads stored integers as doubles.
 	blurBgStrength_.store(obs_data_get_double(settings, "v2_BlurBg_Factor"));
@@ -139,7 +137,6 @@ void FilterContext::applySettings(IRenderingPipeline &pipeline) const noexcept
 
 void FilterContext::getDefaults(obs_data_t *settings) noexcept
 {
-	obs_data_set_default_int(settings, "v2_OutputDownscaleFactor", 1);
 	obs_data_set_default_int(settings, "v2_PipelineId", kAutoPipelineId);
 	obs_data_set_default_bool(settings, "v2_BlurBg", false);
 	obs_data_set_default_double(settings, "v2_BlurBg_Factor", 4.0);
@@ -187,14 +184,6 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
 
 	obs_properties_t *const pGeneral = obs_properties_create();
 	obs_properties_add_group(p, "v2_GeneralGroup", tGeneral(), OBS_GROUP_NORMAL, pGeneral);
-
-	obs_property_t *const outputDownscaleFactor =
-		obs_properties_add_list(pGeneral, "v2_OutputDownscaleFactor", tOutputDownscaleFactor(),
-					OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(outputDownscaleFactor, "1", 1);
-	obs_property_list_add_int(outputDownscaleFactor, "2", 2);
-	obs_property_list_add_int(outputDownscaleFactor, "4", 4);
-	obs_property_set_long_description(outputDownscaleFactor, tOutputDownscaleFactorDescription());
 
 	obs_property_t *const pipeline = obs_properties_add_list(pGeneral, "v2_PipelineId", tPipeline(),
 								 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -244,7 +233,7 @@ void FilterContext::videoTick(void *data, float) noexcept
 	}
 }
 
-// Recreates the pipeline whenever the selection, the output downscale factor or the target's size changes, as
+// Recreates the pipeline whenever the selection or the target's size changes, as
 // live-backgroundremoval-lite does, with the target's base size. It works while the parent source is
 // showing anywhere, not only while it is active in the program output, so that the Studio Mode
 // preview, the filter properties preview and projectors show the source with the background
@@ -259,7 +248,6 @@ void FilterContext::tick() noexcept
 	}
 	const PipelineKey key{
 		.pipelineId = pipelineId_.load(),
-		.outputDownscaleFactor = outputDownscaleFactor_.load(),
 		.sourceWidth = obs_source_get_base_width(target),
 		.sourceHeight = obs_source_get_base_height(target),
 	};
@@ -275,8 +263,7 @@ void FilterContext::tick() noexcept
 	obs_enter_graphics();
 	pipeline_.reset();
 	try {
-		pipeline_ = createRenderingPipeline(key.pipelineId, source_, key.sourceWidth, key.sourceHeight,
-						    key.outputDownscaleFactor);
+		pipeline_ = createRenderingPipeline(key.pipelineId, source_, key.sourceWidth, key.sourceHeight);
 	} catch (const std::exception &exception) {
 		obs_log(LOG_ERROR, "Failed to create the rendering pipeline: %s", exception.what());
 	} catch (...) {

@@ -64,7 +64,6 @@ private:
 	/// What a pipeline is created for; any change recreates it.
 	struct PipelineKey {
 		std::int64_t pipelineId = 0;
-		std::int64_t outputDownscaleFactor = 1;
 		std::uint32_t sourceWidth = 0;
 		std::uint32_t sourceHeight = 0;
 		auto operator==(const PipelineKey &) const -> bool = default;
@@ -81,7 +80,6 @@ private:
 	// Written by update() on the UI thread, read on the graphics thread and by getWidth() and
 	// getHeight() on any thread.
 	std::atomic<std::int64_t> pipelineId_{0};
-	std::atomic<std::int64_t> outputDownscaleFactor_{1};
 	// Written by video_tick on the graphics thread, read by getWidth() and getHeight() on any thread:
 	// the output size of pipeline_, or 0 without one.
 	std::atomic<std::uint32_t> outputWidth_{0};

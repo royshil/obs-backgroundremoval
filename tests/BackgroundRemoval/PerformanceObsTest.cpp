@@ -23,25 +23,23 @@ auto backgroundRemoval(const std::string &settingsJson = "{}") -> FilterSpec
 	return {kBackgroundRemovalId, settingsJson};
 }
 
-auto outputDownscaleFactor(int factor) -> std::string
+auto pipelineId(int id) -> std::string
 {
-	return R"({"v2_OutputDownscaleFactor": )" + std::to_string(factor) + "}";
+	return R"({"v2_PipelineId": )" + std::to_string(id) + "}";
 }
 
 } // namespace
 
 // MARK: SP-03001 Rendering does not stall
 
-TEST_CASE("SP-03001.1 Changing the output downscale factor does not stall rendering")
+TEST_CASE("SP-03001.1 Changing the pipeline selection does not stall rendering")
 {
 	Scene scene(kPortrait, {backgroundRemoval()});
 	waitFrames(300);
-	const int factors[] = {2, 4, 1};
 	for (int change = 0; change < 10; ++change) {
-		const int factor = factors[change % 3];
 		CAPTURE(change);
 		const std::uint32_t laggedBefore = obs_get_lagged_frames();
-		scene.update(scene.backgroundRemoval(), outputDownscaleFactor(factor));
+		scene.update(scene.backgroundRemoval(), pipelineId(change % 2 == 0 ? 17 : 0));
 		waitFrames(5);
 		CHECK(obs_get_lagged_frames() - laggedBefore <= 1);
 	}

@@ -156,14 +156,11 @@ using MPLSDetail::toInt;
 
 } // namespace
 
-MPLSPipeline::MPLSPipeline(obs_source_t *source, std::uint32_t sourceWidth, std::uint32_t sourceHeight,
-			   std::int64_t outputDownscaleFactor)
+MPLSPipeline::MPLSPipeline(obs_source_t *source, std::uint32_t sourceWidth, std::uint32_t sourceHeight)
 	: source_(source),
 	  effect_(makeMPLSEffect()),
 	  sourceWidth_(sourceWidth),
-	  sourceHeight_(sourceHeight),
-	  outputWidth_(downscaledSize(sourceWidth, outputDownscaleFactor)),
-	  outputHeight_(downscaledSize(sourceHeight, outputDownscaleFactor))
+	  sourceHeight_(sourceHeight)
 {
 	if (!source_ || sourceWidth_ == 0 || sourceHeight_ == 0) {
 		throw std::invalid_argument("MPLSPipeline requires a source and a frame size");
@@ -263,8 +260,7 @@ void MPLSPipeline::videoRender() noexcept
 		return;
 	}
 
-	// Processed at the target's size; only the output is drawn at the output size.
-	compositor_.draw(sourceTexture_.get(), outputWidth_, outputHeight_);
+	compositor_.draw(sourceTexture_.get(), width, height);
 }
 
 // MARK: - Network

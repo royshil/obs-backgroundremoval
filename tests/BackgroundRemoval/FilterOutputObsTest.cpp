@@ -211,9 +211,9 @@ TEST_CASE("SP-01019.2 The removed focus depth is ignored")
 	CHECK(maxDifference(saved, current) == 0);
 }
 
-TEST_CASE("SP-01019.3 Settings without the output downscale factor use downscale factor 1")
+TEST_CASE("SP-01019.3 The removed output downscale factor is ignored")
 {
-	const Scene scene(kPortrait, {{kBackgroundRemovalId, "{}"}});
+	const Scene scene(kPortrait, {{kBackgroundRemovalId, R"({"v2_OutputDownscaleFactor": 4})"}});
 	CHECK(scene.width() == 1280);
 	CHECK(scene.height() == 720);
 }

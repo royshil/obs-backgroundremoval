@@ -13,13 +13,7 @@ endfunction()
 
 # MARK: Without GPU
 
-add_executable(
-  BackgroundRemovalUnitTest
-  UnitTestMain.cpp
-  OutputSizeTest.cpp
-  DualFilterKernelTest.cpp
-  BlurVarianceTest.cpp
-)
+add_executable(BackgroundRemovalUnitTest UnitTestMain.cpp DualFilterKernelTest.cpp BlurVarianceTest.cpp)
 target_include_directories(
   BackgroundRemovalUnitTest
   PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest"
@@ -28,8 +22,6 @@ target_link_libraries(BackgroundRemovalUnitTest PRIVATE BuildOptions)
 target_compile_features(BackgroundRemovalUnitTest PRIVATE cxx_std_20)
 add_spec_tests(
   BackgroundRemovalUnitTest
-  SP-01001.1
-  SP-01001.2
   SP-01002.1
   SP-01002.2
   SP-01002.3
@@ -167,7 +159,6 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
     OBS_SPEC_CASES
     SP-01005.2
     SP-01006.1
-    SP-01006.2
     SP-01007.1
     SP-01008.1
     SP-01009.1

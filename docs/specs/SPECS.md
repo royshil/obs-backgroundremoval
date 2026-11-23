@@ -19,12 +19,11 @@
 ## Plugin unit test cases
 
 - [SP-01000: Plugin unit test cases](SP-01000_plugin-unit-test-cases.md)
-- [SP-01001: Output size](SP-01001_bgrm-output-size.feature)
 - [SP-01002: Dual filter kernel](SP-01002_bgrm-dual-filter-kernel.feature)
 - [SP-01003: Blur variance](SP-01003_bgrm-blur-variance.feature)
 - [SP-01004: Mask refinement](SP-01004_bgrm-mask-refinement.feature)
 - [SP-01005: MediaPipe Selfie Segmenter inference](SP-01005_bgrm-mpls-inference.feature)
-- [SP-01006: Output downscale factor](SP-01006_bgrm-output-downscale-factor.feature)
+- [SP-01006: Output size](SP-01006_bgrm-output-size.feature)
 - [SP-01007: Odd source size](SP-01007_bgrm-odd-source-size.feature)
 - [SP-01008: Preceding scale filter](SP-01008_bgrm-preceding-scale-filter.feature)
 - [SP-01009: Preceding crop filter](SP-01009_bgrm-preceding-crop-filter.feature)
@@ -33,7 +32,7 @@
 - [SP-01012: Disabled filter](SP-01012_bgrm-disabled-filter.feature)
 - [SP-01013: Shown outside the program output](SP-01013_bgrm-shown-outside-program.feature)
 - [SP-01014: Unknown pipeline](SP-01014_bgrm-unknown-pipeline.feature)
-- [SP-01015: Repeated downscale factor changes](SP-01015_bgrm-repeated-downscale-factor-changes.feature)
+- [SP-01015: Repeated pipeline selection changes](SP-01015_bgrm-repeated-pipeline-selection-changes.feature)
 - [SP-01016: Blur strength](SP-01016_bgrm-blur-strength.feature)
 - [SP-01017: Blur focus ratio](SP-01017_bgrm-blur-focus-ratio.feature)
 - [SP-01018: Kept pixels](SP-01018_bgrm-kept-pixels.feature)

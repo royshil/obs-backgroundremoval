@@ -121,7 +121,7 @@ auto captureUnfiltered(const std::string &imageFile) -> Image;
 inline constexpr const char *kBackgroundRemovalId = "background_removal";
 
 /// The line the plugin logs when it creates its shader pipeline.
-auto pipelineCreatedLine(std::uint32_t width, std::uint32_t height, int factor) -> std::string;
+auto pipelineCreatedLine(std::uint32_t width, std::uint32_t height) -> std::string;
 /// Whether the log holds any pipeline creation.
 auto anyPipelineCreated() -> bool;
 

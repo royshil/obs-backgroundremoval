@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-@SP-01015
-Feature: Repeated downscale factor changes
-  Each change of the output downscale factor recreates the pipeline. That this does not stall
-  rendering is SP-03001.
+@SP-01006
+Feature: Output size
+  The filter outputs the frame at the size of its target, at which it also
+  processes and draws it.
 
   Background:
     Given libobs is started with the plugin and the OBS Studio filters loaded
@@ -13,7 +13,8 @@ Feature: Repeated downscale factor changes
     And the source has the Background Removal filter only, with default settings
     And the source is shown in the program output, so it is active and showing
 
-  @SP-01015.1
-  Scenario: Changing the output downscale factor recreates the pipeline
-    When "v2_OutputDownscaleFactor" is changed 10 times, cycling through 2, 4 and 1
-    Then the plugin logs a pipeline creation 10 times
+  @SP-01006.1
+  Scenario: The output has the size of the target
+    Then the source size is 1280 x 720
+    And the plugin logs "[obs-backgroundremoval] Creating the MediaPipe (Landscape) shader pipeline (1280x720)"
+    And the background is removed

@@ -13,13 +13,7 @@ Feature: Preceding scale filter
     And the source is shown in the program output, so it is active and showing
 
   @SP-01008.1
-  Scenario Outline: The downscaled output is based on the preceding filter's size
-    When "v2_OutputDownscaleFactor" is set to <factor>
-    Then the source size is <width> x <height>
-    And the plugin logs "[obs-backgroundremoval] Creating the MediaPipe (Landscape) shader pipeline (640x360, downscale factor <factor>)"
+  Scenario: The output has the preceding filter's size
+    Then the source size is 640 x 360
+    And the plugin logs "[obs-backgroundremoval] Creating the MediaPipe (Landscape) shader pipeline (640x360)"
     And the background is removed
-
-    Examples:
-      | factor | width | height |
-      | 1      | 640   | 360    |
-      | 2      | 320   | 180    |
