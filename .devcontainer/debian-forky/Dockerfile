@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   python3-pyatspi \
   tigervnc-standalone-server \
   x11-utils \
+  xauth \
   xterm \
   xvfb \
   && rm -rf /var/lib/apt/lists/*

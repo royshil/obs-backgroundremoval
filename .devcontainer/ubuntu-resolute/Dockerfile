@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   sudo \
   tar \
   unzip \
+  xauth \
   xvfb \
   zip \
   && rm -rf /var/lib/apt/lists/*
