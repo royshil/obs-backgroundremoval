@@ -208,6 +208,28 @@ TEST_CASE("SP-01004.4 Agreement with the reference")
     CHECK(agreement >= 0.995);
 }
 
+TEST_CASE("SP-01004.5 Threshold boundary")
+{
+    enterGraphics();
+    constexpr std::uint32_t cx = 8;
+    constexpr std::uint32_t cy = 8;
+    std::vector<std::uint8_t> probability(kMaskSize * kMaskSize, 0);
+    int set = 0;
+    for (std::uint32_t y = cy - 2; y <= cy + 2; ++y)
+    {
+        for (std::uint32_t x = cx - 2; x <= cx + 2; ++x)
+        {
+            // 128 / 255 reaches the threshold 0.5 and 127 / 255 falls short of it.
+            probability[y * kMaskSize + x] = set < 13 ? 128 : 127;
+            ++set;
+        }
+    }
+    const std::vector<std::uint8_t> refined = refine(probability);
+    const std::uint8_t texel = refined[cy * kMaskSize + cx];
+    CAPTURE(static_cast<int>(texel));
+    CHECK(matchesShare(texel, 13.0 / 25.0));
+}
+
 int main(int argc, char **argv)
 {
     doctest::Context context(argc, argv);

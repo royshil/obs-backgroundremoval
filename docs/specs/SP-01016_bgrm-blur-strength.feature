@@ -30,6 +30,7 @@ Feature: Blur strength
     And the mean change of the person stays below the mean change of the background
 
   @SP-01016.4
-  Scenario: Strength is continuous
-    When "v2_BlurBg_Factor" is set to 4.0 and then to 4.1
-    Then the two outputs differ by less than they differ from the output at 5
+  Scenario: Strength is continuous where the pyramid gains a level
+    Given the strengths b where the blur pyramid gains a level, about 3.44, 5.60, 8.95 and 14.25
+    When "v2_BlurBg_Factor" is set to b - 0.05 and then to b + 0.05
+    Then the two outputs differ by at most twice the mean change between the outputs at 4.0 and 4.1

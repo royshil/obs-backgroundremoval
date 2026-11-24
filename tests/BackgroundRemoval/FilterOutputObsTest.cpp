@@ -13,6 +13,9 @@
 #include <string>
 #include <vector>
 
+#include <BackgroundRemoval/MaskCompositor/BlurLevels.hpp>
+#include <BackgroundRemoval/MaskCompositor/MaskCompositor.hpp>
+
 #include "ObsHarness.hpp"
 
 using namespace ObsHarness;
@@ -50,6 +53,28 @@ auto blurSettings(double strength, int focusRatio) -> std::string
 {
     return R"({"v2_BlurBg": true, "v2_BlurBg_Factor": )" + std::to_string(strength) + R"(, "v2_BlurBg_FocusRatio": )" +
            std::to_string(focusRatio) + "}";
+}
+
+/// The strengths where the blur pyramid gains a level. The pyramid always reaches the level where
+/// the upsampling stops, so it has max(blurLevels(s), kBlurStopLevel) levels; each boundary is found
+/// by bisection.
+auto levelBoundaries() -> std::vector<double>
+{
+    using namespace BackgroundRemoval;
+    const auto levelsAt = [](double strength) { return std::max(blurLevels(strength), kBlurStopLevel); };
+    std::vector<double> boundaries;
+    for (std::size_t levels = levelsAt(0.0); levels < levelsAt(MaskCompositor::kMaxBlurStrength); ++levels)
+    {
+        double low = 0.0;
+        double high = MaskCompositor::kMaxBlurStrength;
+        for (int i = 0; i < 60; ++i)
+        {
+            const double middle = (low + high) / 2.0;
+            (levelsAt(middle) > levels ? high : low) = middle;
+        }
+        boundaries.push_back(high);
+    }
+    return boundaries;
 }
 
 auto outputWith(const std::string &settingsJson) -> Image
@@ -138,12 +163,19 @@ TEST_CASE("SP-01016.3 More strength blurs the background more")
     }
 }
 
-TEST_CASE("SP-01016.4 Strength is continuous")
+TEST_CASE("SP-01016.4 Strength is continuous where the pyramid gains a level")
 {
-    const Image at4 = outputWith(blurSettings(4.0, -100));
-    const Image at41 = outputWith(blurSettings(4.1, -100));
-    const Image at5 = outputWith(blurSettings(5.0, -100));
-    CHECK(meanChange(at4, at41) < meanChange(at4, at5));
+    const double step = meanChange(outputWith(blurSettings(4.0, -100)), outputWith(blurSettings(4.1, -100)));
+    CAPTURE(step);
+    REQUIRE(step > 0.0);
+    for (const double boundary : levelBoundaries())
+    {
+        CAPTURE(boundary);
+        const double across = meanChange(outputWith(blurSettings(boundary - 0.05, -100)),
+                                         outputWith(blurSettings(boundary + 0.05, -100)));
+        CAPTURE(across);
+        CHECK(across <= 2.0 * step);
+    }
 }
 
 // MARK: SP-01017 Blur focus point

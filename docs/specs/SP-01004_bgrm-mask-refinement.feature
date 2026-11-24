@@ -28,3 +28,9 @@ Feature: Mask refinement
     Given the foreground probability of the portrait test image from ONNX Runtime
     When it is refined by the shader and by a NumPy reference of the same definition
     Then the foreground decisions agree on at least 99.5% of the frame's pixels after upscaling to 1280 x 720
+
+  @SP-01004.5
+  Scenario: Threshold boundary
+    Given a probability mask where 13 of the 25 texels around an interior texel have probability 128 / 255 and the other 12 have 127 / 255
+    When the mask is refined
+    Then the refined value of that texel is 13 / 25
