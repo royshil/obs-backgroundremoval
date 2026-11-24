@@ -156,6 +156,18 @@ TEST_CASE("SP-01013.1 Showing but not active")
     CHECK(backgroundIsRemoved(capture(scene.source(), 1280, 720)));
 }
 
+TEST_CASE("SP-01013.2 Not shown")
+{
+    const Scene scene(kPortrait, {backgroundRemoval()}, Visibility::Hidden);
+    REQUIRE_FALSE(obs_source_showing(scene.source()));
+    REQUIRE_FALSE(obs_source_active(scene.source()));
+    CHECK(scene.width() == 0);
+    CHECK(scene.height() == 0);
+    const Image drawn = capture(scene.source(), 1280, 720);
+    CHECK(maxDifference(drawn, Image{1280, 720, std::vector<std::uint8_t>(1280 * 720 * 4)}) == 0);
+    CHECK_FALSE(anyPipelineCreated());
+}
+
 // MARK: SP-01014 Unknown pipeline
 
 TEST_CASE("SP-01014.1 An unknown pipeline draws nothing")

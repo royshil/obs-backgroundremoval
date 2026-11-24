@@ -32,4 +32,5 @@ hide, at the moment they are least likely to notice.
 
 ## Verified by
 
+- SP-01013: Shown outside the program output
 - SP-01014: Unknown pipeline

@@ -126,6 +126,7 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
         SP-01012.2
         SP-01012.3
         SP-01013.1
+        SP-01013.2
         SP-01014.1
         SP-01014.2
         SP-01015.1

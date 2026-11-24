@@ -5,6 +5,7 @@
 @SP-01013
 Feature: Shown outside the program output
   Background Removal works wherever its source is shown, not only in the program output.
+  Where it is not shown, it creates no pipeline and draws nothing.
 
   Background:
     Given libobs is started with the plugin and the OBS Studio filters loaded
@@ -17,3 +18,11 @@ Feature: Shown outside the program output
     Given the source is showing but not active, as in a preview
     When the source is rendered
     Then the background is removed
+
+  @SP-01013.2
+  Scenario: Not shown
+    Given the source is neither showing nor active
+    When the source is rendered
+    Then the source size is 0 x 0
+    And nothing of the source is drawn
+    And the plugin logs no pipeline creation
