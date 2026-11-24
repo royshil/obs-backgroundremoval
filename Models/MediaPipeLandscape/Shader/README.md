@@ -21,7 +21,8 @@ technique per layer, and wired pass by pass in
 `src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp`.
 `GenerateWeights.py` only packs the weights of each layer, exact in IEEE half, into its own
 RGBA16F weight and bias textures and writes
-`src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp`.
+`src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp`,
+formatted with the clang-format 21 that `requirements.txt` pins.
 
 ```sh
 python -m pip install -r Models/MediaPipeLandscape/Shader/requirements.txt
