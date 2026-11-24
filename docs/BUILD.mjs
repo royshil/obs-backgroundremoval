@@ -278,9 +278,9 @@ async function generateDownloadTrends() {
     bottom: 226,
     xStart: downloadCounts[0].publishedAt,
     xEnd: downloadCounts.at(-1).publishedAt,
-    yEnd: 2_500_000,
-    yTickValues: [0, 500_000, 1_000_000, 1_500_000, 2_000_000, 2_500_000],
-    yTickLabels: ["0", "0.5M", "1.0M", "1.5M", "2.0M", "2.5M"]
+    yEnd: 3_000_000,
+    yTickValues: [0, 1_000_000, 2_000_000, 3_000_000],
+    yTickLabels: ["0", "1.0M", "2.0M", "3.0M"]
   });
 
   const originalChartPoints = chart.calculateChartPoints();
