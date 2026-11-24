@@ -9,7 +9,7 @@ Feature: Blur strength
   Background:
     Given libobs is started with the plugin and the OBS Studio filters loaded
     And a 1280 x 720 image source of the portrait test image
-    And the source has the Background Removal filter only, with "v2_BlurBg" true and "v2_BlurBg_FocusPoint" 0.1
+    And the source has the Background Removal filter only, with "v2_BlurBg" true and "v2_BlurBg_FocusRatio" -100
     And the source is shown in the program output, so it is active and showing
 
   @SP-01016.1

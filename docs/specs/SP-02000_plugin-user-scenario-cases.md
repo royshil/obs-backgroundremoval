@@ -33,7 +33,7 @@ A test names the case it implements by its tag, such as `SP-02001.1`.
 - The scene and source setup in `Background`, the user's actions in `When`, and observable results
   in `Then`: what is shown, its size, and what OBS logs.
 - Actions as a user performs them in the OBS Studio interface, through the names they see, such as
-  the Downscale factor setting, so that the test can find them through the accessibility API.
+  the Focus ratio setting, so that the test can find them through the accessibility API.
 - Results that a test can check without judgment, such as sizes, pixel agreement with a threshold,
   or exact log lines.
 

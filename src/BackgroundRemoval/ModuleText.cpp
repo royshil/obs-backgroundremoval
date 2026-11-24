@@ -28,17 +28,6 @@ const char *tGeneral()
 	return obs_module_text("General");
 }
 
-const char *tOutputDownscaleFactor()
-{
-	return obs_module_text("Downscale factor");
-}
-
-const char *tOutputDownscaleFactorDescription()
-{
-	return obs_module_text("Outputs the image at 1 / this factor of the source size. The image is processed at the "
-			       "full source size either way. Use a larger factor when the source is shown small.");
-}
-
 const char *tPipeline()
 {
 	return obs_module_text("Pipeline");
@@ -60,28 +49,6 @@ const char *tPipelineDescription()
 		"Auto selects the recommended pipeline. Select a specific pipeline to use it explicitly.");
 }
 
-const char *tMaskAdjustment()
-{
-	return obs_module_text("Mask adjustment");
-}
-
-const char *tMaskAdjustmentDescription()
-{
-	return obs_module_text("Higher values expand the retained foreground mask. Lower values shrink it. "
-			       "The default is 0.");
-}
-
-const char *tMotionSuppression()
-{
-	return obs_module_text("Motion suppression");
-}
-
-const char *tMotionSuppressionDescription()
-{
-	return obs_module_text("Higher values keep the mask steadier by ignoring small changes. "
-			       "Lower values make the mask more responsive. The default is 0.");
-}
-
 const char *tBlurBg()
 {
 	return obs_module_text("Blur Background");
@@ -98,15 +65,16 @@ const char *tBlurBgStrengthDescription()
 			       "0 leaves the image sharp. The default is 4.");
 }
 
-const char *tBlurBgFocusPoint()
+const char *tBlurBgFocusRatio()
 {
-	return obs_module_text("Focus point");
+	return obs_module_text("Focus ratio");
 }
 
-const char *tBlurBgFocusPointDescription()
+const char *tBlurBgFocusRatioDescription()
 {
-	return obs_module_text("Where the image stays sharp: 0 keeps the person sharp, 1 keeps the background "
-			       "sharp. The blur grows with the distance from this point. The default is 0.1.");
+	return obs_module_text("Where the image stays sharp: -100% keeps the person sharp, 100% keeps the "
+			       "background sharp, and 0% balances the two. The blur grows with the distance "
+			       "from there. The default is -100%.");
 }
 
 auto tAboutThisPlugin() -> const char *

@@ -21,19 +21,19 @@ separated from OBS, so a category of cases without libobs would carry no meaning
 
 The cases are tested with doctest. Cases that need libobs start it headless and load the plugin and
 the OBS Studio modules they use. A test names the case it implements by its tag, such as
-`SP-01001.1`, so that each scenario maps to a test case.
+`SP-01004.1`, so that each scenario maps to a test case.
 
 ## What to write
 
 - Cases as Gherkin, as `SP-01xxx_case-title.feature`, one feature per unit or topic.
 - Start the case title in the file name with an abbreviation of what the case covers, such as
-  `bgrm` for the Background Removal filter (`SP-01001_bgrm-output-size.feature`). The
+  `bgrm` for the Background Removal filter (`SP-01004_bgrm-mask-refinement.feature`). The
   abbreviations are used in spec file names only.
 - Tag the feature with its number (`@SP-01xxx`) and each scenario with a sub-number
   (`@SP-01xxx.1`).
 - Inputs and expected outputs stated exactly, with tolerances where values are numeric, so that a
   doctest assertion can check them. Settings are named by their keys, such as
-  `"v2_OutputDownscaleFactor"`, and log lines are quoted in full.
+  `"v2_BlurBg_FocusRatio"`, and log lines are quoted in full.
 - The design principle a case verifies, if any.
 
 The cases hold on all platforms; platform-specific ways to run them belong to the tests, not here.

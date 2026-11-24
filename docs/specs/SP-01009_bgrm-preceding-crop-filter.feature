@@ -13,13 +13,7 @@ Feature: Preceding crop filter
     And the source is shown in the program output, so it is active and showing
 
   @SP-01009.1
-  Scenario Outline: The downscaled output is based on the cropped size
-    When "v2_OutputDownscaleFactor" is set to <factor>
-    Then the source size is <width> x <height>
-    And the plugin logs "[obs-backgroundremoval] Creating the MediaPipe (Landscape) shader pipeline (1000x720, downscale factor <factor>)"
+  Scenario: The output has the cropped size
+    Then the source size is 1000 x 720
+    And the plugin logs "[obs-backgroundremoval] Creating the MediaPipe (Landscape) shader pipeline (1000x720)"
     And the background is removed
-
-    Examples:
-      | factor | width | height |
-      | 1      | 1000  | 720    |
-      | 2      | 500   | 360    |

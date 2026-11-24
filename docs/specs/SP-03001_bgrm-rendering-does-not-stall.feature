@@ -4,7 +4,7 @@
 
 @SP-03001
 Feature: Rendering does not stall
-  Recreating the pipeline is cheap enough to change the output downscale factor while streaming.
+  Recreating the pipeline is cheap enough to change the pipeline selection while streaming.
 
   Background:
     Given libobs is started with the plugin and the OBS Studio filters loaded
@@ -14,8 +14,8 @@ Feature: Rendering does not stall
     And the video thread of libobs has rendered for at least 10 seconds
 
   @SP-03001.1
-  Scenario: Changing the output downscale factor does not stall rendering
-    When "v2_OutputDownscaleFactor" is changed 10 times, cycling through 2, 4 and 1
+  Scenario: Changing the pipeline selection does not stall rendering
+    When "v2_PipelineId" is changed 10 times, alternating between 17 and 0
     Then libobs skips no more than 1 rendered frame per change
 
   @SP-03001.2

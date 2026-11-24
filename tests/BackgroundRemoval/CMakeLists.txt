@@ -13,14 +13,7 @@ endfunction()
 
 # MARK: Without GPU
 
-add_executable(
-  BackgroundRemovalUnitTest
-  UnitTestMain.cpp
-  OutputSizeTest.cpp
-  DualFilterKernelTest.cpp
-  BlurVarianceTest.cpp
-  MaskThresholdTest.cpp
-)
+add_executable(BackgroundRemovalUnitTest UnitTestMain.cpp DualFilterKernelTest.cpp BlurVarianceTest.cpp)
 target_include_directories(
   BackgroundRemovalUnitTest
   PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest"
@@ -29,8 +22,6 @@ target_link_libraries(BackgroundRemovalUnitTest PRIVATE BuildOptions)
 target_compile_features(BackgroundRemovalUnitTest PRIVATE cxx_std_20)
 add_spec_tests(
   BackgroundRemovalUnitTest
-  SP-01001.1
-  SP-01001.2
   SP-01002.1
   SP-01002.2
   SP-01002.3
@@ -38,15 +29,15 @@ add_spec_tests(
   SP-01003.2
   SP-01003.3
   SP-01003.4
-  SP-01004.3
 )
 
 # MARK: On the GPU through libobs
 
 # On Windows, libobs and its D3D11 backend from the OBS Studio release fetched in
 # tests/CMakeLists.txt, linked through the vendored import library. On Linux, the system libobs and
-# its OpenGL backend, rendering on the X display in DISPLAY.
-if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+# its OpenGL backend, rendering on the X display in DISPLAY. On macOS, libobs and its OpenGL backend
+# from the installed OBS Studio found in tests/CMakeLists.txt.
+if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux" OR OBS_MACOS_FRAMEWORKS_DIR)
   add_executable(
     BackgroundRemovalGpuTest
     MaskRefinementGpuTest.cpp
@@ -69,17 +60,25 @@ if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
       SP-01004.4
       PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
     )
+  elseif(APPLE)
+    target_compile_definitions(BackgroundRemovalGpuTest PRIVATE OBS_MACOS_FRAMEWORKS_DIR="${OBS_MACOS_FRAMEWORKS_DIR}")
+    set_target_properties(BackgroundRemovalGpuTest PROPERTIES BUILD_RPATH "${OBS_MACOS_FRAMEWORKS_DIR}")
   endif()
 endif()
 
 # MARK: The filter running in libobs
 
 # libobs started headless, with its image source and filters and the built plugin loaded: from the
-# OBS Studio release on Windows, and from the system on Linux, rendering on the X display in
-# DISPLAY. OBS Studio 33 moved its own modules on Linux from obs-plugins to obs-modules/core.
+# OBS Studio release on Windows, from the installed OBS Studio on macOS, and from the system on
+# Linux, rendering on the X display in DISPLAY. OBS Studio 33 moved its own modules on Linux from
+# obs-plugins to obs-modules/core. On macOS each module is an application-bundle plugin, so both the
+# modules and their data are looked for under Contents/PlugIns; see ObsHarness.cpp.
 if(WIN32)
   set(OBS_TEST_MODULE_DIR "${OBS_TEST_ROOT}/obs-plugins/64bit")
   set(OBS_TEST_MODULE_DATA_DIR "${OBS_TEST_ROOT}/data/obs-plugins")
+elseif(APPLE)
+  set(OBS_TEST_MODULE_DIR "${OBS_MACOS_PLUGINS_DIR}")
+  set(OBS_TEST_MODULE_DATA_DIR "${OBS_MACOS_PLUGINS_DIR}")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   # Not cached, so that the modules are found again after OBS Studio is upgraded. The data is looked
   # for only in the prefix libobs is installed in, as lib or lib/<multiarch>, and in the layout the
@@ -148,6 +147,10 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
       PLUGIN_VERSION_STR="${PLUGIN_VERSION}"
       TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data"
   )
+  if(APPLE)
+    target_compile_definitions(BackgroundRemovalObsTest PRIVATE OBS_MACOS_FRAMEWORKS_DIR="${OBS_MACOS_FRAMEWORKS_DIR}")
+    set_target_properties(BackgroundRemovalObsTest PROPERTIES BUILD_RPATH "${OBS_MACOS_FRAMEWORKS_DIR}")
+  endif()
   target_link_libraries(BackgroundRemovalObsTest PRIVATE BuildOptions OBS::libobs)
   target_compile_features(BackgroundRemovalObsTest PRIVATE cxx_std_20)
   add_dependencies(BackgroundRemovalObsTest obs-backgroundremoval)
@@ -156,7 +159,6 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
     OBS_SPEC_CASES
     SP-01005.2
     SP-01006.1
-    SP-01006.2
     SP-01007.1
     SP-01008.1
     SP-01009.1
@@ -176,11 +178,16 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
     SP-01017.1
     SP-01017.2
     SP-01017.3
+    SP-01017.4
     SP-01018.1
-    SP-01018.2
     SP-01019.1
     SP-01019.2
     SP-01019.3
+    SP-01019.4
+    SP-01019.5
+    SP-01020.1
+    SP-01020.2
+    SP-01020.3
   )
   add_spec_tests(BackgroundRemovalObsTest ${OBS_SPEC_CASES})
   set_tests_properties(${OBS_SPEC_CASES} PROPERTIES TIMEOUT 300)

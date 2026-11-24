@@ -27,7 +27,6 @@ struct MaskCompositorEffect final {
 	gs_eparam_t *const epImage;
 	gs_eparam_t *const epBlurred;
 	gs_eparam_t *const epMask;
-	gs_eparam_t *const epFocus;
 	gs_eparam_t *const epProbability;
 	gs_eparam_t *const epThreshold;
 	gs_eparam_t *const epMaskWidth;
@@ -48,9 +47,9 @@ const MaskCompositorEffect &makeMaskCompositorEffect();
 /// Draws a source frame with a foreground probability mask, using OBS graphics only.
 ///
 /// The probability is first refined at its own size: each texel becomes the share of the
-/// foreground (probability >= threshold) in the 5x5 window around it, counting only the texels
-/// inside the mask. The refined mask is sampled bilinearly at the frame size, and a pixel is in
-/// the foreground when the share is at least 0.5.
+/// foreground (probability at least kForegroundThreshold) in the 5x5 window around it, counting
+/// only the texels inside the mask. The refined mask is sampled bilinearly at the frame size, and
+/// a pixel is in the foreground when the share is at least 0.5.
 ///
 /// The background is either removed (made transparent), or the whole frame is drawn opaque with a
 /// focal blur: Dual filtering (Bjorge, SIGGRAPH 2015) whose amount at each pixel grows with the
@@ -62,6 +61,9 @@ public:
 	/// The largest blur strength.
 	static constexpr float kMaxBlurStrength = 20.0F;
 
+	/// The foreground probability threshold of the refinement, the one the model is trained for.
+	static constexpr float kForegroundThreshold = 0.5F;
+
 	/// Draws with the shared effect of makeMaskCompositorEffect().
 	/// @throws std::runtime_error when the effect cannot be created.
 	MaskCompositor();
@@ -72,9 +74,6 @@ public:
 	MaskCompositor(MaskCompositor &&) = delete;
 	auto operator=(MaskCompositor &&) -> MaskCompositor & = delete;
 
-	/// Sets the foreground probability threshold in [0, 1]; default 0.5.
-	void setThreshold(float value) noexcept;
-
 	/// Blurs instead of removing the background; default false.
 	void setBlurEnabled(bool value) noexcept;
 
@@ -82,7 +81,7 @@ public:
 	/// Strength s blurs as much (by variance) as s iterations of the Kawase blur this replaces.
 	void setBlurStrength(float value) noexcept;
 
-	/// Sets where the frame is sharp in [0, 1], default 0.1: 0 focuses on the foreground and 1 on the
+	/// Sets where the frame is sharp in [0, 1], default 0: 0 focuses on the foreground and 1 on the
 	/// background. The blur grows with the distance from it in mask space.
 	void setBlurFocusPoint(float value) noexcept;
 
@@ -94,7 +93,9 @@ public:
 	void prepare(gs_texture_t *image, gs_texture_t *probability, std::uint32_t width, std::uint32_t height);
 
 	/// Draws the composited frame of width x height, with the mask of the latest prepare(), to the
-	/// current render target with the current projection and blend state.
+	/// current render target with the current projection and blend state. Draws in linear space, as
+	/// OBS draws an sRGB-aware filter: the frame is sampled through sRGB decoding and written with
+	/// framebuffer sRGB, so its alpha divides and blends there.
 	void draw(gs_texture_t *image, std::uint32_t width, std::uint32_t height) noexcept;
 
 	/// The refined mask of the latest prepare(): the share of the foreground in R8, at the size of
@@ -108,7 +109,8 @@ private:
 	using UniqueTexture = std::unique_ptr<gs_texture_t, TextureDeleter>;
 
 	/// One level of the blur pyramid: the downsampled level and the upsampled, blended level.
-	/// Level 0 is the frame itself and has only up.
+	/// Level 0 stands for the frame and has no textures: the final draw blends the frame with
+	/// level 1 or the stop level.
 	struct BlurLevel {
 		UniqueTexture down;
 		UniqueTexture up;
@@ -121,16 +123,12 @@ private:
 
 	const MaskCompositorEffect &effect_;
 
-	float thresholdValue_ = 0.5F;
 	bool blurEnabled_ = false;
 	float blurStrength_ = 4.0F;
-	float blurFocusPoint_ = 0.1F;
+	float blurFocusPoint_ = 0.0F;
 
 	/// The share of the foreground in R8, at the size of the probability mask.
 	UniqueTexture refinedMask_;
-	/// The distance from the focus point in R8, at the size of the probability mask; written when
-	/// the frame is blurred.
-	UniqueTexture focusDistance_;
 	std::uint32_t maskTexturesWidth_ = 0;
 	std::uint32_t maskTexturesHeight_ = 0;
 
@@ -138,6 +136,9 @@ private:
 	std::vector<BlurLevel> pyramid_;
 	/// The blurred frame of the latest prepare(), or null when draw() removes the background.
 	gs_texture_t *blurredFrame_ = nullptr;
+	/// Whether blurredFrame_ is pyramid level kBlurStopLevel, which draw() blends the frame with, rather
+	/// than the frame itself.
+	bool blurredIsLevel_ = false;
 };
 
 } // namespace BackgroundRemoval

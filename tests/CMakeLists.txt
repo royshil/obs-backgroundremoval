@@ -16,6 +16,26 @@ if(WIN32)
   set(OBS_TEST_BIN_DIR "${OBS_TEST_ROOT}/bin/64bit")
 endif()
 
+# On macOS the plugin only links libobs as a stub library, so the tests load libobs, its OpenGL
+# backend and the OBS Studio modules from an installed OBS Studio. The tests are linked with
+# OBS_MACOS_FRAMEWORKS_DIR as a run path, so that the install names of libobs, obs-frontend-api and
+# Qt resolve without DYLD_FRAMEWORK_PATH.
+if(APPLE)
+  foreach(APP_DIR IN ITEMS "/Applications/OBS.app" "$ENV{HOME}/Applications/OBS.app")
+    if(EXISTS "${APP_DIR}/Contents/Frameworks/libobs.framework")
+      set(OBS_MACOS_FRAMEWORKS_DIR "${APP_DIR}/Contents/Frameworks")
+      set(OBS_MACOS_PLUGINS_DIR "${APP_DIR}/Contents/PlugIns")
+      break()
+    endif()
+  endforeach()
+  if(NOT OBS_MACOS_FRAMEWORKS_DIR)
+    message(
+      WARNING
+      "OBS Studio was not found in /Applications or ~/Applications, so the tests that run libobs are not built."
+    )
+  endif()
+endif()
+
 add_subdirectory(BackgroundRemoval)
 add_subdirectory(UI)
 add_subdirectory(UpdateConfig)

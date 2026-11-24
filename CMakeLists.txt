@@ -21,10 +21,6 @@ if(APPLE AND NOT CMAKE_GENERATOR STREQUAL "Xcode")
   message(FATAL_ERROR "The macOS plugin requires the Xcode generator.")
 endif()
 
-if(APPLE)
-  enable_language(OBJCXX)
-endif()
-
 include(CTest)
 include(FetchContent)
 include(GNUInstallDirs)
@@ -257,51 +253,20 @@ target_link_libraries(
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE src)
 
-if(APPLE)
-  target_sources(
-    ${CMAKE_PROJECT_NAME}
-    PRIVATE
-      src/Memory/AlignedBuffer.cpp
-      src/ObsBridgeUtils/AsyncTextureReader.cpp
-      src/ObsBridgeUtils/GsUnique.cpp
-      src/macos/ImageProcessing.cpp
-      src/macos/BackgroundRemoval/MainEffect.cpp
-      src/macos/BackgroundRemoval/FilterContext.cpp
-      src/macos/BackgroundRemoval/MediaPipeLandscapePipeline.mm
-  )
-  set_source_files_properties(
-    src/macos/BackgroundRemoval/MediaPipeLandscapePipeline.mm
-    PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
-  )
-
-  target_link_libraries(
-    ${CMAKE_PROJECT_NAME}
-    PRIVATE "-framework Accelerate" "-framework CoreML" "-framework Foundation"
-  )
-
-  set(MEDIAPIPE_LANDSCAPE_MODEL "${CMAKE_CURRENT_SOURCE_DIR}/src/macos/BackgroundRemoval/MediaPipeLandscape.mlpackage")
-  set_source_files_properties(
-    "${MEDIAPIPE_LANDSCAPE_MODEL}"
-    PROPERTIES MACOSX_PACKAGE_LOCATION "Resources" XCODE_EXPLICIT_FILE_TYPE "folder.mlpackage"
-  )
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${MEDIAPIPE_LANDSCAPE_MODEL}")
-else()
-  target_sources(
-    ${CMAKE_PROJECT_NAME}
-    PRIVATE
-      src/BackgroundRemoval/FilterContext.cpp
-      src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp
-      src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp
-      src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp
-      src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
-      src/BackgroundRemoval/ModuleText.cpp
-      src/BackgroundRemoval/PipelineFactory.cpp
-  )
-endif()
-
 target_sources(
   ${CMAKE_PROJECT_NAME}
-  PRIVATE src/plugin-main.cpp src/UI/AboutDialog.cpp src/UI/AboutDialogIntegration.cpp src/Resources/resources.qrc
+  PRIVATE
+    src/BackgroundRemoval/FilterContext.cpp
+    src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp
+    src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp
+    src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp
+    src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
+    src/BackgroundRemoval/ModuleText.cpp
+    src/BackgroundRemoval/PipelineFactory.cpp
+    src/Resources/resources.qrc
+    src/UI/AboutDialog.cpp
+    src/UI/AboutDialogIntegration.cpp
+    src/plugin-main.cpp
 )
 
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES AUTORCC ON)

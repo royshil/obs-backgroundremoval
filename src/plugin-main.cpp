@@ -12,14 +12,9 @@
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 
+#include <BackgroundRemoval/FilterContext.hpp>
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
-
-#if defined(__APPLE__)
-#include <macos/BackgroundRemoval/FilterContext.hpp>
-#else
-#include <BackgroundRemoval/FilterContext.hpp>
-#endif
 
 namespace {
 

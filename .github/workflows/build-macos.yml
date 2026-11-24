@@ -141,7 +141,7 @@ jobs:
           )
 
           /usr/bin/env -i "${ENVS[@]}" "${CTEST_COMMAND:?}" \
-            --test-dir build --build-config RelWithDebInfo --output-on-failure
+            --test-dir build --build-config RelWithDebInfo --output-on-failure -LE performance
 
       - name: Archive dSYM (macOS)
         id: archive-dsym

@@ -4,7 +4,7 @@
 
 // libobs, started headless with the plugin and the OBS Studio filters loaded, and the scenes the
 // cases of SP-01006 to SP-01019 and SP-03001 build on it. libobs comes from an OBS Studio release
-// on Windows and from the system on Linux.
+// on Windows, from the installed OBS Studio on macOS and from the system on Linux.
 
 #pragma once
 
@@ -104,6 +104,11 @@ public:
 	/// Renders the source with its filters at its own size.
 	[[nodiscard]] auto capture() const -> Image { return ObsHarness::capture(source_); }
 
+	/// Renders the scene at its own size, the size of the canvas, as OBS composites it into the
+	/// program output: the scene resets the blend state and blends each item onto the cleared
+	/// target, so transparency shows as it does in OBS Studio.
+	[[nodiscard]] auto captureScene() const -> Image { return ObsHarness::capture(obs_scene_get_source(scene_)); }
+
 	/// Adds another image source with the same filter chain to this scene.
 	void addSecondSource(const std::string &imageFile, const std::vector<FilterSpec> &filters);
 
@@ -121,7 +126,7 @@ auto captureUnfiltered(const std::string &imageFile) -> Image;
 inline constexpr const char *kBackgroundRemovalId = "background_removal";
 
 /// The line the plugin logs when it creates its shader pipeline.
-auto pipelineCreatedLine(std::uint32_t width, std::uint32_t height, int factor) -> std::string;
+auto pipelineCreatedLine(std::uint32_t width, std::uint32_t height) -> std::string;
 /// Whether the log holds any pipeline creation.
 auto anyPipelineCreated() -> bool;
 

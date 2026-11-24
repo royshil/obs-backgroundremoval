@@ -35,7 +35,7 @@ frame rate, so CI does not run these cases; they are run on a machine with a har
 - Tag the feature with its number (`@SP-03xxx`) and each scenario with a sub-number
   (`@SP-03xxx.1`).
 - Limits stated exactly, such as a number of skipped frames, so that a doctest assertion can check
-  them. Settings are named by their keys, such as `"v2_OutputDownscaleFactor"`.
+  them. Settings are named by their keys, such as `"v2_PipelineId"`.
 - The design principle a case verifies, if any.
 
 The cases hold on all platforms with a hardware GPU; platform-specific ways to run them belong to

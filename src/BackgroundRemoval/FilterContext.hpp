@@ -36,7 +36,9 @@ public:
 		obs_source_info sourceInfo{};
 		sourceInfo.id = "background_removal";
 		sourceInfo.type = OBS_SOURCE_TYPE_FILTER;
-		sourceInfo.output_flags = OBS_SOURCE_VIDEO;
+		// Draws its output in linear space, as the sRGB-aware filters of OBS Studio do; see
+		// MaskCompositor::draw().
+		sourceInfo.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_SRGB;
 		sourceInfo.get_name = getName;
 		sourceInfo.create = create;
 		sourceInfo.destroy = destroy;
@@ -64,7 +66,6 @@ private:
 	/// What a pipeline is created for; any change recreates it.
 	struct PipelineKey {
 		std::int64_t pipelineId = 0;
-		std::int64_t outputDownscaleFactor = 1;
 		std::uint32_t sourceWidth = 0;
 		std::uint32_t sourceHeight = 0;
 		auto operator==(const PipelineKey &) const -> bool = default;
@@ -81,15 +82,13 @@ private:
 	// Written by update() on the UI thread, read on the graphics thread and by getWidth() and
 	// getHeight() on any thread.
 	std::atomic<std::int64_t> pipelineId_{0};
-	std::atomic<std::int64_t> outputDownscaleFactor_{1};
 	// Written by video_tick on the graphics thread, read by getWidth() and getHeight() on any thread:
 	// the output size of pipeline_, or 0 without one.
 	std::atomic<std::uint32_t> outputWidth_{0};
 	std::atomic<std::uint32_t> outputHeight_{0};
-	std::atomic<double> maskAdjustment_{0.0};
 	std::atomic<bool> blurBgEnabled_{false};
 	std::atomic<double> blurBgStrength_{4.0};
-	std::atomic<double> blurBgFocusPoint_{0.1};
+	std::atomic<double> blurBgFocusRatio_{-100.0};
 
 	// Graphics thread only: video_tick and video_render both run there.
 	std::unique_ptr<IRenderingPipeline> pipeline_;

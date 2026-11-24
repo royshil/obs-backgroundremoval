@@ -47,13 +47,12 @@ struct Layer final {
 /// Construct, render and destroy instances only inside the OBS graphics context.
 class MPLSPipeline final : public IRenderingPipeline {
 public:
-	/// Processes frames of sourceWidth x sourceHeight, the size of the filter's target, and draws the
-	/// output at 1 / outputDownscaleFactor of it (see downscaledSize()). Evaluates the network and
-	/// draws with effects shared by all pipelines (makeMPLSEffect() and makeMaskCompositorEffect()).
+	/// Processes and draws frames of sourceWidth x sourceHeight, the size of the filter's target.
+	/// Evaluates the network and draws with effects shared by all pipelines (makeMPLSEffect() and
+	/// makeMaskCompositorEffect()).
 	/// @throws std::runtime_error when an effect cannot be created or lacks a technique or a
 	/// parameter, or a texture cannot be created.
-	MPLSPipeline(obs_source_t *source, std::uint32_t sourceWidth, std::uint32_t sourceHeight,
-		     std::int64_t outputDownscaleFactor);
+	MPLSPipeline(obs_source_t *source, std::uint32_t sourceWidth, std::uint32_t sourceHeight);
 	~MPLSPipeline() noexcept override;
 
 	MPLSPipeline(const MPLSPipeline &) = delete;
@@ -62,16 +61,35 @@ public:
 	auto operator=(MPLSPipeline &&) -> MPLSPipeline & = delete;
 
 	auto pipelineId() const noexcept -> std::int64_t override { return kMPLSPipelineId; }
-	auto width() const noexcept -> std::uint32_t override { return outputWidth_; }
-	auto height() const noexcept -> std::uint32_t override { return outputHeight_; }
+	auto width() const noexcept -> std::uint32_t override { return sourceWidth_; }
+	auto height() const noexcept -> std::uint32_t override { return sourceHeight_; }
 
-	/// The foreground probability threshold is 0.5 - degree / 100.
-	void setMaskAdjustment(double degree) noexcept override;
 	void setBlurBgEnabled(bool value) noexcept override;
 	void setBlurBgStrength(double value) noexcept override;
-	void setBlurBgFocusPoint(double value) noexcept override;
+	/// Places the ratio at focusPointFromRatio().
+	void setBlurBgFocusRatio(double percent) noexcept override;
 
-	/// Renders the filtered source frame to the current render target at the output size. Draws
+	/// The focus point at focus ratio 0%, where the two blur modes balance for the distribution of
+	/// this model's output.
+	static constexpr double kBalanceFocusPoint = 0.5;
+
+	/// The focus point of a focus ratio in [-100, 100]. The refined mask puts the person at
+	/// background share 0 and the background at 1, so -100% is focus point 0, 0% is
+	/// kBalanceFocusPoint and 100% is 1, linear on each side.
+	static constexpr auto focusPointFromRatio(double ratio) noexcept -> double
+	{
+		return ratio < 0.0 ? kBalanceFocusPoint * (1.0 + ratio / 100.0)
+				   : kBalanceFocusPoint + (1.0 - kBalanceFocusPoint) * ratio / 100.0;
+	}
+
+	/// The focus ratio of a focus point in [0, 1]; the inverse of focusPointFromRatio().
+	static constexpr auto focusRatioFromPoint(double point) noexcept -> double
+	{
+		return point < kBalanceFocusPoint ? 100.0 * (point / kBalanceFocusPoint - 1.0)
+						  : 100.0 * (point - kBalanceFocusPoint) / (1.0 - kBalanceFocusPoint);
+	}
+
+	/// Renders the filtered source frame to the current render target at the target's size. Draws
 	/// nothing after a GPU failure, or while the target's size differs from the one the pipeline
 	/// was created for.
 	void videoRender() noexcept override;
@@ -162,8 +180,6 @@ private:
 	std::unordered_set<std::string> techniques_;
 	const std::uint32_t sourceWidth_;
 	const std::uint32_t sourceHeight_;
-	const std::uint32_t outputWidth_;
-	const std::uint32_t outputHeight_;
 	/// The filter's target, rendered at its own size.
 	UniqueTexture sourceTexture_;
 	Tensor modelInput_;

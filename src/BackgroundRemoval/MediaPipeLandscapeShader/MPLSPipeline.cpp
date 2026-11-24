@@ -15,7 +15,6 @@
 
 #include <graphics/vec4.h>
 
-#include <BackgroundRemoval/MaskCompositor/MaskThreshold.hpp>
 #include <plugin-support.h>
 
 #include "MPLSEffect.hpp"
@@ -98,22 +97,27 @@ auto toInt(std::uint32_t value) noexcept -> int
 	return static_cast<int>(value);
 }
 
-/// Saves the render state that the pipeline changes and restores it on destruction.
+/// Saves the render state that the pipeline changes and restores it on destruction. Framebuffer
+/// sRGB is turned off meanwhile, so that the passes store values as they compute them, whatever the
+/// caller left enabled.
 class RenderStateGuard final {
 public:
 	RenderStateGuard() noexcept
 		: renderTarget_(gs_get_render_target()),
 		  zstencil_(gs_get_zstencil_target()),
-		  colorSpace_(gs_get_color_space())
+		  colorSpace_(gs_get_color_space()),
+		  framebufferSrgb_(gs_framebuffer_srgb_enabled())
 	{
 		gs_blend_state_push();
 		gs_matrix_push();
 		gs_projection_push();
 		gs_viewport_push();
+		gs_enable_framebuffer_srgb(false);
 	}
 
 	~RenderStateGuard() noexcept
 	{
+		gs_enable_framebuffer_srgb(framebufferSrgb_);
 		gs_viewport_pop();
 		gs_projection_pop();
 		gs_matrix_pop();
@@ -130,6 +134,7 @@ private:
 	gs_texture_t *const renderTarget_;
 	gs_zstencil_t *const zstencil_;
 	const gs_color_space colorSpace_;
+	const bool framebufferSrgb_;
 };
 
 // gs_effect_loop() draws nothing when a technique is missing, so check the names up front.
@@ -157,14 +162,11 @@ using MPLSDetail::toInt;
 
 } // namespace
 
-MPLSPipeline::MPLSPipeline(obs_source_t *source, std::uint32_t sourceWidth, std::uint32_t sourceHeight,
-			   std::int64_t outputDownscaleFactor)
+MPLSPipeline::MPLSPipeline(obs_source_t *source, std::uint32_t sourceWidth, std::uint32_t sourceHeight)
 	: source_(source),
 	  effect_(makeMPLSEffect()),
 	  sourceWidth_(sourceWidth),
-	  sourceHeight_(sourceHeight),
-	  outputWidth_(downscaledSize(sourceWidth, outputDownscaleFactor)),
-	  outputHeight_(downscaledSize(sourceHeight, outputDownscaleFactor))
+	  sourceHeight_(sourceHeight)
 {
 	if (!source_ || sourceWidth_ == 0 || sourceHeight_ == 0) {
 		throw std::invalid_argument("MPLSPipeline requires a source and a frame size");
@@ -202,11 +204,6 @@ MPLSPipeline::MPLSPipeline(obs_source_t *source, std::uint32_t sourceWidth, std:
 
 MPLSPipeline::~MPLSPipeline() noexcept = default;
 
-void MPLSPipeline::setMaskAdjustment(double degree) noexcept
-{
-	compositor_.setThreshold(maskThreshold(degree));
-}
-
 void MPLSPipeline::setBlurBgEnabled(bool value) noexcept
 {
 	compositor_.setBlurEnabled(value);
@@ -217,9 +214,10 @@ void MPLSPipeline::setBlurBgStrength(double value) noexcept
 	compositor_.setBlurStrength(static_cast<float>(value));
 }
 
-void MPLSPipeline::setBlurBgFocusPoint(double value) noexcept
+void MPLSPipeline::setBlurBgFocusRatio(double percent) noexcept
 {
-	compositor_.setBlurFocusPoint(static_cast<float>(value));
+	const double ratio = std::isfinite(percent) ? std::clamp(percent, -100.0, 100.0) : -100.0;
+	compositor_.setBlurFocusPoint(static_cast<float>(focusPointFromRatio(ratio)));
 }
 
 // MARK: - Rendering
@@ -268,8 +266,7 @@ void MPLSPipeline::videoRender() noexcept
 		return;
 	}
 
-	// Processed at the target's size; only the output is drawn at the output size.
-	compositor_.draw(sourceTexture_.get(), outputWidth_, outputHeight_);
+	compositor_.draw(sourceTexture_.get(), width, height);
 }
 
 // MARK: - Network

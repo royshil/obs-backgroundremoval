@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 @SP-01018
-Feature: Mask adjustment
-  Mask adjustment grows or shrinks the kept foreground.
+Feature: Kept pixels
+  The filter keeps the foreground as it is and only cuts the background away.
 
   Background:
     Given libobs is started with the plugin and the OBS Studio filters loaded
@@ -13,11 +13,5 @@ Feature: Mask adjustment
     And the source is shown in the program output, so it is active and showing
 
   @SP-01018.1
-  Scenario: Positive adjustment keeps more, negative keeps less
-    When "v2_MaskAdjustment" is set to -30, 0 and 30 in turn
-    Then the share of opaque pixels increases at every step
-
-  @SP-01018.2
   Scenario: Kept pixels are unchanged
-    When "v2_MaskAdjustment" is set to 0
     Then every opaque pixel of the source has the color of the unfiltered image

@@ -4,6 +4,7 @@
 
 #include "FilterContext.hpp"
 
+#include <algorithm>
 #include <exception>
 #include <optional>
 #include <stdexcept>
@@ -11,6 +12,7 @@
 #include <string_view>
 
 #include <BackgroundRemoval/IRenderingPipeline.hpp>
+#include <BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.hpp>
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 #include <plugin-support.h>
@@ -45,6 +47,21 @@ void appendHtmlEscaped(std::string &output, std::string_view text)
 			break;
 		}
 	}
+}
+
+/// The focus ratio in percent. Settings saved before v2_BlurBg_FocusRatio keep the focus point in
+/// [0, 1] in v2_BlurBg_FocusPoint; it is read as the ratio that the MPLS pipeline, whose mask those
+/// settings were made with, places at the same point. The old key is read only when the new one was
+/// never set.
+auto readFocusRatio(obs_data_t *settings) -> double
+{
+	using BackgroundRemoval::MPLSPipeline;
+	if (!obs_data_has_user_value(settings, "v2_BlurBg_FocusRatio") &&
+	    obs_data_has_user_value(settings, "v2_BlurBg_FocusPoint")) {
+		const double point = std::clamp(obs_data_get_double(settings, "v2_BlurBg_FocusPoint"), 0.0, 1.0);
+		return MPLSPipeline::focusRatioFromPoint(point);
+	}
+	return obs_data_get_double(settings, "v2_BlurBg_FocusRatio");
 }
 
 } // namespace
@@ -105,32 +122,25 @@ void FilterContext::update(void *data, obs_data_t *settings) noexcept
 void FilterContext::readSettings(obs_data_t *settings) noexcept
 {
 	pipelineId_.store(obs_data_get_int(settings, "v2_PipelineId"));
-	outputDownscaleFactor_.store(
-		validOutputDownscaleFactor(obs_data_get_int(settings, "v2_OutputDownscaleFactor")));
-	maskAdjustment_.store(obs_data_get_double(settings, "v2_MaskAdjustment"));
 	blurBgEnabled_.store(obs_data_get_bool(settings, "v2_BlurBg"));
 	// v2_BlurBg_Factor was an integer iteration count; obs_data reads stored integers as doubles.
 	blurBgStrength_.store(obs_data_get_double(settings, "v2_BlurBg_Factor"));
-	blurBgFocusPoint_.store(obs_data_get_double(settings, "v2_BlurBg_FocusPoint"));
+	blurBgFocusRatio_.store(readFocusRatio(settings));
 }
 
 void FilterContext::applySettings(IRenderingPipeline &pipeline) const noexcept
 {
-	pipeline.setMaskAdjustment(maskAdjustment_.load());
 	pipeline.setBlurBgEnabled(blurBgEnabled_.load());
 	pipeline.setBlurBgStrength(blurBgStrength_.load());
-	pipeline.setBlurBgFocusPoint(blurBgFocusPoint_.load());
+	pipeline.setBlurBgFocusRatio(blurBgFocusRatio_.load());
 }
 
 void FilterContext::getDefaults(obs_data_t *settings) noexcept
 {
-	obs_data_set_default_int(settings, "v2_OutputDownscaleFactor", 1);
 	obs_data_set_default_int(settings, "v2_PipelineId", kAutoPipelineId);
-	obs_data_set_default_double(settings, "v2_MotionSuppression", 0.0);
-	obs_data_set_default_double(settings, "v2_MaskAdjustment", 0.0);
 	obs_data_set_default_bool(settings, "v2_BlurBg", false);
 	obs_data_set_default_double(settings, "v2_BlurBg_Factor", 4.0);
-	obs_data_set_default_double(settings, "v2_BlurBg_FocusPoint", 0.1);
+	obs_data_set_default_int(settings, "v2_BlurBg_FocusRatio", -100);
 }
 
 std::string FilterContext::getVersionNotice()
@@ -175,27 +185,11 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
 	obs_properties_t *const pGeneral = obs_properties_create();
 	obs_properties_add_group(p, "v2_GeneralGroup", tGeneral(), OBS_GROUP_NORMAL, pGeneral);
 
-	obs_property_t *const outputDownscaleFactor =
-		obs_properties_add_list(pGeneral, "v2_OutputDownscaleFactor", tOutputDownscaleFactor(),
-					OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(outputDownscaleFactor, "1", 1);
-	obs_property_list_add_int(outputDownscaleFactor, "2", 2);
-	obs_property_list_add_int(outputDownscaleFactor, "4", 4);
-	obs_property_set_long_description(outputDownscaleFactor, tOutputDownscaleFactorDescription());
-
 	obs_property_t *const pipeline = obs_properties_add_list(pGeneral, "v2_PipelineId", tPipeline(),
 								 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(pipeline, tPipelineAuto(), kAutoPipelineId);
 	obs_property_list_add_int(pipeline, tPipelineMPLS(), kMPLSPipelineId);
 	obs_property_set_long_description(pipeline, tPipelineDescription());
-
-	obs_property_t *const maskAdjustment =
-		obs_properties_add_float_slider(pGeneral, "v2_MaskAdjustment", tMaskAdjustment(), -50.0, 50.0, 0.01);
-	obs_property_set_long_description(maskAdjustment, tMaskAdjustmentDescription());
-
-	obs_property_t *const motionSuppression = obs_properties_add_float_slider(
-		pGeneral, "v2_MotionSuppression", tMotionSuppression(), -50.0, 50.0, 0.01);
-	obs_property_set_long_description(motionSuppression, tMotionSuppressionDescription());
 
 	// MARK: - Blur Background Properties
 
@@ -205,9 +199,10 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
 	obs_property_t *const blurStrength =
 		obs_properties_add_float_slider(blurProperties, "v2_BlurBg_Factor", tBlurBgStrength(), 0.0, 20.0, 0.1);
 	obs_property_set_long_description(blurStrength, tBlurBgStrengthDescription());
-	obs_property_t *const blurFocusPoint = obs_properties_add_float_slider(blurProperties, "v2_BlurBg_FocusPoint",
-									       tBlurBgFocusPoint(), 0.0, 1.0, 0.05);
-	obs_property_set_long_description(blurFocusPoint, tBlurBgFocusPointDescription());
+	obs_property_t *const blurFocusRatio = obs_properties_add_int_slider(blurProperties, "v2_BlurBg_FocusRatio",
+									     tBlurBgFocusRatio(), -100, 100, 1);
+	obs_property_int_set_suffix(blurFocusRatio, "%");
+	obs_property_set_long_description(blurFocusRatio, tBlurBgFocusRatioDescription());
 
 	// MARK: - Footer
 
@@ -238,7 +233,7 @@ void FilterContext::videoTick(void *data, float) noexcept
 	}
 }
 
-// Recreates the pipeline whenever the selection, the output downscale factor or the target's size changes, as
+// Recreates the pipeline whenever the selection or the target's size changes, as
 // live-backgroundremoval-lite does, with the target's base size. It works while the parent source is
 // showing anywhere, not only while it is active in the program output, so that the Studio Mode
 // preview, the filter properties preview and projectors show the source with the background
@@ -253,7 +248,6 @@ void FilterContext::tick() noexcept
 	}
 	const PipelineKey key{
 		.pipelineId = pipelineId_.load(),
-		.outputDownscaleFactor = outputDownscaleFactor_.load(),
 		.sourceWidth = obs_source_get_base_width(target),
 		.sourceHeight = obs_source_get_base_height(target),
 	};
@@ -269,8 +263,7 @@ void FilterContext::tick() noexcept
 	obs_enter_graphics();
 	pipeline_.reset();
 	try {
-		pipeline_ = createRenderingPipeline(key.pipelineId, source_, key.sourceWidth, key.sourceHeight,
-						    key.outputDownscaleFactor);
+		pipeline_ = createRenderingPipeline(key.pipelineId, source_, key.sourceWidth, key.sourceHeight);
 	} catch (const std::exception &exception) {
 		obs_log(LOG_ERROR, "Failed to create the rendering pipeline: %s", exception.what());
 	} catch (...) {
