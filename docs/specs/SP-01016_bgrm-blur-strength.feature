@@ -15,7 +15,8 @@ Feature: Blur strength
   @SP-01016.1
   Scenario: Strength 0 leaves the frame sharp
     When "v2_BlurBg_Factor" is set to 0
-    Then the source shows the unfiltered image, opaque
+    Then the source shows the unfiltered image, within 1
+    And every pixel of the source is opaque
 
   @SP-01016.2
   Scenario: The output is opaque

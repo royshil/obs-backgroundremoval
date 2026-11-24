@@ -52,6 +52,7 @@ TEST_CASE("SP-01007.1 The output keeps the odd size")
     CHECK(scene.width() == 1281);
     CHECK(scene.height() == 721);
     CHECK(countLogLines(pipelineCreatedLine(1281, 721)) >= 1);
+    CHECK(backgroundIsRemoved(scene.capture()));
 }
 
 // MARK: SP-01008 Preceding scale filter

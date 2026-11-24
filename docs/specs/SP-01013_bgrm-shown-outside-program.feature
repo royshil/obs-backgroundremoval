@@ -10,6 +10,7 @@ Feature: Shown outside the program output
     Given libobs is started with the plugin and the OBS Studio filters loaded
     And a 1280 x 720 image source of the portrait test image
     And the source has the Background Removal filter only, with default settings
+    And "the background is removed" means that more than 10% and less than 90% of the pixels have an alpha below 128
 
   @SP-01013.1
   Scenario: Showing but not active

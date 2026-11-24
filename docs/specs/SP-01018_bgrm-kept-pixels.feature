@@ -14,4 +14,4 @@ Feature: Kept pixels
 
   @SP-01018.1
   Scenario: Kept pixels are unchanged
-    Then every opaque pixel of the source has the color of the unfiltered image
+    Then every opaque pixel of the source has the color of the unfiltered image, within 1

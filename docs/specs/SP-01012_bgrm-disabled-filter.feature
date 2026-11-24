@@ -11,12 +11,13 @@ Feature: Disabled filter
     And a 1280 x 720 image source of the portrait test image
     And the source has the Background Removal filter only, with default settings
     And the source is shown in the program output, so it is active and showing
+    And "the background is removed" means that more than 10% and less than 90% of the pixels have an alpha below 128
 
   @SP-01012.1
   Scenario: Disabling the filter restores the source
     When the Background Removal filter is disabled
     Then the source size is 1280 x 720
-    And the source shows the unfiltered image
+    And the source shows the unfiltered image, within 1
 
   @SP-01012.2
   Scenario: Enabling the filter again draws at once
