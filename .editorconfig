@@ -5,25 +5,74 @@
 root = true
 
 [*]
-charset = utf-8
-end_of_line = lf
-insert_final_newline = true
-trim_trailing_whitespace = true
-indent_style = space
-indent_size = 2
-
-[*.{bat,cmd}]
-end_of_line = crlf
-indent_style = tab
-indent_size = tab
-tab_width = 8
-
-[*.{ps1,psm1}]
 indent_style = space
 indent_size = 4
+end_of_line = unset
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[{CMakeLists.txt,*.cmake}]
+end_of_line = lf
+
+[*.{c,cpp,h,hpp}]
+end_of_line = lf
+
+[*.py]
+end_of_line = lf
+
+[*.rb]
+indent_size = 2
+end_of_line = lf
+
+[*.{js,mjs}]
+indent_size = 2
+end_of_line = lf
+
+[Dockerfile]
+end_of_line = lf
+
+[*.ini]
+end_of_line = crlf
 
 [*.md]
 trim_trailing_whitespace = false
 
+[*.feature]
+indent_size = 2
+
+[{*.{yml,yaml,lock},.clang-format,.clangd}]
+indent_size = 2
+end_of_line = lf
+
+[*.json]
+indent_size = 2
+end_of_line = lf
+
+[*.toml]
+end_of_line = lf
+
+[*.svg]
+indent_size = 2
+
 [VERSION]
 insert_final_newline = false
+
+[{*.sh,bin/*}]
+end_of_line = lf
+
+[*.{bat,cmd,ps1}]
+indent_style = tab
+indent_size = tab
+tab_width = 8
+end_of_line = crlf
+
+[{LICENSE,NOTICE,*.{license,upstream}}]
+indent_style = unset
+indent_size = unset
+tab_width = unset
+end_of_line = unset
+charset = unset
+spelling_language = unset
+trim_trailing_whitespace = unset
+insert_final_newline = unset

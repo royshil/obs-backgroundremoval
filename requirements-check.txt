@@ -2,5 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+editorconfig-checker==3.11.1
 gersemi==0.27.7
 reuse[charset-normalizer]==6.2.0

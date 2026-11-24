@@ -2,10 +2,40 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+CMakeLists.txt text eol=lf
+*.cmake text eol=lf
+
+*.c text eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+*.hpp text eol=lf
+
+*.py text eol=lf
+*.rb text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+
+Dockerfile text eol=lf
+
+*.ini text eol=crlf
+
+*.yml text eol=lf
+*.yaml text eol=lf
+*.lock text eol=lf
+.clang-format text eol=lf
+.clangd text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+
+*.sh text eol=lf
+bin/* text eol=lf
+
 *.bat text eol=crlf
 *.cmd text eol=crlf
+*.ps1 text eol=crlf
+
 *.lib binary linguist-generated=true
 *.tbd linguist-generated=true merge=ours
-.github/workflows/*.lock.yml linguist-generated=true merge=ours
+.github/workflows/actions.lock linguist-generated=true merge=ours
 docs/download-trends.svg linguist-generated=true merge=ours
 docs/star-history.svg linguist-generated=true merge=ours
