@@ -25,6 +25,6 @@ graphics backend.
 
 1. No code calls `gs_technique_begin`, `gs_technique_begin_pass` or `gs_technique_end` directly.
 2. Each loop body sets every parameter its technique reads, including null textures for texture
-   parameters it does not use, then draws.
+    parameters it does not use, then draws.
 3. Techniques are looked up by name. Every name is checked once when the effect is first used,
-   because `gs_effect_loop()` draws nothing for a missing technique.
+    because `gs_effect_loop()` draws nothing for a missing technique.

@@ -25,22 +25,22 @@ output size in `video_tick` from the target's base size, and `get_width`/`get_he
 ## Requirements
 
 1. The filter decides in `video_tick` whether to recreate the pipeline, and creates or destroys it
-   inside the graphics context.
+    inside the graphics context.
 2. The pipeline is recreated when the pipeline selection or the target's size changes. A
-   combination that failed to create is not retried until one of them changes again.
+    combination that failed to create is not retried until one of them changes again.
 3. The target's size is its base size, `obs_source_get_base_width/height(target)`. It reflects
-   any size-changing filter before this one. `obs_source_get_width/height` of the parent source
-   would return the size of its first filter, possibly this filter, under the parent's filter
-   mutex.
+    any size-changing filter before this one. `obs_source_get_width/height` of the parent source
+    would return the size of its first filter, possibly this filter, under the parent's filter
+    mutex.
 4. `get_width` and `get_height` return the output size of the current pipeline, or 0 without one,
-   and query no source size.
+    and query no source size.
 5. The filter creates no pipeline while its parent is not showing. A disabled filter keeps its
-   pipeline as a hot standby and keeps it current: users toggle filters quickly, and enabling one
-   must draw at once without recreating anything.
+    pipeline as a hot standby and keeps it current: users toggle filters quickly, and enabling one
+    must draw at once without recreating anything.
 6. Effects are compiled once and shared by all pipelines and filters. `gs_effect_create` with a
-   name never frees the effect and never reuses one, so a pipeline does not create its own.
+    name never frees the effect and never reuses one, so a pipeline does not create its own.
 7. The frame is processed and drawn at the target's size. There is no setting that makes the
-   output smaller: a source shown small is scaled by OBS after the filter.
+    output smaller: a source shown small is scaled by OBS after the filter.
 
 ## Verified by
 

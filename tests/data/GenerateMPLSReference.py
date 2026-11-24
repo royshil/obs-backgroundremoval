@@ -5,15 +5,15 @@
 """Write the references of SP-01004.4 and SP-01005.2 next to this script.
 
 - portrait-umireon-256x144.png: the portrait test image at the model's input size, the input that
-  both the shader pipeline and ONNX Runtime evaluate, so that resizing never differs between them.
+    both the shader pipeline and ONNX Runtime evaluate, so that resizing never differs between them.
 - portrait-umireon-256x144.probability.pgm: the foreground probability ONNX Runtime infers from it
-  with the pinned model, in 8 bits as the shader pipeline stores it.
+    with the pinned model, in 8 bits as the shader pipeline stores it.
 - portrait-umireon-256x144.refined.pgm: that probability refined by a NumPy reference of the
-  RefineMask pass: the share of the texels at least 0.5 in the 5 x 5 window, counting only the
-  texels inside the mask, in 8 bits.
+    RefineMask pass: the share of the texels at least 0.5 in the 5 x 5 window, counting only the
+    texels inside the mask, in 8 bits.
 
 Usage: python -m pip install -r tests/data/requirements.txt
-       python tests/data/GenerateMPLSReference.py
+        python tests/data/GenerateMPLSReference.py
 """
 
 import pathlib

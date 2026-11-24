@@ -7,7 +7,8 @@
 struct obs_properties;
 using obs_properties_t = struct obs_properties;
 
-namespace AboutDialogIntegration {
+namespace AboutDialogIntegration
+{
 
 [[nodiscard]] bool show();
 void addButton(obs_properties_t *properties);

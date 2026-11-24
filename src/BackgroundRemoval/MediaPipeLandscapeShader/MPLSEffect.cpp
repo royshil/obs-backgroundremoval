@@ -11,22 +11,24 @@
 #include <util/bmem.h>
 
 // A pass: the pixel shader PS_<name> with the given body, and the technique <name> that draws with it.
-#define MPLS_PASS(name, body) \
-	"\nfloat4 PS_" #name "(VertData v_in) : TARGET\n{\n" body "}\n" \
-	"technique " #name " { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_" #name "(v_in); } }\n"
+#define MPLS_PASS(name, body)                                                                                          \
+    "\nfloat4 PS_" #name "(VertData v_in) : TARGET\n{\n" body "}\n"                                                    \
+    "technique " #name " { pass { vertex_shader = VSDefault(v_in); pixel_shader = PS_" #name "(v_in); } }\n"
 
 // A layer on an output tensor of shape width x height x slices: opos is the position of the
 // fragment in it, and the pixel shader returns the expression, written in HLSL as is.
-#define MPLS_LAYER(name, width, height, slices, ...) \
-	MPLS_PASS(name, "\tint3 opos = vertToPos(v_in, " #width ", " #height ", " #slices ");\n" \
-			"\treturn " #__VA_ARGS__ ";\n")
+#define MPLS_LAYER(name, width, height, slices, ...)                                                                   \
+    MPLS_PASS(name, "\tint3 opos = vertToPos(v_in, " #width ", " #height ", " #slices ");\n"                           \
+                    "\treturn " #__VA_ARGS__ ";\n")
 
 // A pass whose pixel shader returns the expression, written in HLSL as is.
 #define MPLS_SIMPLE(name, ...) MPLS_PASS(name, "\treturn " #__VA_ARGS__ ";\n")
 
-namespace BackgroundRemoval {
+namespace BackgroundRemoval
+{
 
-namespace {
+namespace
+{
 
 // The effect source of MediaPipe Selfie Segmenter (landscape): the preamble, then a pixel shader
 // and a technique per pass. Layers are named after the ONNX initializers (conv2_1 for
@@ -558,43 +560,41 @@ technique final_block3_conv1 { pass { vertex_shader = VSDefault(v_in); pixel_sha
 
 auto requireParam(gs_effect_t *effect, const char *name) -> gs_eparam_t *
 {
-	gs_eparam_t *const param = gs_effect_get_param_by_name(effect, name);
-	if (!param) {
-		throw std::runtime_error(std::string("MediaPipeLandscape effect parameter is missing: ") + name);
-	}
-	return param;
+    gs_eparam_t *const param = gs_effect_get_param_by_name(effect, name);
+    if (!param)
+    {
+        throw std::runtime_error(std::string("MediaPipeLandscape effect parameter is missing: ") + name);
+    }
+    return param;
 }
 
 } // namespace
 
 MPLSEffect::MPLSEffect(gs_effect_t *effect)
-	: effect(effect),
-	  epTensor(requireParam(effect, "tensor")),
-	  epScale(requireParam(effect, "scale")),
-	  epTensorB(requireParam(effect, "tensorB")),
-	  epScaleB(requireParam(effect, "scaleB")),
-	  epTensorR(requireParam(effect, "tensorR")),
-	  epWeights(requireParam(effect, "weights")),
-	  epBias(requireParam(effect, "bias")),
-	  epImage(requireParam(effect, "image"))
+    : effect(effect), epTensor(requireParam(effect, "tensor")), epScale(requireParam(effect, "scale")),
+      epTensorB(requireParam(effect, "tensorB")), epScaleB(requireParam(effect, "scaleB")),
+      epTensorR(requireParam(effect, "tensorR")), epWeights(requireParam(effect, "weights")),
+      epBias(requireParam(effect, "bias")), epImage(requireParam(effect, "image"))
 {
-	// gs_effect_loop() draws nothing when a technique is missing. The per-layer techniques are
-	// checked by MPLSPipeline.
-	if (!gs_effect_get_technique(effect, "Draw")) {
-		throw std::runtime_error("MediaPipeLandscape effect technique is missing: Draw");
-	}
+    // gs_effect_loop() draws nothing when a technique is missing. The per-layer techniques are
+    // checked by MPLSPipeline.
+    if (!gs_effect_get_technique(effect, "Draw"))
+    {
+        throw std::runtime_error("MediaPipeLandscape effect technique is missing: Draw");
+    }
 }
 
 const MPLSEffect &makeMPLSEffect()
 {
-	static char *s_pErrorString = nullptr;
-	static gs_effect_t *s_effect = gs_effect_create(kMPLSEffectCode, "kMPLSEffectCode", &s_pErrorString);
-	static std::unique_ptr<char, void (*)(void *)> s_errorString(s_pErrorString, &bfree);
-	if (!s_effect) {
-		throw std::runtime_error(s_pErrorString ? s_pErrorString : "Unknown error");
-	}
-	static const MPLSEffect s_mplsEffect(s_effect);
-	return s_mplsEffect;
+    static char *s_pErrorString = nullptr;
+    static gs_effect_t *s_effect = gs_effect_create(kMPLSEffectCode, "kMPLSEffectCode", &s_pErrorString);
+    static std::unique_ptr<char, void (*)(void *)> s_errorString(s_pErrorString, &bfree);
+    if (!s_effect)
+    {
+        throw std::runtime_error(s_pErrorString ? s_pErrorString : "Unknown error");
+    }
+    static const MPLSEffect s_mplsEffect(s_effect);
+    return s_mplsEffect;
 }
 
 } // namespace BackgroundRemoval

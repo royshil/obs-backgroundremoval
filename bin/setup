@@ -5,22 +5,22 @@
 # SPDX-License-Identifier: Apache-2.0
 
 macos() {
-  command -v cmake >/dev/null || {
-    printf 'ERROR: CMake was not found. Run bin/bootstrap first.\n' >&2
-    return 1
-  }
+    command -v cmake >/dev/null || {
+        printf 'ERROR: CMake was not found. Run bin/bootstrap first.\n' >&2
+        return 1
+    }
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  set -euo pipefail
-  shopt -s nullglob
+    set -euo pipefail
+    shopt -s nullglob
 
-  if ! [[ -f VERSION ]]; then
-    printf 'ERROR: VERSION not found. The working directory MUST be the root of the project.\n' >&2
-    exit 1
-  fi
+    if ! [[ -f VERSION ]]; then
+        printf 'ERROR: VERSION not found. The working directory MUST be the root of the project.\n' >&2
+        exit 1
+    fi
 
-  if [[ "$(uname -s)" == Darwin ]]; then
-    macos
-  fi
+    if [[ "$(uname -s)" == Darwin ]]; then
+        macos
+    fi
 fi

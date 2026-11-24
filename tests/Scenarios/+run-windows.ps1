@@ -4,38 +4,38 @@
 
 [CmdletBinding()]
 param(
-    [string] $ObsExecutable = $env:GUI_SCENARIO_OBS_EXECUTABLE,
-    [string] $PluginRoot = $env:GUI_SCENARIO_PLUGIN_ROOT
+	[string] $ObsExecutable = $env:GUI_SCENARIO_OBS_EXECUTABLE,
+	[string] $PluginRoot = $env:GUI_SCENARIO_PLUGIN_ROOT
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 if ($env:OS -ne 'Windows_NT') {
-    throw 'This test must run natively on Windows.'
+	throw 'This test must run natively on Windows.'
 }
 
 $scenarioDir = $PSScriptRoot
 $sourceDir = (Resolve-Path (Join-Path $scenarioDir '..\..')).Path
 
 if (-not $ObsExecutable) {
-    $candidates = @(
-        (Join-Path $env:ProgramFiles 'obs-studio\bin\64bit\obs64.exe'),
-        $(if (${env:ProgramFiles(x86)}) {
-            Join-Path ${env:ProgramFiles(x86)} 'obs-studio\bin\64bit\obs64.exe'
-        })
-    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) }
-    $ObsExecutable = $candidates | Select-Object -First 1
+	$candidates = @(
+		(Join-Path $env:ProgramFiles 'obs-studio\bin\64bit\obs64.exe'),
+		$(if (${env:ProgramFiles(x86)}) {
+			Join-Path ${env:ProgramFiles(x86)} 'obs-studio\bin\64bit\obs64.exe'
+		})
+	) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) }
+	$ObsExecutable = $candidates | Select-Object -First 1
 }
 if (-not $ObsExecutable -or -not (Test-Path -LiteralPath $ObsExecutable -PathType Leaf)) {
-    throw 'obs64.exe was not found. Pass -ObsExecutable or set GUI_SCENARIO_OBS_EXECUTABLE.'
+	throw 'obs64.exe was not found. Pass -ObsExecutable or set GUI_SCENARIO_OBS_EXECUTABLE.'
 }
 
 if (-not $PluginRoot) {
-    $PluginRoot = Join-Path $sourceDir 'release\obs-backgroundremoval'
+	$PluginRoot = Join-Path $sourceDir 'release\obs-backgroundremoval'
 }
 if (-not (Test-Path -LiteralPath (Join-Path $PluginRoot 'bin\64bit\obs-backgroundremoval.dll') -PathType Leaf)) {
-    throw 'The built Windows plugin was not found. Run bin\build.cmd or pass -PluginRoot.'
+	throw 'The built Windows plugin was not found. Run bin\build.cmd or pass -PluginRoot.'
 }
 
 $artifactsRoot = Join-Path $sourceDir 'artifacts\scenario-tests\windows'
@@ -55,54 +55,54 @@ $portableObsExecutable = Join-Path $portableRoot 'bin\64bit\obs64.exe'
 
 $portableDataRoot = Join-Path $portableRoot 'data'
 New-Item -ItemType Directory -Force -Path $artifacts, $profileDir, $scenesDir, $portableDataRoot, `
-    $portablePluginBin, $portablePluginData | Out-Null
+	$portablePluginBin, $portablePluginData | Out-Null
 New-Item -ItemType Junction -Path (Join-Path $portableRoot 'bin') `
-    -Target (Join-Path $installedObsRoot 'bin') | Out-Null
+	-Target (Join-Path $installedObsRoot 'bin') | Out-Null
 New-Item -ItemType Junction -Path (Join-Path $portableRoot 'obs-plugins') `
-    -Target (Join-Path $installedObsRoot 'obs-plugins') | Out-Null
+	-Target (Join-Path $installedObsRoot 'obs-plugins') | Out-Null
 foreach ($dataDirectory in @('libobs', 'obs-scripting', 'obs-studio')) {
-    New-Item -ItemType Junction -Path (Join-Path $portableRoot "data\$dataDirectory") `
-        -Target (Join-Path $installedObsRoot "data\$dataDirectory") | Out-Null
+	New-Item -ItemType Junction -Path (Join-Path $portableRoot "data\$dataDirectory") `
+		-Target (Join-Path $installedObsRoot "data\$dataDirectory") | Out-Null
 }
 Copy-Item -LiteralPath (Join-Path $PluginRoot 'bin\64bit\obs-backgroundremoval.dll') `
-    -Destination $portablePluginBin -Force
+	-Destination $portablePluginBin -Force
 Get-ChildItem -LiteralPath (Join-Path $PluginRoot 'data') |
-    Copy-Item -Destination $portablePluginData -Recurse -Force
+	Copy-Item -Destination $portablePluginData -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $sourceDir 'tests\Scenarios\0010-profile-720p-basic.ini') `
-    -Destination (Join-Path $profileDir 'basic.ini')
+	-Destination (Join-Path $profileDir 'basic.ini')
 Copy-Item -LiteralPath (Join-Path $sourceDir 'tests\Scenarios\0011-720p-user.ini') `
-    -Destination (Join-Path $obsConfig 'user.ini')
+	-Destination (Join-Path $obsConfig 'user.ini')
 
 $resultPath = Join-Path $artifacts 'result.txt'
 $status = 1
 $previousPluginsPath = $env:OBS_PLUGINS_PATH
 $previousPluginsDataPath = $env:OBS_PLUGINS_DATA_PATH
 try {
-    $env:OBS_PLUGINS_PATH = $portablePluginBin
-    $env:OBS_PLUGINS_DATA_PATH = $portablePluginDataRoot
-    & (Join-Path $scenarioDir '2000_windows-about-dialog.test.ps1') `
-        -ObsExecutable $portableObsExecutable `
-        -SourceDir $sourceDir `
-        -WorkDir $workDir `
-        -Artifacts $artifacts
-    $status = 0
+	$env:OBS_PLUGINS_PATH = $portablePluginBin
+	$env:OBS_PLUGINS_DATA_PATH = $portablePluginDataRoot
+	& (Join-Path $scenarioDir '2000_windows-about-dialog.test.ps1') `
+		-ObsExecutable $portableObsExecutable `
+		-SourceDir $sourceDir `
+		-WorkDir $workDir `
+		-Artifacts $artifacts
+	$status = 0
 } catch {
-    $_ | Out-String | Set-Content -LiteralPath (Join-Path $artifacts 'exception.txt') -Encoding utf8
-    throw
+	$_ | Out-String | Set-Content -LiteralPath (Join-Path $artifacts 'exception.txt') -Encoding utf8
+	throw
 } finally {
-    $env:OBS_PLUGINS_PATH = $previousPluginsPath
-    $env:OBS_PLUGINS_DATA_PATH = $previousPluginsDataPath
-    "exit_code=$status" | Set-Content -LiteralPath $resultPath -Encoding ascii
-    if (Test-Path -LiteralPath $obsConfig) {
-        $savedConfig = Join-Path $artifacts 'config'
-        New-Item -ItemType Directory -Force -Path $savedConfig | Out-Null
-        foreach ($relativePath in @('plugin_config', 'logs', 'user.ini')) {
-            $sourcePath = Join-Path $obsConfig $relativePath
-            if (Test-Path -LiteralPath $sourcePath) {
-                Copy-Item -LiteralPath $sourcePath -Destination $savedConfig -Recurse -Force
-            }
-        }
-    }
-    Remove-Item -LiteralPath $workDir -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "Windows scenario artifacts: $artifacts"
+	$env:OBS_PLUGINS_PATH = $previousPluginsPath
+	$env:OBS_PLUGINS_DATA_PATH = $previousPluginsDataPath
+	"exit_code=$status" | Set-Content -LiteralPath $resultPath -Encoding ascii
+	if (Test-Path -LiteralPath $obsConfig) {
+		$savedConfig = Join-Path $artifacts 'config'
+		New-Item -ItemType Directory -Force -Path $savedConfig | Out-Null
+		foreach ($relativePath in @('plugin_config', 'logs', 'user.ini')) {
+			$sourcePath = Join-Path $obsConfig $relativePath
+			if (Test-Path -LiteralPath $sourcePath) {
+				Copy-Item -LiteralPath $sourcePath -Destination $savedConfig -Recurse -Force
+			}
+		}
+	}
+	Remove-Item -LiteralPath $workDir -Recurse -Force -ErrorAction SilentlyContinue
+	Write-Host "Windows scenario artifacts: $artifacts"
 }

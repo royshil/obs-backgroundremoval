@@ -24,14 +24,14 @@ Remove-Item -LiteralPath $WORK_DIR -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $WORK_DIR, $LIB_DIR | Out-Null
 
 try {
-  $OBS_DEPS_ZIP = Join-Path $WORK_DIR 'obs-deps.zip'
-  curl.exe -fsSL --retry 3 -o $OBS_DEPS_ZIP `
-    "https://github.com/obsproject/obs-deps/releases/download/$OBS_DEPS_VERSION/windows-deps-$OBS_DEPS_VERSION-x64.zip"
-  if ((Get-FileHash -Algorithm SHA256 -LiteralPath $OBS_DEPS_ZIP).Hash -ne $OBS_DEPS_SHA256) {
-    throw 'Checksum verification failed for obs-deps'
-  }
-  Expand-Archive -LiteralPath $OBS_DEPS_ZIP -DestinationPath (Join-Path $WORK_DIR 'obs-deps')
-  Copy-Item -LiteralPath (Join-Path $WORK_DIR 'obs-deps\lib\libcurl_imp.lib') -Destination $LIB_DIR -Force
+	$OBS_DEPS_ZIP = Join-Path $WORK_DIR 'obs-deps.zip'
+	curl.exe -fsSL --retry 3 -o $OBS_DEPS_ZIP `
+		"https://github.com/obsproject/obs-deps/releases/download/$OBS_DEPS_VERSION/windows-deps-$OBS_DEPS_VERSION-x64.zip"
+	if ((Get-FileHash -Algorithm SHA256 -LiteralPath $OBS_DEPS_ZIP).Hash -ne $OBS_DEPS_SHA256) {
+		throw 'Checksum verification failed for obs-deps'
+	}
+	Expand-Archive -LiteralPath $OBS_DEPS_ZIP -DestinationPath (Join-Path $WORK_DIR 'obs-deps')
+	Copy-Item -LiteralPath (Join-Path $WORK_DIR 'obs-deps\lib\libcurl_imp.lib') -Destination $LIB_DIR -Force
 } finally {
-  Remove-Item -LiteralPath $WORK_DIR -Recurse -Force -ErrorAction SilentlyContinue
+	Remove-Item -LiteralPath $WORK_DIR -Recurse -Force -ErrorAction SilentlyContinue
 }

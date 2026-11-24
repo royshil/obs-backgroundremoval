@@ -46,10 +46,10 @@
 ### Ubuntu
 1. Download the latest Ubuntu DEB package from the [official site](https://royshil.github.io/obs-backgroundremoval/).
 2. Install via GUI (double-click `.deb`) or terminal:
-   ```sh
-   sudo dpkg -i ./obs-backgroundremoval_*_x86_64-linux-gnu.deb
-   sudo apt-get install -f
-   ```
+    ```sh
+    sudo dpkg -i ./obs-backgroundremoval_*_x86_64-linux-gnu.deb
+    sudo apt-get install -f
+    ```
 3. Restart OBS Studio.
 
 [More info](https://royshil.github.io/obs-backgroundremoval/ubuntu/)
@@ -58,9 +58,9 @@
 
 ### Flatpak
 1. Run:
-   ```sh
-   flatpak install flathub com.obsproject.Studio.Plugin.BackgroundRemoval
-   ```
+    ```sh
+    flatpak install flathub com.obsproject.Studio.Plugin.BackgroundRemoval
+    ```
 2. Restart OBS Studio.
 
 [More info](https://royshil.github.io/obs-backgroundremoval/flatpak/)
@@ -69,15 +69,15 @@
 
 ### Arch Linux
 1. From AUR:
-   ```sh
-   git clone https://aur.archlinux.org/obs-backgroundremoval.git
-   cd obs-backgroundremoval
-   makepkg -si
-   ```
-   Or with an AUR helper:
-   ```sh
-   yay -S obs-backgroundremoval
-   ```
+    ```sh
+    git clone https://aur.archlinux.org/obs-backgroundremoval.git
+    cd obs-backgroundremoval
+    makepkg -si
+    ```
+    Or with an AUR helper:
+    ```sh
+    yay -S obs-backgroundremoval
+    ```
 2. Restart OBS Studio.
 
 [More info](https://royshil.github.io/obs-backgroundremoval/arch/)

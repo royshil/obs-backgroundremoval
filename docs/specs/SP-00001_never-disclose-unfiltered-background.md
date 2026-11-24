@@ -24,9 +24,9 @@ hide, at the moment they are least likely to notice.
 
 1. The filter draws nothing while its parent source is not showing.
 2. The filter draws nothing while it has no rendering pipeline, for example before the first one
-   is created, after creation failed, or while the selected pipeline is unknown.
+    is created, after creation failed, or while the selected pipeline is unknown.
 3. A rendering pipeline draws nothing after a GPU failure, and while the size of the filter's target
-   differs from the size it was created for.
+    differs from the size it was created for.
 4. While the filter has no rendering pipeline, it reports an output size of 0 x 0.
 5. When the filter is disabled, OBS bypasses it; this principle does not apply.
 

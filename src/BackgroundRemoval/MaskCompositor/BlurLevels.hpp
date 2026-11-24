@@ -8,7 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace BackgroundRemoval {
+namespace BackgroundRemoval
+{
 
 // The blur is measured by its variance in texels squared, per axis.
 //
@@ -31,53 +32,55 @@ inline constexpr std::size_t kMaxBlurLevels = 8;
 /// rounded up, and at least 1.
 constexpr auto blurLevelSize(std::uint32_t above) noexcept -> std::uint32_t
 {
-	return std::max(1u, (above + 1) / 2);
+    return std::max(1u, (above + 1) / 2);
 }
 
 /// 4^k.
 constexpr auto powerOfFour(std::size_t k) noexcept -> double
 {
-	double value = 1.0;
-	for (std::size_t i = 0; i < k; ++i) {
-		value *= 4.0;
-	}
-	return value;
+    double value = 1.0;
+    for (std::size_t i = 0; i < k; ++i)
+    {
+        value *= 4.0;
+    }
+    return value;
 }
 
 /// The variance of the Kawase blur of the given strength.
 constexpr auto kawaseVariance(double strength) noexcept -> double
 {
-	return strength * (2.0 * strength * strength + 1.0) / 6.0;
+    return strength * (2.0 * strength * strength + 1.0) / 6.0;
 }
 
 /// The variance of Dual filtering down to the given number of levels and back.
 constexpr auto dualVariance(std::size_t levels) noexcept -> double
 {
-	return 17.0 / 18.0 * (powerOfFour(levels) - 1.0);
+    return 17.0 / 18.0 * (powerOfFour(levels) - 1.0);
 }
 
 /// The number of pyramid levels the blur of the given strength needs: the fewest whose variance
 /// reaches the strength's, at most kMaxBlurLevels.
 constexpr auto blurLevels(double strength) noexcept -> std::size_t
 {
-	const double variance = kawaseVariance(strength);
-	std::size_t levels = 0;
-	while (levels < kMaxBlurLevels && dualVariance(levels) < variance) {
-		++levels;
-	}
-	return levels;
+    const double variance = kawaseVariance(strength);
+    std::size_t levels = 0;
+    while (levels < kMaxBlurLevels && dualVariance(levels) < variance)
+    {
+        ++levels;
+    }
+    return levels;
 }
 
 /// levelOffset of the upsample pass of level k (1-based).
 constexpr auto blurLevelOffset(std::size_t level) noexcept -> double
 {
-	return 17.0 / 3.0 * (powerOfFour(level - 1) - 1.0);
+    return 17.0 / 3.0 * (powerOfFour(level - 1) - 1.0);
 }
 
 /// levelScale of the upsample pass of level k (1-based).
 constexpr auto blurLevelScale(std::size_t level) noexcept -> double
 {
-	return 1.0 / (17.0 * powerOfFour(level - 1));
+    return 1.0 / (17.0 * powerOfFour(level - 1));
 }
 
 /// The level the upsampling stops at. The final draw blends the frame with it, magnified, by the
@@ -92,16 +95,16 @@ inline constexpr std::size_t kBlurStopLevel = 2;
 /// blurLevelScale(1) for k = 1.
 constexpr auto blurStopScale(std::size_t level) noexcept -> double
 {
-	return 1.0 / (17.0 / 3.0 * (powerOfFour(level) - 1.0));
+    return 1.0 / (17.0 / 3.0 * (powerOfFour(level) - 1.0));
 }
 
 /// The weight the upsample pass of level k gives the blurred result, for a pixel whose strength is
 /// t; the same formula as PS_Upsample in MaskCompositor.cpp.
 constexpr auto blurLevelWeight(double strength, std::size_t level) noexcept -> double
 {
-	const double weight =
-		(strength * (2.0 * strength * strength + 1.0) - blurLevelOffset(level)) * blurLevelScale(level);
-	return std::clamp(weight, 0.0, 1.0);
+    const double weight =
+        (strength * (2.0 * strength * strength + 1.0) - blurLevelOffset(level)) * blurLevelScale(level);
+    return std::clamp(weight, 0.0, 1.0);
 }
 
 } // namespace BackgroundRemoval
