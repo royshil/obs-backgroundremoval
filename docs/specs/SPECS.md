@@ -36,7 +36,6 @@
 - [SP-01016: Blur strength](SP-01016_bgrm-blur-strength.feature)
 - [SP-01017: Blur focus ratio](SP-01017_bgrm-blur-focus-ratio.feature)
 - [SP-01018: Kept pixels](SP-01018_bgrm-kept-pixels.feature)
-- [SP-01019: Settings compatibility](SP-01019_bgrm-settings-compatibility.feature)
 - [SP-01020: Translucent source](SP-01020_bgrm-translucent-source.feature)
 
 ## Plugin user scenario cases

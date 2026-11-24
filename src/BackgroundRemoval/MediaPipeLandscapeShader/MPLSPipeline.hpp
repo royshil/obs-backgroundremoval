@@ -95,13 +95,6 @@ class MPLSPipeline final : public IRenderingPipeline
                            : kBalanceFocusPoint + (1.0 - kBalanceFocusPoint) * ratio / 100.0;
     }
 
-    /// The focus ratio of a focus point in [0, 1]; the inverse of focusPointFromRatio().
-    static constexpr auto focusRatioFromPoint(double point) noexcept -> double
-    {
-        return point < kBalanceFocusPoint ? 100.0 * (point / kBalanceFocusPoint - 1.0)
-                                          : 100.0 * (point - kBalanceFocusPoint) / (1.0 - kBalanceFocusPoint);
-    }
-
     /// Renders the filtered source frame to the current render target at the target's size. Draws
     /// nothing after a GPU failure, or while the target's size differs from the one the pipeline
     /// was created for.

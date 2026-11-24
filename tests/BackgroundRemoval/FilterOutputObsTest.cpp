@@ -225,43 +225,6 @@ TEST_CASE("SP-01018.1 Kept pixels are unchanged")
     CHECK(worst <= 1);
 }
 
-// MARK: SP-01019 Settings compatibility
-
-TEST_CASE("SP-01019.1 An integer blur strength is read as the same strength")
-{
-    const Image saved = outputWith(R"({"v2_BlurBg": true, "v2_BlurBg_Factor": 8})");
-    const Image current = outputWith(R"({"v2_BlurBg": true, "v2_BlurBg_Factor": 8.0})");
-    CHECK(maxDifference(saved, current) == 0);
-}
-
-TEST_CASE("SP-01019.2 The removed focus depth is ignored")
-{
-    const Image saved = outputWith(R"({"v2_BlurBg": true, "v2_BlurBg_FocusDepth": 0.2})");
-    const Image current = outputWith(R"({"v2_BlurBg": true})");
-    CHECK(maxDifference(saved, current) == 0);
-}
-
-TEST_CASE("SP-01019.3 The removed output downscale factor is ignored")
-{
-    const Scene scene(kPortrait, {{kBackgroundRemovalId, R"({"v2_OutputDownscaleFactor": 4})"}});
-    CHECK(scene.width() == 1280);
-    CHECK(scene.height() == 720);
-}
-
-TEST_CASE("SP-01019.4 The removed mask adjustment is ignored")
-{
-    const Image saved = outputWith(R"({"v2_MaskAdjustment": 30})");
-    const Image current = outputWith("{}");
-    CHECK(maxDifference(saved, current) == 0);
-}
-
-TEST_CASE("SP-01019.5 A saved focus point is read as the same focus ratio")
-{
-    const Image saved = outputWith(R"({"v2_BlurBg": true, "v2_BlurBg_FocusPoint": 0.75})");
-    const Image current = outputWith(R"({"v2_BlurBg": true, "v2_BlurBg_FocusRatio": 50})");
-    CHECK(maxDifference(saved, current) == 0);
-}
-
 // MARK: SP-01020 Translucent source
 
 TEST_CASE("SP-01020.1 Kept pixels keep their color and transparency")

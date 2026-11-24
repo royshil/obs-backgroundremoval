@@ -4,7 +4,6 @@
 
 #include "FilterContext.hpp"
 
-#include <algorithm>
 #include <exception>
 #include <optional>
 #include <stdexcept>
@@ -12,7 +11,6 @@
 #include <string_view>
 
 #include <BackgroundRemoval/IRenderingPipeline.hpp>
-#include <BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.hpp>
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 #include <plugin-support.h>
@@ -50,22 +48,6 @@ void appendHtmlEscaped(std::string &output, std::string_view text)
             break;
         }
     }
-}
-
-/// The focus ratio in percent. Settings saved before v2_BlurBg_FocusRatio keep the focus point in
-/// [0, 1] in v2_BlurBg_FocusPoint; it is read as the ratio that the MPLS pipeline, whose mask those
-/// settings were made with, places at the same point. The old key is read only when the new one was
-/// never set.
-auto readFocusRatio(obs_data_t *settings) -> double
-{
-    using BackgroundRemoval::MPLSPipeline;
-    if (!obs_data_has_user_value(settings, "v2_BlurBg_FocusRatio") &&
-        obs_data_has_user_value(settings, "v2_BlurBg_FocusPoint"))
-    {
-        const double point = std::clamp(obs_data_get_double(settings, "v2_BlurBg_FocusPoint"), 0.0, 1.0);
-        return MPLSPipeline::focusRatioFromPoint(point);
-    }
-    return obs_data_get_double(settings, "v2_BlurBg_FocusRatio");
 }
 
 } // namespace
@@ -135,9 +117,8 @@ void FilterContext::readSettings(obs_data_t *settings) noexcept
 {
     pipelineId_.store(obs_data_get_int(settings, "v2_PipelineId"));
     blurBgEnabled_.store(obs_data_get_bool(settings, "v2_BlurBg"));
-    // v2_BlurBg_Factor was an integer iteration count; obs_data reads stored integers as doubles.
     blurBgStrength_.store(obs_data_get_double(settings, "v2_BlurBg_Factor"));
-    blurBgFocusRatio_.store(readFocusRatio(settings));
+    blurBgFocusRatio_.store(obs_data_get_double(settings, "v2_BlurBg_FocusRatio"));
 }
 
 void FilterContext::applySettings(IRenderingPipeline &pipeline) const noexcept
