@@ -9,11 +9,6 @@ name: Build (Arch)
 on:
   workflow_call:
     inputs:
-      image:
-        description: Arch Linux Docker image to build for.
-        required: false
-        type: string
-        default: archlinux:base-devel
       release-build:
         description: Builds a release.
         required: true
@@ -23,7 +18,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
-    container: ${{ inputs.image }}
+    container: archlinux:base-devel-20261122.0.629543@sha256:949ecb1661609ab7e8f6854ba03efd62792e7a796313738e94b040c095c20d91
 
     environment: ${{ inputs.release-build && 'release-linux' || null }}
 

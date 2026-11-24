@@ -41,7 +41,7 @@ jobs:
   forky:
     runs-on: ${{ inputs.arm64 && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 180
-    container: debian:forky-20260803
+    container: debian:forky-20260803@sha256:918ae9bd6b6afc8a5c7a7a160623c1147fca67f55b277132e6effa987d4d5d5c
 
     environment: ${{ inputs.release-build && 'release-linux' || null }}
 
@@ -147,7 +147,7 @@ jobs:
     needs: forky
     runs-on: ${{ inputs.arm64 && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 30
-    container: debian:forky-20260803
+    container: debian:forky-20260803@sha256:918ae9bd6b6afc8a5c7a7a160623c1147fca67f55b277132e6effa987d4d5d5c
 
     steps:
       - name: Prepare runner image (Debian)
