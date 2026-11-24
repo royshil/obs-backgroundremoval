@@ -117,30 +117,34 @@ export async function getLatestRelease(repository, token = undefined, endpoint =
 }
 
 /**
- * @typedef {Object} ListStargazersItem
- * @property {string} starred_at
- * @property {Object} user
+ * @typedef {Object} GetStarHistoryItem
+ * @property {number} week Start of the calendar week in Unix seconds
+ * @property {number} total Stars received during the week
+ * @property {number[]} days Stars received on each day of the week, starting on Sunday
  */
 
 /**
+ * Weeks are returned newest first, so concatenating pages produces one continuous series back to the repository's
+ * creation week.
+ *
  * @param {string} repository
  * @param {number} [page]
  * @param {string} [token]
  * @param {string} [endpoint]
- * @returns {Promise<ListStargazersItem[]>}
+ * @returns {Promise<GetStarHistoryItem[]>}
  */
-export async function listStargazers(
+export async function getStarHistory(
   repository,
   page = 1,
   token = undefined,
   endpoint = DEFAULT_GITHUB_API_ENDPOINT,
 ) {
-  const url = new URL(`${endpoint}/repos/${repository}/stargazers`);
-  url.searchParams.set("per_page", "100");
+  const url = new URL(`${endpoint}/repos/${repository}/stargazers/history`);
+  url.searchParams.set("per_page", "30");
   url.searchParams.set("page", page);
 
   const headers = {
-    "Accept": "application/vnd.github.star+json",
+    "Accept": "application/vnd.github+json",
     "X-GitHub-Api-Version": "2026-03-10",
     "User-Agent": "obs-backgroundremoval-document-generator"
   };
@@ -152,16 +156,16 @@ export async function listStargazers(
   const response = await fetch(url, { headers });
   if (!response.ok) {
     throw new Error(
-      `List stargazers API returned ${response.status} ${response.statusText}`,
+      `Get star history API returned ${response.status} ${response.statusText}`,
     );
   }
 
-  const stargazers = await response.json();
-  if (!Array.isArray(stargazers)) {
-    throw new TypeError("List stargazers API did not return an array");
+  const weeks = await response.json();
+  if (!Array.isArray(weeks)) {
+    throw new TypeError("Get star history API did not return an array");
   }
 
-  return stargazers;
+  return weeks;
 }
 
 export class GitHubClient {
@@ -197,10 +201,10 @@ export class GitHubClient {
   }
 
   /**
-   * @param {number} page
-   * @returns {Promise<ListStargazersItem[]>}
+   * @param {number} [page]
+   * @returns {Promise<GetStarHistoryItem[]>}
    */
-  listStargazers(page = 1) {
-    return listStargazers(this.repository, page, this.token, this.endpoint);
+  getStarHistory(page = 1) {
+    return getStarHistory(this.repository, page, this.token, this.endpoint);
   }
 }

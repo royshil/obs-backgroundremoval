@@ -16,9 +16,11 @@
 
 #include "BlurLevels.hpp"
 
-namespace BackgroundRemoval {
+namespace BackgroundRemoval
+{
 
-namespace {
+namespace
+{
 
 // clang-format off
 constexpr char kMaskCompositorEffectCode[] = R"EFFECT(
@@ -261,234 +263,253 @@ technique DrawBlurred { pass { vertex_shader = VSDefault(v_in); pixel_shader = P
 
 auto requireParam(gs_effect_t *effect, const char *name) -> gs_eparam_t *
 {
-	gs_eparam_t *const param = gs_effect_get_param_by_name(effect, name);
-	if (!param) {
-		throw std::runtime_error(std::string("MaskCompositor effect parameter is missing: ") + name);
-	}
-	return param;
+    gs_eparam_t *const param = gs_effect_get_param_by_name(effect, name);
+    if (!param)
+    {
+        throw std::runtime_error(std::string("MaskCompositor effect parameter is missing: ") + name);
+    }
+    return param;
 }
 
 // gs_effect_loop() draws nothing when a technique is missing, so check the names up front.
 void requireTechnique(gs_effect_t *effect, const char *name)
 {
-	if (!gs_effect_get_technique(effect, name)) {
-		throw std::runtime_error(std::string("MaskCompositor effect technique is missing: ") + name);
-	}
+    if (!gs_effect_get_technique(effect, name))
+    {
+        throw std::runtime_error(std::string("MaskCompositor effect technique is missing: ") + name);
+    }
 }
 
 void setTarget(gs_texture_t *target, std::uint32_t width, std::uint32_t height) noexcept
 {
-	gs_set_render_target_with_color_space(target, nullptr, GS_CS_SRGB);
-	gs_ortho(0.0F, static_cast<float>(width), 0.0F, static_cast<float>(height), -100.0F, 100.0F);
-	gs_set_viewport(0, 0, static_cast<int>(width), static_cast<int>(height));
+    gs_set_render_target_with_color_space(target, nullptr, GS_CS_SRGB);
+    gs_ortho(0.0F, static_cast<float>(width), 0.0F, static_cast<float>(height), -100.0F, 100.0F);
+    gs_set_viewport(0, 0, static_cast<int>(width), static_cast<int>(height));
 }
 
 auto finiteClamp(float value, float low, float high, float fallback) noexcept -> float
 {
-	return std::isfinite(value) ? std::clamp(value, low, high) : fallback;
+    return std::isfinite(value) ? std::clamp(value, low, high) : fallback;
 }
 
 } // namespace
 
 MaskCompositorEffect::MaskCompositorEffect(gs_effect_t *effect)
-	: effect(effect),
-	  epImage(requireParam(effect, "image")),
-	  epBlurred(requireParam(effect, "blurred")),
-	  epMask(requireParam(effect, "mask")),
-	  epProbability(requireParam(effect, "probability")),
-	  epThreshold(requireParam(effect, "threshold")),
-	  epMaskWidth(requireParam(effect, "maskWidth")),
-	  epMaskHeight(requireParam(effect, "maskHeight")),
-	  epHalfPixel(requireParam(effect, "halfPixel")),
-	  epStrength(requireParam(effect, "strength")),
-	  epFocusPoint(requireParam(effect, "focusPoint")),
-	  epLevelOffset(requireParam(effect, "levelOffset")),
-	  epLevelScale(requireParam(effect, "levelScale"))
+    : effect(effect), epImage(requireParam(effect, "image")), epBlurred(requireParam(effect, "blurred")),
+      epMask(requireParam(effect, "mask")), epProbability(requireParam(effect, "probability")),
+      epThreshold(requireParam(effect, "threshold")), epMaskWidth(requireParam(effect, "maskWidth")),
+      epMaskHeight(requireParam(effect, "maskHeight")), epHalfPixel(requireParam(effect, "halfPixel")),
+      epStrength(requireParam(effect, "strength")), epFocusPoint(requireParam(effect, "focusPoint")),
+      epLevelOffset(requireParam(effect, "levelOffset")), epLevelScale(requireParam(effect, "levelScale"))
 {
-	for (const char *technique :
-	     {"RefineMask", "RemoveBackground", "Downsample", "Upsample", "DrawFrame", "DrawBlurred"}) {
-		requireTechnique(effect, technique);
-	}
+    for (const char *technique :
+         {"RefineMask", "RemoveBackground", "Downsample", "Upsample", "DrawFrame", "DrawBlurred"})
+    {
+        requireTechnique(effect, technique);
+    }
 }
 
 const MaskCompositorEffect &makeMaskCompositorEffect()
 {
-	static char *s_pErrorString = nullptr;
-	static gs_effect_t *s_effect =
-		gs_effect_create(kMaskCompositorEffectCode, "kMaskCompositorEffectCode", &s_pErrorString);
-	static std::unique_ptr<char, void (*)(void *)> s_errorString(s_pErrorString, &bfree);
-	if (!s_effect) {
-		throw std::runtime_error(s_pErrorString ? s_pErrorString : "Unknown error");
-	}
-	static const MaskCompositorEffect s_maskCompositorEffect(s_effect);
-	return s_maskCompositorEffect;
+    static char *s_pErrorString = nullptr;
+    static gs_effect_t *s_effect =
+        gs_effect_create(kMaskCompositorEffectCode, "kMaskCompositorEffectCode", &s_pErrorString);
+    static std::unique_ptr<char, void (*)(void *)> s_errorString(s_pErrorString, &bfree);
+    if (!s_effect)
+    {
+        throw std::runtime_error(s_pErrorString ? s_pErrorString : "Unknown error");
+    }
+    static const MaskCompositorEffect s_maskCompositorEffect(s_effect);
+    return s_maskCompositorEffect;
 }
 
-MaskCompositor::MaskCompositor() : effect_(makeMaskCompositorEffect()) {}
+MaskCompositor::MaskCompositor() : effect_(makeMaskCompositorEffect())
+{
+}
 
 MaskCompositor::~MaskCompositor() noexcept = default;
 
 void MaskCompositor::setBlurEnabled(bool value) noexcept
 {
-	blurEnabled_ = value;
+    blurEnabled_ = value;
 }
 
 void MaskCompositor::setBlurStrength(float value) noexcept
 {
-	blurStrength_ = finiteClamp(value, 0.0F, kMaxBlurStrength, 4.0F);
+    blurStrength_ = finiteClamp(value, 0.0F, kMaxBlurStrength, 4.0F);
 }
 
 void MaskCompositor::setBlurFocusPoint(float value) noexcept
 {
-	blurFocusPoint_ = finiteClamp(value, 0.0F, 1.0F, 0.0F);
+    blurFocusPoint_ = finiteClamp(value, 0.0F, 1.0F, 0.0F);
 }
 
 void MaskCompositor::prepare(gs_texture_t *image, gs_texture_t *probability, std::uint32_t width, std::uint32_t height)
 {
-	blurredFrame_ = nullptr;
-	blurredIsLevel_ = false;
-	const std::uint32_t maskWidth = gs_texture_get_width(probability);
-	const std::uint32_t maskHeight = gs_texture_get_height(probability);
-	ensureMaskTextures(maskWidth, maskHeight);
+    blurredFrame_ = nullptr;
+    blurredIsLevel_ = false;
+    const std::uint32_t maskWidth = gs_texture_get_width(probability);
+    const std::uint32_t maskHeight = gs_texture_get_height(probability);
+    ensureMaskTextures(maskWidth, maskHeight);
 
-	// Each draw sets its parameters in the gs_effect_loop() body, right before gs_draw_sprite(); the
-	// end of the loop clears them all.
-	gs_effect_t *const effect = effect_.effect;
-	gs_enable_blending(false);
-	setTarget(refinedMask_.get(), maskWidth, maskHeight);
-	while (gs_effect_loop(effect, "RefineMask")) {
-		gs_effect_set_texture(effect_.epProbability, probability);
-		gs_effect_set_float(effect_.epThreshold, kForegroundThreshold);
-		gs_effect_set_int(effect_.epMaskWidth, static_cast<int>(maskWidth));
-		gs_effect_set_int(effect_.epMaskHeight, static_cast<int>(maskHeight));
-		gs_draw_sprite(nullptr, 0, maskWidth, maskHeight);
-	}
+    // Each draw sets its parameters in the gs_effect_loop() body, right before gs_draw_sprite(); the
+    // end of the loop clears them all.
+    gs_effect_t *const effect = effect_.effect;
+    gs_enable_blending(false);
+    setTarget(refinedMask_.get(), maskWidth, maskHeight);
+    while (gs_effect_loop(effect, "RefineMask"))
+    {
+        gs_effect_set_texture(effect_.epProbability, probability);
+        gs_effect_set_float(effect_.epThreshold, kForegroundThreshold);
+        gs_effect_set_int(effect_.epMaskWidth, static_cast<int>(maskWidth));
+        gs_effect_set_int(effect_.epMaskHeight, static_cast<int>(maskHeight));
+        gs_draw_sprite(nullptr, 0, maskWidth, maskHeight);
+    }
 
-	if (!blurEnabled_) {
-		return;
-	}
-	const std::size_t neededLevels = blurLevels(blurStrength_);
-	if (neededLevels == 0) {
-		blurredFrame_ = image;
-		return;
-	}
-	// The upsampling stops at kBlurStopLevel, and draw() blends the frame with that level in linear
-	// space. The pyramid reaches it even when the strength needs fewer levels; the extra levels take
-	// weight 0.
-	const std::size_t levels = std::max(neededLevels, kBlurStopLevel);
-	ensurePyramid(width, height, levels);
+    if (!blurEnabled_)
+    {
+        return;
+    }
+    const std::size_t neededLevels = blurLevels(blurStrength_);
+    if (neededLevels == 0)
+    {
+        blurredFrame_ = image;
+        return;
+    }
+    // The upsampling stops at kBlurStopLevel, and draw() blends the frame with that level in linear
+    // space. The pyramid reaches it even when the strength needs fewer levels; the extra levels take
+    // weight 0.
+    const std::size_t levels = std::max(neededLevels, kBlurStopLevel);
+    ensurePyramid(width, height, levels);
 
-	// Downsample: level k from level k - 1, halfPixel of level k.
-	for (std::size_t k = 1; k <= levels; ++k) {
-		const BlurLevel &level = pyramid_[k];
-		gs_texture_t *const above = k == 1 ? image : pyramid_[k - 1].down.get();
-		vec2 halfPixel;
-		vec2_set(&halfPixel, 0.5F / static_cast<float>(level.width), 0.5F / static_cast<float>(level.height));
-		setTarget(level.down.get(), level.width, level.height);
-		while (gs_effect_loop(effect, "Downsample")) {
-			gs_effect_set_texture(effect_.epImage, above);
-			gs_effect_set_vec2(effect_.epHalfPixel, &halfPixel);
-			gs_draw_sprite(nullptr, 0, level.width, level.height);
-		}
-	}
+    // Downsample: level k from level k - 1, halfPixel of level k.
+    for (std::size_t k = 1; k <= levels; ++k)
+    {
+        const BlurLevel &level = pyramid_[k];
+        gs_texture_t *const above = k == 1 ? image : pyramid_[k - 1].down.get();
+        vec2 halfPixel;
+        vec2_set(&halfPixel, 0.5F / static_cast<float>(level.width), 0.5F / static_cast<float>(level.height));
+        setTarget(level.down.get(), level.width, level.height);
+        while (gs_effect_loop(effect, "Downsample"))
+        {
+            gs_effect_set_texture(effect_.epImage, above);
+            gs_effect_set_vec2(effect_.epHalfPixel, &halfPixel);
+            gs_draw_sprite(nullptr, 0, level.width, level.height);
+        }
+    }
 
-	// Upsample: level k - 1 from level k, halfPixel of level k, blended with level k - 1 before the
-	// blur by the weight of level k, down to the final level.
-	gs_texture_t *lower = pyramid_[levels].down.get();
-	for (std::size_t k = levels; k > kBlurStopLevel; --k) {
-		const BlurLevel &source = pyramid_[k];
-		const BlurLevel &target = pyramid_[k - 1];
-		gs_texture_t *const unblurred = target.down.get();
-		const auto levelOffset = static_cast<float>(blurLevelOffset(k));
-		const auto levelScale = static_cast<float>(blurLevelScale(k));
-		vec2 halfPixel;
-		vec2_set(&halfPixel, 0.5F / static_cast<float>(source.width), 0.5F / static_cast<float>(source.height));
-		setTarget(target.up.get(), target.width, target.height);
-		while (gs_effect_loop(effect, "Upsample")) {
-			gs_effect_set_texture(effect_.epBlurred, lower);
-			gs_effect_set_texture(effect_.epImage, unblurred);
-			gs_effect_set_texture(effect_.epMask, refinedMask_.get());
-			gs_effect_set_float(effect_.epFocusPoint, blurFocusPoint_);
-			gs_effect_set_vec2(effect_.epHalfPixel, &halfPixel);
-			gs_effect_set_float(effect_.epStrength, blurStrength_);
-			gs_effect_set_float(effect_.epLevelOffset, levelOffset);
-			gs_effect_set_float(effect_.epLevelScale, levelScale);
-			gs_draw_sprite(nullptr, 0, target.width, target.height);
-		}
-		lower = target.up.get();
-	}
-	blurredFrame_ = lower;
-	blurredIsLevel_ = true;
+    // Upsample: level k - 1 from level k, halfPixel of level k, blended with level k - 1 before the
+    // blur by the weight of level k, down to the final level.
+    gs_texture_t *lower = pyramid_[levels].down.get();
+    for (std::size_t k = levels; k > kBlurStopLevel; --k)
+    {
+        const BlurLevel &source = pyramid_[k];
+        const BlurLevel &target = pyramid_[k - 1];
+        gs_texture_t *const unblurred = target.down.get();
+        const auto levelOffset = static_cast<float>(blurLevelOffset(k));
+        const auto levelScale = static_cast<float>(blurLevelScale(k));
+        vec2 halfPixel;
+        vec2_set(&halfPixel, 0.5F / static_cast<float>(source.width), 0.5F / static_cast<float>(source.height));
+        setTarget(target.up.get(), target.width, target.height);
+        while (gs_effect_loop(effect, "Upsample"))
+        {
+            gs_effect_set_texture(effect_.epBlurred, lower);
+            gs_effect_set_texture(effect_.epImage, unblurred);
+            gs_effect_set_texture(effect_.epMask, refinedMask_.get());
+            gs_effect_set_float(effect_.epFocusPoint, blurFocusPoint_);
+            gs_effect_set_vec2(effect_.epHalfPixel, &halfPixel);
+            gs_effect_set_float(effect_.epStrength, blurStrength_);
+            gs_effect_set_float(effect_.epLevelOffset, levelOffset);
+            gs_effect_set_float(effect_.epLevelScale, levelScale);
+            gs_draw_sprite(nullptr, 0, target.width, target.height);
+        }
+        lower = target.up.get();
+    }
+    blurredFrame_ = lower;
+    blurredIsLevel_ = true;
 }
 
 void MaskCompositor::draw(gs_texture_t *image, std::uint32_t width, std::uint32_t height) noexcept
 {
-	// As render_filter_tex() draws an sRGB-aware filter: the sources and filters before this one
-	// premultiplied the frame in linear space, so it is decoded before straightAlpha() divides it,
-	// and the output is blended in linear space as theirs is.
-	const bool previousFramebufferSrgb = gs_framebuffer_srgb_enabled();
-	gs_enable_framebuffer_srgb(true);
-	gs_effect_t *const effect = effect_.effect;
-	if (blurredIsLevel_) {
-		while (gs_effect_loop(effect, "DrawBlurred")) {
-			gs_effect_set_texture_srgb(effect_.epImage, image);
-			gs_effect_set_texture_srgb(effect_.epBlurred, blurredFrame_);
-			gs_effect_set_texture(effect_.epMask, refinedMask_.get());
-			gs_effect_set_float(effect_.epFocusPoint, blurFocusPoint_);
-			gs_effect_set_float(effect_.epStrength, blurStrength_);
-			gs_effect_set_float(effect_.epLevelOffset, 0.0F);
-			gs_effect_set_float(effect_.epLevelScale, static_cast<float>(blurStopScale(kBlurStopLevel)));
-			gs_draw_sprite(nullptr, 0, width, height);
-		}
-	} else if (blurredFrame_) {
-		while (gs_effect_loop(effect, "DrawFrame")) {
-			gs_effect_set_texture_srgb(effect_.epImage, blurredFrame_);
-			gs_draw_sprite(nullptr, 0, width, height);
-		}
-	} else {
-		while (gs_effect_loop(effect, "RemoveBackground")) {
-			gs_effect_set_texture_srgb(effect_.epImage, image);
-			gs_effect_set_texture(effect_.epMask, refinedMask_.get());
-			gs_draw_sprite(nullptr, 0, width, height);
-		}
-	}
-	gs_enable_framebuffer_srgb(previousFramebufferSrgb);
+    // As render_filter_tex() draws an sRGB-aware filter: the sources and filters before this one
+    // premultiplied the frame in linear space, so it is decoded before straightAlpha() divides it,
+    // and the output is blended in linear space as theirs is.
+    const bool previousFramebufferSrgb = gs_framebuffer_srgb_enabled();
+    gs_enable_framebuffer_srgb(true);
+    gs_effect_t *const effect = effect_.effect;
+    if (blurredIsLevel_)
+    {
+        while (gs_effect_loop(effect, "DrawBlurred"))
+        {
+            gs_effect_set_texture_srgb(effect_.epImage, image);
+            gs_effect_set_texture_srgb(effect_.epBlurred, blurredFrame_);
+            gs_effect_set_texture(effect_.epMask, refinedMask_.get());
+            gs_effect_set_float(effect_.epFocusPoint, blurFocusPoint_);
+            gs_effect_set_float(effect_.epStrength, blurStrength_);
+            gs_effect_set_float(effect_.epLevelOffset, 0.0F);
+            gs_effect_set_float(effect_.epLevelScale, static_cast<float>(blurStopScale(kBlurStopLevel)));
+            gs_draw_sprite(nullptr, 0, width, height);
+        }
+    }
+    else if (blurredFrame_)
+    {
+        while (gs_effect_loop(effect, "DrawFrame"))
+        {
+            gs_effect_set_texture_srgb(effect_.epImage, blurredFrame_);
+            gs_draw_sprite(nullptr, 0, width, height);
+        }
+    }
+    else
+    {
+        while (gs_effect_loop(effect, "RemoveBackground"))
+        {
+            gs_effect_set_texture_srgb(effect_.epImage, image);
+            gs_effect_set_texture(effect_.epMask, refinedMask_.get());
+            gs_draw_sprite(nullptr, 0, width, height);
+        }
+    }
+    gs_enable_framebuffer_srgb(previousFramebufferSrgb);
 }
 
 void MaskCompositor::ensureMaskTextures(std::uint32_t width, std::uint32_t height)
 {
-	if (refinedMask_ && maskTexturesWidth_ == width && maskTexturesHeight_ == height) {
-		return;
-	}
-	refinedMask_.reset(gs_texture_create(width, height, GS_R8, 1, nullptr, GS_RENDER_TARGET));
-	if (!refinedMask_) {
-		throw std::runtime_error("Failed to create the MaskCompositor mask textures");
-	}
-	maskTexturesWidth_ = width;
-	maskTexturesHeight_ = height;
+    if (refinedMask_ && maskTexturesWidth_ == width && maskTexturesHeight_ == height)
+    {
+        return;
+    }
+    refinedMask_.reset(gs_texture_create(width, height, GS_R8, 1, nullptr, GS_RENDER_TARGET));
+    if (!refinedMask_)
+    {
+        throw std::runtime_error("Failed to create the MaskCompositor mask textures");
+    }
+    maskTexturesWidth_ = width;
+    maskTexturesHeight_ = height;
 }
 
 void MaskCompositor::ensurePyramid(std::uint32_t width, std::uint32_t height, std::size_t levels)
 {
-	if (pyramid_.empty() || pyramid_[0].width != width || pyramid_[0].height != height) {
-		pyramid_.clear();
-		BlurLevel top;
-		top.width = width;
-		top.height = height;
-		pyramid_.push_back(std::move(top));
-	}
-	while (pyramid_.size() <= levels) {
-		const BlurLevel &above = pyramid_.back();
-		BlurLevel level;
-		level.width = blurLevelSize(above.width);
-		level.height = blurLevelSize(above.height);
-		level.down.reset(gs_texture_create(level.width, level.height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET));
-		level.up.reset(gs_texture_create(level.width, level.height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET));
-		if (!level.down || !level.up) {
-			throw std::runtime_error("Failed to create the MaskCompositor blur pyramid");
-		}
-		pyramid_.push_back(std::move(level));
-	}
+    if (pyramid_.empty() || pyramid_[0].width != width || pyramid_[0].height != height)
+    {
+        pyramid_.clear();
+        BlurLevel top;
+        top.width = width;
+        top.height = height;
+        pyramid_.push_back(std::move(top));
+    }
+    while (pyramid_.size() <= levels)
+    {
+        const BlurLevel &above = pyramid_.back();
+        BlurLevel level;
+        level.width = blurLevelSize(above.width);
+        level.height = blurLevelSize(above.height);
+        level.down.reset(gs_texture_create(level.width, level.height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET));
+        level.up.reset(gs_texture_create(level.width, level.height, GS_BGRA, 1, nullptr, GS_RENDER_TARGET));
+        if (!level.down || !level.up)
+        {
+            throw std::runtime_error("Failed to create the MaskCompositor blur pyramid");
+        }
+        pyramid_.push_back(std::move(level));
+    }
 }
 
 } // namespace BackgroundRemoval

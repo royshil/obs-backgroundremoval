@@ -11,7 +11,8 @@
 
 #include "IRenderingPipeline.hpp"
 
-namespace BackgroundRemoval {
+namespace BackgroundRemoval
+{
 
 /// Creates the pipeline that a v2_PipelineId value selects; kAutoPipelineId selects the
 /// recommended one. It processes and outputs frames of the target's size, sourceWidth x
@@ -20,6 +21,6 @@ namespace BackgroundRemoval {
 /// @return The pipeline, or null when the ID is unknown.
 /// @throws std::exception when the pipeline cannot be created.
 auto createRenderingPipeline(std::int64_t pipelineId, obs_source_t *source, std::uint32_t sourceWidth,
-			     std::uint32_t sourceHeight) -> std::unique_ptr<IRenderingPipeline>;
+                             std::uint32_t sourceHeight) -> std::unique_ptr<IRenderingPipeline>;
 
 } // namespace BackgroundRemoval

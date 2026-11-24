@@ -14,15 +14,16 @@
 
 int main(int argc, char **argv)
 {
-	doctest::Context context(argc, argv);
+    doctest::Context context(argc, argv);
 
-	std::string error;
-	if (!ObsHarness::start(error)) {
-		std::cerr << "Failed to start libobs: " << error << '\n';
-		ObsHarness::stop();
-		return 1;
-	}
-	const int result = TestHelpers::runTests(context);
-	ObsHarness::stop();
-	return result;
+    std::string error;
+    if (!ObsHarness::start(error))
+    {
+        std::cerr << "Failed to start libobs: " << error << '\n';
+        ObsHarness::stop();
+        return 1;
+    }
+    const int result = TestHelpers::runTests(context);
+    ObsHarness::stop();
+    return result;
 }

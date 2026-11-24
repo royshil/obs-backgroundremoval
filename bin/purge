@@ -11,76 +11,76 @@ shopt -s nullglob
 
 case "${1:-}" in
 '')
-  ;;
+    ;;
 --help | -h)
-  printf 'Usage: %q\n' "$0"
-  printf 'Purges all build artifacts from the PLUGIN_BUILD_DIR.\n'
-  printf 'OPT_FORCE=1 to skip confirmation for non-interactive session.\n'
-  exit 0
-  ;;
+    printf 'Usage: %q\n' "$0"
+    printf 'Purges all build artifacts from the PLUGIN_BUILD_DIR.\n'
+    printf 'OPT_FORCE=1 to skip confirmation for non-interactive session.\n'
+    exit 0
+    ;;
 *)
-  printf 'ERROR: Unknown option provided.\n' >&2
-  printf 'Run %q --help for help.\n' "${0:?}" >&2
-  exit 64
-  ;;
+    printf 'ERROR: Unknown option provided.\n' >&2
+    printf 'Run %q --help for help.\n' "${0:?}" >&2
+    exit 64
+    ;;
 esac
 
 if [[ ! -f VERSION ]]; then
-  printf 'ERROR: VERSION not found. The working directory MUST be the root of the project.\n' >&2
-  exit 1
+    printf 'ERROR: VERSION not found. The working directory MUST be the root of the project.\n' >&2
+    exit 1
 fi
 
 if [[ ! -d "${PLUGIN_BUILD_DIR:?}" ]]; then
-  printf 'ERROR: PLUGIN_BUILD_DIR does not exist: %q\n' "${PLUGIN_BUILD_DIR}" >&2
-  exit 1
+    printf 'ERROR: PLUGIN_BUILD_DIR does not exist: %q\n' "${PLUGIN_BUILD_DIR}" >&2
+    exit 1
 fi
 
 PLUGIN_BUILD_DIR="$(
-  cd -- "${PLUGIN_BUILD_DIR:?}"
-  pwd -P
+    cd -- "${PLUGIN_BUILD_DIR:?}"
+    pwd -P
 )"
 
 if [[ "${PLUGIN_BUILD_DIR}" == / ]]; then
-  printf 'ERROR: refusing to purge the filesystem root.\n' >&2
-  exit 1
+    printf 'ERROR: refusing to purge the filesystem root.\n' >&2
+    exit 1
 fi
 
 targets=(
-  "${PLUGIN_BUILD_DIR}/.deps"
-  "${PLUGIN_BUILD_DIR}/.venv"
-  "${PLUGIN_BUILD_DIR}/build"
-  "${PLUGIN_BUILD_DIR}/build_prefix"
-  "${PLUGIN_BUILD_DIR}/release"
-  # Former submodules left behind by older checkouts
-  "${PLUGIN_BUILD_DIR}/vendor/obs-studio/.deps"
-  "${PLUGIN_BUILD_DIR}/vendor/vcpkg"
+    "${PLUGIN_BUILD_DIR}/.deps"
+    "${PLUGIN_BUILD_DIR}/.venv"
+    "${PLUGIN_BUILD_DIR}/build"
+    "${PLUGIN_BUILD_DIR}/build_prefix"
+    "${PLUGIN_BUILD_DIR}/release"
+    # Former submodules left behind by older checkouts
+    "${PLUGIN_BUILD_DIR}/vendor/obs-studio/.deps"
+    "${PLUGIN_BUILD_DIR}/vendor/vcpkg"
 )
 
 if ! [[ "${OPT_FORCE:-0}" == 1 ]]; then
-  if ! [[ -t 0 ]]; then
-    printf 'ERROR: confirmation requires a TTY; use OPT_FORCE=1 for non-interactive use.\n' >&2
-    exit 1
-  fi
+    if ! [[ -t 0 ]]; then
+        printf 'ERROR: confirmation requires a TTY; use OPT_FORCE=1 for non-interactive use.\n' >&2
+        exit 1
+    fi
 
-  printf '\033[1m==> Removing the following directories...\033[0m\n'
+    printf '\033[1m==> Removing the following directories...\033[0m\n'
 
-  for target in "${targets[@]}"; do
-    printf '%q\n' "${target:?}"
-  done
+    for target in "${targets[@]}"; do
+        printf '%q\n' "${target:?}"
+    done
 
-  printf '\033[1m==> Continue? [Y/n] \033[0m'
+    printf '\033[1m==> Continue? [Y/n] \033[0m'
 
-  read -r answer
+    read -r answer
 
-  if ! [[ "${answer:-y}" =~ ^[Yy] ]]; then
-    printf 'ERROR: Aborted.\n' >&2
-    exit 1
-  fi
+    if ! [[ "${answer:-y}" =~ ^[Yy] ]]; then
+        printf 'ERROR: Aborted.\n' >&2
+        exit 1
+    fi
 fi
 
 for target in "${targets[@]}"; do
-  printf 'rm -rf -- %q\n' "${target:?}"
-  "${RM:-rm}" -rf -- "${target:?}"
+    printf 'rm -rf -- %q\n' "${target:?}"
+    "${RM:-rm}" -rf -- "${target:?}"
 done
 
 printf 'INFO: purge completed\n' >&2

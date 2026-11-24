@@ -63,11 +63,11 @@ def run_osa(source: str, *arguments: str) -> str:
 def process_script(body: str) -> str:
     return f"""
 on run arguments
-  set targetPid to (item 1 of arguments) as integer
-  tell application "System Events"
-    set targetProcess to first application process whose unix id is targetPid
-    {body}
-  end tell
+    set targetPid to (item 1 of arguments) as integer
+    tell application "System Events"
+        set targetProcess to first application process whose unix id is targetPid
+        {body}
+    end tell
 end run
 """
 
@@ -99,14 +99,14 @@ def window_text(pid: int, title: str) -> str:
 set targetWindow to window (item 2 of arguments) of targetProcess
 set output to ""
 repeat with textElement in every static text of targetWindow
-  try
-    set output to output & (name of textElement as text) & linefeed
-  end try
+    try
+        set output to output & (name of textElement as text) & linefeed
+    end try
 end repeat
 repeat with textElement in every text area of targetWindow
-  try
-    set output to output & (value of textElement as text) & linefeed
-  end try
+    try
+        set output to output & (value of textElement as text) & linefeed
+    end try
 end repeat
 return output
 """), str(pid), title,
@@ -117,7 +117,7 @@ def group_button_exists(pid: int, title: str, label: str) -> bool:
     return run_osa(
         process_script("""
 tell group 1 of window (item 2 of arguments) of targetProcess
-  return exists button (item 3 of arguments)
+    return exists button (item 3 of arguments)
 end tell
 """), str(pid), title, label,
     ) == "true"
@@ -127,7 +127,7 @@ def click_group_button(pid: int, title: str, label: str) -> None:
     run_osa(
         process_script("""
 tell group 1 of window (item 2 of arguments) of targetProcess
-  click button (item 3 of arguments)
+    click button (item 3 of arguments)
 end tell
 """), str(pid), title, label,
     )
@@ -137,9 +137,9 @@ def qt_dialog_exists(pid: int) -> bool:
     return run_osa(
         process_script("""
 try
-  return name of static text 1 of window 1 of targetProcess contains "About Qt"
+    return name of static text 1 of window 1 of targetProcess contains "About Qt"
 on error
-  return false
+    return false
 end try
 """), str(pid),
     ) == "true"
@@ -150,9 +150,9 @@ def qt_dialog_text(pid: int) -> str:
         process_script("""
 set output to ""
 repeat with textElement in every static text of window 1 of targetProcess
-  try
-    set output to output & (name of textElement as text) & linefeed
-  end try
+    try
+        set output to output & (name of textElement as text) & linefeed
+    end try
 end repeat
 return output
 """), str(pid),
@@ -696,17 +696,17 @@ def prepare_workspace() -> None:
     PLUGIN_MANAGER_DIR.mkdir(parents=True)
     (PLUGIN_MANAGER_DIR / "modules.json").write_text(
         """[
-  {
-    "display_name": "mac-avcapture-legacy",
-    "module_name": "mac-avcapture-legacy",
-    "id": "",
-    "version": "",
-    "enabled": false,
-    "sources": [],
-    "outputs": [],
-    "encoders": [],
-    "services": []
-  }
+    {
+        "display_name": "mac-avcapture-legacy",
+        "module_name": "mac-avcapture-legacy",
+        "id": "",
+        "version": "",
+        "enabled": false,
+        "sources": [],
+        "outputs": [],
+        "encoders": [],
+        "services": []
+    }
 ]
 """,
         encoding="utf-8",

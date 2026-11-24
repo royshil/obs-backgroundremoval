@@ -8,24 +8,26 @@
 #include <memory>
 #include <string>
 
-namespace TestHelpers {
+namespace TestHelpers
+{
 
-class HttpServer final {
-public:
-	explicit HttpServer(std::string body, int statusCode = 200,
-			    std::chrono::milliseconds responseDelay = std::chrono::milliseconds::zero());
-	~HttpServer() noexcept;
+class HttpServer final
+{
+  public:
+    explicit HttpServer(std::string body, int statusCode = 200,
+                        std::chrono::milliseconds responseDelay = std::chrono::milliseconds::zero());
+    ~HttpServer() noexcept;
 
-	HttpServer(const HttpServer &) = delete;
-	HttpServer &operator=(const HttpServer &) = delete;
-	HttpServer(HttpServer &&) = delete;
-	HttpServer &operator=(HttpServer &&) = delete;
+    HttpServer(const HttpServer &) = delete;
+    HttpServer &operator=(const HttpServer &) = delete;
+    HttpServer(HttpServer &&) = delete;
+    HttpServer &operator=(HttpServer &&) = delete;
 
-	[[nodiscard]] std::string url() const;
+    [[nodiscard]] std::string url() const;
 
-private:
-	class Impl;
-	std::unique_ptr<Impl> impl_;
+  private:
+    class Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 } // namespace TestHelpers

@@ -6,47 +6,60 @@
 
 set -eu
 
+list_c_sources()
+{
+    git ls-files -z -- \
+        'src/*.c' 'src/*.cpp' 'src/*.h' 'src/*.hpp' \
+        'tests/*.c' 'tests/*.cpp' 'tests/*.h' 'tests/*.hpp'
+}
+
 check_clang_format()
 {
-	if [ "$(uname -s)" = "Darwin" ]; then
-		xcrun clang-format --version
-		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' |
-			xargs -0 -n 20 xcrun clang-format --dry-run --Werror
-	else
-		clang-format-21 --version
-		git ls-files -z '*.c' '*.cpp' '*.h' '*.hpp' '*.mm' ':!vendor/' |
-			xargs -0 -n 20 clang-format-21 --dry-run --Werror
-	fi
+    if [ "$(uname -s)" = "Darwin" ]; then
+        xcrun clang-format --version
+        list_c_sources | xargs -0 -n 20 xcrun clang-format --dry-run --Werror
+    else
+        clang-format-21 --version
+        list_c_sources | xargs -0 -n 20 clang-format-21 --dry-run --Werror
+    fi
 }
 
 check_gersemi()
 {
-	git ls-files -z CMakeLists.txt '*.cmake' |
-		xargs -0 -n 1 gersemi --config .gersemirc --check
+    gersemi --check --diff CMakeLists.txt cmake src tests
+}
+
+check_editorconfig()
+{
+    ec -exclude '\.(c|cpp|h|hpp)$'
 }
 
 check_reuse()
 {
-	reuse --no-multiprocessing lint
+    reuse --no-multiprocessing lint
 }
 
 case "${1:-all}" in
 all)
-	check_clang_format
-	check_gersemi
-	check_reuse
-	;;
+    check_clang_format
+    check_gersemi
+    check_editorconfig
+    check_reuse
+    ;;
 clang-format)
-	check_clang_format
-	;;
+    check_clang_format
+    ;;
 gersemi)
-	check_gersemi
-	;;
+    check_gersemi
+    ;;
+editorconfig)
+    check_editorconfig
+    ;;
 reuse)
-	check_reuse
-	;;
+    check_reuse
+    ;;
 *)
-	printf 'Usage: %s [all|clang-format|gersemi|reuse]\n' "$0" >&2
-	exit 2
-	;;
+    printf 'Usage: %s [all|clang-format|gersemi|editorconfig|reuse]\n' "$0" >&2
+    exit 2
+    ;;
 esac

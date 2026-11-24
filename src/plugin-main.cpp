@@ -16,13 +16,14 @@
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
 
-namespace {
+namespace
+{
 
 // obs_register_source() copies each obs_source_info, so getSourceInfos() can
 // return temporaries.
 auto getSourceInfos() -> std::array<obs_source_info, 1>
 {
-	return {BackgroundRemoval::FilterContext::getSourceInfo()};
+    return {BackgroundRemoval::FilterContext::getSourceInfo()};
 }
 
 } // namespace
@@ -34,99 +35,123 @@ auto getSourceInfos() -> std::array<obs_source_info, 1>
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
-namespace {
+namespace
+{
 
 void showStartupDialogHandler(enum obs_frontend_event event, void *);
 
 void fetchLatestVersionIfEnabled()
 {
-	UpdateConfig::Request request = UpdateConfig::GetCheckForUpdatesEnabledRequest{};
-	if (UpdateConfig::doRequest(request)) {
-		UpdateConfig::fetchLatestVersionAsync();
-	}
+    UpdateConfig::Request request = UpdateConfig::GetCheckForUpdatesEnabledRequest{};
+    if (UpdateConfig::doRequest(request))
+    {
+        UpdateConfig::fetchLatestVersionAsync();
+    }
 }
 
 bool setStartupCallbackRegistration(bool registered)
 {
-	static std::mutex mutex;
-	static bool isRegistered = false;
-	const std::lock_guard lock(mutex);
+    static std::mutex mutex;
+    static bool isRegistered = false;
+    const std::lock_guard lock(mutex);
 
-	if (isRegistered == registered) {
-		return false;
-	}
+    if (isRegistered == registered)
+    {
+        return false;
+    }
 
-	if (registered) {
-		obs_frontend_add_event_callback(showStartupDialogHandler, nullptr);
-	} else {
-		obs_frontend_remove_event_callback(showStartupDialogHandler, nullptr);
-	}
-	isRegistered = registered;
-	return true;
+    if (registered)
+    {
+        obs_frontend_add_event_callback(showStartupDialogHandler, nullptr);
+    }
+    else
+    {
+        obs_frontend_remove_event_callback(showStartupDialogHandler, nullptr);
+    }
+    isRegistered = registered;
+    return true;
 }
 
 void showStartupDialogHandler(enum obs_frontend_event event, void *)
 {
-	if (event != OBS_FRONTEND_EVENT_FINISHED_LOADING) {
-		return;
-	}
+    if (event != OBS_FRONTEND_EVENT_FINISHED_LOADING)
+    {
+        return;
+    }
 
-	if (!setStartupCallbackRegistration(false)) {
-		return;
-	}
+    if (!setStartupCallbackRegistration(false))
+    {
+        return;
+    }
 
-	if (!AboutDialogIntegration::show()) {
-		fetchLatestVersionIfEnabled();
-	}
+    if (!AboutDialogIntegration::show())
+    {
+        fetchLatestVersionIfEnabled();
+    }
 }
 
 } // namespace
 
 bool obs_module_load(void)
 {
-	const auto sourceInfos = getSourceInfos();
+    const auto sourceInfos = getSourceInfos();
 
-	const char *sourceId = nullptr;
-	for (std::size_t index = 0; obs_enum_source_types(index, &sourceId); ++index) {
-		for (const obs_source_info &sourceInfo : sourceInfos) {
-			if (sourceId && std::string_view(sourceInfo.id) == sourceId) {
-				blog(LOG_ERROR, OBS_LOG_HEADER "Source ID '%s' is already registered by another plugin",
-				     sourceId);
-				return false;
-			}
-		}
-	}
+    const char *sourceId = nullptr;
+    for (std::size_t index = 0; obs_enum_source_types(index, &sourceId); ++index)
+    {
+        for (const obs_source_info &sourceInfo : sourceInfos)
+        {
+            if (sourceId && std::string_view(sourceInfo.id) == sourceId)
+            {
+                blog(LOG_ERROR, OBS_LOG_HEADER "Source ID '%s' is already registered by another plugin", sourceId);
+                return false;
+            }
+        }
+    }
 
-	UpdateConfig::latestVersionClient();
+    UpdateConfig::latestVersionClient();
 
-	static struct GlobalQResourceGuard {
-		GlobalQResourceGuard() { Q_INIT_RESOURCE(resources); }
-		~GlobalQResourceGuard() { Q_CLEANUP_RESOURCE(resources); }
-	} globalQResourceGuard;
+    static struct GlobalQResourceGuard
+    {
+        GlobalQResourceGuard()
+        {
+            Q_INIT_RESOURCE(resources);
+        }
+        ~GlobalQResourceGuard()
+        {
+            Q_CLEANUP_RESOURCE(resources);
+        }
+    } globalQResourceGuard;
 
-	for (const obs_source_info &sourceInfo : sourceInfos) {
-		obs_register_source(&sourceInfo);
-	}
+    for (const obs_source_info &sourceInfo : sourceInfos)
+    {
+        obs_register_source(&sourceInfo);
+    }
 
-	static struct GlobalStartupGuard {
-		bool scheduled{false};
-		GlobalStartupGuard()
-		{
-			UpdateConfig::Request request = UpdateConfig::HandleFirstRunRequest{PLUGIN_VERSION_STR};
-			scheduled = UpdateConfig::doRequest(request) && setStartupCallbackRegistration(true);
-		}
-		~GlobalStartupGuard() { setStartupCallbackRegistration(false); }
-	} globalStartupGuard;
+    static struct GlobalStartupGuard
+    {
+        bool scheduled{false};
+        GlobalStartupGuard()
+        {
+            UpdateConfig::Request request = UpdateConfig::HandleFirstRunRequest{PLUGIN_VERSION_STR};
+            scheduled = UpdateConfig::doRequest(request) && setStartupCallbackRegistration(true);
+        }
+        ~GlobalStartupGuard()
+        {
+            setStartupCallbackRegistration(false);
+        }
+    } globalStartupGuard;
 
-	if (!globalStartupGuard.scheduled) {
-		fetchLatestVersionIfEnabled();
-	}
+    if (!globalStartupGuard.scheduled)
+    {
+        fetchLatestVersionIfEnabled();
+    }
 
-	blog(LOG_INFO, OBS_LOG_HEADER "Plugin loaded successfully (version %s)", PLUGIN_VERSION_STR);
-	return true;
+    blog(LOG_INFO, OBS_LOG_HEADER "Plugin loaded successfully (version %s)", PLUGIN_VERSION_STR);
+    return true;
 }
 
 void obs_module_unload()
 {
-	blog(LOG_INFO, OBS_LOG_HEADER "plugin unloaded");
+    blog(LOG_INFO, OBS_LOG_HEADER "plugin unloaded");
 }

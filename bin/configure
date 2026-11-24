@@ -5,41 +5,41 @@
 # SPDX-License-Identifier: Apache-2.0
 
 macos() {
-  : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
-  : "${CMAKE_OSX_DEPLOYMENT_TARGET:=13.0}"
+    : "${PLUGIN_BUILD_DIR:=${PWD:?}}"
+    : "${CMAKE_OSX_DEPLOYMENT_TARGET:=13.0}"
 
-  if [[ "${X86_64+set}" != 'set' ]] && [[ "$(uname -m)" == 'x86_64' ]]; then
-    X86_64=1
-  fi
+    if [[ "${X86_64+set}" != 'set' ]] && [[ "$(uname -m)" == 'x86_64' ]]; then
+        X86_64=1
+    fi
 
-  if [[ "${X86_64:-0}" == '0' ]]; then
-    : "${CMAKE_OSX_ARCHITECTURES:=arm64}"
-  else
-    : "${CMAKE_OSX_ARCHITECTURES:=x86_64}"
-  fi
+    if [[ "${X86_64:-0}" == '0' ]]; then
+        : "${CMAKE_OSX_ARCHITECTURES:=arm64}"
+    else
+        : "${CMAKE_OSX_ARCHITECTURES:=x86_64}"
+    fi
 
-  cmake \
-    -S "${PWD:?}" \
-    -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
-    -G Xcode \
-    -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}"
-  printf "INFO: plugin was configured\n" >&2
+    cmake \
+        -S "${PWD:?}" \
+        -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
+        -G Xcode \
+        -DCMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:?}" \
+        -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}"
+    printf "INFO: plugin was configured\n" >&2
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  set -euo pipefail
-  shopt -s nullglob
+    set -euo pipefail
+    shopt -s nullglob
 
-  if ! [[ -f VERSION ]]; then
-    printf 'ERROR: VERSION not found. The working directory MUST be the root of the project.\n' >&2
-    exit 1
-  fi
+    if ! [[ -f VERSION ]]; then
+        printf 'ERROR: VERSION not found. The working directory MUST be the root of the project.\n' >&2
+        exit 1
+    fi
 
-  if [[ "$(uname -s)" == Darwin ]]; then
-    macos
-  else
-    printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
-    exit 1
-  fi
+    if [[ "$(uname -s)" == Darwin ]]; then
+        macos
+    else
+        printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
+        exit 1
+    fi
 fi

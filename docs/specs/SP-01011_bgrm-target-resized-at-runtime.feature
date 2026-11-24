@@ -11,6 +11,7 @@ Feature: Target resized at runtime
     And a 1280 x 720 image source of the portrait test image
     And the source has a Scaling/Aspect Ratio filter set to 640 x 360, followed by the Background Removal filter
     And the source is shown in the program output, so it is active and showing
+    And "the background is removed" means that more than 10% and less than 90% of the pixels have an alpha below 128
 
   @SP-01011.1
   Scenario: Resizing the preceding filter recreates the pipeline

@@ -34,8 +34,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import pathlib
+import subprocess
 from dataclasses import dataclass
 
+import clang_format
 import numpy as np
 import onnx
 from huggingface_hub import hf_hub_download
@@ -173,8 +175,6 @@ def render(layers: list[Layer]) -> str:
 
 #include <BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.hpp>
 
-// clang-format off
-
 namespace BackgroundRemoval::MPLSDetail::MPLSWeights {{
 
 namespace {{
@@ -187,10 +187,20 @@ namespace {{
 extern constexpr std::array<const Layer *, {len(layers)}> layers{{{{{layer_list}}}}};
 
 }} // namespace BackgroundRemoval::MPLSDetail::MPLSWeights
-
-// clang-format on
 """
     # REUSE-IgnoreEnd
+
+
+def format_source(source: str, path: pathlib.Path) -> str:
+    """Format the source with the pinned clang-format 21 and the .clang-format files that apply to `path`."""
+    result = subprocess.run(
+        [clang_format.get_executable("clang-format"), f"--assume-filename={path.resolve()}"],
+        input=source,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    return result.stdout
 
 
 def main() -> None:
@@ -201,7 +211,7 @@ def main() -> None:
 
     layers = pack_model(load_model(args.offline))
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(render(layers), encoding="utf-8", newline="\n")
+    args.output.write_text(format_source(render(layers), args.output), encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

@@ -6,27 +6,29 @@
 
 #include <graphics/graphics.h>
 
-namespace BackgroundRemoval {
+namespace BackgroundRemoval
+{
 
 /// The effect that evaluates the network, and its texture parameters.
-struct MPLSEffect final {
-	/// @throws std::runtime_error when the effect lacks a parameter or the Draw technique.
-	explicit MPLSEffect(gs_effect_t *effect);
+struct MPLSEffect final
+{
+    /// @throws std::runtime_error when the effect lacks a parameter or the Draw technique.
+    explicit MPLSEffect(gs_effect_t *effect);
 
-	MPLSEffect(const MPLSEffect &) = delete;
-	auto operator=(const MPLSEffect &) -> MPLSEffect & = delete;
-	MPLSEffect(MPLSEffect &&) = delete;
-	auto operator=(MPLSEffect &&) -> MPLSEffect & = delete;
+    MPLSEffect(const MPLSEffect &) = delete;
+    auto operator=(const MPLSEffect &) -> MPLSEffect & = delete;
+    MPLSEffect(MPLSEffect &&) = delete;
+    auto operator=(MPLSEffect &&) -> MPLSEffect & = delete;
 
-	gs_effect_t *const effect;
-	gs_eparam_t *const epTensor;
-	gs_eparam_t *const epScale;
-	gs_eparam_t *const epTensorB;
-	gs_eparam_t *const epScaleB;
-	gs_eparam_t *const epTensorR;
-	gs_eparam_t *const epWeights;
-	gs_eparam_t *const epBias;
-	gs_eparam_t *const epImage;
+    gs_effect_t *const effect;
+    gs_eparam_t *const epTensor;
+    gs_eparam_t *const epScale;
+    gs_eparam_t *const epTensorB;
+    gs_eparam_t *const epScaleB;
+    gs_eparam_t *const epTensorR;
+    gs_eparam_t *const epWeights;
+    gs_eparam_t *const epBias;
+    gs_eparam_t *const epImage;
 };
 
 /// The effect that evaluates the network, compiled on the first call inside the graphics context

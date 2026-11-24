@@ -7,7 +7,7 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 
 import { analyzeDownloadCounts, DownloadTrendChart } from "./lib/download_trends.mjs";
 import { GitHubClient } from "./lib/github.mjs";
-import { aggregateStargazersByMonth, calculateStarAxis, StarHistoryChart } from "./lib/star_history.mjs";
+import { aggregateStarHistoryByMonth, calculateStarAxis, StarHistoryChart } from "./lib/star_history.mjs";
 
 const USAGE = "Usage: BUILD.mjs [fetch-charts|generate-charts|site]";
 
@@ -15,7 +15,7 @@ const REPOSITORY = "royshil/obs-backgroundremoval";
 const BUILDDIR_URL = new URL("./build/", import.meta.url);
 const RELEASES_DATA_URL = new URL("./build/releases.json", import.meta.url);
 const DOWNLOAD_TRENDS_CHART_URL = new URL("./download-trends.svg", import.meta.url);
-const STARGAZERS_DATA_URL = new URL("./build/stargazers.json", import.meta.url);
+const STAR_HISTORY_DATA_URL = new URL("./build/star-history.json", import.meta.url);
 const STAR_HISTORY_CHART_URL = new URL("./star-history.svg", import.meta.url);
 const DOCS_URL = new URL("./", import.meta.url);
 const SITE_DIST_URL = new URL("./dist/", import.meta.url);
@@ -238,16 +238,17 @@ async function fetchReleases(client) {
  * @param {Date} generatedAt
  */
 async function fetchStarHistory(client, generatedAt) {
-  const stargazers = [];
-  for (let page = 1; ; page++) {
-    const response = await client.listStargazers(page);
-    console.log(`Got ${response.length} stargazers at ${page}`)
-    stargazers.push(...response);
-    if (response.length < 100) {
+  const weeks = [];
+  // The API serves at most 100 pages of 30 weeks each.
+  for (let page = 1; page <= 100; page++) {
+    const response = await client.getStarHistory(page);
+    console.log(`Got ${response.length} weeks of star history at ${page}`);
+    weeks.push(...response);
+    if (response.length < 30) {
       break;
     }
   }
-  await writeFile(STARGAZERS_DATA_URL, JSON.stringify({ generatedAt, stargazers }), "utf8");
+  await writeFile(STAR_HISTORY_DATA_URL, JSON.stringify({ generatedAt, weeks }), "utf8");
 }
 
 /**
@@ -277,9 +278,9 @@ async function generateDownloadTrends() {
     bottom: 226,
     xStart: downloadCounts[0].publishedAt,
     xEnd: downloadCounts.at(-1).publishedAt,
-    yEnd: 2_500_000,
-    yTickValues: [0, 500_000, 1_000_000, 1_500_000, 2_000_000, 2_500_000],
-    yTickLabels: ["0", "0.5M", "1.0M", "1.5M", "2.0M", "2.5M"]
+    yEnd: 3_000_000,
+    yTickValues: [0, 1_000_000, 2_000_000, 3_000_000],
+    yTickLabels: ["0", "1.0M", "2.0M", "3.0M"]
   });
 
   const originalChartPoints = chart.calculateChartPoints();
@@ -318,9 +319,9 @@ async function generateDownloadTrends() {
 async function generateStarHistory() {
   const {
     generatedAt: dataGeneratedAt,
-    stargazers,
-  } = JSON.parse(await readFile(STARGAZERS_DATA_URL, "utf8"));
-  if (typeof dataGeneratedAt !== "string" || !Array.isArray(stargazers)) {
+    weeks,
+  } = JSON.parse(await readFile(STAR_HISTORY_DATA_URL, "utf8"));
+  if (typeof dataGeneratedAt !== "string" || !Array.isArray(weeks)) {
     throw new TypeError("Invalid star history data");
   }
 
@@ -329,7 +330,7 @@ async function generateStarHistory() {
     throw new TypeError("Star history generatedAt is invalid");
   }
 
-  const rows = aggregateStargazersByMonth(stargazers);
+  const rows = aggregateStarHistoryByMonth(weeks);
   if (rows.length < 2) {
     throw new Error("Star history data must contain at least two months");
   }

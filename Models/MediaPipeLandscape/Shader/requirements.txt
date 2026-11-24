@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+clang-format==21.1.8
 huggingface_hub==0.34.4
 numpy==2.5.2
 onnx==1.19.1

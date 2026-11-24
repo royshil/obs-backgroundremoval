@@ -4,7 +4,8 @@
 
 #pragma once
 
-namespace BackgroundRemoval {
+namespace BackgroundRemoval
+{
 
 const char *tBackgroundRemoval();
 const char *tUpToDate();

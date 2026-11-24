@@ -3,31 +3,42 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * @typedef {Object} AggregateStargazersByMonthItem
+ * @typedef {Object} AggregateStarsByMonthItem
  * @property {string} month
  * @property {number} newStars
  * @property {number} cumulativeStars
  */
 
+const SECONDS_PER_DAY = 24 * 60 * 60;
+
 /**
- * @param {import("./github.mjs").ListStargazersItem[]} stargazers
- * @returns {AggregateStargazersByMonthItem[]}
+ * @param {import("./github.mjs").GetStarHistoryItem[]} weeks
+ * @returns {AggregateStarsByMonthItem[]}
  */
-export function aggregateStargazersByMonth(stargazers) {
-  const stargazersByMonth = Object.groupBy(stargazers, ({ starred_at }) => {
-    if (typeof starred_at !== "string") {
-      throw new TypeError("Stargazer data does not contain starred_at");
+export function aggregateStarHistoryByMonth(weeks) {
+  /** @type {Record<string, number>} */
+  const starsByMonth = {};
+
+  for (const { week, days } of weeks) {
+    if (!Number.isSafeInteger(week) || !Array.isArray(days) || days.length !== 7) {
+      throw new TypeError(`Invalid star history week: ${JSON.stringify({ week, days })}`);
     }
 
-    const starredAt = new Date(starred_at);
-    if (!Number.isFinite(starredAt.getTime())) {
-      throw new TypeError(`Invalid starred_at value: ${starred_at}`);
-    }
+    days.forEach((stars, dayIndex) => {
+      if (!Number.isSafeInteger(stars) || stars < 0) {
+        throw new TypeError(`Invalid star count in week ${week}: ${stars}`);
+      }
+      if (stars === 0) {
+        return;
+      }
 
-    return starredAt.toISOString().slice(0, 7);
-  });
+      const day = new Date((week + dayIndex * SECONDS_PER_DAY) * 1000);
+      const month = day.toISOString().slice(0, 7);
+      starsByMonth[month] = (starsByMonth[month] ?? 0) + stars;
+    });
+  }
 
-  const populatedMonths = Object.keys(stargazersByMonth).sort();
+  const populatedMonths = Object.keys(starsByMonth).sort();
   if (populatedMonths.length === 0) {
     return [];
   }
@@ -43,7 +54,7 @@ export function aggregateStargazersByMonth(stargazers) {
     month.setUTCMonth(month.getUTCMonth() + 1)
   ) {
     const label = month.toISOString().slice(0, 7);
-    const newStars = stargazersByMonth[label]?.length ?? 0;
+    const newStars = starsByMonth[label] ?? 0;
     cumulativeStars += newStars;
     rows.push({ month: label, newStars, cumulativeStars });
   }
@@ -90,7 +101,7 @@ export class StarHistoryChart {
    * @property {string[]} yTickLabels
    *
    * @param {Date} capturedAt
-   * @param {AggregateStargazersByMonthItem[]} rows
+   * @param {AggregateStarsByMonthItem[]} rows
    * @param {StarHistoryChartOptions} options
    */
   constructor(capturedAt, rows, options) {

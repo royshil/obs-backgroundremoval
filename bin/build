@@ -5,62 +5,62 @@
 # SPDX-License-Identifier: Apache-2.0
 
 debian_forky() {
-  cmake -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-  cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --config Release
+    cmake -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+    cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --config Release
 }
 
 ubuntu_resolute() {
-  cmake -G Ninja -S "$ROOT_DIR" -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build"
+    cmake -G Ninja -S "$ROOT_DIR" -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build"
 
-  cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build"
+    cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build"
 
-  (cd "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" && cpack -G DEB)
+    (cd "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" && cpack -G DEB)
 
-  . "${PLUGIN_BUILD_DIR:-${PWD:?}}/build/cmake_export.sh"
+    . "${PLUGIN_BUILD_DIR:-${PWD:?}}/build/cmake_export.sh"
 
-  printf 'Run the following command to install the plugin:\n'
-  printf '  sudo dpkg -i %s\n' "$ROOT_DIR/release/${PLUGIN_NAME}_*.deb"
+    printf 'Run the following command to install the plugin:\n'
+    printf '  sudo dpkg -i %s\n' "$ROOT_DIR/release/${PLUGIN_NAME}_*.deb"
 }
 
 arch() {
-  cmake -G Ninja -S "$ROOT_DIR" -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_plugin"
+    cmake -G Ninja -S "$ROOT_DIR" -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_plugin"
 
-  cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_plugin"
+    cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_plugin"
 
-  printf 'Run the following command to install the plugin:\n'
-  printf '  sudo cmake --install %q --prefix /usr\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_plugin"
+    printf 'Run the following command to install the plugin:\n'
+    printf '  sudo cmake --install %q --prefix /usr\n' "${PLUGIN_BUILD_DIR:-${PWD:?}}/build_plugin"
 }
 
 macos() {
-  local osx_deployment_target=13.0
+    local osx_deployment_target=13.0
 
-  cmake \
-    -S "${PWD:?}" \
-    -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
-    -G Xcode \
-    "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" \
-    "-DCMAKE_OSX_DEPLOYMENT_TARGET=${osx_deployment_target:?}"
-  printf "INFO: plugin was configured\n" >&2
+    cmake \
+        -S "${PWD:?}" \
+        -B "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" \
+        -G Xcode \
+        "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" \
+        "-DCMAKE_OSX_DEPLOYMENT_TARGET=${osx_deployment_target:?}"
+    printf "INFO: plugin was configured\n" >&2
 
-  cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --config RelWithDebInfo --parallel
-  printf "INFO: plugin was built\n" >&2
-  printf 'INFO: Run the following command to install the plugin into OBS Studio:\n' >&2
-  printf "  cmake --install %q --config RelWithDebInfo --prefix ~ && codesign -f -s - -o runtime %q\n" "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" "${HOME:?}/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin" >&2
+    cmake --build "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" --config RelWithDebInfo --parallel
+    printf "INFO: plugin was built\n" >&2
+    printf 'INFO: Run the following command to install the plugin into OBS Studio:\n' >&2
+    printf "  cmake --install %q --config RelWithDebInfo --prefix ~ && codesign -f -s - -o runtime %q\n" "${PLUGIN_BUILD_DIR:-${PWD:?}}/build" "${HOME:?}/Library/Application Support/obs-studio/plugins/obs-backgroundremoval.plugin" >&2
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  set -euo pipefail
-  shopt -s nullglob
+    set -euo pipefail
+    shopt -s nullglob
 
-  [[ -f /etc/os-release ]] && . /etc/os-release
-  if [[ "$(uname -s)" == Darwin ]]; then
-    macos
-  elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID:?}_${VERSION_CODENAME:?}" >/dev/null; then
-    "${ID:?}_${VERSION_CODENAME:?}" "$@"
-  elif [[ "$ID" == 'arch' ]]; then
-    arch
-  else
-    printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
-    exit 1
-  fi
+    [[ -f /etc/os-release ]] && . /etc/os-release
+    if [[ "$(uname -s)" == Darwin ]]; then
+        macos
+    elif [[ "$ID" =~ ^(debian|ubuntu)$ ]] && declare -f "${ID:?}_${VERSION_CODENAME:?}" >/dev/null; then
+        "${ID:?}_${VERSION_CODENAME:?}" "$@"
+    elif [[ "$ID" == 'arch' ]]; then
+        arch
+    else
+        printf 'ERROR: Your platform is not supported. Exiting...\n' >&2
+        exit 1
+    fi
 fi

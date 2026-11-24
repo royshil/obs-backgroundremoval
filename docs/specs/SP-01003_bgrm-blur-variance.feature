@@ -6,7 +6,10 @@
 Feature: Blur variance
   Strength s blurs as much, by variance, as s iterations of the Kawase blur
   this filter used before. The weight of each pyramid level is the share of
-  its variance that the target still needs.
+  its variance that the target still needs. These cases check the pyramid
+  upsampled down to level 0. The shader stops the upsampling at level 2 and
+  blends the frame with it in the final draw (SP-00004 requirement 7), which
+  SP-01016 and SP-01017 check on its output.
 
   Background:
     Given the sampling conventions of SP-01002

@@ -11,6 +11,7 @@ Feature: Preceding crop filter
     And a 1280 x 720 image source of the portrait test image
     And the source has a Crop/Pad filter cropping 140 pixels from the left and from the right, followed by the Background Removal filter
     And the source is shown in the program output, so it is active and showing
+    And "the background is removed" means that more than 10% and less than 90% of the pixels have an alpha below 128
 
   @SP-01009.1
   Scenario: The output has the cropped size

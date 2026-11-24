@@ -9,6 +9,6 @@
 
 int main(int argc, char **argv)
 {
-	doctest::Context context(argc, argv);
-	return TestHelpers::runTests(context);
+    doctest::Context context(argc, argv);
+    return TestHelpers::runTests(context);
 }
