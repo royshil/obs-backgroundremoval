@@ -124,7 +124,7 @@ TEST_CASE("SP-01012.2 Enabling the filter again draws at once")
     // Render right after enabling, before the video thread ticks the filter again.
     obs_source_set_enabled(scene.backgroundRemoval(), true);
     CHECK(backgroundIsRemoved(capture(scene.source(), 1280, 720)));
-    waitFrames(10);
+    CHECK(waitFrames(10));
     CHECK_FALSE(anyPipelineCreated());
     CHECK(scene.width() == 1280);
     CHECK(scene.height() == 720);

@@ -4,6 +4,8 @@
 
 #include "ObsHarness.hpp"
 
+#include <doctest.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstdarg>
@@ -233,12 +235,13 @@ auto countLogLines(const std::string &line) -> std::size_t
     return static_cast<std::size_t>(std::count(logBuffer.begin(), logBuffer.end(), line));
 }
 
-void waitFrames(int frames)
+auto waitFrames(int frames) -> bool
 {
     using namespace std::chrono_literals;
     const auto deadline = std::chrono::steady_clock::now() + 30s;
     std::uint64_t last = obs_get_video_frame_time();
-    for (int seen = 0; seen < frames && std::chrono::steady_clock::now() < deadline;)
+    int seen = 0;
+    while (seen < frames && std::chrono::steady_clock::now() < deadline)
     {
         std::this_thread::sleep_for(1ms);
         const std::uint64_t now = obs_get_video_frame_time();
@@ -248,6 +251,7 @@ void waitFrames(int frames)
             ++seen;
         }
     }
+    return seen >= frames;
 }
 
 auto testDataFile(const char *name) -> std::string
@@ -376,6 +380,21 @@ auto backgroundIsRemoved(const Image &image) -> bool
     return share > 0.1 && share < 0.9;
 }
 
+namespace
+{
+
+/// Waits for the video thread to apply a change, and fails the test case when it renders too slowly
+/// for the change to have taken effect.
+void settle(int frames)
+{
+    if (!waitFrames(frames))
+    {
+        FAIL_CHECK("The video thread rendered fewer than " << frames << " frames in 30 seconds");
+    }
+}
+
+} // namespace
+
 Scene::Scene(const std::string &imageFile, std::vector<FilterSpec> filters, Visibility visibility)
     : visibility_(visibility)
 {
@@ -399,7 +418,7 @@ Scene::Scene(const std::string &imageFile, std::vector<FilterSpec> filters, Visi
     {
         obs_source_inc_showing(obs_scene_get_source(scene_));
     }
-    waitFrames(10);
+    settle(10);
 }
 
 Scene::~Scene()
@@ -412,7 +431,7 @@ Scene::~Scene()
     {
         obs_source_dec_showing(obs_scene_get_source(scene_));
     }
-    waitFrames(2);
+    static_cast<void>(waitFrames(2));
     for (const OBSSourceAutoRelease &filter : filters_)
     {
         obs_source_filter_remove(source_, filter);
@@ -424,7 +443,7 @@ Scene::~Scene()
     scene_ = nullptr;
     source_ = nullptr;
     extraSources_.clear();
-    waitFrames(2);
+    static_cast<void>(waitFrames(2));
 }
 
 auto Scene::backgroundRemoval() const -> obs_source_t *
@@ -443,13 +462,13 @@ void Scene::update(obs_source_t *filter, const std::string &settingsJson)
 {
     const OBSDataAutoRelease settings = obs_data_create_from_json(settingsJson.c_str());
     obs_source_update(filter, settings);
-    waitFrames(10);
+    settle(10);
 }
 
 void Scene::setEnabled(obs_source_t *filter, bool enabled)
 {
     obs_source_set_enabled(filter, enabled);
-    waitFrames(10);
+    settle(10);
 }
 
 void Scene::addSecondSource(const std::string &imageFile, const std::vector<FilterSpec> &filters)

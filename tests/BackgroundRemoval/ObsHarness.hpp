@@ -28,8 +28,9 @@ auto logLines() -> std::vector<std::string>;
 void clearLog();
 auto countLogLines(const std::string &line) -> std::size_t;
 
-/// Waits until the video thread of libobs has rendered `frames` more frames.
-void waitFrames(int frames);
+/// Waits until the video thread of libobs has rendered `frames` more frames, for at most 30 seconds.
+/// Returns false when the time ran out first.
+[[nodiscard]] auto waitFrames(int frames) -> bool;
 
 /// The full path of a file in tests/data.
 auto testDataFile(const char *name) -> std::string;
