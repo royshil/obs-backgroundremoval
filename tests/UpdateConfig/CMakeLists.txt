@@ -7,7 +7,8 @@ function(configure_update_config_test TARGET_NAME)
     target_link_libraries("${TARGET_NAME}" PRIVATE BuildOptions OBS::libobs)
 
     if(APPLE)
-        set(TEST_BUILD_RPATHS)
+        # libobs resolves from OBS Studio as in tests/CMakeLists.txt.
+        set(TEST_BUILD_RPATHS ${OBS_MACOS_FRAMEWORKS_DIR})
         foreach(PREFIX IN LISTS CMAKE_PREFIX_PATH)
             if(IS_DIRECTORY "${PREFIX}/lib")
                 list(APPEND TEST_BUILD_RPATHS "${PREFIX}/lib")
