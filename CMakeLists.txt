@@ -39,8 +39,6 @@ include(CTest)
 include(FetchContent)
 include(GNUInstallDirs)
 
-include(./cmake/collect_licenses.cmake OPTIONAL)
-
 # MARK: - Plugin dependencies
 
 # MARK: OBS dependencies
@@ -113,10 +111,10 @@ endif()
 
 add_library(${CMAKE_PROJECT_NAME}_pluginlibs STATIC)
 target_compile_features(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC c_std_17 cxx_std_20)
-target_include_directories(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC src)
+target_include_directories(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include" src)
 target_sources(
     ${CMAKE_PROJECT_NAME}_pluginlibs
-    PRIVATE src/BackgroundRemoval/FilterContext.cpp src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp src/BackgroundRemoval/ModuleText.cpp src/BackgroundRemoval/PipelineFactory.cpp src/UI/AboutDialog.cpp src/UI/AboutDialogIntegration.cpp src/UpdateConfig/UpdateConfigCommon.cpp src/UpdateConfig/UpdateConfigCurl.cpp src/UpdateConfig/UpdateConfigSemver.cpp
+    PRIVATE src/BackgroundRemoval/FilterContext.cpp src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp src/BackgroundRemoval/ModuleText.cpp src/BackgroundRemoval/PipelineFactory.cpp src/PluginLegal.cpp src/UI/AboutDialog.cpp src/UI/AboutDialogIntegration.cpp src/UpdateConfig/UpdateConfigCommon.cpp src/UpdateConfig/UpdateConfigCurl.cpp src/UpdateConfig/UpdateConfigSemver.cpp
 )
 target_link_libraries(
     ${CMAKE_PROJECT_NAME}_pluginlibs
@@ -129,12 +127,25 @@ set_target_properties(
 
 # MARK: License files
 
-if(COMMAND collect_licenses)
-    set(legal_header "${CMAKE_CURRENT_BINARY_DIR}/legal.hpp")
-    collect_licenses("${legal_header}")
-    target_sources(${CMAKE_PROJECT_NAME}_pluginlibs PRIVATE "${legal_header}")
-    target_include_directories(${CMAKE_PROJECT_NAME}_pluginlibs PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-endif()
+set(LICENSE_FILES
+    LICENSE
+    NOTICE
+    LICENSES/Apache-2.0.txt
+    LICENSES/CC-BY-4.0.txt
+    LICENSES/CC-BY-SA-4.0.txt
+    LICENSES/CC0-1.0.txt
+    LICENSES/curl.txt
+    LICENSES/GPL-2.0-or-later.txt
+    LICENSES/GPL-3.0-or-later.txt
+    LICENSES/MIT.txt
+)
+
+block()
+    foreach(license_file IN LISTS LICENSE_FILES)
+        file(READ "${CMAKE_CURRENT_SOURCE_DIR}/${license_file}" license_content)
+        file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/include/${license_file}.inc" CONTENT "R\"AZBYCX(@license_content@)AZBYCX\"" @ONLY)
+    endforeach()
+endblock()
 
 # MARK: Plugin main module
 

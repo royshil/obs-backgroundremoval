@@ -4,10 +4,7 @@
 
 #include "AboutDialog.hpp"
 
-#if __has_include(<legal.hpp>)
-#include <legal.hpp>
-#define ABOUT_DIALOG_HAS_LEGAL_TEXT
-#endif
+#include <PluginLegal.h>
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -186,13 +183,34 @@ void AboutDialog::setupUi(const QString &version, const QString &logoPath, bool 
 
     rootLayout->addStretch();
 
-#ifdef ABOUT_DIALOG_HAS_LEGAL_TEXT
     licensesDialog->setWindowTitle(tr("Licenses"));
     licensesDialog->setModal(false);
     auto *licensesLayout = new QVBoxLayout(licensesDialog);
     licensesTextEdit->setReadOnly(true);
-    licensesTextEdit->setPlainText(QString::fromUtf8(reinterpret_cast<const char *>(obs_backgroundremoval::legal_text),
-                                                     static_cast<qsizetype>(obs_backgroundremoval::legal_text_size)));
+    const struct
+    {
+        const char *title;
+        const char *body;
+    } legalTexts[] = {
+        {"obs-backgroundremoval", kLegalLicense},
+        {"obs-backgroundremoval notices", kLegalNotice},
+        {"Apache-2.0", kLegalLicensesApache_20},
+        {"CC-BY-4.0", kLegalLicensesCcBy_40},
+        {"CC-BY-SA-4.0", kLegalLicensesCcBySa_40},
+        {"CC0-1.0", kLegalLicensesCc0_10},
+        {"GPL-2.0-or-later", kLegalLicensesGpl2OrLater},
+        {"GPL-3.0-or-later", kLegalLicensesGpl3OrLater},
+        {"MIT", kLegalLicensesMit},
+        {"curl", kLegalLicensesCurl},
+    };
+    QString legalText;
+    for (const auto &text : legalTexts)
+    {
+        legalText += QStringLiteral("===== %1 =====\n\n").arg(QString::fromUtf8(text.title));
+        legalText += QString::fromUtf8(text.body);
+        legalText += QStringLiteral("\n\n");
+    }
+    licensesTextEdit->setPlainText(legalText);
     licensesLayout->addWidget(licensesTextEdit);
     licensesLayout->addWidget(licensesButtonBox);
     connect(licensesButtonBox, &QDialogButtonBox::rejected, licensesDialog, &QDialog::reject);
@@ -204,7 +222,6 @@ void AboutDialog::setupUi(const QString &version, const QString &logoPath, bool 
         dialog->raise();
         dialog->activateWindow();
     });
-#endif
     aboutQtButton->setText(tr("About Qt"));
     buttonBox->addButton(aboutQtButton, QDialogButtonBox::ActionRole);
     connect(aboutQtButton, &QPushButton::clicked, this, [this] { QMessageBox::aboutQt(this); });

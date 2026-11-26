@@ -81,7 +81,7 @@ jobs:
         run: pipx --version && "$(pipx environment --value PIPX_DEFAULT_PYTHON)" --version
 
       - name: Check with gersemi
-        run: pipx run 'gersemi==0.27.7' --check --diff CMakeLists.txt cmake src tests
+        run: pipx run 'gersemi==0.27.7' --check --diff CMakeLists.txt src tests
 
   check-reuse:
     runs-on: ubuntu-26.04

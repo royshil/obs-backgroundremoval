@@ -4,6 +4,6 @@
 
 # yaml-language-server: $schema=https://raw.githubusercontent.com/BlankSpruce/gersemi/master/gersemi/configuration.schema.json
 
-definitions: [CMakeLists.txt, cmake, src, tests]
+definitions: [CMakeLists.txt, src, tests]
 line_length: 1000
 unsafe: false
