@@ -21,7 +21,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-AboutDialog::AboutDialog(const QString &version, QWidget *parent, bool updateNotificationsEnabled)
+AboutDialog::AboutDialog(const QString &version, const QString &logoPath, QWidget *parent,
+                         bool updateNotificationsEnabled)
     : QDialog(parent), logoLabel(new QLabel(this)), productNameLabel(new QLabel(this)), authorLabel(new QLabel(this)),
       versionLabel(new QLabel(this)), officialSiteLink(new QLabel(this)), officialSiteSeparator(new QLabel(this)),
       githubLink(new QLabel(this)), githubSeparator(new QLabel(this)), communityLink(new QLabel(this)),
@@ -35,7 +36,7 @@ AboutDialog::AboutDialog(const QString &version, QWidget *parent, bool updateNot
       licensesTextEdit(new QPlainTextEdit(licensesDialog)),
       licensesButtonBox(new QDialogButtonBox(QDialogButtonBox::Close, licensesDialog))
 {
-    setupUi(version, updateNotificationsEnabled);
+    setupUi(version, logoPath, updateNotificationsEnabled);
 }
 
 AboutDialog::~AboutDialog() noexcept = default;
@@ -45,7 +46,7 @@ bool AboutDialog::updateNotificationsEnabled() const
     return enableUpdateNotifications->isChecked();
 }
 
-void AboutDialog::setupUi(const QString &version, bool updateNotificationsEnabled)
+void AboutDialog::setupUi(const QString &version, const QString &logoPath, bool updateNotificationsEnabled)
 {
     setWindowTitle(tr("About obs-backgroundremoval"));
     setModal(true);
@@ -55,7 +56,7 @@ void AboutDialog::setupUi(const QString &version, bool updateNotificationsEnable
     rootLayout->addStrut(640);
     auto *headerLayout = new QHBoxLayout;
 
-    QPixmap logo(QStringLiteral(":/obs-backgroundremoval-resources/logo.png"));
+    QPixmap logo(logoPath);
     if (!logo.isNull())
     {
         logoLabel->setPixmap(logo.scaled(96, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation));

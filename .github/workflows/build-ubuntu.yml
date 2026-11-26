@@ -17,6 +17,10 @@ on:
         description: Builds for arm64.
         required: true
         type: boolean
+      prod:
+        description: Builds with the defaults of a production build.
+        required: true
+        type: boolean
       release-build:
         description: Builds a release.
         required: true
@@ -87,9 +91,12 @@ jobs:
 
       - name: Configure (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          PROD: ${{ inputs.prod && 'ON' || 'OFF' }}
         run: |
           cmake -S "${GITHUB_WORKSPACE:?}" -B build \
             "-DCMAKE_BUILD_TYPE=RelWithDebInfo" \
+            "-DPROD=${PROD:?}" \
             "-DCMAKE_INSTALL_PREFIX=/usr" \
             "-DCPACK_GENERATOR=DEB" \
             "-DCPACK_DEBIAN_FILE_NAME=${{ steps.artifact-names.outputs.DEB_ARTIFACT_NAME }}" \

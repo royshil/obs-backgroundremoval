@@ -40,8 +40,8 @@
 #ifndef PLUGIN_DATA_DIR
 #error PLUGIN_DATA_DIR must be defined by the build system
 #endif
-#ifndef PLUGIN_VERSION_STR
-#error PLUGIN_VERSION_STR must be defined by the build system
+#ifndef PLUGIN_VERSION
+#error PLUGIN_VERSION must be defined by the build system
 #endif
 #ifndef TEST_DATA_DIR
 #error TEST_DATA_DIR must be defined by the build system
@@ -118,7 +118,7 @@ void writeUpdateConfig()
     const std::filesystem::path pluginConfig = configDirectory / "obs-backgroundremoval";
     std::filesystem::create_directories(pluginConfig);
     std::ofstream(pluginConfig / "update.ini")
-        << "[update]\nversion=" << PLUGIN_VERSION_STR << "\ncheck_for_updates=false\n";
+        << "[update]\nversion=" << PLUGIN_VERSION << "\ncheck_for_updates=false\n";
 }
 
 auto createSource(const char *id, const char *name, const std::string &settingsJson) -> OBSSourceAutoRelease

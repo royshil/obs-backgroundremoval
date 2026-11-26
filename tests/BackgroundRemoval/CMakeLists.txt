@@ -15,7 +15,7 @@ endfunction()
 
 add_executable(BackgroundRemovalUnitTest UnitTestMain.cpp DualFilterKernelTest.cpp BlurVarianceTest.cpp)
 target_include_directories(BackgroundRemovalUnitTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest")
-target_link_libraries(BackgroundRemovalUnitTest PRIVATE BuildOptions)
+target_use_plugin_options(BackgroundRemovalUnitTest)
 target_compile_features(BackgroundRemovalUnitTest PRIVATE cxx_std_20)
 add_spec_tests(
     BackgroundRemovalUnitTest
@@ -35,10 +35,10 @@ add_spec_tests(
 # its OpenGL backend, rendering on the X display in DISPLAY. On macOS, libobs and its OpenGL backend
 # from the installed OBS Studio found in tests/CMakeLists.txt.
 if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux" OR OBS_MACOS_FRAMEWORKS_DIR)
-    add_executable(BackgroundRemovalGpuTest MaskRefinementGpuTest.cpp "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp")
+    add_executable(BackgroundRemovalGpuTest MaskRefinementGpuTest.cpp)
     target_include_directories(BackgroundRemovalGpuTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest")
     target_compile_definitions(BackgroundRemovalGpuTest PRIVATE TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data")
-    target_link_libraries(BackgroundRemovalGpuTest PRIVATE BuildOptions OBS::libobs)
+    target_link_libraries(BackgroundRemovalGpuTest PRIVATE obs-backgroundremoval_pluginlibs)
     target_compile_features(BackgroundRemovalGpuTest PRIVATE cxx_std_20)
     add_spec_tests(BackgroundRemovalGpuTest SP-01004.1 SP-01004.2 SP-01004.4 SP-01004.5)
     set_tests_properties(SP-01004.1 SP-01004.2 SP-01004.4 SP-01004.5 PROPERTIES TIMEOUT 120)
@@ -87,7 +87,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
-    # The shader pipeline is also built in, so that SP-01005 can run it on its own.
+    # The shader pipeline is also linked in from the plugin core, so that SP-01005 can run it on its own.
     add_executable(
         BackgroundRemovalObsTest
         ObsTestMain.cpp
@@ -96,21 +96,17 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
         FilterOutputObsTest.cpp
         InferenceObsTest.cpp
         PerformanceObsTest.cpp
-        "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp"
-        "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp"
-        "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp"
-        "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp"
     )
     target_include_directories(BackgroundRemovalObsTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest")
     target_compile_definitions(
         BackgroundRemovalObsTest
-        PRIVATE OBS_TEST_MODULE_DIR="${OBS_TEST_MODULE_DIR}" OBS_TEST_MODULE_DATA_DIR="${OBS_TEST_MODULE_DATA_DIR}" OBS_TEST_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}" PLUGIN_FILE="$<TARGET_FILE:obs-backgroundremoval>" PLUGIN_DATA_DIR="${PROJECT_SOURCE_DIR}/data" PLUGIN_VERSION_STR="${PLUGIN_VERSION}" TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data"
+        PRIVATE OBS_TEST_MODULE_DIR="${OBS_TEST_MODULE_DIR}" OBS_TEST_MODULE_DATA_DIR="${OBS_TEST_MODULE_DATA_DIR}" OBS_TEST_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}" PLUGIN_FILE="$<TARGET_FILE:obs-backgroundremoval>" PLUGIN_DATA_DIR="${PROJECT_SOURCE_DIR}/data" TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data"
     )
     if(APPLE)
         target_compile_definitions(BackgroundRemovalObsTest PRIVATE OBS_MACOS_FRAMEWORKS_DIR="${OBS_MACOS_FRAMEWORKS_DIR}")
         set_target_properties(BackgroundRemovalObsTest PROPERTIES BUILD_RPATH "${OBS_MACOS_FRAMEWORKS_DIR}")
     endif()
-    target_link_libraries(BackgroundRemovalObsTest PRIVATE BuildOptions OBS::libobs)
+    target_link_libraries(BackgroundRemovalObsTest PRIVATE obs-backgroundremoval_pluginlibs)
     target_compile_features(BackgroundRemovalObsTest PRIVATE cxx_std_20)
     add_dependencies(BackgroundRemovalObsTest obs-backgroundremoval)
 

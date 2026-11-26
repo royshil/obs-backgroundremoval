@@ -2,8 +2,10 @@ version = 1
 
 [[annotations]]
 path = [
+    "Info.plist.in",
     "config.json",
     "manifest.json",
+    "obs-module.rc.in",
 ]
 SPDX-FileCopyrightText = ""
 SPDX-License-Identifier = "CC0-1.0"

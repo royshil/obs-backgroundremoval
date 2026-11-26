@@ -12,9 +12,7 @@
 #include <util/config-file.h>
 #include <util/platform.h>
 
-#ifndef OBS_LOG_HEADER
-#define OBS_LOG_HEADER ""
-#endif
+#include <plugin-support.h>
 
 namespace UpdateConfig
 {
@@ -26,27 +24,27 @@ bool doRequest(Request &request)
     std::unique_ptr<char, void (*)(void *)> configDirectory(obs_module_config_path(nullptr), &bfree);
     if (!configDirectory || configDirectory.get()[0] == '\0')
     {
-        blog(LOG_ERROR, OBS_LOG_HEADER "Invalid config directory path (empty)");
+        obs_log(LOG_ERROR, "Invalid config directory path (empty)");
         return false;
     }
 
     std::unique_ptr<char, void (*)(void *)> updateConfigPath(obs_module_config_path("update.ini"), &bfree);
     if (!updateConfigPath || updateConfigPath.get()[0] == '\0')
     {
-        blog(LOG_ERROR, OBS_LOG_HEADER "Invalid update config path (empty)");
+        obs_log(LOG_ERROR, "Invalid update config path (empty)");
         return false;
     }
 
     if (os_mkdirs(configDirectory.get()) == MKDIR_ERROR)
     {
-        blog(LOG_WARNING, OBS_LOG_HEADER "Failed to create config directory");
+        obs_log(LOG_WARNING, "Failed to create config directory");
         return false;
     }
 
     auto *firstRunRequest = std::get_if<HandleFirstRunRequest>(&request);
     if (firstRunRequest && firstRunRequest->pluginVersion.empty())
     {
-        blog(LOG_ERROR, OBS_LOG_HEADER "Invalid plugin version (empty)");
+        obs_log(LOG_ERROR, "Invalid plugin version (empty)");
         return false;
     }
 
@@ -55,7 +53,7 @@ bool doRequest(Request &request)
     config_t *config = nullptr;
     if (config_open(&config, updateConfigPath.get(), CONFIG_OPEN_ALWAYS) != CONFIG_SUCCESS)
     {
-        blog(LOG_WARNING, OBS_LOG_HEADER "Failed to open update config");
+        obs_log(LOG_WARNING, "Failed to open update config");
         return false;
     }
     std::unique_ptr<config_t, void (*)(config_t *)> config_(config, &config_close);
@@ -88,7 +86,7 @@ bool doRequest(Request &request)
     }
     else
     {
-        blog(LOG_ERROR, OBS_LOG_HEADER "FATAL ERROR: never reach here");
+        obs_log(LOG_ERROR, "FATAL ERROR: never reach here");
         return false;
     }
 
@@ -98,7 +96,7 @@ bool doRequest(Request &request)
     }
     else
     {
-        blog(LOG_WARNING, OBS_LOG_HEADER "Failed to save update config");
+        obs_log(LOG_WARNING, "Failed to save update config");
         return false;
     }
 }
@@ -112,6 +110,11 @@ LatestVersionClient &latestVersionClient()
 void fetchLatestVersionAsync(std::string url, std::string userAgent)
 {
     latestVersionClient().fetchAsync(std::move(url), std::move(userAgent));
+}
+
+void fetchLatestVersionAsync()
+{
+    fetchLatestVersionAsync(PLUGIN_LATEST_VERSION_URL, PLUGIN_NAME "/" PLUGIN_VERSION);
 }
 
 std::optional<std::string> getLatestVersion()

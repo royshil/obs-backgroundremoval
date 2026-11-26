@@ -13,6 +13,10 @@ on:
         description: Attests artifacts.
         required: true
         type: boolean
+      prod:
+        description: Builds with the defaults of a production build.
+        required: true
+        type: boolean
       release-build:
         description: Builds and notarizes a release.
         required: true
@@ -105,6 +109,7 @@ jobs:
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
         env:
           CMAKE_OSX_DEPLOYMENT_TARGET: "13.0"
+          PROD: ${{ inputs.prod && 'ON' || 'OFF' }}
         run: |
           ENVS=(
             DEVELOPER_DIR="${DEVELOPER_DIR:?}"
@@ -116,7 +121,8 @@ jobs:
           /usr/bin/env -i "${ENVS[@]}" \
             "${CMAKE_COMMAND:?}" -S . -B build -G Xcode \
             '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}"
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
+            -DPROD="${PROD:?}"
 
       - name: Build (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}

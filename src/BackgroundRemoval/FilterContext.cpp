@@ -18,10 +18,6 @@
 #include "ModuleText.hpp"
 #include "PipelineFactory.hpp"
 
-#ifndef PLUGIN_VERSION_STR
-#error PLUGIN_VERSION_STR must be defined by the build system
-#endif
-
 namespace
 {
 
@@ -55,7 +51,7 @@ void appendHtmlEscaped(std::string &output, std::string_view text)
 namespace BackgroundRemoval
 {
 
-FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : source_(source)
+FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : source_{source}
 {
     if (!settings || !source_)
     {
@@ -141,11 +137,11 @@ std::string FilterContext::getVersionNotice()
     std::string versionNotice = "<a href=\"https://github.com/royshil/obs-backgroundremoval/releases\">";
     appendHtmlEscaped(versionNotice, tBackgroundRemoval());
     versionNotice += " ";
-    appendHtmlEscaped(versionNotice, PLUGIN_VERSION_STR);
+    appendHtmlEscaped(versionNotice, PLUGIN_VERSION);
     if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion(); latestVersion.has_value())
     {
         versionNotice += " (";
-        if (UpdateConfig::isSemverNewer(latestVersion.value(), PLUGIN_VERSION_STR))
+        if (UpdateConfig::isSemverNewer(latestVersion.value(), PLUGIN_VERSION))
         {
             appendHtmlEscaped(versionNotice, tNewVersionsAvailable());
         }

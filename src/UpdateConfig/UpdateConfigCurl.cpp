@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+// curl/curl.h includes windows.h on Windows, whose min and max macros break std::numeric_limits.
+#define NOMINMAX
+
 #include "UpdateConfig.hpp"
 
 #include <atomic>
@@ -14,9 +17,7 @@
 
 #include <obs-module.h>
 
-#ifndef OBS_LOG_HEADER
-#define OBS_LOG_HEADER ""
-#endif
+#include <plugin-support.h>
 
 namespace UpdateConfig
 {
@@ -54,7 +55,7 @@ class CurlLatestVersionClient final : public LatestVersionClient
         {
             if (result != CURLE_OK)
             {
-                blog(LOG_ERROR, OBS_LOG_HEADER "Failed to initialize libcurl: %s", curl_easy_strerror(result));
+                obs_log(LOG_ERROR, "Failed to initialize libcurl: %s", curl_easy_strerror(result));
             }
         }
 
@@ -174,7 +175,7 @@ class CurlLatestVersionClient final : public LatestVersionClient
         CURL *curl = curl_easy_init();
         if (!curl)
         {
-            blog(LOG_WARNING, OBS_LOG_HEADER "Failed to create cURL easy handle");
+            obs_log(LOG_WARNING, "Failed to create cURL easy handle");
             return;
         }
         std::unique_ptr<CURL, void (*)(CURL *)> curl_(curl, &curl_easy_cleanup);
@@ -193,8 +194,7 @@ class CurlLatestVersionClient final : public LatestVersionClient
         const CURLcode performResult = curl_easy_perform(curl);
         if (performResult != CURLE_OK)
         {
-            blog(LOG_WARNING, OBS_LOG_HEADER "Failed to fetch latest-version.txt: %s",
-                 curl_easy_strerror(performResult));
+            obs_log(LOG_WARNING, "Failed to fetch latest-version.txt: %s", curl_easy_strerror(performResult));
             return;
         }
 
@@ -202,12 +202,11 @@ class CurlLatestVersionClient final : public LatestVersionClient
         const CURLcode infoResult = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &statusCode);
         if (infoResult != CURLE_OK)
         {
-            blog(LOG_WARNING, OBS_LOG_HEADER "Failed to get update-check HTTP status: %s",
-                 curl_easy_strerror(infoResult));
+            obs_log(LOG_WARNING, "Failed to get update-check HTTP status: %s", curl_easy_strerror(infoResult));
         }
         else if (statusCode / 100 != 2)
         {
-            blog(LOG_WARNING, OBS_LOG_HEADER "latest-version.txt request returned HTTP status %ld", statusCode);
+            obs_log(LOG_WARNING, "latest-version.txt request returned HTTP status %ld", statusCode);
         }
         else
         {

@@ -13,6 +13,10 @@ on:
         description: Attests artifacts.
         required: true
         type: boolean
+      prod:
+        description: Builds with the defaults of a production build.
+        required: true
+        type: boolean
       release-build:
         description: Builds a release.
         required: true
@@ -75,9 +79,11 @@ jobs:
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"
         env:
           CMAKE_SYSTEM_VERSION: "10.0.26100"
+          PROD: ${{ inputs.prod && 'ON' || 'OFF' }}
         run: |
           cmake -S . -B build -G 'Visual Studio 18 2026' -A x64 `
-            "-DCMAKE_SYSTEM_VERSION=$env:CMAKE_SYSTEM_VERSION"
+            "-DCMAKE_SYSTEM_VERSION=$env:CMAKE_SYSTEM_VERSION" `
+            "-DPROD=$env:PROD"
 
       - name: Build (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"

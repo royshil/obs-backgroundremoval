@@ -1,26 +1,41 @@
 /*
- * SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
- * SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>
+ * SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 #pragma once
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#ifndef PLUGIN_NAME
+#define PLUGIN_NAME "obs-backgroundremoval"
+#endif
+
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "0.0.0"
+#endif
+
+#ifndef PLUGIN_DISPLAY_NAME
+#define PLUGIN_DISPLAY_NAME "Background Removal"
+#endif
+
+#ifndef PLUGIN_LONG_DESCRIPTION
+#define PLUGIN_LONG_DESCRIPTION                                                                                        \
+    "A plugin for OBS Studio that allows you to replace the background in portrait images and video, as well as "      \
+    "enhance low-light scenes"
+#endif
+
+#ifndef PLUGIN_AUTHOR
+#define PLUGIN_AUTHOR "Roy Shilkrot"
+#endif
+
+#ifndef PLUGIN_LOG_HEADER
+#define PLUGIN_LOG_HEADER "[" PLUGIN_NAME "] "
+#endif
+
+#ifndef PLUGIN_LATEST_VERSION_URL
+#define PLUGIN_LATEST_VERSION_URL "https://royshil.github.io/obs-backgroundremoval/metadata/latest-version.txt"
+#endif
 
 #include <util/base.h>
 
-#ifndef OBS_LOG_HEADER
-#error OBS_LOG_HEADER must be defined by the build system
-#endif
-
-/*
- * Logs through blog() with the plugin's prefix, as obs_log() of the OBS plugin template does. The
- * format must be a string literal: the prefix is joined to it at compile time, so blog() checks the
- * arguments against it and nothing is allocated.
- */
-#define obs_log(log_level, format, ...) blog(log_level, OBS_LOG_HEADER format, ##__VA_ARGS__)
+#define obs_log(log_level, format, ...) blog(log_level, PLUGIN_LOG_HEADER format, ##__VA_ARGS__)

@@ -17,12 +17,14 @@ class QString;
 class AboutDialog : public QDialog
 {
   public:
-    explicit AboutDialog(const QString &version, QWidget *parent = nullptr, bool updateNotificationsEnabled = true);
+    // logoPath is the logo image file, shown when it can be read.
+    AboutDialog(const QString &version, const QString &logoPath, QWidget *parent = nullptr,
+                bool updateNotificationsEnabled = true);
     ~AboutDialog() noexcept override;
     bool updateNotificationsEnabled() const;
 
   private:
-    void setupUi(const QString &version, bool updateNotificationsEnabled);
+    void setupUi(const QString &version, const QString &logoPath, bool updateNotificationsEnabled);
 
     QLabel *const logoLabel;
     QLabel *const productNameLabel;

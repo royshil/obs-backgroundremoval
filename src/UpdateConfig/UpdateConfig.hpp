@@ -63,18 +63,7 @@ void fetchLatestVersionAsync(std::string url, std::string userAgent);
 std::optional<std::string> getLatestVersion();
 void resetLatestVersion() noexcept;
 
-#if defined(PLUGIN_NAME_STR) && defined(PLUGIN_VERSION_STR)
-inline void fetchLatestVersionAsync(std::string url)
-{
-    fetchLatestVersionAsync(std::move(url), PLUGIN_NAME_STR "/" PLUGIN_VERSION_STR);
-}
-
-#ifdef PLUGIN_LATEST_VERSION_URL
-inline void fetchLatestVersionAsync()
-{
-    fetchLatestVersionAsync(PLUGIN_LATEST_VERSION_URL, PLUGIN_NAME_STR "/" PLUGIN_VERSION_STR);
-}
-#endif
-#endif
+// Fetches PLUGIN_LATEST_VERSION_URL with PLUGIN_NAME/PLUGIN_VERSION as the user agent.
+void fetchLatestVersionAsync();
 
 } // namespace UpdateConfig

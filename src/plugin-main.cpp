@@ -7,14 +7,13 @@
 #include <mutex>
 #include <string_view>
 
-#include <QResource>
-
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 
 #include <BackgroundRemoval/FilterContext.hpp>
 #include <UI/AboutDialogIntegration.hpp>
 #include <UpdateConfig/UpdateConfig.hpp>
+#include <plugin-support.h>
 
 namespace
 {
@@ -27,10 +26,6 @@ auto getSourceInfos() -> std::array<obs_source_info, 1>
 }
 
 } // namespace
-
-#ifndef PLUGIN_VERSION_STR
-#error PLUGIN_VERSION_STR must be defined by the build system
-#endif
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
@@ -103,25 +98,13 @@ bool obs_module_load(void)
         {
             if (sourceId && std::string_view(sourceInfo.id) == sourceId)
             {
-                blog(LOG_ERROR, OBS_LOG_HEADER "Source ID '%s' is already registered by another plugin", sourceId);
+                obs_log(LOG_ERROR, "Source ID '%s' is already registered by another plugin", sourceId);
                 return false;
             }
         }
     }
 
     UpdateConfig::latestVersionClient();
-
-    static struct GlobalQResourceGuard
-    {
-        GlobalQResourceGuard()
-        {
-            Q_INIT_RESOURCE(resources);
-        }
-        ~GlobalQResourceGuard()
-        {
-            Q_CLEANUP_RESOURCE(resources);
-        }
-    } globalQResourceGuard;
 
     for (const obs_source_info &sourceInfo : sourceInfos)
     {
@@ -133,7 +116,7 @@ bool obs_module_load(void)
         bool scheduled{false};
         GlobalStartupGuard()
         {
-            UpdateConfig::Request request = UpdateConfig::HandleFirstRunRequest{PLUGIN_VERSION_STR};
+            UpdateConfig::Request request = UpdateConfig::HandleFirstRunRequest{PLUGIN_VERSION};
             scheduled = UpdateConfig::doRequest(request) && setStartupCallbackRegistration(true);
         }
         ~GlobalStartupGuard()
@@ -147,11 +130,11 @@ bool obs_module_load(void)
         fetchLatestVersionIfEnabled();
     }
 
-    blog(LOG_INFO, OBS_LOG_HEADER "Plugin loaded successfully (version %s)", PLUGIN_VERSION_STR);
+    obs_log(LOG_INFO, "Plugin loaded successfully (version %s)", PLUGIN_VERSION);
     return true;
 }
 
 void obs_module_unload()
 {
-    blog(LOG_INFO, OBS_LOG_HEADER "plugin unloaded");
+    obs_log(LOG_INFO, "plugin unloaded");
 }

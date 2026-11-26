@@ -28,6 +28,13 @@ if(APPLE)
     endif()
 endif()
 
+# Unit tests compile the plugin sources they test themselves, so that they need neither libobs nor
+# Qt, but with the compile and link options of the plugin.
+function(target_use_plugin_options TARGET_NAME)
+    target_link_libraries("${TARGET_NAME}" PRIVATE $<COMPILE_ONLY:obs-backgroundremoval_pluginlibs>)
+    target_link_options("${TARGET_NAME}" PRIVATE $<TARGET_PROPERTY:obs-backgroundremoval_pluginlibs,INTERFACE_LINK_OPTIONS>)
+endfunction()
+
 add_subdirectory(BackgroundRemoval)
 add_subdirectory(UI)
 add_subdirectory(UpdateConfig)

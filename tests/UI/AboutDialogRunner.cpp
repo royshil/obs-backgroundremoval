@@ -12,7 +12,7 @@
 
 #include <cstdlib>
 
-#define PLUGIN_VERSION_STR "0.0.0"
+#define PLUGIN_VERSION "0.0.0"
 
 int main(int argc, char *argv[])
 {
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
     application.setPalette(yamiPalette(application.palette(), variant));
     application.setStyleSheet(yamiStyleSheet(variant));
-    AboutDialog dialog(QStringLiteral(PLUGIN_VERSION_STR));
+    AboutDialog dialog(QStringLiteral(PLUGIN_VERSION), QStringLiteral(ABOUT_DIALOG_LOGO_FILE));
     dialog.show();
     return application.exec();
 }
