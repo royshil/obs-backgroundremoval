@@ -5,7 +5,3 @@
 add_library(UpdateConfig STATIC UpdateConfigCommon.cpp UpdateConfigCurl.cpp UpdateConfigSemver.cpp)
 
 target_link_libraries(UpdateConfig PRIVATE BuildOptions OBS::libobs CURL::libcurl)
-
-if(APPLE)
-    target_link_libraries(UpdateConfig PRIVATE jthread::jthread)
-endif()

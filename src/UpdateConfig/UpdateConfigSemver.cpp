@@ -4,77 +4,107 @@
 
 #include "UpdateConfig.hpp"
 
+#include <array>
+#include <charconv>
 #include <cstddef>
-#include <limits>
-#include <regex>
-#include <stdexcept>
-#include <tuple>
+#include <system_error>
 
 namespace UpdateConfig
 {
 namespace
 {
 
-std::optional<std::uint64_t> matchSemverComponent(std::string_view version, std::size_t componentIndex)
+using SemverCore = std::array<std::uint64_t, 3>;
+
+// Reads a core component at the start of rest, a decimal number without a leading zero that fits in
+// 64 bits, and removes it from rest.
+std::optional<std::uint64_t> takeSemverComponent(std::string_view &rest)
 {
-    static const std::regex pattern{R"(^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:[-+].*)?$)"};
-    std::match_results<std::string_view::const_iterator> match;
-    if (!std::regex_match(version.begin(), version.end(), match, pattern))
+    std::size_t length = 0;
+    while (length < rest.size() && rest[length] >= '0' && rest[length] <= '9')
+    {
+        ++length;
+    }
+    if (length == 0 || (length > 1 && rest.front() == '0'))
     {
         return std::nullopt;
     }
 
-    try
+    std::uint64_t component = 0;
+    if (std::from_chars(rest.data(), rest.data() + length, component).ec != std::errc{})
     {
-        const auto component = std::stoull(match[componentIndex].str());
-        if (component > std::numeric_limits<std::uint64_t>::max())
+        return std::nullopt;
+    }
+    rest.remove_prefix(length);
+    return component;
+}
+
+// Reads MAJOR.MINOR.PATCH, which may be followed by a prerelease or build suffix starting with - or +.
+// The suffix is not checked, except that it must not contain a line break.
+std::optional<SemverCore> parseSemverCore(std::string_view version)
+{
+    SemverCore core{};
+    for (std::size_t index = 0; index < core.size(); ++index)
+    {
+        if (index > 0)
+        {
+            if (version.empty() || version.front() != '.')
+            {
+                return std::nullopt;
+            }
+            version.remove_prefix(1);
+        }
+        const auto component = takeSemverComponent(version);
+        if (!component)
         {
             return std::nullopt;
         }
-        return static_cast<std::uint64_t>(component);
+        core[index] = *component;
     }
-    catch (const std::invalid_argument &)
+
+    if (!version.empty() && version.front() != '-' && version.front() != '+')
     {
         return std::nullopt;
     }
-    catch (const std::out_of_range &)
+    if (version.find_first_of("\r\n") != std::string_view::npos)
     {
         return std::nullopt;
     }
+    return core;
+}
+
+std::optional<std::uint64_t> getSemverComponent(std::string_view version, std::size_t index)
+{
+    const auto core = parseSemverCore(version);
+    if (!core)
+    {
+        return std::nullopt;
+    }
+    return (*core)[index];
 }
 
 } // namespace
 
 std::optional<std::uint64_t> getSemverMajor(std::string_view version)
 {
-    return matchSemverComponent(version, 1);
+    return getSemverComponent(version, 0);
 }
 
 std::optional<std::uint64_t> getSemverMinor(std::string_view version)
 {
-    return matchSemverComponent(version, 2);
+    return getSemverComponent(version, 1);
 }
 
 std::optional<std::uint64_t> getSemverPatch(std::string_view version)
 {
-    return matchSemverComponent(version, 3);
+    return getSemverComponent(version, 2);
 }
 
 bool isSemverNewer(std::string_view candidate, std::string_view current)
 {
-    const auto candidateMajor = getSemverMajor(candidate);
-    const auto candidateMinor = getSemverMinor(candidate);
-    const auto candidatePatch = getSemverPatch(candidate);
-    const auto currentMajor = getSemverMajor(current);
-    const auto currentMinor = getSemverMinor(current);
-    const auto currentPatch = getSemverPatch(current);
-    if (!candidateMajor || !candidateMinor || !candidatePatch || !currentMajor || !currentMinor || !currentPatch)
-    {
-        return false;
-    }
-
-    return std::tie(*candidateMajor, *candidateMinor, *candidatePatch) >
-           std::tie(*currentMajor, *currentMinor, *currentPatch);
+    const auto candidateCore = parseSemverCore(candidate);
+    const auto currentCore = parseSemverCore(current);
+    return candidateCore && currentCore && *candidateCore > *currentCore;
 }
 
 } // namespace UpdateConfig

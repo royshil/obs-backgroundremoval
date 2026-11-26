@@ -15,6 +15,7 @@
 - [SP-00004: Focal blur model](SP-00004_focal-blur-model.md)
 - [SP-00005: Effect parameters in the loop body](SP-00005_effect-parameters-in-loop-body.md)
 - [SP-00006: Vendored files record their upstream](SP-00006_vendored-files-record-their-upstream.md)
+- [SP-00007: Standard library features available at the minimum targets](SP-00007_standard-library-at-the-minimum-targets.md)
 
 ## Plugin unit test cases
 

@@ -7,19 +7,12 @@
 #include <atomic>
 #include <limits>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 #include <curl/curl.h>
 
 #include <obs-module.h>
-
-#ifdef __APPLE__
-#include <jthread.hpp>
-using jthread = josuttis::jthread;
-#else
-#include <thread>
-using jthread = std::jthread;
-#endif
 
 #ifndef OBS_LOG_HEADER
 #define OBS_LOG_HEADER ""
@@ -80,9 +73,14 @@ class CurlLatestVersionClient final : public LatestVersionClient
     bool responseReady_{false};
     std::mutex fetchThreadMutex_;
     std::atomic_bool fetchInProgress_{false};
-    std::optional<jthread> fetchThread_;
+    std::optional<std::thread> fetchThread_;
 
-    ~CurlLatestVersionClient() override = default;
+    // A std::thread that is still joinable when it is destroyed terminates the process, so the fetch
+    // thread is joined before anything else of the client is destroyed.
+    ~CurlLatestVersionClient() override
+    {
+        joinFetchThread();
+    }
 
     void fetchAsync(std::string url, std::string userAgent) override
     {
@@ -92,7 +90,7 @@ class CurlLatestVersionClient final : public LatestVersionClient
             return;
         }
 
-        fetchThread_.reset();
+        joinFetchThread();
         {
             std::lock_guard responseLock(responseMutex_);
             responseReady_ = false;
@@ -139,7 +137,7 @@ class CurlLatestVersionClient final : public LatestVersionClient
     void reset() noexcept override
     {
         std::lock_guard fetchLock(fetchThreadMutex_);
-        fetchThread_.reset();
+        joinFetchThread();
 
         std::lock_guard responseLock(responseMutex_);
         responseReady_ = false;
@@ -147,6 +145,16 @@ class CurlLatestVersionClient final : public LatestVersionClient
     }
 
   private:
+    // Waits for the fetch thread to finish, as std::jthread would when it is destroyed.
+    void joinFetchThread() noexcept
+    {
+        if (fetchThread_ && fetchThread_->joinable())
+        {
+            fetchThread_->join();
+        }
+        fetchThread_.reset();
+    }
+
     void fetch(std::string url, std::string userAgent) noexcept
     {
         struct FetchCompletion final

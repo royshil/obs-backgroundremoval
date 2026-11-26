@@ -34,9 +34,6 @@ endif()
 
 configure_update_config_test(UpdateConfigCurlTest)
 target_link_libraries(UpdateConfigCurlTest PRIVATE CURL::libcurl)
-if(APPLE)
-    target_link_libraries(UpdateConfigCurlTest PRIVATE jthread::jthread)
-endif()
 
 if(WIN32)
     set_tests_properties(UpdateConfigCurlTest PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")

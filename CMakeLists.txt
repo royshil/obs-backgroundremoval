@@ -184,7 +184,6 @@ block()
 endblock()
 
 ### Plugin main
-add_subdirectory(vendor/josuttis-jthread)
 add_subdirectory(src/UpdateConfig)
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
