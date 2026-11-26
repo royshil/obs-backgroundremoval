@@ -114,7 +114,20 @@ target_compile_features(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC c_std_17 cxx_std
 target_include_directories(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include" src)
 target_sources(
     ${CMAKE_PROJECT_NAME}_pluginlibs
-    PRIVATE src/BackgroundRemoval/FilterContext.cpp src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp src/BackgroundRemoval/PipelineFactory.cpp src/PluginLegal.cpp src/PluginLoader.cpp src/UI/AboutDialog.cpp src/UI/AboutDialogIntegration.cpp src/UpdateConfig/UpdateConfigCommon.cpp src/UpdateConfig/UpdateConfigCurl.cpp src/UpdateConfig/UpdateConfigSemver.cpp
+    PRIVATE
+        src/BackgroundRemoval/FilterContext.cpp
+        src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp
+        src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp
+        src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp
+        src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
+        src/BackgroundRemoval/PipelineFactory.cpp
+        src/PluginLegal.cpp
+        src/PluginLoader.cpp
+        src/UI/AboutDialog.cpp
+        src/UI/AboutDialogIntegration.cpp
+        src/UpdateConfig/UpdateConfigCommon.cpp
+        src/UpdateConfig/UpdateConfigCurl.cpp
+        src/UpdateConfig/UpdateConfigSemver.cpp
 )
 target_link_libraries(
     ${CMAKE_PROJECT_NAME}_pluginlibs
@@ -122,7 +135,13 @@ target_link_libraries(
 )
 set_target_properties(
     ${CMAKE_PROJECT_NAME}_pluginlibs
-    PROPERTIES C_EXTENSIONS OFF CXX_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON C_VISIBILITY_PRESET hidden CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON
+    PROPERTIES
+        C_EXTENSIONS OFF
+        CXX_EXTENSIONS OFF
+        POSITION_INDEPENDENT_CODE ON
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
 )
 
 # MARK: License files
@@ -159,7 +178,13 @@ endif()
 
 set_target_properties(
     ${CMAKE_PROJECT_NAME}
-    PROPERTIES C_EXTENSIONS OFF CXX_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON C_VISIBILITY_PRESET hidden CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON
+    PROPERTIES
+        C_EXTENSIONS OFF
+        CXX_EXTENSIONS OFF
+        POSITION_INDEPENDENT_CODE ON
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
 )
 
 # MARK: Testing
@@ -187,7 +212,11 @@ if(WIN32)
 elseif(APPLE)
     set_target_properties(
         ${CMAKE_PROJECT_NAME}
-        PROPERTIES BUNDLE TRUE BUNDLE_EXTENSION "plugin" MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/data/Info.plist.in" XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${PLUGIN_BUNDLE_ID}"
+        PROPERTIES
+            BUNDLE TRUE
+            BUNDLE_EXTENSION "plugin"
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/data/Info.plist.in"
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${PLUGIN_BUNDLE_ID}"
     )
     set_source_files_properties(${LOCALE_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/locale")
     set_source_files_properties(data/logo.png PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")

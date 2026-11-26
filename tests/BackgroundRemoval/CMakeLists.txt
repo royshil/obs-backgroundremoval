@@ -36,7 +36,10 @@ add_spec_tests(
 # from the installed OBS Studio found in tests/CMakeLists.txt.
 if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux" OR OBS_MACOS_FRAMEWORKS_DIR)
     add_executable(BackgroundRemovalGpuTest MaskRefinementGpuTest.cpp)
-    target_include_directories(BackgroundRemovalGpuTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest")
+    target_include_directories(
+        BackgroundRemovalGpuTest
+        PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest"
+    )
     target_compile_definitions(BackgroundRemovalGpuTest PRIVATE TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data")
     target_link_libraries(BackgroundRemovalGpuTest PRIVATE obs-backgroundremoval_pluginlibs)
     target_compile_features(BackgroundRemovalGpuTest PRIVATE cxx_std_20)
@@ -79,10 +82,20 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         else()
             set(OBS_TEST_MODULE_DATA_SUFFIX share/obs/obs-plugins)
         endif()
-        find_path(OBS_TEST_MODULE_DATA_DIR NAMES image-source PATHS "${LIBOBS_DIR}/.." "${LIBOBS_DIR}/../.." PATH_SUFFIXES ${OBS_TEST_MODULE_DATA_SUFFIX} NO_DEFAULT_PATH NO_CACHE)
+        find_path(
+            OBS_TEST_MODULE_DATA_DIR
+            NAMES image-source
+            PATHS "${LIBOBS_DIR}/.." "${LIBOBS_DIR}/../.."
+            PATH_SUFFIXES ${OBS_TEST_MODULE_DATA_SUFFIX}
+            NO_DEFAULT_PATH
+            NO_CACHE
+        )
     endif()
     if(NOT OBS_TEST_MODULE_DIR OR NOT OBS_TEST_MODULE_DATA_DIR)
-        message(WARNING "The modules of OBS Studio or their data were not found next to ${LIBOBS_FILE}, so the tests running the filter in libobs are not built.")
+        message(
+            WARNING
+            "The modules of OBS Studio or their data were not found next to ${LIBOBS_FILE}, so the tests running the filter in libobs are not built."
+        )
     endif()
 endif()
 
@@ -97,10 +110,19 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
         InferenceObsTest.cpp
         PerformanceObsTest.cpp
     )
-    target_include_directories(BackgroundRemovalObsTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest")
+    target_include_directories(
+        BackgroundRemovalObsTest
+        PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest"
+    )
     target_compile_definitions(
         BackgroundRemovalObsTest
-        PRIVATE OBS_TEST_MODULE_DIR="${OBS_TEST_MODULE_DIR}" OBS_TEST_MODULE_DATA_DIR="${OBS_TEST_MODULE_DATA_DIR}" OBS_TEST_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}" PLUGIN_FILE="$<TARGET_FILE:obs-backgroundremoval>" PLUGIN_DATA_DIR="${PROJECT_SOURCE_DIR}/data" TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data"
+        PRIVATE
+            OBS_TEST_MODULE_DIR="${OBS_TEST_MODULE_DIR}"
+            OBS_TEST_MODULE_DATA_DIR="${OBS_TEST_MODULE_DATA_DIR}"
+            OBS_TEST_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}"
+            PLUGIN_FILE="$<TARGET_FILE:obs-backgroundremoval>"
+            PLUGIN_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
+            TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data"
     )
     if(APPLE)
         target_compile_definitions(BackgroundRemovalObsTest PRIVATE OBS_MACOS_FRAMEWORKS_DIR="${OBS_MACOS_FRAMEWORKS_DIR}")
@@ -150,6 +172,10 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
 
     if(WIN32)
         target_compile_definitions(BackgroundRemovalObsTest PRIVATE OBS_TEST_ROOT="${OBS_TEST_ROOT}")
-        set_tests_properties(${OBS_SPEC_CASES} ${OBS_PERFORMANCE_CASES} PROPERTIES WORKING_DIRECTORY "${OBS_TEST_BIN_DIR}" ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
+        set_tests_properties(
+            ${OBS_SPEC_CASES}
+            ${OBS_PERFORMANCE_CASES}
+            PROPERTIES WORKING_DIRECTORY "${OBS_TEST_BIN_DIR}" ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
+        )
     endif()
 endif()
