@@ -114,7 +114,7 @@ target_compile_features(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC c_std_17 cxx_std
 target_include_directories(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include" src)
 target_sources(
     ${CMAKE_PROJECT_NAME}_pluginlibs
-    PRIVATE src/BackgroundRemoval/FilterContext.cpp src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp src/BackgroundRemoval/ModuleText.cpp src/BackgroundRemoval/PipelineFactory.cpp src/PluginLegal.cpp src/PluginLoader.cpp src/UI/AboutDialog.cpp src/UI/AboutDialogIntegration.cpp src/UpdateConfig/UpdateConfigCommon.cpp src/UpdateConfig/UpdateConfigCurl.cpp src/UpdateConfig/UpdateConfigSemver.cpp
+    PRIVATE src/BackgroundRemoval/FilterContext.cpp src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp src/BackgroundRemoval/PipelineFactory.cpp src/PluginLegal.cpp src/PluginLoader.cpp src/UI/AboutDialog.cpp src/UI/AboutDialogIntegration.cpp src/UpdateConfig/UpdateConfigCommon.cpp src/UpdateConfig/UpdateConfigCurl.cpp src/UpdateConfig/UpdateConfigSemver.cpp
 )
 target_link_libraries(
     ${CMAKE_PROJECT_NAME}_pluginlibs
@@ -174,22 +174,7 @@ endif()
 
 # MARK: Plugin installation
 
-set(LOCALE_FILES
-    data/locale/ar-EG.ini
-    data/locale/bn-IN.ini
-    data/locale/en-US.ini
-    data/locale/es-SP.ini
-    data/locale/fr-FR.ini
-    data/locale/hi-IN.ini
-    data/locale/it-IT.ini
-    data/locale/ja-JP.ini
-    data/locale/ko-KR.ini
-    data/locale/pt-BR.ini
-    data/locale/ru-RU.ini
-    data/locale/ta-IN.ini
-    data/locale/tr-TR.ini
-    data/locale/zh-CN.ini
-)
+set(LOCALE_FILES data/locale/en-US.ini)
 
 if(WIN32)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/data/obs-module.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.rc" @ONLY)

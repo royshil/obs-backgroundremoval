@@ -7,3 +7,4 @@ BasedOnStyle: Microsoft
 Standard: c++20
 InsertNewlineAtEOF: true
 LineEnding: LF
+BreakStringLiterals: false
