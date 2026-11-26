@@ -16,6 +16,8 @@
 - [SP-00005: Effect parameters in the loop body](SP-00005_effect-parameters-in-loop-body.md)
 - [SP-00006: Vendored files record their upstream](SP-00006_vendored-files-record-their-upstream.md)
 - [SP-00007: Standard library features available at the minimum targets](SP-00007_standard-library-at-the-minimum-targets.md)
+- [SP-00008: Module entry points and locale strings](SP-00008_module-entry-points-and-locale.md)
+- [SP-00009: A C module over a C++ static library](SP-00009_c-module-over-cpp-static-library.md)
 
 ## Plugin unit test cases
 

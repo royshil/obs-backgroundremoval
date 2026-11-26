@@ -114,7 +114,7 @@ target_compile_features(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC c_std_17 cxx_std
 target_include_directories(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include" src)
 target_sources(
     ${CMAKE_PROJECT_NAME}_pluginlibs
-    PRIVATE src/BackgroundRemoval/FilterContext.cpp src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp src/BackgroundRemoval/ModuleText.cpp src/BackgroundRemoval/PipelineFactory.cpp src/PluginLegal.cpp src/UI/AboutDialog.cpp src/UI/AboutDialogIntegration.cpp src/UpdateConfig/UpdateConfigCommon.cpp src/UpdateConfig/UpdateConfigCurl.cpp src/UpdateConfig/UpdateConfigSemver.cpp
+    PRIVATE src/BackgroundRemoval/FilterContext.cpp src/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp src/BackgroundRemoval/ModuleText.cpp src/BackgroundRemoval/PipelineFactory.cpp src/PluginLegal.cpp src/PluginLoader.cpp src/UI/AboutDialog.cpp src/UI/AboutDialogIntegration.cpp src/UpdateConfig/UpdateConfigCommon.cpp src/UpdateConfig/UpdateConfigCurl.cpp src/UpdateConfig/UpdateConfigSemver.cpp
 )
 target_link_libraries(
     ${CMAKE_PROJECT_NAME}_pluginlibs
@@ -149,15 +149,12 @@ endblock()
 
 # MARK: Plugin main module
 
-add_library(${CMAKE_PROJECT_NAME} MODULE src/plugin-main.cpp)
+add_library(${CMAKE_PROJECT_NAME} MODULE src/plugin-main.c)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_PROJECT_NAME}_pluginlibs)
 
-if(APPLE)
-    target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/src/exported_symbols_macos.txt")
-elseif(MSVC)
-    target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/exported_symbols_windows.def")
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/src/exported_symbols_linux.map" "-Wl,-Bsymbolic")
+if(NOT WIN32 AND NOT APPLE)
+    # Hides STL symbols with libstdc++. See SP-00009.
+    target_link_options(${CMAKE_PROJECT_NAME} PRIVATE LINKER:--exclude-libs,ALL)
 endif()
 
 set_target_properties(
