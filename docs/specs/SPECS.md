@@ -19,6 +19,7 @@
 - [SP-00008: Module entry points and locale strings](SP-00008_module-entry-points-and-locale.md)
 - [SP-00009: A C module over a C++ static library](SP-00009_c-module-over-cpp-static-library.md)
 - [SP-00010: PluginGlobal governs the plugin module](SP-00010_plugin-global-governs-the-module.md)
+- [SP-00011: The startup dialog is shown only when it is certain](SP-00011_startup-dialog-only-when-certain.md)
 
 ## Plugin unit test cases
 
