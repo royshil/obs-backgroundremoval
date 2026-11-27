@@ -41,7 +41,7 @@ a use that the oldest supported macOS cannot run into a compile error.
 
 ### `std::from_chars`
 
-Checked on 2026-11-25, when `src/UpdateChecker/UpdateCheckerSemver.cpp` replaced `std::regex` with
+Checked on 2026-11-25, when `src/UpdateConfig/UpdateConfigSemver.cpp` replaced `std::regex` with
 `std::from_chars`.
 
 | Standard library | Integer overloads | Floating-point overloads |
@@ -56,11 +56,11 @@ it imports nothing from the system library for them. Verified as follows:
 
 - The universal macOS plugin built with Xcode 27.2 and deployment target 13.0 has `minos 13.0` in
     both slices and imports no `from_chars`, `to_chars` or `itoa` symbol.
-- On macOS 27.2.1 (26B131) on arm64, with that build, all the tests passed, `UpdateCheckerSemverTest`
+- On macOS 27.2.1 (26B131) on arm64, with that build, all the tests passed, `UpdateConfigSemverTest`
     among them.
-- `UpdateCheckerSemverTest`, built with Xcode 27.2 for macOS 13.0 without sanitizers, passed on macOS
+- `UpdateConfigSemverTest`, built with Xcode 27.2 for macOS 13.0 without sanitizers, passed on macOS
     13.6 (22G120) on arm64.
-- On macOS 13.6 with Xcode 15.2 (Apple clang 15.0.0), `UpdateCheckerSemverTest` built for arm64 and
+- On macOS 13.6 with Xcode 15.2 (Apple clang 15.0.0), `UpdateConfigSemverTest` built for arm64 and
     x86_64 with deployment target 13.0, with and without `-fsanitize=undefined`, imported no
     `from_chars`, `to_chars` or `itoa` symbol, and passed on arm64.
 - Not checked: the x86_64 slice at run time, and the SDK of Xcode 26.5, which CI builds with.
@@ -68,13 +68,18 @@ it imports nothing from the system library for them. Verified as follows:
     26.5), GCC 16.2.0 (Debian forky), GCC 15.2.0 (Ubuntu resolute), GCC 16.2.1 (Arch Linux) and
     MSVC 19.52.
 
-On 2026-11-26, `src/UpdateChecker/UpdateCheckerSemver.cpp` stopped using `std::from_chars`. A core
+On 2026-11-26, `src/UpdateConfig/UpdateConfigSemver.cpp` stopped using `std::from_chars`. A core
 component of a semantic version is `0` or a digit other than `0` followed by digits, so the parser
 accumulates the value while it scans the digits and rejects a value that does not fit in 64 bits.
 
+On 2026-11-27, `src/UpdateConfig/UpdateConfigSemver.cpp` and `UpdateConfigSemverTest` were
+removed, and versions are parsed by `PluginGlobal::SemVer` in `src/PluginGlobal/SemVer.cpp`
+(SP-01021). It accumulates each version number while it scans the digits too, and a version number
+of at most 18 digits always fits in a `long long`.
+
 ### `std::jthread`
 
-Checked on 2026-11-25. Until then, `src/UpdateChecker/UpdateCheckerCurl.cpp` used `std::jthread` on
+Checked on 2026-11-25. Until then, `src/UpdateConfig/UpdateConfigCurl.cpp` used `std::jthread` on
 Linux and Windows and fell back to `josuttis::jthread` from `vendor/josuttis-jthread` on macOS.
 
 | Standard library | `std::jthread` and `<stop_token>` |
@@ -91,11 +96,11 @@ was replaced with `std::thread` and explicit joins, which every toolchain has, a
 On 2026-11-26 the fetch moved from its own thread to a task queue of libobs, so that the plugin
 creates and stops the thread when it is loaded and unloaded, and no thread object has to be joined.
 
-Later on 2026-11-26, `src/UpdateChecker/UpdateCheckerCurl.cpp` and its task queue were removed. The
-fetch now runs once per session on a `std::thread` in `src/PluginLoader.cpp`, which
-`pluginloader_unload` joins.
+Later on 2026-11-26, `src/UpdateConfig/UpdateConfigCurl.cpp` and its task queue were removed. The
+fetch now runs once per session on a `std::thread` in `src/PluginLoader.cpp`, now
+`src/PluginGlobal/PluginLoader.cpp`, which `pluginloader_unload` joins.
 
 ## Verification
 
 - The macOS builds in CI compile with deployment target 13.0.
-- `UpdateCheckerSemverTest` covers the parsing of versions.
+- SP-01021 covers the parsing of versions.

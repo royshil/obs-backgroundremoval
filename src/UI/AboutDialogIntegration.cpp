@@ -17,9 +17,9 @@
 #include <util/bmem.h>
 
 #include <PluginGlobal/PluginLoader.h>
+#include <PluginGlobal/UpdateConfig.hpp>
 #include <plugin-support.h>
 
-#include "../UpdateChecker/UpdateChecker.hpp"
 #include "AboutDialog.hpp"
 
 namespace AboutDialogIntegration
@@ -96,7 +96,7 @@ bool show()
         return false;
     }
 
-    const bool updateNotificationsEnabled = UpdateChecker::checkForUpdatesEnabled();
+    const bool updateNotificationsEnabled = PluginGlobal::UpdateConfig::checkForUpdatesEnabled();
 
     // The logo is installed with the data of the plugin. Without it, the dialog is shown without a logo.
     const std::unique_ptr<char, void (*)(void *)> logoPath(obs_module_file("logo.png"), &bfree);
@@ -106,11 +106,11 @@ bool show()
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     QObject::connect(dialog, &QDialog::finished, dialog, [dialog](int) {
         const bool enabled = dialog->updateNotificationsEnabled();
-        if (!UpdateChecker::setCheckForUpdates(enabled))
+        if (!PluginGlobal::UpdateConfig::setCheckForUpdates(enabled))
         {
             obs_log(LOG_WARNING, "Failed to save the update notification setting to update.ini");
         }
-        if (enabled && UpdateChecker::checkForUpdatesEnabled())
+        if (enabled && PluginGlobal::UpdateConfig::checkForUpdatesEnabled())
         {
             PluginLoaderFetchRemoteLatestVersionAsync();
         }

@@ -49,6 +49,9 @@ feature.
     - the identity of the module: its name, its description and its author;
     - the version of the module: the version of this build, the latest released version fetched
         from the remote, and `PluginGlobal::SemVer`, which they are managed with.
+    - the settings of the module: `update.ini` in the config directory of the plugin, which
+        `PluginGlobal::UpdateConfig` reads and writes, with the version that the user has seen and
+        whether update checks are enabled.
 
 2. Every feature of the plugin may use what `src/PluginGlobal` declares, `SemVer` included. The
     division into directories marks the reach of a change, and is not a boundary that features have

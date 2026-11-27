@@ -131,10 +131,9 @@ target_sources(
         src/BackgroundRemoval/PipelineFactory.cpp
         src/PluginGlobal/PluginLoader.cpp
         src/PluginGlobal/SemVer.cpp
+        src/PluginGlobal/UpdateConfig.cpp
         src/UI/AboutDialog.cpp
         src/UI/AboutDialogIntegration.cpp
-        src/UpdateChecker/UpdateCheckerCommon.cpp
-        src/UpdateChecker/UpdateCheckerSemver.cpp
         src/legal.cpp
 )
 target_link_libraries(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC Qt6::Widgets OBS::libobs OBS::obs-frontend-api plugin-support)

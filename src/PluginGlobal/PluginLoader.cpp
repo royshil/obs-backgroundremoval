@@ -23,8 +23,8 @@
 #include <obs-module.h>
 
 #include <BackgroundRemoval/FilterContext.hpp>
+#include <PluginGlobal/UpdateConfig.hpp>
 #include <UI/AboutDialogIntegration.hpp>
-#include <UpdateChecker/UpdateChecker.hpp>
 #include <plugin-support.h>
 
 namespace
@@ -237,13 +237,16 @@ bool setStartupCallbackRegistration(bool registered)
     return true;
 }
 
-// Runs once OBS has started and no modal dialog is open. The About dialog is shown on the first startup of
-// each version, and the remote latest version is fetched only after the user has seen it, so that the user can
-// turn update checks off before the first fetch.
+// Runs once OBS has started and no modal dialog is open (docs/specs/SP-00011). The About dialog is shown only when
+// NO_STARTUP_DIALOG.txt is absent and this is certainly the first startup after an install or an update, which has
+// been committed to update.ini. Whenever the dialog is not shown, the remote latest version is fetched if update
+// checks are enabled. When it is shown, the fetch waits until the user closes it, so that the user can turn update
+// checks off before the first fetch.
 void runStartupProcedure() noexcept
 try
 {
-    if (!(UpdateChecker::recordPluginVersion(PLUGIN_VERSION) && AboutDialogIntegration::show()))
+    if (PluginGlobal::UpdateConfig::startupDialogDisabled() ||
+        !(PluginGlobal::UpdateConfig::recordPluginVersion(PLUGIN_VERSION) && AboutDialogIntegration::show()))
     {
         PluginLoaderFetchRemoteLatestVersionAsync();
     }
@@ -271,9 +274,10 @@ void showStartupDialogHandler(enum obs_frontend_event event, void *) noexcept
 
     try
     {
+        // When the wait for modal dialogs cannot be set up, the startup procedure gives up, and only the fetch runs.
         if (setStartupCallbackRegistration(false) && !AboutDialogIntegration::runWhenNoModalDialog(runStartupProcedure))
         {
-            runStartupProcedure();
+            PluginLoaderFetchRemoteLatestVersionAsync();
         }
     }
     catch (const std::bad_alloc &exception)
@@ -294,7 +298,7 @@ void showStartupDialogHandler(enum obs_frontend_event event, void *) noexcept
 
 void PluginLoaderFetchRemoteLatestVersionAsync()
 {
-    if (!UpdateChecker::checkForUpdatesEnabled())
+    if (!PluginGlobal::UpdateConfig::checkForUpdatesEnabled())
     {
         return;
     }
