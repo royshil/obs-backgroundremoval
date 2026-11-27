@@ -2,6 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "huggingface_hub==2.4.0",
+#     "numpy==2.5.5",
+#     "onnxruntime==1.32.0",
+#     "pillow==13.0.0",
+# ]
+# ///
+
 """Write the references of SP-01004.4 and SP-01005.2 next to this script.
 
 - portrait-umireon-256x144.png: the portrait test image at the model's input size, the input that
@@ -12,8 +22,9 @@
     RefineMask pass: the share of the texels at least 0.5 in the 5 x 5 window, counting only the
     texels inside the mask, in 8 bits.
 
-Usage: python -m pip install -r tests/data/requirements.txt
-        python tests/data/GenerateMPLSReference.py
+Usage: uv run tests/data/GenerateMPLSReference.py
+
+The dependencies are pinned in the inline script metadata (PEP 723) above, which uv and pipx read.
 """
 
 import pathlib
