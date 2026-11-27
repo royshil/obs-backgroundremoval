@@ -41,5 +41,6 @@ function(target_use_plugin_options TARGET_NAME)
 endfunction()
 
 add_subdirectory(BackgroundRemoval)
+add_subdirectory(PluginGlobal)
 add_subdirectory(UI)
 add_subdirectory(UpdateChecker)

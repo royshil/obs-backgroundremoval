@@ -130,6 +130,7 @@ target_sources(
         src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
         src/BackgroundRemoval/PipelineFactory.cpp
         src/PluginGlobal/PluginLoader.cpp
+        src/PluginGlobal/SemVer.cpp
         src/UI/AboutDialog.cpp
         src/UI/AboutDialogIntegration.cpp
         src/UpdateChecker/UpdateCheckerCommon.cpp

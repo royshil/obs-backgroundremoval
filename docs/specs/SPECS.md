@@ -41,6 +41,7 @@
 - [SP-01017: Blur focus ratio](SP-01017_bgrm-blur-focus-ratio.feature)
 - [SP-01018: Kept pixels](SP-01018_bgrm-kept-pixels.feature)
 - [SP-01020: Translucent source](SP-01020_bgrm-translucent-source.feature)
+- [SP-01021: Semantic version](SP-01021_pg-semver.feature)
 
 ## Plugin user scenario cases
 
