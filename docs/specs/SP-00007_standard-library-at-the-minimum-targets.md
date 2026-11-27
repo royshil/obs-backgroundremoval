@@ -2,12 +2,11 @@
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
 # SPDX-License-Identifier: Apache-2.0
+kind: Design principle
+platforms: All
 ---
 
 # SP-00007: Standard library features available at the minimum targets
-
-- Kind: Design principle
-- Platforms: All
 
 ## Principle
 

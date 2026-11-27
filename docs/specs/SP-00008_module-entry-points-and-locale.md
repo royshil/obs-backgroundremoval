@@ -2,12 +2,11 @@
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
 # SPDX-License-Identifier: Apache-2.0
+kind: Design principle
+platforms: All
 ---
 
 # SP-00008: Module entry points and locale strings
-
-- Kind: Design principle
-- Platforms: All
 
 ## Principle
 
