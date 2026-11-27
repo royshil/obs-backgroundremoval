@@ -11,25 +11,21 @@
 
 ## Principle
 
-The plugin shows the About dialog on its own only when it is certain that this is the first
-startup after an install or an update, and only after it has written that startup to
-`update.ini`. When it cannot be certain, or cannot write, it shows nothing.
+The plugin shows the About dialog on its own only on the first startup after an install or an
+update, and only once it has stored this version in `update.ini`. When it is not certain of both,
+it shows nothing.
 
-Writing it is a transaction over `update.ini`: reading the file and deciding is its body, and
-replacing the file with one that holds the new version is its commit. The dialog is shown only when
-the commit has succeeded. Before the commit nothing is shown and `update.ini` is unchanged, and after
-it nothing is undone or retried.
+Storing the version is a transaction: the plugin reads `update.ini`, decides, and commits by
+replacing the file. The dialog is shown only after a successful commit, and nothing is retried.
 
-The plugin learns whether it can be certain, and whether the commit succeeded, only from what
-libobs and the operating system report when used as usual. It adds no checks of its own, and gives
-up at the first failure, without retrying, falling back or repairing. On almost every startup
-everything is in good order, so this strictness costs little.
+The plugin relies only on what libobs and the operating system report. It adds no checks of its
+own, and gives up at the first failure. Almost every startup succeeds, so this costs little.
 
-`NO_STARTUP_DIALOG.txt` in the config directory of the plugin turns the startup dialog off without
-exception. The plugin only looks for it, and never creates it.
+`NO_STARTUP_DIALOG.txt` in the config directory of the plugin always turns the startup dialog off.
+The plugin never creates it.
 
 This principle alone decides how the startup dialog behaves. Other goals, such as update checks,
-are pursued only where they do not conflict with it.
+give way to it.
 
 ## Rationale
 
