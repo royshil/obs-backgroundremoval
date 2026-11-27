@@ -33,12 +33,11 @@ other startup it is a nuisance, and one that comes back at every startup is a de
 cannot work around, short of removing the plugin. Missing a dialog costs little in comparison: the
 About dialog stays in the Tools menu.
 
-`update.ini` is not under the plugin's control. It may be unwritable, broken, edited by hand, or
-shared by two installations. Telling such states apart would take checks that only grow and still
-miss cases. Instead, the plugin accepts only two states it can recognize by reading the file, and
-lets any failure end the procedure. Because the dialog follows a commit that changes the stored
-version, the next startup is no longer certain, so the dialog cannot repeat. A failure before the
-commit changes nothing, so the next startup decides the same way and shows nothing again.
+`update.ini` belongs to the plugin, in its directory under `plugin_config`, but the plugin cannot
+rely on it: the user may edit or break it, two installations may share it, and `plugin_config` may
+not be writable at all. Telling such states apart would take checks that only grow and still miss
+cases, so the plugin accepts only the states it can recognize by reading the file, and lets any
+failure end the procedure.
 
 ## Requirements
 
