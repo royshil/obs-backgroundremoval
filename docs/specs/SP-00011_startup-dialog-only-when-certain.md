@@ -12,10 +12,10 @@
 ## Principle
 
 The plugin shows the About dialog on its own only when it is certain that this is the first
-startup after an install or an update, and only after it has recorded that startup in
-`update.ini`. When it cannot be certain, or cannot record, it shows nothing.
+startup after an install or an update, and only after it has written that startup to
+`update.ini`. When it cannot be certain, or cannot write, it shows nothing.
 
-Recording is a transaction over `update.ini`: reading the file and deciding is its body, and
+Writing it is a transaction over `update.ini`: reading the file and deciding is its body, and
 replacing the file with one that holds the new version is its commit. The dialog is shown only when
 the commit has succeeded. Before the commit nothing is shown and `update.ini` is unchanged, and after
 it nothing is undone or retried.
@@ -41,7 +41,7 @@ About dialog stays in the Tools menu.
 `update.ini` is not under the plugin's control. It may be unwritable, broken, edited by hand, or
 shared by two installations. Telling such states apart would take checks that only grow and still
 miss cases. Instead, the plugin accepts only two states it can recognize by reading the file, and
-lets any failure end the procedure. Because the dialog follows a commit that changes the recorded
+lets any failure end the procedure. Because the dialog follows a commit that changes the stored
 version, the next startup is no longer certain, so the dialog cannot repeat. A failure before the
 commit changes nothing, so the next startup decides the same way and shows nothing again.
 
@@ -90,7 +90,7 @@ when the temporary file is not flushed before it, which is why Assumption 3 is n
 | Valid | It can be read, and its section `[update]` has `version` or `check_for_updates`. |
 | Invalid | Anything else, such as an empty or unreadable file, or a directory. |
 
-The *recorded version* of a valid file is its `version`, or 0.0.0 when it has none. Its
+The *stored version* of a valid file is its `version`, or 0.0.0 when it has none. Its
 `check_for_updates` is false when it has none.
 
 ### Commit
@@ -123,8 +123,8 @@ whether a name in another case matches. Otherwise the target state is:
 | `update.ini` before | Target state |
 | --- | --- |
 | Missing | Valid, with `version` set to `PLUGIN_VERSION` and `check_for_updates` true |
-| Valid, with a recorded version less than `PLUGIN_VERSION` (SP-01021) | Valid, with `version` set to `PLUGIN_VERSION`, `check_for_updates` kept or set true when missing, and the other keys kept |
-| Valid, with a recorded version that is equal, greater or not a semantic version | Unchanged |
+| Valid, with a stored version less than `PLUGIN_VERSION` (SP-01021) | Valid, with `version` set to `PLUGIN_VERSION`, `check_for_updates` kept or set true when missing, and the other keys kept |
+| Valid, with a stored version that is equal, greater or not a semantic version | Unchanged |
 | Invalid | Unchanged |
 
 `PLUGIN_VERSION` is a semantic version of three parts.
@@ -136,7 +136,7 @@ whether a name in another case matches. Otherwise the target state is:
 - **POST, given up:** The commit failed or was unconfirmed, and the dialog is not shown. It is not
     retried, in this session or a later one.
 - **CRASH:** `update.ini` is unchanged or in the target state.
-- **Invariant:** Once the dialog has been shown, `update.ini` records `PLUGIN_VERSION`, so the next
+- **Invariant:** Once the dialog has been shown, the stored version is `PLUGIN_VERSION`, so the next
     startup declines. This holds after a crash as well, under Assumption 4.
 
 Whenever the procedure ends without showing the dialog, the plugin fetches the latest version if

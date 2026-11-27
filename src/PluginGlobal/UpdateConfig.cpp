@@ -164,34 +164,34 @@ bool replaceDurably(const char *from, const char *to, bool directoryCreated)
 // MARK: Commit
 
 // What a commit writes. A missing version leaves the version of the copy as it is.
-struct Record
+struct TargetState
 {
     std::optional<std::string> version;
     bool checkForUpdates;
 };
 
-bool holds(const char *path, const Record &record)
+bool holds(const char *path, const TargetState &target)
 {
     const ConfigFile config = openExisting(path);
     if (!config)
     {
         return false;
     }
-    if (record.version)
+    if (target.version)
     {
         const char *version = config_get_string(config.get(), kSection, kVersion);
-        if (!version || *record.version != version)
+        if (!version || *target.version != version)
         {
             return false;
         }
     }
     return config_has_user_value(config.get(), kSection, kCheckForUpdates) &&
-           config_get_bool(config.get(), kSection, kCheckForUpdates) == record.checkForUpdates;
+           config_get_bool(config.get(), kSection, kCheckForUpdates) == target.checkForUpdates;
 }
 
-// Replaces update.ini with a file that holds record, as SP-00011 requires. update.ini is
+// Replaces update.ini with a file in the target state, as SP-00011 requires. update.ini is
 // unchanged until the rename, and the commit has succeeded only when every step has.
-bool commit(const Record &record, bool firstInstall)
+bool commit(const TargetState &target, bool firstInstall)
 {
     const ModuleString updateConfigPath = modulePath("update.ini");
     const ModuleString temporaryPath = modulePath("update.ini.tmp");
@@ -236,11 +236,11 @@ bool commit(const Record &record, bool firstInstall)
     }
 
     // 3. Set the values, keeping every other key of the copy.
-    if (record.version)
+    if (target.version)
     {
-        config_set_string(config.get(), kSection, kVersion, record.version->c_str());
+        config_set_string(config.get(), kSection, kVersion, target.version->c_str());
     }
-    config_set_bool(config.get(), kSection, kCheckForUpdates, record.checkForUpdates);
+    config_set_bool(config.get(), kSection, kCheckForUpdates, target.checkForUpdates);
     if (config_save(config.get()) != CONFIG_SUCCESS)
     {
         return false;
@@ -251,12 +251,12 @@ bool commit(const Record &record, bool firstInstall)
     // 5. Flush it to the disk.
     // 6. and 7. Rename it over update.ini, which is the commit, and make the rename durable.
     // 8. Read update.ini back: the commit counts only once the operating system presents the new content.
-    return holds(temporaryPath.get(), record) && flushFile(temporaryPath.get()) &&
+    return holds(temporaryPath.get(), target) && flushFile(temporaryPath.get()) &&
            replaceDurably(temporaryPath.get(), updateConfigPath.get(), directoryCreated) &&
-           holds(updateConfigPath.get(), record);
+           holds(updateConfigPath.get(), target);
 }
 
-bool recordPluginVersionLocked(std::string_view version)
+bool commitPluginVersionLocked(std::string_view version)
 {
     SemVer current;
     if (!current.parse(version))
@@ -271,12 +271,12 @@ bool recordPluginVersionLocked(std::string_view version)
     {
         return false;
     }
-    Record record{std::string(version), true};
+    TargetState target{std::string(version), true};
 
     if (!os_file_exists(updateConfigPath.get()))
     {
         // The first startup after an install.
-        return commit(record, true);
+        return commit(target, true);
     }
 
     const ConfigFile config = openExisting(updateConfigPath.get());
@@ -285,11 +285,10 @@ bool recordPluginVersionLocked(std::string_view version)
         return false;
     }
 
-    // A valid file without a version records 0.0.0.
-    const char *recordedText = config_get_string(config.get(), kSection, kVersion);
-    SemVer recorded;
-    if (!recorded.parse(recordedText ? std::string_view(recordedText) : std::string_view("0.0.0")) ||
-        !(recorded < current))
+    // A valid file without a version counts as 0.0.0.
+    const char *storedText = config_get_string(config.get(), kSection, kVersion);
+    SemVer stored;
+    if (!stored.parse(storedText ? std::string_view(storedText) : std::string_view("0.0.0")) || !(stored < current))
     {
         return false;
     }
@@ -297,9 +296,9 @@ bool recordPluginVersionLocked(std::string_view version)
     // The first startup after an update. check_for_updates comes from the decision, not from the copy.
     if (config_has_user_value(config.get(), kSection, kCheckForUpdates))
     {
-        record.checkForUpdates = config_get_bool(config.get(), kSection, kCheckForUpdates);
+        target.checkForUpdates = config_get_bool(config.get(), kSection, kCheckForUpdates);
     }
-    return commit(record, false);
+    return commit(target, false);
 }
 
 bool setCheckForUpdatesLocked(bool enabled)
@@ -310,15 +309,15 @@ bool setCheckForUpdatesLocked(bool enabled)
         return false;
     }
 
-    const Record record{std::nullopt, enabled};
+    const TargetState target{std::nullopt, enabled};
     if (!os_file_exists(updateConfigPath.get()))
     {
-        return commit(record, true);
+        return commit(target, true);
     }
 
     // A file that does not open or is not valid may have been read short, so it is left as it is.
     const ConfigFile config = openExisting(updateConfigPath.get());
-    return config && isValid(config.get()) && commit(record, false);
+    return config && isValid(config.get()) && commit(target, false);
 }
 
 } // namespace
@@ -335,11 +334,11 @@ catch (...)
     return true;
 }
 
-bool recordPluginVersion(std::string_view version) noexcept
+bool commitPluginVersion(std::string_view version) noexcept
 try
 {
     const std::lock_guard lock(g_updateConfigMutex);
-    return recordPluginVersionLocked(version);
+    return commitPluginVersionLocked(version);
 }
 catch (...)
 {

@@ -246,7 +246,7 @@ void runStartupProcedure() noexcept
 try
 {
     if (PluginGlobal::UpdateConfig::startupDialogDisabled() ||
-        !(PluginGlobal::UpdateConfig::recordPluginVersion(PLUGIN_VERSION) && AboutDialogIntegration::show()))
+        !(PluginGlobal::UpdateConfig::commitPluginVersion(PLUGIN_VERSION) && AboutDialogIntegration::show()))
     {
         PluginLoaderFetchRemoteLatestVersionAsync();
     }

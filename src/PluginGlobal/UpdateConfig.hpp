@@ -14,11 +14,11 @@ namespace PluginGlobal::UpdateConfig
 // Whether NO_STARTUP_DIALOG.txt exists in the config directory of the plugin, which turns the startup dialog off.
 [[nodiscard]] bool startupDialogDisabled() noexcept;
 
-// Commits version as the recorded version when this is certainly the first startup after an install or an update,
+// Commits version as the stored version when this is certainly the first startup after an install or an update,
 // and returns true only when that commit has succeeded, which is when the startup dialog is shown.
-[[nodiscard]] bool recordPluginVersion(std::string_view version) noexcept;
+[[nodiscard]] bool commitPluginVersion(std::string_view version) noexcept;
 
-// Commits the setting of update checks, keeping the recorded version. Returns false when it was not committed.
+// Commits the setting of update checks, keeping the stored version. Returns false when it was not committed.
 [[nodiscard]] bool setCheckForUpdates(bool enabled) noexcept;
 
 // Whether update.ini opens and states check_for_updates as true.
