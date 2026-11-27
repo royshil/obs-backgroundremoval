@@ -189,7 +189,7 @@ bool holds(const char *path, const Record &record)
            config_get_bool(config.get(), kSection, kCheckForUpdates) == record.checkForUpdates;
 }
 
-// Replaces update.ini with a file that holds record, by the steps of SP-00011 Requirement 4. update.ini is
+// Replaces update.ini with a file that holds record, as SP-00011 requires. update.ini is
 // unchanged until the rename, and the commit has succeeded only when every step has.
 bool commit(const Record &record, bool firstInstall)
 {

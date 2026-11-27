@@ -47,130 +47,141 @@ commit changes nothing, so the next startup decides the same way and shows nothi
 
 ## Requirements
 
-### Terms
+### How the requirements are written
 
-- A file *opens* when `config_open` with `CONFIG_OPEN_EXISTING` returns `CONFIG_SUCCESS`. This
-    does not mean that anything was read: an empty file opens with no sections.
-- A file is *valid* when it opens and its section `[update]` has a value
-    (`config_has_user_value`) for `version` or `check_for_updates`.
-- The *recorded version* of a valid file is its `version`, or 0.0.0 when it has none.
+Each operation on `update.ini` is specified as in Crash Hoare Logic, the logic of the verified file
+system FSCQ (Chen et al., "Using Crash Hoare Logic for Certifying the FSCQ File System",
+SOSP 2015), with the labels that the paper uses, and in prose:
 
-### The startup dialog
+- **PRE** is what holds when the operation starts.
+- **POST** is what holds when the operation returns. It is split into named outcomes, which
+    together cover every case and of which exactly one holds.
+- **CRASH** is what holds if the process or the system stops at any point during the operation.
 
-1. The startup procedure runs at most once per session, after
-    `OBS_FRONTEND_EVENT_FINISHED_LOADING`, once no modal dialog is open. When that wait cannot be
-    set up, the procedure gives up.
-2. First, the procedure checks with `os_file_exists` for
-    `obs_module_config_path("NO_STARTUP_DIALOG.txt")`. When it exists, as a file or a directory,
-    the procedure ends without touching `update.ini`. The file system decides whether a name in
-    another case matches.
-3. The procedure is certain in two cases only:
+Crash Hoare Logic also requires that recovery after a crash can start again from what CRASH leaves.
+Here, recovery is the next startup: what CRASH leaves must be a state from which the next startup
+decides as usual.
 
-    - `os_file_exists` reports that `update.ini` does not exist: a first install.
-    - `update.ini` is valid, and its recorded version is less than `PLUGIN_VERSION` as semantic
-        versions (SP-01021): an update.
+### Assumptions
 
-    In every other case it writes nothing and shows nothing. In particular, it never writes into a
-    file that does not open or is not valid, nor over a version that is equal, newer, or not a
-    semantic version. `PLUGIN_VERSION` has three parts, as CMake's `project(VERSION)` gives it.
-4. When certain, the procedure commits, and shows the dialog only when every step succeeds. The
-    decision and the commit run under one lock.
+The commit relies on these properties of the operating system, which the plugin cannot check:
 
-    1. Remove `update.ini.tmp` with `os_unlink`, ignoring the result.
-    2. For an update, copy `update.ini` to `update.ini.tmp` with `os_copyfile` and open the copy.
-        For a first install, create the directory with `os_mkdirs` and the file with
-        `config_create`.
-    3. Set `version` to `PLUGIN_VERSION` and `check_for_updates` to the value read in the
-        decision, or `true` when there was none, and write with `config_save`. Other keys are kept.
-    4. Read `update.ini.tmp` back and check both values, because `config_save` and `os_copyfile` do
-        not check every write.
-    5. Flush `update.ini.tmp`.
-    6. Rename `update.ini.tmp` to `update.ini`, replacing it. This is the commit.
-    7. Flush the rename.
-    8. Read `update.ini` back and check both values. This confirms that the operating system
-        presents the new content as `update.ini`, without trusting the result of the rename. Whether
-        it is on the disk only the operating system knows, so the plugin asks for that with the
-        flushes and does not check it.
+1. Other processes see `update.ini` replaced as a whole, never in between. POSIX requires this of
+    `rename`.
+2. A crash also leaves `update.ini` either as it was or replaced as a whole. macOS documents this
+    for `rename`. On Linux, journaling and copy-on-write file systems behave this way but do not
+    document it. Windows documents neither.
+3. Content flushed before the replacement is on the disk before the replacement is.
+4. A replacement flushed after it is made stays after a power loss, as far as the drive keeps the
+    promises of the flush.
 
-    | Platform | Step 5 | Step 6 | Step 7 |
-    | --- | --- | --- | --- |
-    | Linux | `fsync` | `rename` | `fsync` on the directory |
-    | macOS | `fcntl(F_FULLFSYNC)` | `rename` | `F_FULLFSYNC` on the directory |
-    | Windows | `FlushFileBuffers` | `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING \| MOVEFILE_WRITE_THROUGH` | Nothing more |
+DFSCQ (Chen et al., SOSP 2017) proves that this pattern, a temporary file flushed and then renamed
+over the target, leaves either the old or the new content after a crash, under its model of the file
+system. Bornholt et al. (ASPLOS 2016) show that on ext4 the replacement can lose the new content
+when the temporary file is not flushed before it, which is why Assumption 3 is needed.
 
-    When step 2 created the config directory, step 7 also flushes its parent on Linux and macOS.
-    A step that fails, including on a full disk or a file system without `F_FULLFSYNC`, ends the
-    procedure in silence. The plugin does not look at file modes or attributes: whether the files
-    can be written is the operating system's to decide.
-5. A failure after step 6, including a failure to show the dialog, is not retried.
+### States of `update.ini`
 
-### Update checks
+`update.ini` in the config directory of the plugin is in one of these states:
 
-6. Whenever the startup procedure ends without showing the dialog, the plugin calls
-    `PluginLoaderFetchRemoteLatestVersionAsync()`. When the dialog is shown, the fetch waits until
-    the user closes it with update notifications enabled.
-7. `checkForUpdatesEnabled()` is true only when `update.ini` opens and states `check_for_updates`
-    as true. No libobs defaults are used.
-8. `setCheckForUpdates()`, called when the About dialog is closed, writes through Requirement 4
-    with only `check_for_updates`, and checks only that value. It gives up on a file that exists and
-    is not valid, and creates the file when there is none.
-
-### `update.ini`
-
-9. `PluginGlobal::UpdateConfig` is the only code that reads or writes
-    `obs_module_config_path("update.ini")`, with these keys in `[update]`:
-
-    | Key | Value | When missing |
-    | --- | --- | --- |
-    | `version` | The version last committed by the startup procedure | 0.0.0 in a valid file |
-    | `check_for_updates` | `true` or `false` | False |
-
-10. Every write goes through Requirement 4. `config_save_safe` and `CONFIG_OPEN_ALWAYS` are not
-    used. Each function opens and closes the file within the call, runs under one mutex, lets no
-    exception out, and is called only while the module is loaded.
-
-## Findings
-
-On 2026-11-27, broken `update.ini` files were read with `config_open` on Ubuntu 26.04 in WSL 2
-with libobs 32.1.0, macOS 27.2 with OBS Studio 33.0.3, and Windows 11 with OBS Studio 33.0.3. No
-case crashed, and all three platforms agreed, except that a directory named `update.ini` opens on
-Linux and macOS but not on Windows. Either way it leads to silence.
-
-| Content of `update.ini` | Outcome |
+| State | Meaning |
 | --- | --- |
-| Empty, binary, cut inside `[update]`, no `[update]`, or a misspelled key | Not valid: silence |
-| `version=1.5`, `version="1.5.0"`, or a value with trailing garbage | Not a semantic version: silence |
-| Comments, CRLF, a BOM, extra lines, or a duplicate key (the last wins) | Read as usual |
-| `check_for_updates` without `version` | 0.0.0: the dialog once |
+| Missing | No file of that name exists. |
+| Valid | It can be read, and its section `[update]` has `version` or `check_for_updates`. |
+| Invalid | Anything else, such as an empty or unreadable file, or a directory. |
 
-A harness that ran `PluginGlobal::UpdateConfig` against the real libobs on the same three
-platforms, with AddressSanitizer on Linux and macOS, behaved as the requirements say in every case.
-Windows ignores the read-only attribute of a directory, so an unwritable config directory was
-tested only on Linux and macOS.
+The *recorded version* of a valid file is its `version`, or 0.0.0 when it has none. Its
+`check_for_updates` is false when it has none.
+
+### Commit
+
+The commit replaces `update.ini` with a file in a target state: it writes a temporary file next to
+`update.ini`, flushes it, replaces `update.ini` with it, flushes the replacement, and reads
+`update.ini` back.
+
+- **PRE:** No other commit runs in the process.
+- **POST, committed:** Every operation reported success, and `update.ini`, read back, is in the
+    target state.
+- **POST, failed:** An operation before the replacement failed, and `update.ini` is unchanged.
+- **POST, unconfirmed:** The replacement or an operation after it failed, or the read-back
+    differed, and `update.ini` is unchanged or in the target state.
+- **CRASH:** `update.ini` is unchanged or in the target state, by Assumptions 2 and 3. The
+    temporary file may remain, and the next commit removes it first.
+
+The plugin does not look at file modes or attributes. Whether the files can be written is the
+operating system's to decide, and the plugin learns it only from the results of the operations.
+
+### Startup
+
+The startup procedure runs at most once per session, after OBS Studio has finished loading and no
+modal dialog is open. When it cannot wait for that, it gives up, and only the fetch below runs.
+
+When `NO_STARTUP_DIALOG.txt`, as a file or a directory, exists next to `update.ini`, the procedure
+neither reads nor writes `update.ini`, and does not show the dialog. The file system decides
+whether a name in another case matches. Otherwise the target state is:
+
+| `update.ini` before | Target state |
+| --- | --- |
+| Missing | Valid, with `version` set to `PLUGIN_VERSION` and `check_for_updates` true |
+| Valid, with a recorded version less than `PLUGIN_VERSION` (SP-01021) | Valid, with `version` set to `PLUGIN_VERSION`, `check_for_updates` kept or set true when missing, and the other keys kept |
+| Valid, with a recorded version that is equal, greater or not a semantic version | Unchanged |
+| Invalid | Unchanged |
+
+`PLUGIN_VERSION` is a semantic version of three parts.
+
+- **PRE:** The dialog has not been shown in this session.
+- **POST, declined:** The target state is unchanged. Nothing is written, and the dialog is not
+    shown.
+- **POST, shown:** The commit was committed, and the dialog is shown.
+- **POST, given up:** The commit failed or was unconfirmed, and the dialog is not shown. It is not
+    retried, in this session or a later one.
+- **CRASH:** `update.ini` is unchanged or in the target state.
+- **Invariant:** Once the dialog has been shown, `update.ini` records `PLUGIN_VERSION`, so the next
+    startup declines. This holds after a crash as well, under Assumption 4.
+
+Whenever the procedure ends without showing the dialog, the plugin fetches the latest version if
+`update.ini` is valid and its `check_for_updates` is true. When the dialog is shown, the fetch waits
+until the user closes it with update notifications enabled.
+
+### About dialog closed
+
+When the About dialog is closed with update notifications set to a value, the target state is:
+
+| `update.ini` before | Target state |
+| --- | --- |
+| Missing | Valid, with only `check_for_updates` set to the value |
+| Valid | Valid, with `check_for_updates` set to the value and the other keys kept |
+| Invalid | Unchanged |
+
+- **PRE:** None.
+- **POST, declined:** `update.ini` is invalid, and nothing is written.
+- **POST, committed, failed or unconfirmed:** As the commit returned.
+- **CRASH:** `update.ini` is unchanged or in the target state.
+
+Because it keeps `version`, closing the About dialog keeps the invariant of the startup.
 
 ## Known limits
 
 Each of these can show the dialog once more, or keep it away, but none shows it at every startup.
 
-- Durability rests on the operating system and the drive. Power lost right after the commit can
-    show the dialog once more.
-- When the check of step 8 fails, `update.ini` has already been replaced by a bad file, which keeps
-    the dialog and fetches away until the file is removed.
+- The assumptions are not guaranteed. Windows documents no crash atomicity of the replacement, and
+    a drive that ignores a flush, or a power loss on macOS without the full flush, can bring back
+    the old `update.ini` after the dialog was shown, which then shows it once more.
+- An unconfirmed commit may have left `update.ini` in a state that keeps the dialog and fetches
+    away until the file is removed, such as a file that is short or empty.
 - A file that the About dialog created before any startup committed has no `version`, so the next
     startup shows the dialog once.
 - Two OBS Studio processes running at once are not considered.
 
 ## Verification
 
-Durability is checked by reading the code. The rest is tested by starting OBS Studio with a
-prepared config directory.
+The assumptions and the flushes are checked by reading the code. The rest is tested by starting
+OBS Studio with a prepared config directory.
 
-- With no `update.ini`, the first startup records `PLUGIN_VERSION` and shows the dialog, and the
-    second shows nothing.
-- With an older `version`, or none in a valid file, the startup shows the dialog once and keeps
-    `check_for_updates`. With an equal, newer or invalid version, nothing is shown or written.
-- With an `update.ini` that is not valid, or a config directory that cannot be written, nothing is
-    shown and the file is left as it was.
-- With `NO_STARTUP_DIALOG.txt`, nothing is shown and `update.ini` is left as it was.
-- With `check_for_updates=false` or without it, no fetch is made.
-- Closing the About dialog keeps `version`, and leaves a file that is not valid as it was.
+- Each row of the tables under Startup and About dialog closed leads to the target state and the
+    outcome listed there.
+- After the dialog has been shown, the next startup declines.
+- With a config directory that cannot be written, the commit fails, nothing is shown, and
+    `update.ini` is unchanged.
+- With `NO_STARTUP_DIALOG.txt`, nothing is shown and `update.ini` is unchanged.
+- With `check_for_updates` false or missing, no fetch is made.
