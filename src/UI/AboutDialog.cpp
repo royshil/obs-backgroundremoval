@@ -4,8 +4,6 @@
 
 #include "AboutDialog.hpp"
 
-#include <PluginLegal.h>
-
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFont>
@@ -42,6 +40,10 @@ bool AboutDialog::updateNotificationsEnabled() const
 {
     return enableUpdateNotifications->isChecked();
 }
+
+// Defined in src/legal.cpp: the legal texts and their headings, in the order they are shown, ending with a null
+// pointer.
+extern "C" const char *const kLegalAll[];
 
 void AboutDialog::setupUi(const QString &version, const QString &logoPath, bool updateNotificationsEnabled)
 {
@@ -187,28 +189,10 @@ void AboutDialog::setupUi(const QString &version, const QString &logoPath, bool 
     licensesDialog->setModal(false);
     auto *licensesLayout = new QVBoxLayout(licensesDialog);
     licensesTextEdit->setReadOnly(true);
-    const struct
-    {
-        const char *title;
-        const char *body;
-    } legalTexts[] = {
-        {"obs-backgroundremoval", kLegalLicense},
-        {"obs-backgroundremoval notices", kLegalNotice},
-        {"Apache-2.0", kLegalLicensesApache_20},
-        {"CC-BY-4.0", kLegalLicensesCcBy_40},
-        {"CC-BY-SA-4.0", kLegalLicensesCcBySa_40},
-        {"CC0-1.0", kLegalLicensesCc0_10},
-        {"GPL-2.0-or-later", kLegalLicensesGpl2OrLater},
-        {"GPL-3.0-or-later", kLegalLicensesGpl3OrLater},
-        {"MIT", kLegalLicensesMit},
-        {"curl", kLegalLicensesCurl},
-    };
     QString legalText;
-    for (const auto &text : legalTexts)
+    for (const char *const *text = kLegalAll; *text; ++text)
     {
-        legalText += QStringLiteral("===== %1 =====\n\n").arg(QString::fromUtf8(text.title));
-        legalText += QString::fromUtf8(text.body);
-        legalText += QStringLiteral("\n\n");
+        legalText += QString::fromUtf8(*text);
     }
     licensesTextEdit->setPlainText(legalText);
     licensesLayout->addWidget(licensesTextEdit);

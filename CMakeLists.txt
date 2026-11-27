@@ -121,13 +121,13 @@ target_sources(
         src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp
         src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
         src/BackgroundRemoval/PipelineFactory.cpp
-        src/PluginLegal.cpp
         src/PluginLoader.cpp
         src/UI/AboutDialog.cpp
         src/UI/AboutDialogIntegration.cpp
         src/UpdateConfig/UpdateConfigCommon.cpp
         src/UpdateConfig/UpdateConfigCurl.cpp
         src/UpdateConfig/UpdateConfigSemver.cpp
+        src/legal.cpp
 )
 target_link_libraries(
     ${CMAKE_PROJECT_NAME}_pluginlibs
