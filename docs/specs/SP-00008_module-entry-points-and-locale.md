@@ -89,8 +89,10 @@ own, which the `.ini` files have to follow.
 9. At `obs_module_unload`, libobs objects are still valid. The plugin releases the references it
     holds there, but it does not destroy objects that libobs may still call back into. OBS Studio
     33.0.3 documents this in `obs-module.h`.
-10. `obs_module_name`, `obs_module_description` and `obs_module_author` return the strings
-    `g_plugin_display_name`, `g_plugin_long_description` and `g_plugin_author`. The Plugin Manager
+10. `obs_module_name`, `obs_module_description` and `obs_module_author` return what
+    `pluginloader_get_name`, `pluginloader_get_description` and `pluginloader_get_author` return,
+    which the C++ part of the plugin implements with the display name, the long description and
+    the author of `src/plugin-support.h`. The Plugin Manager
     of OBS Studio 33.0.3 shows `obs_module_name` for a module whose data directory has no
     `manifest.json` with a `display_name`. Nothing in OBS Studio 33.0.3 calls the other two.
 
@@ -200,6 +202,11 @@ The plugin built by `CMakeLists.txt`, with `src/PluginLoader.cpp` defining the
 `obs-backgroundremoval.plugin` export exactly the 11 functions, all 42 tests pass, and loading it
 through libobs 33.0.3 on arm64 returned `MODULE_SUCCESS`, the version 1.5.1 in its log, its name,
 author and description, and the string for `Background Removal`.
+
+On 2026-11-26, the `g_plugin_*` strings were replaced with the functions `pluginloader_get_name`,
+`pluginloader_get_description` and `pluginloader_get_author`, so that the module and the static
+library meet at functions only. The arm64 build on macOS still exported exactly the 11 functions,
+and none of the three.
 
 ### The module with libobs's locale handling
 

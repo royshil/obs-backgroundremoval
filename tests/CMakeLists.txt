@@ -42,4 +42,4 @@ endfunction()
 
 add_subdirectory(BackgroundRemoval)
 add_subdirectory(UI)
-add_subdirectory(UpdateConfig)
+add_subdirectory(UpdateChecker)

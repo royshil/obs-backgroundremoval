@@ -83,7 +83,8 @@ jobs:
         run: |
           cmake -S . -B build -G 'Visual Studio 18 2026' -A x64 `
             "-DCMAKE_SYSTEM_VERSION=$env:CMAKE_SYSTEM_VERSION" `
-            "-DPROD=$env:PROD"
+            "-DPROD=$env:PROD" `
+            "-DENABLE_UPDATE_CHECKER=ON"
 
       - name: Build (Windows)
         shell: pwsh -Command "Set-StrictMode -Version Latest; $ErrorActionPreference = 'Stop'; $PSNativeCommandUseErrorActionPreference = $true; . '{0}'"

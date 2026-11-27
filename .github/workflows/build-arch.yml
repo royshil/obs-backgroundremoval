@@ -64,6 +64,7 @@ jobs:
           cmake -S "${GITHUB_WORKSPACE:?}" -B build -G Ninja \
             "-DCMAKE_BUILD_TYPE=RelWithDebInfo" \
             "-DPROD=${PROD:?}" \
+            "-DENABLE_UPDATE_CHECKER=ON" \
             "-DCMAKE_INSTALL_PREFIX=/usr"
 
       - name: Build (Arch)

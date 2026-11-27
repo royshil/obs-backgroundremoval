@@ -97,6 +97,7 @@ jobs:
           cmake -S "${GITHUB_WORKSPACE:?}" -B build \
             "-DCMAKE_BUILD_TYPE=RelWithDebInfo" \
             "-DPROD=${PROD:?}" \
+            "-DENABLE_UPDATE_CHECKER=ON" \
             "-DCMAKE_INSTALL_PREFIX=/usr" \
             "-DCPACK_GENERATOR=DEB" \
             "-DCPACK_DEBIAN_FILE_NAME=${{ steps.artifact-names.outputs.DEB_ARTIFACT_NAME }}" \

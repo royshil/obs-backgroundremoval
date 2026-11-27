@@ -45,13 +45,12 @@ extern lookup_t *obs_module_load_locale(obs_module_t *module, const char *defaul
 
 // MARK: - Plugin
 
-extern bool pluginloader_load(void);
-extern void pluginloader_post_load(void);
-extern void pluginloader_unload(void);
-
-extern const char g_plugin_author[];
-extern const char g_plugin_display_name[];
-extern const char g_plugin_long_description[];
+bool pluginloader_load(void);
+void pluginloader_post_load(void);
+void pluginloader_unload(void);
+const char *pluginloader_get_name(void);
+const char *pluginloader_get_description(void);
+const char *pluginloader_get_author(void);
 
 // MARK: - Module globals
 
@@ -104,17 +103,17 @@ PLUGIN_PUBLIC void obs_module_unload(void)
 
 PLUGIN_PUBLIC const char *obs_module_name(void)
 {
-    return g_plugin_display_name;
+    return pluginloader_get_name();
 }
 
 PLUGIN_PUBLIC const char *obs_module_description(void)
 {
-    return g_plugin_long_description;
+    return pluginloader_get_description();
 }
 
 PLUGIN_PUBLIC const char *obs_module_author(void)
 {
-    return g_plugin_author;
+    return pluginloader_get_author();
 }
 
 // MARK: Locale

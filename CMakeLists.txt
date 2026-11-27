@@ -5,7 +5,10 @@
 cmake_minimum_required(VERSION 3.28)
 
 option(PROD "Production build" FALSE)
+option(ENABLE_UPDATE_CHECKER "Enable update checker" FALSE)
 set(PACKAGE_VERSION_SUFFIX "" CACHE STRING "Version suffix for plugin package")
+
+set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0" CACHE STRING "Deployment target [macOS]")
 
 if(NOT DEFINED PLUGIN_VERSION)
     file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PLUGIN_VERSION LIMIT_COUNT 1)
@@ -54,9 +57,11 @@ if(WIN32 OR APPLE)
         target_link_libraries(OBS::libobs INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-deps/lib/x64-windows/obs.lib")
         target_link_libraries(OBS::obs-frontend-api INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-deps/lib/x64-windows/obs-frontend-api.lib")
 
-        add_library(CURL::libcurl INTERFACE IMPORTED)
-        target_include_directories(CURL::libcurl INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/curl/curl/include")
-        target_link_libraries(CURL::libcurl INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-deps/lib/x64-windows/libcurl_imp.lib")
+        if(ENABLE_UPDATE_CHECKER)
+            add_library(CURL::libcurl INTERFACE IMPORTED)
+            target_include_directories(CURL::libcurl INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/curl/curl/include")
+            target_link_libraries(CURL::libcurl INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/obs-deps/lib/x64-windows/libcurl_imp.lib")
+        endif()
     elseif(APPLE)
         target_link_libraries(OBS::libobs INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-macos/lib/libobs.tbd")
         target_link_libraries(OBS::obs-frontend-api INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/sdk/obs-29.1.3-macos/lib/obs-frontend-api.tbd")
@@ -78,7 +83,7 @@ find_package(Qt6 COMPONENTS Widgets REQUIRED)
 
 # MARK: cURL dependency
 
-if(NOT TARGET CURL::libcurl)
+if(ENABLE_UPDATE_CHECKER AND NOT TARGET CURL::libcurl)
     find_package(CURL REQUIRED)
 endif()
 
@@ -88,6 +93,9 @@ endif()
 
 add_library(plugin-support INTERFACE)
 target_compile_definitions(plugin-support INTERFACE PLUGIN_VERSION="${PLUGIN_VERSION}")
+if(ENABLE_UPDATE_CHECKER)
+    target_compile_definitions(plugin-support INTERFACE PLUGIN_ENABLE_UPDATE_CHECKER)
+endif()
 target_include_directories(plugin-support INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 if(MSVC)
@@ -121,18 +129,14 @@ target_sources(
         src/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp
         src/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp
         src/BackgroundRemoval/PipelineFactory.cpp
-        src/PluginLoader.cpp
+        src/PluginGlobal/PluginLoader.cpp
         src/UI/AboutDialog.cpp
         src/UI/AboutDialogIntegration.cpp
-        src/UpdateConfig/UpdateConfigCommon.cpp
-        src/UpdateConfig/UpdateConfigCurl.cpp
-        src/UpdateConfig/UpdateConfigSemver.cpp
+        src/UpdateChecker/UpdateCheckerCommon.cpp
+        src/UpdateChecker/UpdateCheckerSemver.cpp
         src/legal.cpp
 )
-target_link_libraries(
-    ${CMAKE_PROJECT_NAME}_pluginlibs
-    PUBLIC CURL::libcurl Qt6::Widgets OBS::libobs OBS::obs-frontend-api plugin-support
-)
+target_link_libraries(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC Qt6::Widgets OBS::libobs OBS::obs-frontend-api plugin-support)
 set_target_properties(
     ${CMAKE_PROJECT_NAME}_pluginlibs
     PROPERTIES
@@ -143,6 +147,12 @@ set_target_properties(
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
 )
+
+# Only the latest-version fetch needs the network and libcurl. Without the update checker, src/PluginGlobal/PluginLoader.cpp
+# leaves the fetch out through PLUGIN_ENABLE_UPDATE_CHECKER.
+if(ENABLE_UPDATE_CHECKER)
+    target_link_libraries(${CMAKE_PROJECT_NAME}_pluginlibs PUBLIC CURL::libcurl)
+endif()
 
 # MARK: License files
 

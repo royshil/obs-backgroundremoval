@@ -33,16 +33,15 @@ a use that the oldest supported macOS cannot run into a compile error.
 3. A feature that some supported toolchain lacks is not used when an older feature that every
     toolchain has does the job. Only when none does is it replaced where it is missing, behind a
     feature-test macro from `<version>` rather than a platform check.
-4. Numbers in text are parsed with the integer overloads of `std::from_chars`. The floating-point
-    overloads are not used.
-5. Background threads are `std::thread` objects that their owner joins explicitly, including in its
-    destructor, rather than `std::jthread`.
+4. The floating-point overloads of `std::from_chars` are not used.
+5. Background work runs on a `std::thread` that the plugin joins when it is unloaded, while libobs
+    still runs. Neither `std::jthread` nor `std::async` is used.
 
 ## Findings
 
 ### `std::from_chars`
 
-Checked on 2026-11-25, when `src/UpdateConfig/UpdateConfigSemver.cpp` replaced `std::regex` with
+Checked on 2026-11-25, when `src/UpdateChecker/UpdateCheckerSemver.cpp` replaced `std::regex` with
 `std::from_chars`.
 
 | Standard library | Integer overloads | Floating-point overloads |
@@ -57,11 +56,11 @@ it imports nothing from the system library for them. Verified as follows:
 
 - The universal macOS plugin built with Xcode 27.2 and deployment target 13.0 has `minos 13.0` in
     both slices and imports no `from_chars`, `to_chars` or `itoa` symbol.
-- On macOS 27.2.1 (26B131) on arm64, with that build, all the tests passed, `UpdateConfigSemverTest`
+- On macOS 27.2.1 (26B131) on arm64, with that build, all the tests passed, `UpdateCheckerSemverTest`
     among them.
-- `UpdateConfigSemverTest`, built with Xcode 27.2 for macOS 13.0 without sanitizers, passed on macOS
+- `UpdateCheckerSemverTest`, built with Xcode 27.2 for macOS 13.0 without sanitizers, passed on macOS
     13.6 (22G120) on arm64.
-- On macOS 13.6 with Xcode 15.2 (Apple clang 15.0.0), `UpdateConfigSemverTest` built for arm64 and
+- On macOS 13.6 with Xcode 15.2 (Apple clang 15.0.0), `UpdateCheckerSemverTest` built for arm64 and
     x86_64 with deployment target 13.0, with and without `-fsanitize=undefined`, imported no
     `from_chars`, `to_chars` or `itoa` symbol, and passed on arm64.
 - Not checked: the x86_64 slice at run time, and the SDK of Xcode 26.5, which CI builds with.
@@ -69,9 +68,13 @@ it imports nothing from the system library for them. Verified as follows:
     26.5), GCC 16.2.0 (Debian forky), GCC 15.2.0 (Ubuntu resolute), GCC 16.2.1 (Arch Linux) and
     MSVC 19.52.
 
+On 2026-11-26, `src/UpdateChecker/UpdateCheckerSemver.cpp` stopped using `std::from_chars`. A core
+component of a semantic version is `0` or a digit other than `0` followed by digits, so the parser
+accumulates the value while it scans the digits and rejects a value that does not fit in 64 bits.
+
 ### `std::jthread`
 
-Checked on 2026-11-25. Until then, `src/UpdateConfig/UpdateConfigCurl.cpp` used `std::jthread` on
+Checked on 2026-11-25. Until then, `src/UpdateChecker/UpdateCheckerCurl.cpp` used `std::jthread` on
 Linux and Windows and fell back to `josuttis::jthread` from `vendor/josuttis-jthread` on macOS.
 
 | Standard library | `std::jthread` and `<stop_token>` |
@@ -85,7 +88,14 @@ used it to join the fetch thread when the thread object is destroyed, never `std
 was replaced with `std::thread` and explicit joins, which every toolchain has, and
 `vendor/josuttis-jthread` was removed.
 
+On 2026-11-26 the fetch moved from its own thread to a task queue of libobs, so that the plugin
+creates and stops the thread when it is loaded and unloaded, and no thread object has to be joined.
+
+Later on 2026-11-26, `src/UpdateChecker/UpdateCheckerCurl.cpp` and its task queue were removed. The
+fetch now runs once per session on a `std::thread` in `src/PluginLoader.cpp`, which
+`pluginloader_unload` joins.
+
 ## Verification
 
 - The macOS builds in CI compile with deployment target 13.0.
-- `UpdateConfigSemverTest` covers the parsing with `std::from_chars`.
+- `UpdateCheckerSemverTest` covers the parsing of versions.

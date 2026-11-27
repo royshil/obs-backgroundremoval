@@ -12,7 +12,7 @@
 ## Principle
 
 The plugin binary is built only from C, and all of the plugin's C++ is in a static library that the
-binary links. The two meet at a few functions and strings with C linkage. Because the binary
+binary links. The two meet at a few functions with C linkage. Because the binary
 itself has no C++, the symbols it exports are exactly the entry points that SP-00008 lists, and on
 Linux the linker keeps every symbol that comes from the static library local.
 
@@ -40,8 +40,8 @@ they run the code that ships.
 3. The module and the library meet at an interface with C linkage, and nowhere else:
 
     - `src/plugin-main.c` declares, and the library defines with `extern "C"`, the functions
-        `pluginloader_load`, `pluginloader_post_load` and `pluginloader_unload` and the strings
-        `g_plugin_author`, `g_plugin_display_name` and `g_plugin_long_description`.
+        `pluginloader_load`, `pluginloader_post_load`, `pluginloader_unload`,
+        `pluginloader_get_name`, `pluginloader_get_description` and `pluginloader_get_author`.
     - The library calls `obs_current_module`, through the `obs_module_file()` and
         `obs_module_config_path()` macros of `obs-module.h`, and `obs_module_text`, which
         `src/plugin-main.c` defines.

@@ -4,8 +4,8 @@
 
 #include "FilterContext.hpp"
 
+#include <algorithm>
 #include <exception>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -13,8 +13,8 @@
 #include <obs-module.h>
 
 #include <BackgroundRemoval/IRenderingPipeline.hpp>
+#include <PluginGlobal/PluginLoader.h>
 #include <UI/AboutDialogIntegration.hpp>
-#include <UpdateConfig/UpdateConfig.hpp>
 #include <plugin-support.h>
 
 #include "PipelineFactory.hpp"
@@ -139,10 +139,16 @@ std::string FilterContext::getVersionNotice()
     appendHtmlEscaped(versionNotice, obs_module_text("Background Removal"));
     versionNotice += " ";
     appendHtmlEscaped(versionNotice, PLUGIN_VERSION);
-    if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion(); latestVersion.has_value())
+    // The remote latest version stays 0.0.0 until it has been fetched.
+    const pluginloader_semver latestVersion = pluginloader_get_remote_latest_version();
+    if (std::ranges::any_of(latestVersion.version_core, [](long component) { return component != 0; }))
     {
+        PluginLoaderSemver currentVersion{};
+        const bool currentVersionParsed = currentVersion.parse(PLUGIN_VERSION);
+
         versionNotice += " (";
-        if (UpdateConfig::isSemverNewer(latestVersion.value(), PLUGIN_VERSION))
+        if (currentVersionParsed &&
+            std::ranges::lexicographical_compare(currentVersion.version_core, latestVersion.version_core))
         {
             appendHtmlEscaped(versionNotice, obs_module_text("New Version Available!"));
         }

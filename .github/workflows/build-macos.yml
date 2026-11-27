@@ -122,7 +122,8 @@ jobs:
             "${CMAKE_COMMAND:?}" -S . -B build -G Xcode \
             '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64' \
             -DCMAKE_OSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET:?}" \
-            -DPROD="${PROD:?}"
+            -DPROD="${PROD:?}" \
+            "-DENABLE_UPDATE_CHECKER=ON"
 
       - name: Build (macOS)
         shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
