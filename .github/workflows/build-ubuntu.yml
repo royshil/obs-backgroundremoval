@@ -17,6 +17,10 @@ on:
         description: Builds for arm64.
         required: true
         type: boolean
+      prod:
+        description: Builds with the defaults of a production build.
+        required: true
+        type: boolean
       release-build:
         description: Builds a release.
         required: true
@@ -87,9 +91,13 @@ jobs:
 
       - name: Configure (Ubuntu)
         shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
+        env:
+          PROD: ${{ inputs.prod && 'ON' || 'OFF' }}
         run: |
           cmake -S "${GITHUB_WORKSPACE:?}" -B build \
             "-DCMAKE_BUILD_TYPE=RelWithDebInfo" \
+            "-DPROD=${PROD:?}" \
+            "-DENABLE_UPDATE_CHECKER=ON" \
             "-DCMAKE_INSTALL_PREFIX=/usr" \
             "-DCPACK_GENERATOR=DEB" \
             "-DCPACK_DEBIAN_FILE_NAME=${{ steps.artifact-names.outputs.DEB_ARTIFACT_NAME }}" \
@@ -128,55 +136,3 @@ jobs:
           path: build/${{ steps.artifact-names.outputs.DDEB_ARTIFACT_NAME }}
           archive: false
           if-no-files-found: error
-
-  test-resolute:
-    needs: resolute
-    runs-on: ${{ inputs.arm64 && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
-    timeout-minutes: 30
-
-    steps:
-      - name: Install scenario test dependencies (Ubuntu)
-        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: |
-          sudo apt-get update
-          sudo apt-get -y --no-install-recommends install \
-            at-spi2-core \
-            ca-certificates \
-            dbus-daemon \
-            dbus-x11 \
-            ffmpeg \
-            git \
-            obs-studio \
-            python3-pyatspi \
-            xauth \
-            xvfb
-
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Download deb artifact (Ubuntu)
-        uses: actions/download-artifact@v8.0.2
-        with:
-          name: ${{ needs.resolute.outputs.DEB_ARTIFACT_NAME }}
-          path: ${{ runner.temp }}/${{ github.job }}
-          skip-decompress: true
-
-      - name: Install deb artifact (Ubuntu)
-        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
-        env:
-          PACKAGE_FILE: ${{ runner.temp }}/${{ github.job }}/${{ needs.resolute.outputs.DEB_ARTIFACT_NAME }}
-        run: sudo apt-get -y install "${PACKAGE_FILE:?}"
-
-      - name: Run scenario tests (Ubuntu)
-        shell: /usr/bin/bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: ./tests/Scenarios/+run-debian.sh run_all
-
-      - name: Upload scenario test artifacts (Ubuntu)
-        if: always()
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: scenario-test-results-ubuntu-resolute-${{ inputs.arm64 && 'arm64' || 'amd64' }}
-          path: ${{ github.workspace }}/build_test_reports
-          if-no-files-found: warn

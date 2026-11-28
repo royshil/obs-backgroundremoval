@@ -33,26 +33,6 @@ class FilterContext final
     FilterContext(FilterContext &&) = delete;
     FilterContext &operator=(FilterContext &&) = delete;
 
-    static auto getSourceInfo() noexcept -> obs_source_info
-    {
-        obs_source_info sourceInfo{};
-        sourceInfo.id = "background_removal";
-        sourceInfo.type = OBS_SOURCE_TYPE_FILTER;
-        // Draws its output in linear space, as the sRGB-aware filters of OBS Studio do; see
-        // MaskCompositor::draw().
-        sourceInfo.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_SRGB;
-        sourceInfo.get_name = getName;
-        sourceInfo.create = create;
-        sourceInfo.destroy = destroy;
-        sourceInfo.get_defaults = getDefaults;
-        sourceInfo.get_properties = getProperties;
-        sourceInfo.update = update;
-        sourceInfo.get_width = getWidth;
-        sourceInfo.get_height = getHeight;
-        sourceInfo.video_tick = videoTick;
-        sourceInfo.video_render = videoRender;
-        return sourceInfo;
-    }
     static const char *getName(void *) noexcept;
     static void *create(obs_data_t *settings, obs_source_t *source) noexcept;
     static void destroy(void *data) noexcept;
@@ -63,6 +43,25 @@ class FilterContext final
     static std::uint32_t getHeight(void *data) noexcept;
     static void videoTick(void *data, float seconds) noexcept;
     static void videoRender(void *data, gs_effect_t *effect) noexcept;
+
+    // Assigned member by member: GCC warns about the members a designated initializer leaves out.
+    constexpr static const obs_source_info kSourceInfo = [] {
+        obs_source_info info{};
+        info.id = "background_removal";
+        info.type = OBS_SOURCE_TYPE_FILTER;
+        info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_SRGB;
+        info.get_name = getName;
+        info.create = create;
+        info.destroy = destroy;
+        info.get_width = getWidth;
+        info.get_height = getHeight;
+        info.get_defaults = getDefaults;
+        info.get_properties = getProperties;
+        info.update = update;
+        info.video_tick = videoTick;
+        info.video_render = videoRender;
+        return info;
+    }();
 
   private:
     /// What a pipeline is created for; any change recreates it.

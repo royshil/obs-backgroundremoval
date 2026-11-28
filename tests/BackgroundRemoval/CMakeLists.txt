@@ -15,7 +15,7 @@ endfunction()
 
 add_executable(BackgroundRemovalUnitTest UnitTestMain.cpp DualFilterKernelTest.cpp BlurVarianceTest.cpp)
 target_include_directories(BackgroundRemovalUnitTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest")
-target_link_libraries(BackgroundRemovalUnitTest PRIVATE BuildOptions)
+target_use_plugin_options(BackgroundRemovalUnitTest)
 target_compile_features(BackgroundRemovalUnitTest PRIVATE cxx_std_20)
 add_spec_tests(
     BackgroundRemovalUnitTest
@@ -35,13 +35,17 @@ add_spec_tests(
 # its OpenGL backend, rendering on the X display in DISPLAY. On macOS, libobs and its OpenGL backend
 # from the installed OBS Studio found in tests/CMakeLists.txt.
 if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux" OR OBS_MACOS_FRAMEWORKS_DIR)
-    add_executable(BackgroundRemovalGpuTest MaskRefinementGpuTest.cpp "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp")
-    target_include_directories(BackgroundRemovalGpuTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest")
+    add_executable(BackgroundRemovalGpuTest MaskRefinementGpuTest.cpp)
+    target_include_directories(
+        BackgroundRemovalGpuTest
+        PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest"
+    )
     target_compile_definitions(BackgroundRemovalGpuTest PRIVATE TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data")
-    target_link_libraries(BackgroundRemovalGpuTest PRIVATE BuildOptions OBS::libobs)
+    target_link_libraries(BackgroundRemovalGpuTest PRIVATE obs-backgroundremoval_pluginlibs)
     target_compile_features(BackgroundRemovalGpuTest PRIVATE cxx_std_20)
     add_spec_tests(BackgroundRemovalGpuTest SP-01004.1 SP-01004.2 SP-01004.4 SP-01004.5)
-    set_tests_properties(SP-01004.1 SP-01004.2 SP-01004.4 SP-01004.5 PROPERTIES TIMEOUT 120)
+    # Tests that render on the GPU share the lock gpu, so that ctest -j never runs two of them at once.
+    set_tests_properties(SP-01004.1 SP-01004.2 SP-01004.4 SP-01004.5 PROPERTIES TIMEOUT 120 RESOURCE_LOCK gpu)
     if(WIN32)
         target_compile_definitions(BackgroundRemovalGpuTest PRIVATE OBS_TEST_BIN_DIR="${OBS_TEST_BIN_DIR}")
         set_tests_properties(SP-01004.1 SP-01004.2 SP-01004.4 SP-01004.5 PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
@@ -79,15 +83,25 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         else()
             set(OBS_TEST_MODULE_DATA_SUFFIX share/obs/obs-plugins)
         endif()
-        find_path(OBS_TEST_MODULE_DATA_DIR NAMES image-source PATHS "${LIBOBS_DIR}/.." "${LIBOBS_DIR}/../.." PATH_SUFFIXES ${OBS_TEST_MODULE_DATA_SUFFIX} NO_DEFAULT_PATH NO_CACHE)
+        find_path(
+            OBS_TEST_MODULE_DATA_DIR
+            NAMES image-source
+            PATHS "${LIBOBS_DIR}/.." "${LIBOBS_DIR}/../.."
+            PATH_SUFFIXES ${OBS_TEST_MODULE_DATA_SUFFIX}
+            NO_DEFAULT_PATH
+            NO_CACHE
+        )
     endif()
     if(NOT OBS_TEST_MODULE_DIR OR NOT OBS_TEST_MODULE_DATA_DIR)
-        message(WARNING "The modules of OBS Studio or their data were not found next to ${LIBOBS_FILE}, so the tests running the filter in libobs are not built.")
+        message(
+            WARNING
+            "The modules of OBS Studio or their data were not found next to ${LIBOBS_FILE}, so the tests running the filter in libobs are not built."
+        )
     endif()
 endif()
 
 if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
-    # The shader pipeline is also built in, so that SP-01005 can run it on its own.
+    # The shader pipeline is also linked in from the plugin core, so that SP-01005 can run it on its own.
     add_executable(
         BackgroundRemovalObsTest
         ObsTestMain.cpp
@@ -96,21 +110,26 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
         FilterOutputObsTest.cpp
         InferenceObsTest.cpp
         PerformanceObsTest.cpp
-        "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MaskCompositor/MaskCompositor.cpp"
-        "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MediaPipeLandscapeShader/MPLSEffect.cpp"
-        "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MediaPipeLandscapeShader/MPLSPipeline.cpp"
-        "${PLUGIN_SOURCE_DIR}/BackgroundRemoval/MediaPipeLandscapeShader/generated/MPLSPipeline.generated.cpp"
     )
-    target_include_directories(BackgroundRemovalObsTest PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest")
+    target_include_directories(
+        BackgroundRemovalObsTest
+        PRIVATE "${PLUGIN_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/tests" "${PROJECT_SOURCE_DIR}/tests/vendor/doctest"
+    )
     target_compile_definitions(
         BackgroundRemovalObsTest
-        PRIVATE OBS_TEST_MODULE_DIR="${OBS_TEST_MODULE_DIR}" OBS_TEST_MODULE_DATA_DIR="${OBS_TEST_MODULE_DATA_DIR}" OBS_TEST_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}" PLUGIN_FILE="$<TARGET_FILE:obs-backgroundremoval>" PLUGIN_DATA_DIR="${PROJECT_SOURCE_DIR}/data" PLUGIN_VERSION_STR="${PLUGIN_VERSION}" TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data"
+        PRIVATE
+            OBS_TEST_MODULE_DIR="${OBS_TEST_MODULE_DIR}"
+            OBS_TEST_MODULE_DATA_DIR="${OBS_TEST_MODULE_DATA_DIR}"
+            OBS_TEST_MODULE_SUFFIX="${CMAKE_SHARED_MODULE_SUFFIX}"
+            PLUGIN_FILE="$<TARGET_FILE:obs-backgroundremoval>"
+            PLUGIN_DATA_DIR="${PROJECT_SOURCE_DIR}/data"
+            TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data"
     )
     if(APPLE)
         target_compile_definitions(BackgroundRemovalObsTest PRIVATE OBS_MACOS_FRAMEWORKS_DIR="${OBS_MACOS_FRAMEWORKS_DIR}")
         set_target_properties(BackgroundRemovalObsTest PROPERTIES BUILD_RPATH "${OBS_MACOS_FRAMEWORKS_DIR}")
     endif()
-    target_link_libraries(BackgroundRemovalObsTest PRIVATE BuildOptions OBS::libobs)
+    target_link_libraries(BackgroundRemovalObsTest PRIVATE obs-backgroundremoval_pluginlibs)
     target_compile_features(BackgroundRemovalObsTest PRIVATE cxx_std_20)
     add_dependencies(BackgroundRemovalObsTest obs-backgroundremoval)
 
@@ -144,16 +163,23 @@ if(OBS_TEST_MODULE_DIR AND OBS_TEST_MODULE_DATA_DIR)
         SP-01020.3
     )
     add_spec_tests(BackgroundRemovalObsTest ${OBS_SPEC_CASES})
-    set_tests_properties(${OBS_SPEC_CASES} PROPERTIES TIMEOUT 300)
+    set_tests_properties(${OBS_SPEC_CASES} PROPERTIES TIMEOUT 300 RESOURCE_LOCK gpu)
 
     # Plugin performance test cases, docs/specs/SP-03xxx. They need a hardware GPU, so they are
     # labeled performance, for CI to leave out.
     set(OBS_PERFORMANCE_CASES SP-03001.1 SP-03001.2)
     add_spec_tests(BackgroundRemovalObsTest ${OBS_PERFORMANCE_CASES})
-    set_tests_properties(${OBS_PERFORMANCE_CASES} PROPERTIES TIMEOUT 300 LABELS performance)
+    set_tests_properties(
+        ${OBS_PERFORMANCE_CASES}
+        PROPERTIES TIMEOUT 300 LABELS performance RESOURCE_LOCK gpu
+    )
 
     if(WIN32)
         target_compile_definitions(BackgroundRemovalObsTest PRIVATE OBS_TEST_ROOT="${OBS_TEST_ROOT}")
-        set_tests_properties(${OBS_SPEC_CASES} ${OBS_PERFORMANCE_CASES} PROPERTIES WORKING_DIRECTORY "${OBS_TEST_BIN_DIR}" ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}")
+        set_tests_properties(
+            ${OBS_SPEC_CASES}
+            ${OBS_PERFORMANCE_CASES}
+            PROPERTIES WORKING_DIRECTORY "${OBS_TEST_BIN_DIR}" ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OBS_TEST_BIN_DIR}"
+        )
     endif()
 endif()

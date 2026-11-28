@@ -4,23 +4,20 @@
 
 #include "FilterContext.hpp"
 
+#include <algorithm>
 #include <exception>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 
+#include <obs-module.h>
+
 #include <BackgroundRemoval/IRenderingPipeline.hpp>
+#include <PluginGlobal/PluginLoader.h>
 #include <UI/AboutDialogIntegration.hpp>
-#include <UpdateConfig/UpdateConfig.hpp>
 #include <plugin-support.h>
 
-#include "ModuleText.hpp"
 #include "PipelineFactory.hpp"
-
-#ifndef PLUGIN_VERSION_STR
-#error PLUGIN_VERSION_STR must be defined by the build system
-#endif
 
 namespace
 {
@@ -55,7 +52,7 @@ void appendHtmlEscaped(std::string &output, std::string_view text)
 namespace BackgroundRemoval
 {
 
-FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : source_(source)
+FilterContext::FilterContext(obs_data_t *settings, obs_source_t *source) : source_{source}
 {
     if (!settings || !source_)
     {
@@ -73,7 +70,7 @@ FilterContext::~FilterContext() noexcept
 
 const char *FilterContext::getName(void *) noexcept
 {
-    return tBackgroundRemoval();
+    return obs_module_text("Background Removal");
 }
 
 void *FilterContext::create(obs_data_t *settings, obs_source_t *source) noexcept
@@ -139,19 +136,25 @@ void FilterContext::getDefaults(obs_data_t *settings) noexcept
 std::string FilterContext::getVersionNotice()
 {
     std::string versionNotice = "<a href=\"https://github.com/royshil/obs-backgroundremoval/releases\">";
-    appendHtmlEscaped(versionNotice, tBackgroundRemoval());
+    appendHtmlEscaped(versionNotice, obs_module_text("Background Removal"));
     versionNotice += " ";
-    appendHtmlEscaped(versionNotice, PLUGIN_VERSION_STR);
-    if (const std::optional<std::string> latestVersion = UpdateConfig::getLatestVersion(); latestVersion.has_value())
+    appendHtmlEscaped(versionNotice, PLUGIN_VERSION);
+    // The remote latest version stays 0.0.0 until it has been fetched.
+    const pluginloader_semver latestVersion = pluginloader_get_remote_latest_version();
+    if (std::ranges::any_of(latestVersion.version_core, [](long component) { return component != 0; }))
     {
+        PluginLoaderSemver currentVersion{};
+        const bool currentVersionParsed = currentVersion.parse(PLUGIN_VERSION);
+
         versionNotice += " (";
-        if (UpdateConfig::isSemverNewer(latestVersion.value(), PLUGIN_VERSION_STR))
+        if (currentVersionParsed &&
+            std::ranges::lexicographical_compare(currentVersion.version_core, latestVersion.version_core))
         {
-            appendHtmlEscaped(versionNotice, tNewVersionsAvailable());
+            appendHtmlEscaped(versionNotice, obs_module_text("New Version Available!"));
         }
         else
         {
-            appendHtmlEscaped(versionNotice, tUpToDate());
+            appendHtmlEscaped(versionNotice, obs_module_text("Up to Date"));
         }
         versionNotice += ")";
     }
@@ -173,41 +176,50 @@ obs_properties_t *FilterContext::getProperties(void *data) noexcept
     catch (const std::exception &exception)
     {
         obs_log(LOG_ERROR, "Failed to get version info: %s", exception.what());
-        obs_properties_add_text(p, "v2_VersionNotice", tBackgroundRemoval(), OBS_TEXT_INFO);
+        obs_properties_add_text(p, "v2_VersionNotice", obs_module_text("Background Removal"), OBS_TEXT_INFO);
     }
     catch (...)
     {
         obs_log(LOG_ERROR, "Failed to get version info: Unknown error");
-        obs_properties_add_text(p, "v2_VersionNotice", tBackgroundRemoval(), OBS_TEXT_INFO);
+        obs_properties_add_text(p, "v2_VersionNotice", obs_module_text("Background Removal"), OBS_TEXT_INFO);
     }
 
     // MARK: - General Properties
 
     obs_properties_t *const pGeneral = obs_properties_create();
-    obs_properties_add_group(p, "v2_GeneralGroup", tGeneral(), OBS_GROUP_NORMAL, pGeneral);
+    obs_properties_add_group(p, "v2_GeneralGroup", obs_module_text("General"), OBS_GROUP_NORMAL, pGeneral);
 
-    obs_property_t *const pipeline =
-        obs_properties_add_list(pGeneral, "v2_PipelineId", tPipeline(), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-    obs_property_list_add_int(pipeline, tPipelineAuto(), kAutoPipelineId);
-    obs_property_list_add_int(pipeline, tPipelineMPLS(), kMPLSPipelineId);
-    obs_property_set_long_description(pipeline, tPipelineDescription());
+    obs_property_t *const pipeline = obs_properties_add_list(pGeneral, "v2_PipelineId", obs_module_text("Pipeline"),
+                                                             OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(pipeline, obs_module_text("Auto"), kAutoPipelineId);
+    obs_property_list_add_int(pipeline, obs_module_text("MediaPipe (Landscape) - Default GPU"), kMPLSPipelineId);
+    obs_property_set_long_description(
+        pipeline,
+        obs_module_text("Auto selects the recommended pipeline. Select a specific pipeline to use it explicitly."));
 
     // MARK: - Blur Background Properties
 
     obs_properties_t *const blurProperties = obs_properties_create();
-    obs_properties_add_group(p, "v2_BlurBg", tBlurBg(), OBS_GROUP_CHECKABLE, blurProperties);
+    obs_properties_add_group(p, "v2_BlurBg", obs_module_text("Blur Background"), OBS_GROUP_CHECKABLE, blurProperties);
 
-    obs_property_t *const blurStrength =
-        obs_properties_add_float_slider(blurProperties, "v2_BlurBg_Factor", tBlurBgStrength(), 0.0, 20.0, 0.1);
-    obs_property_set_long_description(blurStrength, tBlurBgStrengthDescription());
-    obs_property_t *const blurFocusRatio =
-        obs_properties_add_int_slider(blurProperties, "v2_BlurBg_FocusRatio", tBlurBgFocusRatio(), -100, 100, 1);
+    obs_property_t *const blurStrength = obs_properties_add_float_slider(blurProperties, "v2_BlurBg_Factor",
+                                                                         obs_module_text("Strength"), 0.0, 20.0, 0.1);
+    obs_property_set_long_description(
+        blurStrength,
+        obs_module_text(
+            "How strongly the parts farthest from the focus point are blurred. 0 leaves the image sharp. The default is 4."));
+    obs_property_t *const blurFocusRatio = obs_properties_add_int_slider(blurProperties, "v2_BlurBg_FocusRatio",
+                                                                         obs_module_text("Focus Ratio"), -100, 100, 1);
     obs_property_int_set_suffix(blurFocusRatio, "%");
-    obs_property_set_long_description(blurFocusRatio, tBlurBgFocusRatioDescription());
+    obs_property_set_long_description(
+        blurFocusRatio,
+        obs_module_text(
+            "Where the image stays sharp: -100% keeps the person sharp, 100% keeps the background sharp, and 0% balances the two. The blur grows with the distance from there. The default is -100%."));
 
     // MARK: - Footer
 
-    obs_properties_add_button2(p, "v2_AboutButton", tAboutThisPlugin(), handleAboutButtonClicked, data);
+    obs_properties_add_button2(p, "v2_AboutButton", obs_module_text("About this plugin"), handleAboutButtonClicked,
+                               data);
 
     return p;
 }

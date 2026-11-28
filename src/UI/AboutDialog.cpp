@@ -4,11 +4,6 @@
 
 #include "AboutDialog.hpp"
 
-#if __has_include(<legal.hpp>)
-#include <legal.hpp>
-#define ABOUT_DIALOG_HAS_LEGAL_TEXT
-#endif
-
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFont>
@@ -21,7 +16,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-AboutDialog::AboutDialog(const QString &version, QWidget *parent, bool updateNotificationsEnabled)
+AboutDialog::AboutDialog(const QString &version, const QString &logoPath, QWidget *parent,
+                         bool updateNotificationsEnabled)
     : QDialog(parent), logoLabel(new QLabel(this)), productNameLabel(new QLabel(this)), authorLabel(new QLabel(this)),
       versionLabel(new QLabel(this)), officialSiteLink(new QLabel(this)), officialSiteSeparator(new QLabel(this)),
       githubLink(new QLabel(this)), githubSeparator(new QLabel(this)), communityLink(new QLabel(this)),
@@ -35,7 +31,7 @@ AboutDialog::AboutDialog(const QString &version, QWidget *parent, bool updateNot
       licensesTextEdit(new QPlainTextEdit(licensesDialog)),
       licensesButtonBox(new QDialogButtonBox(QDialogButtonBox::Close, licensesDialog))
 {
-    setupUi(version, updateNotificationsEnabled);
+    setupUi(version, logoPath, updateNotificationsEnabled);
 }
 
 AboutDialog::~AboutDialog() noexcept = default;
@@ -45,7 +41,11 @@ bool AboutDialog::updateNotificationsEnabled() const
     return enableUpdateNotifications->isChecked();
 }
 
-void AboutDialog::setupUi(const QString &version, bool updateNotificationsEnabled)
+// Defined in src/legal.cpp: the legal texts and their headings, in the order they are shown, ending with a null
+// pointer.
+extern "C" const char *const kLegalAll[];
+
+void AboutDialog::setupUi(const QString &version, const QString &logoPath, bool updateNotificationsEnabled)
 {
     setWindowTitle(tr("About obs-backgroundremoval"));
     setModal(true);
@@ -55,7 +55,7 @@ void AboutDialog::setupUi(const QString &version, bool updateNotificationsEnable
     rootLayout->addStrut(640);
     auto *headerLayout = new QHBoxLayout;
 
-    QPixmap logo(QStringLiteral(":/obs-backgroundremoval-resources/logo.png"));
+    QPixmap logo(logoPath);
     if (!logo.isNull())
     {
         logoLabel->setPixmap(logo.scaled(96, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation));
@@ -185,13 +185,16 @@ void AboutDialog::setupUi(const QString &version, bool updateNotificationsEnable
 
     rootLayout->addStretch();
 
-#ifdef ABOUT_DIALOG_HAS_LEGAL_TEXT
     licensesDialog->setWindowTitle(tr("Licenses"));
     licensesDialog->setModal(false);
     auto *licensesLayout = new QVBoxLayout(licensesDialog);
     licensesTextEdit->setReadOnly(true);
-    licensesTextEdit->setPlainText(QString::fromUtf8(reinterpret_cast<const char *>(obs_backgroundremoval::legal_text),
-                                                     static_cast<qsizetype>(obs_backgroundremoval::legal_text_size)));
+    QString legalText;
+    for (const char *const *text = kLegalAll; *text; ++text)
+    {
+        legalText += QString::fromUtf8(*text);
+    }
+    licensesTextEdit->setPlainText(legalText);
     licensesLayout->addWidget(licensesTextEdit);
     licensesLayout->addWidget(licensesButtonBox);
     connect(licensesButtonBox, &QDialogButtonBox::rejected, licensesDialog, &QDialog::reject);
@@ -203,7 +206,6 @@ void AboutDialog::setupUi(const QString &version, bool updateNotificationsEnable
         dialog->raise();
         dialog->activateWindow();
     });
-#endif
     aboutQtButton->setText(tr("About Qt"));
     buttonBox->addButton(aboutQtButton, QDialogButtonBox::ActionRole);
     connect(aboutQtButton, &QPushButton::clicked, this, [this] { QMessageBox::aboutQt(this); });

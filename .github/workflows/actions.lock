@@ -8,18 +8,15 @@ workflows:
     '.github/workflows/build-debian.yml':
         - 'actions/attest@v4.2.2'
         - 'actions/checkout@v7.0.1'
-        - 'actions/download-artifact@v8.0.2'
         - 'actions/upload-artifact@v7.0.2'
     '.github/workflows/build-macos.yml':
         - 'actions/attest@v4.2.2'
         - 'actions/checkout@v7.0.1'
-        - 'actions/download-artifact@v8.0.2'
         - 'actions/upload-artifact@v7.0.2'
         - 'kaito-tokyo/setup-apple-codesigning@v1.0.0'
     '.github/workflows/build-ubuntu.yml':
         - 'actions/attest@v4.2.2'
         - 'actions/checkout@v7.0.1'
-        - 'actions/download-artifact@v8.0.2'
         - 'actions/upload-artifact@v7.0.2'
     '.github/workflows/build-windows.yml':
         - 'actions/attest@v4.2.2'

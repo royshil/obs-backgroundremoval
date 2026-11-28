@@ -18,3 +18,4 @@
 -DPLUGIN_VERSION_STR="1.5.1"
 -DPLUGIN_LATEST_VERSION_URL="https://royshil.github.io/obs-backgroundremoval/metadata/latest-version.txt"
 -DOBS_LOG_HEADER="[obs-backgroundremoval] "
+-DPLUGIN_ENABLE_UPDATE_CHECKER

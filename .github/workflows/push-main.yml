@@ -54,6 +54,7 @@ jobs:
       id-token: write
     with:
       attest-artifacts: true
+      prod: true
       release-build: ${{ inputs.release-build || false }}
       runs-on: windows-2025-vs2026
 
@@ -67,6 +68,7 @@ jobs:
       id-token: write
     with:
       attest-artifacts: true
+      prod: true
       release-build: ${{ inputs.release-build || false }}
       TAHOE_DEVELOPER_DIR: /Applications/Xcode_26.5.app
 
@@ -80,6 +82,7 @@ jobs:
     with:
       attest-artifacts: true
       arm64: false
+      prod: true
       release-build: ${{ inputs.release-build || false }}
 
   build-debian-arm64:
@@ -92,6 +95,7 @@ jobs:
     with:
       attest-artifacts: true
       arm64: true
+      prod: true
       release-build: ${{ inputs.release-build || false }}
 
   build-ubuntu-amd64:
@@ -104,6 +108,7 @@ jobs:
     with:
       attest-artifacts: true
       arm64: false
+      prod: true
       release-build: ${{ inputs.release-build || false }}
 
   build-ubuntu-arm64:
@@ -116,6 +121,7 @@ jobs:
     with:
       attest-artifacts: true
       arm64: true
+      prod: true
       release-build: ${{ inputs.release-build || false }}
 
   build-arch:
@@ -123,4 +129,5 @@ jobs:
     permissions:
       contents: read
     with:
+      prod: true
       release-build: ${{ inputs.release-build || false }}

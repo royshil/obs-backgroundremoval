@@ -14,6 +14,10 @@ on:
         required: false
         type: string
         default: archlinux:base-devel
+      prod:
+        description: Builds with the defaults of a production build.
+        required: true
+        type: boolean
       release-build:
         description: Builds a release.
         required: true
@@ -54,9 +58,13 @@ jobs:
       - name: Configure (Arch)
         shell: /usr/sbin/runuser -u runner -- /bin/sh -eu {0}
         working-directory: /home/runner
+        env:
+          PROD: ${{ inputs.prod && 'ON' || 'OFF' }}
         run: |
           cmake -S "${GITHUB_WORKSPACE:?}" -B build -G Ninja \
             "-DCMAKE_BUILD_TYPE=RelWithDebInfo" \
+            "-DPROD=${PROD:?}" \
+            "-DENABLE_UPDATE_CHECKER=ON" \
             "-DCMAKE_INSTALL_PREFIX=/usr"
 
       - name: Build (Arch)

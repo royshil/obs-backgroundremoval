@@ -2,12 +2,11 @@
 # SPDX-FileCopyrightText: 2026 Kaito Udagawa <umireon@kaito.tokyo>
 #
 # SPDX-License-Identifier: Apache-2.0
+kind: Design principle
+platforms: All
 ---
 
 # SP-00005: Effect parameters in the loop body
-
-- Kind: Design principle
-- Platforms: All
 
 ## Principle
 

@@ -17,6 +17,11 @@ CMakeLists.txt text eol=lf
 
 Dockerfile text eol=lf
 
+# The plugin embeds these files byte for byte, so every checkout must have the same line endings.
+/LICENSE text eol=lf
+/NOTICE text eol=lf
+/LICENSES/*.txt text eol=lf
+
 *.ini text eol=crlf
 
 *.yml text eol=lf

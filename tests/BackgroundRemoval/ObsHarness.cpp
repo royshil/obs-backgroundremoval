@@ -40,8 +40,8 @@
 #ifndef PLUGIN_DATA_DIR
 #error PLUGIN_DATA_DIR must be defined by the build system
 #endif
-#ifndef PLUGIN_VERSION_STR
-#error PLUGIN_VERSION_STR must be defined by the build system
+#ifndef PLUGIN_VERSION
+#error PLUGIN_VERSION must be defined by the build system
 #endif
 #ifndef TEST_DATA_DIR
 #error TEST_DATA_DIR must be defined by the build system
@@ -118,7 +118,7 @@ void writeUpdateConfig()
     const std::filesystem::path pluginConfig = configDirectory / "obs-backgroundremoval";
     std::filesystem::create_directories(pluginConfig);
     std::ofstream(pluginConfig / "update.ini")
-        << "[update]\nversion=" << PLUGIN_VERSION_STR << "\ncheck_for_updates=false\n";
+        << "[update]\nversion=" << PLUGIN_VERSION << "\ncheck_for_updates=false\n";
 }
 
 auto createSource(const char *id, const char *name, const std::string &settingsJson) -> OBSSourceAutoRelease
@@ -238,7 +238,9 @@ auto countLogLines(const std::string &line) -> std::size_t
 auto waitFrames(int frames) -> bool
 {
     using namespace std::chrono_literals;
-    const auto deadline = std::chrono::steady_clock::now() + 30s;
+    // A slow runner renders slowly but steadily, so only a gap between two frames counts as a stall.
+    constexpr auto kStallTimeout = 30s;
+    auto deadline = std::chrono::steady_clock::now() + kStallTimeout;
     std::uint64_t last = obs_get_video_frame_time();
     int seen = 0;
     while (seen < frames && std::chrono::steady_clock::now() < deadline)
@@ -249,6 +251,7 @@ auto waitFrames(int frames) -> bool
         {
             last = now;
             ++seen;
+            deadline = std::chrono::steady_clock::now() + kStallTimeout;
         }
     }
     return seen >= frames;
@@ -383,13 +386,13 @@ auto backgroundIsRemoved(const Image &image) -> bool
 namespace
 {
 
-/// Waits for the video thread to apply a change, and fails the test case when it renders too slowly
-/// for the change to have taken effect.
+/// Waits for the video thread to apply a change, and stops the test case when the video thread stalls
+/// before the change can have taken effect, since every later check would run on stale output.
 void settle(int frames)
 {
     if (!waitFrames(frames))
     {
-        FAIL_CHECK("The video thread rendered fewer than " << frames << " frames in 30 seconds");
+        FAIL("The video thread stalled for 30 seconds before rendering " << frames << " frames");
     }
 }
 

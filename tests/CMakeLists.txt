@@ -5,7 +5,12 @@
 # The OBS Studio release that the vendored headers and import libraries are taken from. Tests that run
 # libobs load obs.dll and its dependencies from OBS_TEST_BIN_DIR.
 if(WIN32)
-    FetchContent_Declare(obs-studio-windows URL https://github.com/obsproject/obs-studio/releases/download/30.2.3/OBS-Studio-30.2.3-Windows.zip URL_HASH SHA256=c5bf721258f6d8b2342ed39f04e65cdd3a07a9d1300654471d4be91d87fee65b DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    FetchContent_Declare(
+        obs-studio-windows
+        URL https://github.com/obsproject/obs-studio/releases/download/30.2.3/OBS-Studio-30.2.3-Windows.zip
+        URL_HASH SHA256=c5bf721258f6d8b2342ed39f04e65cdd3a07a9d1300654471d4be91d87fee65b
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
     FetchContent_MakeAvailable(obs-studio-windows)
     set(OBS_TEST_ROOT "${obs-studio-windows_SOURCE_DIR}")
     set(OBS_TEST_BIN_DIR "${OBS_TEST_ROOT}/bin/64bit")
@@ -28,6 +33,13 @@ if(APPLE)
     endif()
 endif()
 
+# Unit tests compile the plugin sources they test themselves, so that they need neither libobs nor
+# Qt, but with the compile and link options of the plugin.
+function(target_use_plugin_options TARGET_NAME)
+    target_link_libraries("${TARGET_NAME}" PRIVATE $<COMPILE_ONLY:obs-backgroundremoval_pluginlibs>)
+    target_link_options("${TARGET_NAME}" PRIVATE $<TARGET_PROPERTY:obs-backgroundremoval_pluginlibs,INTERFACE_LINK_OPTIONS>)
+endfunction()
+
 add_subdirectory(BackgroundRemoval)
+add_subdirectory(PluginGlobal)
 add_subdirectory(UI)
-add_subdirectory(UpdateConfig)

@@ -15,6 +15,11 @@
 - [SP-00004: Focal blur model](SP-00004_focal-blur-model.md)
 - [SP-00005: Effect parameters in the loop body](SP-00005_effect-parameters-in-loop-body.md)
 - [SP-00006: Vendored files record their upstream](SP-00006_vendored-files-record-their-upstream.md)
+- [SP-00007: Standard library features available at the minimum targets](SP-00007_standard-library-at-the-minimum-targets.md)
+- [SP-00008: Module entry points and locale strings](SP-00008_module-entry-points-and-locale.md)
+- [SP-00009: A C module over a C++ static library](SP-00009_c-module-over-cpp-static-library.md)
+- [SP-00010: PluginGlobal governs the plugin module](SP-00010_plugin-global-governs-the-module.md)
+- [SP-00011: The startup dialog is shown only when it is certain](SP-00011_startup-dialog-only-when-certain.md)
 
 ## Plugin unit test cases
 
@@ -37,6 +42,7 @@
 - [SP-01017: Blur focus ratio](SP-01017_bgrm-blur-focus-ratio.feature)
 - [SP-01018: Kept pixels](SP-01018_bgrm-kept-pixels.feature)
 - [SP-01020: Translucent source](SP-01020_bgrm-translucent-source.feature)
+- [SP-01021: Semantic version](SP-01021_pg-semver.feature)
 
 ## Plugin user scenario cases
 
