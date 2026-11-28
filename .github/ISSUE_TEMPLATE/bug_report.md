@@ -5,7 +5,7 @@
 
 name: Bug report
 about: Report a reproducible bug
-title: 'what happened? write here briefly'
+title: "what happened? write here briefly"
 labels: bug
 assignees: umireon
 ---

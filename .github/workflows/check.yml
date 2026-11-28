@@ -18,6 +18,22 @@ permissions:
   contents: read
 
 jobs:
+  check-biome:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Print node and npx version
+        run: node --version && npx --version
+
+      - name: Check with Biome
+        run: npx --yes @biomejs/biome@2.6.9 ci --reporter=github
+
   check-clang-format:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -28,34 +44,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Print clang-format-21 version
+        run: clang-format-21 --version
+
       - name: Check with clang-format
         shell: bash --noprofile --norc -euo pipefail {0}
-        run: |
-          clang-format-21 --version
-          git ls-files -z -- {src,tests}/'*'.{c,cpp,h,hpp} | xargs -0 clang-format-21 --dry-run --Werror
-
-  check-gersemi:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@v7.1.0
-        with:
-          python-version: '3.12'
-
-      - name: Install check requirements
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: python -m pip install 'gersemi==0.27.7'
-
-      - name: Check with gersemi
-        shell: bash --noprofile --norc -euo pipefail {0}
-        run: gersemi --check --diff CMakeLists.txt cmake src tests
+        run: git ls-files -z -- '*.c' '*.h' '*.cpp' '*.hpp' | xargs -0 clang-format-21 --dry-run --Werror
 
   check-editorconfig:
     runs-on: ubuntu-26.04
@@ -67,18 +61,27 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v7.0.0
-        with:
-          python-version: '3.12'
-
-      - name: Install check requirements
-        shell: bash --noprofile --norc -euo pipefail {0}
-        run: python -m pip install 'editorconfig-checker==3.11.1'
+      - name: Print pipx version
+        run: pipx --version && "$(pipx environment --value PIPX_DEFAULT_PYTHON)" --version
 
       - name: Check with editorconfig-checker
-        shell: bash --noprofile --norc -euo pipefail {0}
-        run: ec -format github-actions -exclude '\.(c|cpp|h|hpp)$'
+        run: pipx run 'editorconfig-checker==3.11.1' -format github-actions -exclude '\.(c|h|cpp|hpp|md)$'
+
+  check-gersemi:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Print pipx and python3 version
+        run: pipx --version && "$(pipx environment --value PIPX_DEFAULT_PYTHON)" --version
+
+      - name: Check with gersemi
+        run: pipx run 'gersemi==0.27.7' --check --diff CMakeLists.txt cmake src tests
 
   check-reuse:
     runs-on: ubuntu-26.04
@@ -90,32 +93,25 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v7.1.0
-        with:
-          python-version: '3.12'
+      - name: Print pipx and python3 version
+        run: pipx --version && "$(pipx environment --value PIPX_DEFAULT_PYTHON)" --version
 
-      - name: Install check requirements
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: python -m pip install 'reuse[charset-normalizer]==6.2.0'
-
-      - name: Lint with REUSE
-        shell: bash --noprofile --norc -euo pipefail {0}
-        run: reuse --no-multiprocessing lint
+      - name: Check with REUSE
+        run: pipx run 'reuse[charset-normalizer]==6.2.0' lint
 
   accept-check-ci:
     if: always()
     needs:
+      - check-biome
       - check-clang-format
-      - check-gersemi
       - check-editorconfig
+      - check-gersemi
       - check-reuse
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions: {}
     steps:
-      - name: Check workflow results
+      - name: All the checks MUST succeed
         env:
           NEEDS: ${{ toJSON(needs) }}
-        shell: bash --noprofile --norc -euo pipefail -O nullglob {0}
-        run: jq -e 'all(.[]; .result == "success")' <<< "${NEEDS:?}"
+        run: jq -ne '$ENV.NEEDS | fromjson | all(.result == "success")'

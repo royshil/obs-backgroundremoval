@@ -27,13 +27,13 @@ the OBS Studio modules they use. A test names the case it implements by its tag,
 
 - Cases as Gherkin, as `SP-01xxx_case-title.feature`, one feature per unit or topic.
 - Start the case title in the file name with an abbreviation of what the case covers, such as
-    `bgrm` for the Background Removal filter (`SP-01004_bgrm-mask-refinement.feature`). The
-    abbreviations are used in spec file names only.
+  `bgrm` for the Background Removal filter (`SP-01004_bgrm-mask-refinement.feature`). The
+  abbreviations are used in spec file names only.
 - Tag the feature with its number (`@SP-01xxx`) and each scenario with a sub-number
-    (`@SP-01xxx.1`).
+  (`@SP-01xxx.1`).
 - Inputs and expected outputs stated exactly, with tolerances where values are numeric, so that a
-    doctest assertion can check them. Settings are named by their keys, such as
-    `"v2_BlurBg_FocusRatio"`, and log lines are quoted in full.
+  doctest assertion can check them. Settings are named by their keys, such as
+  `"v2_BlurBg_FocusRatio"`, and log lines are quoted in full.
 - The design principle a case verifies, if any.
 
 The cases hold on all platforms; platform-specific ways to run them belong to the tests, not here.
