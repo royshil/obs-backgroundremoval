@@ -10,6 +10,7 @@ path = [
     ".github/workflows/actions.lock",
     ".python-version",
     "**/*.upstream",
+    "biome.json",
     "CMakePresets.json",
     "compile_flags.txt",
     "scripts/windows/*",
