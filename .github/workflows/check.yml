@@ -18,6 +18,22 @@ permissions:
   contents: read
 
 jobs:
+  check-biome:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Print node and npx version
+        run: node --version && npx --version
+
+      - name: Check with Biome
+        run: npx --yes @biomejs/biome@2.6.9 ci --reporter=github
+
   check-clang-format:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -86,6 +102,7 @@ jobs:
   accept-check-ci:
     if: always()
     needs:
+      - check-biome
       - check-clang-format
       - check-editorconfig
       - check-gersemi
