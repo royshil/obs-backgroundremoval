@@ -14,9 +14,11 @@
 - Compatible with OBS Virtual Camera. Do not use with other background removal plugins simultaneously.
 
 ### How to Apply the Filter
+
 1. Right-click your video source in OBS → "Filters" → "Effect Filters" → Add "Background Removal".
 
 ### Customizing the Background
+
 - Replace the background with any image or video by placing a source below your camera in the scene.
 - Adjust AI model, threshold, and edge smoothing in filter settings.
 - Background blur is available (enable in filter settings).
@@ -26,6 +28,7 @@
 ## 2. Installation (Detailed)
 
 ### Windows
+
 1. Download the latest Windows ZIP from the [official site](https://royshil.github.io/obs-backgroundremoval/).
 2. Extract the ZIP and copy its contents to your OBS Studio install folder (e.g., `C:\Program Files\obs-studio`).
 3. Restart OBS Studio.
@@ -35,6 +38,7 @@
 ---
 
 ### macOS
+
 1. Download the latest macOS PKG installer from the [official site](https://royshil.github.io/obs-backgroundremoval/).
 2. Run the PKG installer and follow the instructions.
 3. Restart OBS Studio.
@@ -44,8 +48,10 @@
 ---
 
 ### Ubuntu
+
 1. Download the latest Ubuntu DEB package from the [official site](https://royshil.github.io/obs-backgroundremoval/).
 2. Install via GUI (double-click `.deb`) or terminal:
+
     ```sh
     sudo dpkg -i ./obs-backgroundremoval_*_x86_64-linux-gnu.deb
     sudo apt-get install -f
@@ -57,7 +63,9 @@
 ---
 
 ### Flatpak
+
 1. Run:
+
     ```sh
     flatpak install flathub com.obsproject.Studio.Plugin.BackgroundRemoval
     ```
@@ -68,13 +76,17 @@
 ---
 
 ### Arch Linux
+
 1. From AUR:
+
     ```sh
     git clone https://aur.archlinux.org/obs-backgroundremoval.git
     cd obs-backgroundremoval
     makepkg -si
     ```
+
     Or with an AUR helper:
+
     ```sh
     yay -S obs-backgroundremoval
     ```
@@ -131,9 +143,7 @@
 
 ---
 
-
 [More info](https://royshil.github.io/obs-backgroundremoval/flatpak/)
-
 
 SPDX-FileCopyrightText: 2021-2026 Roy Shilkrot <roy.shil@gmail.com>
 SPDX-FileCopyrightText: 2023-2026 Kaito Udagawa <umireon@kaito.tokyo>

@@ -49,7 +49,7 @@ jobs:
         run: pipx --version && "$(pipx environment --value PIPX_DEFAULT_PYTHON)" --version
 
       - name: Check with editorconfig-checker
-        run: pipx run 'editorconfig-checker==3.11.1' -format github-actions -exclude '\.(c|h|cpp|hpp)$'
+        run: pipx run 'editorconfig-checker==3.11.1' -format github-actions -exclude '\.(c|h|cpp|hpp|md)$'
 
   check-gersemi:
     runs-on: ubuntu-26.04
