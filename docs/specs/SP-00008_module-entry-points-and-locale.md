@@ -21,13 +21,13 @@ libobs finds a module's functions by name with `os_dlsym`, so the symbols the mo
 whole interface to libobs. `obs-module.h` does not describe that interface consistently:
 
 - Of the optional information functions, `obs_module_name` and `obs_module_description` are declared
-    with `MODULE_EXPORT`, but `obs_module_author` is declared with it only inside the
-    `OBS_MODULE_AUTHOR()` macro. A module that defines `obs_module_author` by hand under hidden
-    visibility does not export it, and libobs never sees it.
+  with `MODULE_EXPORT`, but `obs_module_author` is declared with it only inside the
+  `OBS_MODULE_AUTHOR()` macro. A module that defines `obs_module_author` by hand under hidden
+  visibility does not export it, and libobs never sees it.
 - `OBS_DECLARE_MODULE()` and `OBS_MODULE_USE_DEFAULT_LOCALE()` define `obs_current_module`,
-    `obs_module_text` and the variable `obs_module_lookup` with no visibility of their own. The last
-    has no declaration at all. Whether they leak out of the module depends on the build passing
-    `-fvisibility=hidden`, not on the header.
+  `obs_module_text` and the variable `obs_module_lookup` with no visibility of their own. The last
+  has no declaration at all. Whether they leak out of the module depends on the build passing
+  `-fvisibility=hidden`, not on the header.
 - The header pulls in all of `obs.h` to declare a handful of functions.
 
 The ABI itself is very stable, so writing it out costs little. The names libobs looks up, the
@@ -45,49 +45,49 @@ own, which the `.ini` files have to follow.
 ### Exports
 
 1. The module exports exactly these 11 functions, the names that `load_module_exports()` in
-    libobs's `obs-module.c` resolves:
+   libobs's `obs-module.c` resolves:
 
-    | Function | libobs treats it as | Role |
-    | --- | --- | --- |
-    | `obs_module_load` | Required | Initializes the plugin and registers its sources. Returning `false` fails the load. |
-    | `obs_module_set_pointer` | Required | Receives the module's `obs_module_t *` right after the library is opened. |
-    | `obs_module_ver` | Required | Returns the libobs API version that the module targets. |
-    | `obs_module_unload` | Optional | Called at shutdown, only if `obs_module_load` succeeded. |
-    | `obs_module_post_load` | Optional | Called after every module has loaded. |
-    | `obs_module_set_locale` | Optional | Called with the UI locale right after `obs_module_set_pointer`. |
-    | `obs_module_free_locale` | Optional | Called at shutdown, before `obs_module_unload`. |
-    | `obs_module_get_string` | Optional | Looks up one of the module's strings for libobs. |
-    | `obs_module_name` | Optional | The display name. |
-    | `obs_module_description` | Optional | A description of the plugin. |
-    | `obs_module_author` | Optional | The author. |
+    | Function                 | libobs treats it as | Role                                                                                |
+    | ------------------------ | ------------------- | ----------------------------------------------------------------------------------- |
+    | `obs_module_load`        | Required            | Initializes the plugin and registers its sources. Returning `false` fails the load. |
+    | `obs_module_set_pointer` | Required            | Receives the module's `obs_module_t *` right after the library is opened.           |
+    | `obs_module_ver`         | Required            | Returns the libobs API version that the module targets.                             |
+    | `obs_module_unload`      | Optional            | Called at shutdown, only if `obs_module_load` succeeded.                            |
+    | `obs_module_post_load`   | Optional            | Called after every module has loaded.                                               |
+    | `obs_module_set_locale`  | Optional            | Called with the UI locale right after `obs_module_set_pointer`.                     |
+    | `obs_module_free_locale` | Optional            | Called at shutdown, before `obs_module_unload`.                                     |
+    | `obs_module_get_string`  | Optional            | Looks up one of the module's strings for libobs.                                    |
+    | `obs_module_name`        | Optional            | The display name.                                                                   |
+    | `obs_module_description` | Optional            | A description of the plugin.                                                        |
+    | `obs_module_author`      | Optional            | The author.                                                                         |
 
 2. Each of them is defined with `PLUGIN_PUBLIC`, which is `__declspec(dllexport)` with MSVC and
-    `__attribute__((visibility("default")))` with other compilers.
+   `__attribute__((visibility("default")))` with other compilers.
 3. A function that other files of the module call, but that libobs does not look up, is defined
-    with `PLUGIN_PRIVATE`, which is `__attribute__((visibility("hidden")))` with GCC and Clang and
-    nothing with MSVC. These are `obs_current_module`, which the `obs_module_file()` and
-    `obs_module_config_path()` macros of the C++ sources call, and `obs_module_text`.
+   with `PLUGIN_PRIVATE`, which is `__attribute__((visibility("hidden")))` with GCC and Clang and
+   nothing with MSVC. These are `obs_current_module`, which the `obs_module_file()` and
+   `obs_module_config_path()` macros of the C++ sources call, and `obs_module_text`.
 4. Anything used only in its own file is `static` and carries no visibility attribute. GCC reports
-    `'visibility' attribute ignored` for a `static` declaration, which `-Werror` turns into a build
-    failure.
+   `'visibility' attribute ignored` for a `static` declaration, which `-Werror` turns into a build
+   failure.
 5. An `extern` declaration carries no visibility attribute. The definition decides whether a symbol
-    is exported.
+   is exported.
 6. `src/plugin-main.c` does not include `obs-module.h`. It declares the few libobs items it needs
-    itself: the incomplete types `obs_module_t` and `lookup_t`, `blog`, `obs_module_load_locale`,
-    `text_lookup_getstr` and `text_lookup_destroy`.
+   itself: the incomplete types `obs_module_t` and `lookup_t`, `blog`, `obs_module_load_locale`,
+   `text_lookup_getstr` and `text_lookup_destroy`.
 7. `obs_module_ver` returns a fixed version, `(30 << 24) | (2 << 16) | 3` for 30.2.3, rather than
-    the `LIBOBS_API_VER` of whichever headers the build uses. libobs 33 compares only the major and
-    minor versions, and refuses a module that targets a newer libobs than itself, so the value
-    states the oldest libobs that the plugin supports.
+   the `LIBOBS_API_VER` of whichever headers the build uses. libobs 33 compares only the major and
+   minor versions, and refuses a module that targets a newer libobs than itself, so the value
+   states the oldest libobs that the plugin supports.
 
 ### Lifecycle and module information
 
 8. `obs_module_load`, `obs_module_post_load` and `obs_module_unload` delegate to
-    `pluginloader_load`, `pluginloader_post_load` and `pluginloader_unload`, which the C++ part of
-    the plugin implements. `obs_module_load` returns `false` when `pluginloader_load` does.
+   `pluginloader_load`, `pluginloader_post_load` and `pluginloader_unload`, which the C++ part of
+   the plugin implements. `obs_module_load` returns `false` when `pluginloader_load` does.
 9. At `obs_module_unload`, libobs objects are still valid. The plugin releases the references it
-    holds there, but it does not destroy objects that libobs may still call back into. OBS Studio
-    33.0.3 documents this in `obs-module.h`.
+   holds there, but it does not destroy objects that libobs may still call back into. OBS Studio
+   33.0.3 documents this in `obs-module.h`.
 10. `obs_module_name`, `obs_module_description` and `obs_module_author` return what
     `pluginloader_get_name`, `pluginloader_get_description` and `pluginloader_get_author` return,
     which the C++ part of the plugin implements with the display name, the long description and
@@ -139,9 +139,9 @@ A `plugin-main.c` that used `OBS_DECLARE_MODULE()`, `OBS_MODULE_USE_DEFAULT_LOCA
 definitions of the other functions was built as a macOS bundle with Apple clang, C17:
 
 - With `-fvisibility=hidden`, it exported 10 functions. `obs_module_author`, defined by hand, was
-    hidden. Replacing it with `OBS_MODULE_AUTHOR()` gave the 11.
+  hidden. Replacing it with `OBS_MODULE_AUTHOR()` gave the 11.
 - Without `-fvisibility=hidden`, it exported 17 symbols: the 11, plus `obs_current_module`,
-    `obs_module_text`, `obs_module_lookup` and three functions of the plugin.
+  `obs_module_text`, `obs_module_lookup` and three functions of the plugin.
 
 ### libobs's locale parser
 
@@ -151,10 +151,10 @@ libobs alike (`/* comments are designated with a #, and end at LF */`, then `if 
 33.0.3 on macOS gave these results:
 
 - A line `; Plugin names - Do not translate them.` became an entry with the key `;` and the value
-    ` `, and the rest of the line was skipped: `; "Strength"="WRONG"` did not change `Strength`.
+  ` `, and the rest of the line was skipped: `; "Strength"="WRONG"` did not change `Strength`.
 - The same lines starting with `#` were ignored.
 - An unquoted `Up to date="Up to date"` gave the key `Up` with the value ` `. Quoted keys with
-    spaces, `!`, `(`, `)`, `:` and `%` were read correctly.
+  spaces, `!`, `(`, `)`, `:` and `%` were read correctly.
 
 ### Exports and loading, checked by hand
 
@@ -166,11 +166,11 @@ files were built both without and with `-fvisibility=hidden`, and the results we
 
 The export tables:
 
-| Platform | Toolchain and link | Exports | External references |
-| --- | --- | --- | --- |
-| macOS, universal (arm64 and x86_64) | Apple clang, `-mmacosx-version-min=13.0`, linked with `vendor/sdk/obs-29.1.3-macos/lib/libobs.tbd` | The 11 functions in each slice (`nm -gU`) | `blog` from `@rpath/libobs.framework`, and libc |
-| Linux | GCC 16.2.0 (Debian forky), `-shared` | The 11 functions (`nm -D --defined-only`) | `blog`, and libc |
-| Windows x64 | MSVC 19.51 (Visual Studio 2026) with `/std:c17 /utf-8 /Zc:preprocessor /W4 /WX`, linked with `vendor/obs-deps/lib/x64-windows/obs.lib` | The 11 functions, undecorated (`dumpbin /exports`) | `blog` from `obs.dll` |
+| Platform                            | Toolchain and link                                                                                                                     | Exports                                            | External references                             |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------- |
+| macOS, universal (arm64 and x86_64) | Apple clang, `-mmacosx-version-min=13.0`, linked with `vendor/sdk/obs-29.1.3-macos/lib/libobs.tbd`                                     | The 11 functions in each slice (`nm -gU`)          | `blog` from `@rpath/libobs.framework`, and libc |
+| Linux                               | GCC 16.2.0 (Debian forky), `-shared`                                                                                                   | The 11 functions (`nm -D --defined-only`)          | `blog`, and libc                                |
+| Windows x64                         | MSVC 19.51 (Visual Studio 2026) with `/std:c17 /utf-8 /Zc:preprocessor /W4 /WX`, linked with `vendor/obs-deps/lib/x64-windows/obs.lib` | The 11 functions, undecorated (`dumpbin /exports`) | `blog` from `obs.dll`                           |
 
 A loader that, like libobs, finds the functions by name (`dlopen` and `dlsym`, or `LoadLibrary`
 and `GetProcAddress`) found all 11, and none of 18 internal names: `obs_current_module`,
@@ -192,7 +192,7 @@ arm64 Mac, for both builds:
 
 - `obs_open_module` returned `MODULE_SUCCESS`, and `obs_init_module` returned `true`.
 - `obs_get_module_name`, `obs_get_module_author` and `obs_get_module_description` returned the
-    module's strings.
+  module's strings.
 - `obs_module_get_locale_string("Background Removal")` returned `true`.
 - `obs_shutdown` returned normally.
 
@@ -221,7 +221,7 @@ Linux and Windows.
 ## Verification
 
 - A check compares the keys that the sources pass to `obs_module_text` with the entries of
-    `data/locale/en-US.ini`, and the entries of every other `.ini` file with those of `en-US.ini`,
-    as libobs's parser reads them.
+  `data/locale/en-US.ini`, and the entries of every other `.ini` file with those of `en-US.ini`,
+  as libobs's parser reads them.
 - The exported symbols of the built module are exactly the 11 functions of Requirement 1 on every
-    platform.
+  platform.

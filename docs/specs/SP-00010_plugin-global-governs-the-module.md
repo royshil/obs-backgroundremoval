@@ -41,32 +41,31 @@ feature.
 ## Requirements
 
 1. `src/PluginGlobal` holds only code whose domain is the plugin module itself:
-
     - the plugin loader: the `pluginloader_*` functions with C linkage that `src/plugin-main.c`
-        calls, as SP-00009 Requirement 3 lists, and the order in which they set up and tear down the
-        features of the plugin;
+      calls, as SP-00009 Requirement 3 lists, and the order in which they set up and tear down the
+      features of the plugin;
     - the identity of the module: its name, its description and its author;
     - the version of the module: the version of this build, the latest released version fetched
-        from the remote, and `PluginGlobal::SemVer`, which they are managed with.
+      from the remote, and `PluginGlobal::SemVer`, which they are managed with.
     - the settings of the module: `update.ini` in the config directory of the plugin, which
-        `PluginGlobal::UpdateConfig` reads and writes, with the version that the user has seen and
-        whether update checks are enabled.
+      `PluginGlobal::UpdateConfig` reads and writes, with the version that the user has seen and
+      whether update checks are enabled.
 
 2. Every feature of the plugin may use what `src/PluginGlobal` declares, `SemVer` included. The
-    division into directories marks the reach of a change, and is not a boundary that features have
-    to keep out of.
+   division into directories marks the reach of a change, and is not a boundary that features have
+   to keep out of.
 3. Code is placed in `src/PluginGlobal` for its domain, not because it is shared. A helper that one
-    feature uses stays in that feature's directory, and a general helper that several features use
-    is not a reason to add it to `src/PluginGlobal`.
+   feature uses stays in that feature's directory, and a general helper that several features use
+   is not a reason to add it to `src/PluginGlobal`.
 4. State that `src/PluginGlobal` keeps for the module, such as the latest released version, is
-    created no earlier than `pluginloader_load`, and it is released, with any thread that it started
-    joined, in `pluginloader_unload`, while libobs still runs. The features read or change it
-    through functions that `src/PluginGlobal` declares, not through variables that it exposes.
+   created no earlier than `pluginloader_load`, and it is released, with any thread that it started
+   joined, in `pluginloader_unload`, while libobs still runs. The features read or change it
+   through functions that `src/PluginGlobal` declares, not through variables that it exposes.
 5. New C++ names in `src/PluginGlobal` are in the namespace `PluginGlobal`. The functions with C
-    linkage keep the prefix `pluginloader_`.
+   linkage keep the prefix `pluginloader_`.
 6. Code in `src/PluginGlobal` that needs neither libobs nor Qt, such as `SemVer`, does not depend on
-    the features of the plugin, and is tested on its own: its test in `tests/PluginGlobal` compiles
-    only the sources that it tests.
+   the features of the plugin, and is tested on its own: its test in `tests/PluginGlobal` compiles
+   only the sources that it tests.
 
 ## Verification
 

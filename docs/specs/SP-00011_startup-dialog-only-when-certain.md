@@ -49,7 +49,7 @@ SOSP 2015), with the labels that the paper uses, and in prose:
 
 - **PRE** is what holds when the operation starts.
 - **POST** is what holds when the operation returns. It is split into named outcomes, which
-    together cover every case and of which exactly one holds.
+  together cover every case and of which exactly one holds.
 - **CRASH** is what holds if the process or the system stops at any point during the operation.
 
 Crash Hoare Logic also requires that recovery after a crash can start again from what CRASH leaves.
@@ -60,13 +60,13 @@ decides as usual.
 
 `update.ini` in the config directory of the plugin is in one of these states:
 
-| State | Meaning |
-| --- | --- |
-| Missing | No file of that name exists. |
-| Valid | It can be read, and its section `[update]` has `version` or `check_for_updates`. |
-| Invalid | Anything else, such as an empty or unreadable file, or a directory. |
+| State   | Meaning                                                                          |
+| ------- | -------------------------------------------------------------------------------- |
+| Missing | No file of that name exists.                                                     |
+| Valid   | It can be read, and its section `[update]` has `version` or `check_for_updates`. |
+| Invalid | Anything else, such as an empty or unreadable file, or a directory.              |
 
-The *stored version* of a valid file is its `version`, or 0.0.0 when it has none. Its
+The _stored version_ of a valid file is its `version`, or 0.0.0 when it has none. Its
 `check_for_updates` is false when it has none.
 
 ### Commit
@@ -77,13 +77,13 @@ The commit replaces `update.ini` with a file in a target state: it writes a temp
 
 - **PRE:** No other commit runs in the process.
 - **POST, committed:** Every operation reported success, and `update.ini`, read back, is in the
-    target state.
+  target state.
 - **POST, failed:** An operation before the replacement failed, and `update.ini` is unchanged.
 - **POST, unconfirmed:** The replacement or an operation after it failed, or the read-back
-    differed, and `update.ini` is unchanged or in the target state.
+  differed, and `update.ini` is unchanged or in the target state.
 - **CRASH:** `update.ini` is unchanged or in the target state, as far as the operating system
-    replaces a file as a whole and keeps what has been flushed. The temporary file may remain, and
-    the next commit removes it first.
+  replaces a file as a whole and keeps what has been flushed. The temporary file may remain, and
+  the next commit removes it first.
 
 The plugin does not look at file modes or attributes. Whether the files can be written is the
 operating system's to decide, and the plugin learns it only from the results of the operations.
@@ -97,24 +97,24 @@ When `NO_STARTUP_DIALOG.txt`, as a file or a directory, exists next to `update.i
 neither reads nor writes `update.ini`, and does not show the dialog. The file system decides
 whether a name in another case matches. Otherwise the target state is:
 
-| `update.ini` before | Target state |
-| --- | --- |
-| Missing | Valid, with `version` set to `PLUGIN_VERSION` and `check_for_updates` true |
-| Valid, with a stored version less than `PLUGIN_VERSION` (SP-01021) | Valid, with `version` set to `PLUGIN_VERSION`, `check_for_updates` kept or set true when missing, and the other keys kept |
-| Valid, with a stored version that is equal, greater or not a semantic version | Unchanged |
-| Invalid | Unchanged |
+| `update.ini` before                                                           | Target state                                                                                                              |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Missing                                                                       | Valid, with `version` set to `PLUGIN_VERSION` and `check_for_updates` true                                                |
+| Valid, with a stored version less than `PLUGIN_VERSION` (SP-01021)            | Valid, with `version` set to `PLUGIN_VERSION`, `check_for_updates` kept or set true when missing, and the other keys kept |
+| Valid, with a stored version that is equal, greater or not a semantic version | Unchanged                                                                                                                 |
+| Invalid                                                                       | Unchanged                                                                                                                 |
 
 `PLUGIN_VERSION` is a semantic version of three parts.
 
 - **PRE:** The dialog has not been shown in this session.
 - **POST, declined:** The target state is unchanged. Nothing is written, and the dialog is not
-    shown.
+  shown.
 - **POST, shown:** The commit was committed, and the dialog is shown.
 - **POST, given up:** The commit failed or was unconfirmed, and the dialog is not shown. It is not
-    retried, in this session or a later one.
+  retried, in this session or a later one.
 - **CRASH:** `update.ini` is unchanged or in the target state.
 - **Invariant:** Once the dialog has been shown, the stored version is `PLUGIN_VERSION`, so the next
-    startup declines. This holds after a crash as well, by the CRASH of the commit.
+  startup declines. This holds after a crash as well, by the CRASH of the commit.
 
 Whenever the procedure ends without showing the dialog, the plugin fetches the latest version if
 `update.ini` is valid and its `check_for_updates` is true. When the dialog is shown, the fetch waits
@@ -124,11 +124,11 @@ until the user closes it with update notifications enabled.
 
 When the About dialog is closed with update notifications set to a value, the target state is:
 
-| `update.ini` before | Target state |
-| --- | --- |
-| Missing | Valid, with only `check_for_updates` set to the value |
-| Valid | Valid, with `check_for_updates` set to the value and the other keys kept |
-| Invalid | Unchanged |
+| `update.ini` before | Target state                                                             |
+| ------------------- | ------------------------------------------------------------------------ |
+| Missing             | Valid, with only `check_for_updates` set to the value                    |
+| Valid               | Valid, with `check_for_updates` set to the value and the other keys kept |
+| Invalid             | Unchanged                                                                |
 
 - **PRE:** None.
 - **POST, declined:** `update.ini` is invalid, and nothing is written.
@@ -142,12 +142,12 @@ Because it keeps `version`, closing the About dialog keeps the invariant of the 
 Each of these can show the dialog once more, or keep it away, but none shows it at every startup.
 
 - The operating system and the drive may not keep the CRASH of the commit: not every platform
-    documents that a replacement is atomic across a crash, and a drive may ignore a flush. The old
-    `update.ini` can then come back after the dialog was shown, which shows it once more.
+  documents that a replacement is atomic across a crash, and a drive may ignore a flush. The old
+  `update.ini` can then come back after the dialog was shown, which shows it once more.
 - An unconfirmed commit may have left `update.ini` in a state that keeps the dialog and fetches
-    away until the file is removed, such as a file that is short or empty.
+  away until the file is removed, such as a file that is short or empty.
 - A file that the About dialog created before any startup committed has no `version`, so the next
-    startup shows the dialog once.
+  startup shows the dialog once.
 - Two OBS Studio processes running at once are not considered.
 
 ## Verification
@@ -156,9 +156,9 @@ The flushes are checked by reading the code. The rest is tested by starting
 OBS Studio with a prepared config directory.
 
 - Each row of the tables under Startup and About dialog closed leads to the target state and the
-    outcome listed there.
+  outcome listed there.
 - After the dialog has been shown, the next startup declines.
 - With a config directory that cannot be written, the commit fails, nothing is shown, and
-    `update.ini` is unchanged.
+  `update.ini` is unchanged.
 - With `NO_STARTUP_DIALOG.txt`, nothing is shown and `update.ini` is unchanged.
 - With `check_for_updates` false or missing, no fetch is made.
