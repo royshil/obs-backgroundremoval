@@ -56,24 +56,6 @@ Crash Hoare Logic also requires that recovery after a crash can start again from
 Here, recovery is the next startup: what CRASH leaves must be a state from which the next startup
 decides as usual.
 
-### Assumptions
-
-The commit relies on these properties of the operating system, which the plugin cannot check:
-
-1. Other processes see `update.ini` replaced as a whole, never in between. POSIX requires this of
-    `rename`.
-2. A crash also leaves `update.ini` either as it was or replaced as a whole. macOS documents this
-    for `rename`. On Linux, journaling and copy-on-write file systems behave this way but do not
-    document it. Windows documents neither.
-3. Content flushed before the replacement is on the disk before the replacement is.
-4. A replacement flushed after it is made stays after a power loss, as far as the drive keeps the
-    promises of the flush.
-
-DFSCQ (Chen et al., SOSP 2017) proves that this pattern, a temporary file flushed and then renamed
-over the target, leaves either the old or the new content after a crash, under its model of the file
-system. Bornholt et al. (ASPLOS 2016) show that on ext4 the replacement can lose the new content
-when the temporary file is not flushed before it, which is why Assumption 3 is needed.
-
 ### States of `update.ini`
 
 `update.ini` in the config directory of the plugin is in one of these states:
@@ -99,8 +81,9 @@ The commit replaces `update.ini` with a file in a target state: it writes a temp
 - **POST, failed:** An operation before the replacement failed, and `update.ini` is unchanged.
 - **POST, unconfirmed:** The replacement or an operation after it failed, or the read-back
     differed, and `update.ini` is unchanged or in the target state.
-- **CRASH:** `update.ini` is unchanged or in the target state, by Assumptions 2 and 3. The
-    temporary file may remain, and the next commit removes it first.
+- **CRASH:** `update.ini` is unchanged or in the target state, as far as the operating system
+    replaces a file as a whole and keeps what has been flushed. The temporary file may remain, and
+    the next commit removes it first.
 
 The plugin does not look at file modes or attributes. Whether the files can be written is the
 operating system's to decide, and the plugin learns it only from the results of the operations.
@@ -131,7 +114,7 @@ whether a name in another case matches. Otherwise the target state is:
     retried, in this session or a later one.
 - **CRASH:** `update.ini` is unchanged or in the target state.
 - **Invariant:** Once the dialog has been shown, the stored version is `PLUGIN_VERSION`, so the next
-    startup declines. This holds after a crash as well, under Assumption 4.
+    startup declines. This holds after a crash as well, by the CRASH of the commit.
 
 Whenever the procedure ends without showing the dialog, the plugin fetches the latest version if
 `update.ini` is valid and its `check_for_updates` is true. When the dialog is shown, the fetch waits
@@ -158,9 +141,9 @@ Because it keeps `version`, closing the About dialog keeps the invariant of the 
 
 Each of these can show the dialog once more, or keep it away, but none shows it at every startup.
 
-- The assumptions are not guaranteed. Windows documents no crash atomicity of the replacement, and
-    a drive that ignores a flush, or a power loss on macOS without the full flush, can bring back
-    the old `update.ini` after the dialog was shown, which then shows it once more.
+- The operating system and the drive may not keep the CRASH of the commit: not every platform
+    documents that a replacement is atomic across a crash, and a drive may ignore a flush. The old
+    `update.ini` can then come back after the dialog was shown, which shows it once more.
 - An unconfirmed commit may have left `update.ini` in a state that keeps the dialog and fetches
     away until the file is removed, such as a file that is short or empty.
 - A file that the About dialog created before any startup committed has no `version`, so the next
@@ -169,7 +152,7 @@ Each of these can show the dialog once more, or keep it away, but none shows it 
 
 ## Verification
 
-The assumptions and the flushes are checked by reading the code. The rest is tested by starting
+The flushes are checked by reading the code. The rest is tested by starting
 OBS Studio with a prepared config directory.
 
 - Each row of the tables under Startup and About dialog closed leads to the target state and the
